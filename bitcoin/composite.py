@@ -7,8 +7,8 @@ from deterministic import *
 # Takes privkey, address, value (satoshis), fee (satoshis)
 def send(frm, to, value, fee=1000):
     u = unspent(privtoaddr(frm))
-    u2 = select(u, value+fee)
-    argz = u2 + [to+':'+str(value), privtoaddr(to), fee]
+    u2 = select(u, value + fee)
+    argz = u2 + [to + ':' + str(value), privtoaddr(to), fee]
     tx = mksend(argz)
     tx2 = signall(tx, privtoaddr(to))
     pushtx(tx2)
@@ -23,7 +23,7 @@ def bip32_hdm_script(*args):
             keys.append(args[i])
             i += 1
         req = int(args[i])
-        path = map(int, args[i+1:])
+        path = map(int, args[i + 1:])
     pubs = sorted(map(lambda x: bip32_descend(x, path), keys))
     return mk_multisig_script(pubs, req)
 
@@ -36,5 +36,5 @@ def setup_coinvault_tx(tx, script):
     txobj = deserialize(tx)
     N = deserialize_script(script)[-2]
     for inp in txobj["ins"]:
-        inp["script"] = serialize_script([None] * (N+1) + [script])
+        inp["script"] = serialize_script([None] * (N + 1) + [script])
     return serialize(txobj)

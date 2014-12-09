@@ -1,4 +1,3 @@
-
 import bitcoin as btc
 
 #structure for cj market wallet
@@ -10,30 +9,29 @@ import bitcoin as btc
 # m/0/n/0/k kth receive address, for mixing depth n
 # m/0/n/1/k kth change address, for mixing depth n
 
-
 seed = btc.sha256('dont use brainwallets')
 #seed = '256 bits of randomness'
 
-
-master = btc.bip32_master_key(seed)#, btc.TESTNET_PRIVATE)
+master = btc.bip32_master_key(seed)  #, btc.TESTNET_PRIVATE)
 print 'master = ' + master
 
-addr_vbyte = 0x6f #testnet
+addr_vbyte = 0x6f  #testnet
 
 m_0 = btc.bip32_ckd(master, 0)
 for n in range(3):
-	print 'mixing depth ' + str(n) + ' m/0/' + str(n) + '/'
-	m_0_n = btc.bip32_ckd(m_0, n)
-	for forchange in range(2):
-		print(' ' + ('receive' if forchange==0 else 'change') +
-			' addresses m/0/%d/%d/' % (n, forchange))
-		m_0_n_c = btc.bip32_ckd(m_0_n, forchange)
-		for k in range(4):
-			m_0_n_c_k = btc.bip32_ckd(m_0_n_c, k)
-			priv = btc.bip32_extract_key(m_0_n_c_k)
-			print'  m/0/%d/%d/%d/ ' % (n, forchange, k) + btc.privtoaddr(priv, addr_vbyte)# + ' ' + btc.encode_privkey(priv, 'wif')
-
-
+    print 'mixing depth ' + str(n) + ' m/0/' + str(n) + '/'
+    m_0_n = btc.bip32_ckd(m_0, n)
+    for forchange in range(2):
+        print(' ' +
+              ('receive'
+               if forchange == 0 else 'change') + ' addresses m/0/%d/%d/' %
+              (n, forchange))
+        m_0_n_c = btc.bip32_ckd(m_0_n, forchange)
+        for k in range(4):
+            m_0_n_c_k = btc.bip32_ckd(m_0_n_c, k)
+            priv = btc.bip32_extract_key(m_0_n_c_k)
+            print '  m/0/%d/%d/%d/ ' % (n, forchange, k) + btc.privtoaddr(
+                priv, addr_vbyte)  # + ' ' + btc.encode_privkey(priv, 'wif')
 '''
 #default key on http://bip32.org/
 m_priv =\
@@ -85,7 +83,6 @@ print_pub_priv('chain m/0/2147483647H', chain_m_0_214blahH)
 chain_m_0_214blahH_1 = btc.bip32_ckd(chain_m_0_214blahH, 1)
 print_pub_priv('chain m/0/2147483647H/1', chain_m_0_214blahH_1)
 '''
-
 '''
 seed = '256 bits of randomness'
 m_priv = btc.bip32_master_key(seed)

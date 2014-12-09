@@ -10,6 +10,7 @@ import sys
 # proxy just works for http in urllib2
 __proxy_handler = None
 
+
 def bci_set_proxy(handler):
     global __proxy_handler
     __proxy_handler = handler
@@ -22,7 +23,7 @@ def make_request(*args):
     else:
         opener = urllib2.build_opener()
     opener.addheaders = [('User-agent',
-                          'Mozilla/5.0'+str(random.randrange(1000000)))]
+                          'Mozilla/5.0' + str(random.randrange(1000000)))]
     try:
         return opener.open(*args).read().strip()
     except Exception, e:
@@ -46,7 +47,7 @@ def unspent(*args):
     u = []
     for a in addrs:
         try:
-            data = make_request('http://blockchain.info/unspent?address='+a)
+            data = make_request('http://blockchain.info/unspent?address=' + a)
         except Exception, e:
             if str(e) == 'No free outputs to spend':
                 continue
@@ -57,11 +58,11 @@ def unspent(*args):
             for o in jsonobj["unspent_outputs"]:
                 h = o['tx_hash'].decode('hex')[::-1].encode('hex')
                 u.append({
-                    "output": h+':'+str(o['tx_output_n']),
+                    "output": h + ':' + str(o['tx_output_n']),
                     "value": o['value']
                 })
         except:
-            raise Exception("Failed to decode data: "+data)
+            raise Exception("Failed to decode data: " + data)
     return u
 
 
@@ -82,8 +83,8 @@ def blockr_unspent(*args):
     elif network == 'btc':
         blockr_url = 'http://btc.blockr.io/api/v1/address/unspent/'
     else:
-        raise Exception(
-            'Unsupported network {0} for blockr_unspent'.format(network))
+        raise Exception('Unsupported network {0} for blockr_unspent'.format(
+            network))
 
     if len(addr_args) == 0:
         return []
@@ -91,7 +92,7 @@ def blockr_unspent(*args):
         addrs = addr_args[0]
     else:
         addrs = addr_args
-    res = make_request(blockr_url+','.join(addrs))
+    res = make_request(blockr_url + ','.join(addrs))
     data = json.loads(res)['data']
     o = []
     if 'unspent' in data:
@@ -99,7 +100,7 @@ def blockr_unspent(*args):
     for dat in data:
         for u in dat['unspent']:
             o.append({
-                "output": u['tx']+':'+str(u['n']),
+                "output": u['tx'] + ':' + str(u['n']),
                 "value": int(u['amount'].replace('.', ''))
             })
     return o
@@ -127,21 +128,22 @@ def history(*args):
             try:
                 jsonobj = json.loads(data)
             except:
-                raise Exception("Failed to decode data: "+data)
+                raise Exception("Failed to decode data: " + data)
             txs.extend(jsonobj["txs"])
             if len(jsonobj["txs"]) < 50:
                 break
             offset += 50
-            sys.stderr.write("Fetching more transactions... "+str(offset)+'\n')
+            sys.stderr.write("Fetching more transactions... " + str(offset) +
+                             '\n')
     outs = {}
     for tx in txs:
         for o in tx["out"]:
             if o['addr'] in addrs:
-                key = str(tx["tx_index"])+':'+str(o["n"])
+                key = str(tx["tx_index"]) + ':' + str(o["n"])
                 outs[key] = {
                     "address": o["addr"],
                     "value": o["value"],
-                    "output": tx["hash"]+':'+str(o["n"]),
+                    "output": tx["hash"] + ':' + str(o["n"]),
                     "block_height": tx.get("block_height", None)
                 }
     for tx in txs:
@@ -150,7 +152,7 @@ def history(*args):
                 key = str(inp["prev_out"]["tx_index"]) + \
                     ':'+str(inp["prev_out"]["n"])
                 if outs.get(key):
-                    outs[key]["spend"] = tx["hash"]+':'+str(i)
+                    outs[key]["spend"] = tx["hash"] + ':' + str(i)
     return [outs[k] for k in outs]
 
 
@@ -158,15 +160,14 @@ def history(*args):
 def pushtx(tx):
     if not re.match('^[0-9a-fA-F]*$', tx):
         tx = tx.encode('hex')
-    return make_request('http://blockchain.info/pushtx', 'tx='+tx)
+    return make_request('http://blockchain.info/pushtx', 'tx=' + tx)
 
 
 def eligius_pushtx(tx):
     if not re.match('^[0-9a-fA-F]*$', tx):
         tx = tx.encode('hex')
-    s = make_request(
-        'http://eligius.st/~wizkid057/newstats/pushtxn.php',
-        'transaction='+tx+'&send=Push')
+    s = make_request('http://eligius.st/~wizkid057/newstats/pushtxn.php',
+                     'transaction=' + tx + '&send=Push')
     strings = re.findall('string[^"]*"[^"]*"', s)
     for string in strings:
         quote = re.findall('"[^"]*"', string)[0]
@@ -180,8 +181,8 @@ def blockr_pushtx(tx, network='btc'):
     elif network == 'btc':
         blockr_url = 'http://btc.blockr.io/api/v1/tx/push'
     else:
-        raise Exception(
-            'Unsupported network {0} for blockr_pushtx'.format(network))
+        raise Exception('Unsupported network {0} for blockr_pushtx'.format(
+            network))
 
     if not re.match('^[0-9a-fA-F]*$', tx):
         tx = tx.encode('hex')
@@ -192,7 +193,7 @@ def helloblock_pushtx(tx):
     if not re.match('^[0-9a-fA-F]*$', tx):
         tx = tx.encode('hex')
     return make_request('http://mainnet.helloblock.io/v1/transactions',
-                        'rawTxHex='+tx)
+                        'rawTxHex=' + tx)
 
 
 def last_block_height():
@@ -205,7 +206,8 @@ def last_block_height():
 def bci_fetchtx(txhash):
     if not re.match('^[0-9a-fA-F]*$', txhash):
         txhash = txhash.encode('hex')
-    data = make_request('http://blockchain.info/rawtx/'+txhash+'?format=hex')
+    data = make_request('http://blockchain.info/rawtx/' + txhash +
+                        '?format=hex')
     return data
 
 
@@ -215,11 +217,11 @@ def blockr_fetchtx(txhash, network='btc'):
     elif network == 'btc':
         blockr_url = 'http://btc.blockr.io/api/v1/tx/raw/'
     else:
-        raise Exception(
-            'Unsupported network {0} for blockr_fetchtx'.format(network))
+        raise Exception('Unsupported network {0} for blockr_fetchtx'.format(
+            network))
     if not re.match('^[0-9a-fA-F]*$', txhash):
         txhash = txhash.encode('hex')
-    jsondata = json.loads(make_request(blockr_url+txhash))
+    jsondata = json.loads(make_request(blockr_url + txhash))
     return jsondata['data']['tx']['hex']
 
 
@@ -232,7 +234,7 @@ def fetchtx(txhash):
 
 def firstbits(address):
     if len(address) >= 25:
-        return make_request('http://blockchain.info/q/getfirstbits/'+address)
+        return make_request('http://blockchain.info/q/getfirstbits/' + address)
     else:
-        return make_request(
-            'http://blockchain.info/q/resolvefirstbits/'+address)
+        return make_request('http://blockchain.info/q/resolvefirstbits/' +
+                            address)
