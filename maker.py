@@ -7,8 +7,9 @@ import sys
 import sqlite3
 import base64
 
-nickname = 'cj-maker'
-seed = btc.sha256('dont use brainwallets except for holding testnet coins')
+from socket import gethostname
+nickname = 'cj-maker' + btc.sha256(gethostname())[:6]
+seed = sys.argv[1] #btc.sha256('dont use brainwallets except for holding testnet coins')
 
 class CoinJoinOrder(object):
 	def __init__(self, irc, nick, oid, amount):

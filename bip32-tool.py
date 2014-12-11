@@ -11,7 +11,7 @@ import bitcoin as btc
 # m/0/n/1/k kth change address, for mixing depth n
 
 
-seed = btc.sha256('dont use brainwallets')
+seed = sys.argv[1] #btc.sha256('dont use brainwallets')
 #seed = '256 bits of randomness'
 
 
