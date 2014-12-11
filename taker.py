@@ -5,7 +5,7 @@ import irclib
 import bitcoin as btc
 
 import sqlite3, sys, base64
-import threading, time
+import threading, time, random
 
 from socket import gethostname
 nickname = 'cj-taker-' + btc.sha256(gethostname())[:6]
@@ -87,6 +87,7 @@ class CoinJoinTX(object):
             self.outputs.append({'address': self.my_change_addr,
                                  'value': my_change_value})
         utxo_tx = [dict([('output', u)]) for u in sum(self.utxos.values(), [])]
+        random.shuffle(self.outputs)
         tx = btc.mktx(utxo_tx, self.outputs)
         txb64 = base64.b64encode(tx.decode('hex'))
         n = MAX_PRIVMSG_LEN
