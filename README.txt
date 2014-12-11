@@ -96,6 +96,8 @@ TODO combine the taker and maker code into one file where you can make different
 e.g. tumbler.py repeatedly takes orders on the same coins again and again in an effort
  to improve privacy and break the link between them, make sure to split up and combine them again
  in random amounts, because the income-collector will also be splitting and combining coins
+ random intervals between blocks included might be worth it too, since income-collector.py
+ will appear to have coins which dont get mixed again for a while
 e.g. patient-tumbler.py which waits a while being a maker, then just starts to take orders
  after a time limit for people who want to mix coins but dont mind waiting until a fixed upper time limit
 e.g. income-collector.py which acts as a maker solely for the purpose of making money
@@ -112,11 +114,9 @@ both are important for market forces, since markets emerge from human decisions 
 #two options, random delay !orderbook for ones which dont mind, !orderbook without delay for bots
 # which need the orders asap
 
-#TODO make sure the outputs are in random order
-# i.e. so its not like the taker always gets outputs 0,1 and maker 2,3
-#from random import shuffle
-
 #TODO error checking so you cant crash the bot by sending malformed orders
+when an error happens, send back a !error command so the counterparty knows
+ something went wrong, and then cancel that partly filled order
 
 #TODO make an ordertype where maker publishes the utxo he will use
 # this is a way to auction off the use of a desirable coin, maybe a 
