@@ -7,11 +7,12 @@ import bitcoin as btc
 import sqlite3, sys, base64
 import threading, time
 
-nickname = 'cj-taker'
-seed = btc.sha256('your brainwallet goes here')
+from socket import gethostname
+nickname = 'cj-taker-' + btc.sha256(gethostname())[:6]
+seed = sys.argv[1]  #btc.sha256('your brainwallet goes here')
 my_utxo = '5cf68d4c42132f8f0bef8573454036953ddb3ba77a3bf3797d9862b7102d65cd:0'
 
-my_tx_fee_contribution = 10000
+my_tx_fee = 10000
 
 
 class CoinJoinTX(object):
@@ -55,11 +56,14 @@ class CoinJoinTX(object):
         order = db.execute('SELECT ordertype, txfee, cjfee FROM '
                            'orderbook WHERE oid=? AND counterparty=?',
                            (self.active_orders[nick], nick)).fetchone()
+        total_input = calc_total_input_value(self.utxos[nick])
         real_cjfee = calc_cj_fee(order['ordertype'], order['cjfee'],
                                  self.cj_amount)
         self.outputs.append({'address': change_addr,
-                             'value': calc_total_input_value(self.utxos[nick]) -
-                             self.cj_amount - order['txfee'] + real_cjfee})
+                             'value': total_input - self.cj_amount - order[
+                                 'txfee'] + real_cjfee})
+        print 'fee breakdown for %s totalin=%d cjamount=%d txfee=%d realcjfee=%d' % (
+            nick, total_input, self.cj_amount, order['txfee'], real_cjfee)
         self.outputs.append({'address': cj_addr, 'value': self.cj_amount})
         self.cjfee_total += real_cjfee
         if len(self.nonrespondants) > 0:
@@ -73,6 +77,8 @@ class CoinJoinTX(object):
             my_total_in += int(usvals['value'])
 
         my_change_value = my_total_in - self.cj_amount - self.cjfee_total - self.my_txfee
+        print 'fee breakdown for me totalin=%d txfee=%d cjfee_total=%d' % (
+            my_total_in, self.my_txfee, self.cjfee_total)
         if self.my_change_addr == None:
             if my_change_value != 0:
                 print 'WARNING CHANGE NOT BEING USED\nCHANGEVALUE = ' + str(
@@ -143,23 +149,59 @@ cjtx = None
 algo_thread = None
 
 #how long to wait for all the orders to arrive before starting to do coinjoins
-ORDER_ARRIVAL_WAIT_TIME = 3
+ORDER_ARRIVAL_WAIT_TIME = 2
 
 
 def choose_order(cj_amount):
 
     sqlorders = db.execute('SELECT * FROM orderbook;').fetchall()
-    #for o in sqlorders:
-    #	print '(%s %s %d %d-%d %d %s)' % (o['counterparty'], o['ordertype'], o['oid'],
-    #		o['minsize'], o['maxsize'], o['txfee'], o['cjfee'])
-
-    orders = [(o['counterparty'], o['oid'],
-               o['txfee'] + calc_cj_fee(o['ordertype'], o['cjfee'], cj_amount))
+    orders = [(o['counterparty'], o['oid'], calc_cj_fee(o['ordertype'],
+                                                        o['cjfee'], cj_amount))
               for o in sqlorders
               if cj_amount >= o['minsize'] or cj_amount <= o['maxsize']]
     orders = sorted(orders, key=lambda k: k[2])
     print 'orders = ' + str(orders)
-    return orders[0]  #choose the cheapest
+    return orders[0
+                 ]  #choose the cheapest, later this will be chosen differently
+
+
+def choose_sweep_order(my_total_input, my_tx_fee):
+    '''
+	choose an order given that we want to be left with no change
+	i.e. sweep an entire group of utxos
+
+	solve for mychange = 0
+	ABS FEE
+	mychange = totalin - cjamount - mytxfee - absfee
+	=> cjamount = totalin - mytxfee - absfee
+	REL FEE
+	mychange = totalin - cjamount - mytxfee - relfee*cjamount
+	=> 0 = totalin - mytxfee - cjamount*(1 + relfee)
+	=> cjamount = (totalin - mytxfee) / (1 + relfee)
+	'''
+
+    def calc_zero_change_cj_amount(ordertype, cjfee):
+        cj_amount = None
+        if ordertype == 'absorder':
+            cj_amount = my_total_input - my_tx_fee - cjfee
+        elif ordertype == 'relorder':
+            cj_amount = (my_total_input - my_tx_fee) / (Decimal(cjfee) + 1)
+            cj_amount = int(cj_amount.quantize(Decimal(1)))
+        else:
+            raise RuntimeError('unknown order type: ' + str(ordertype))
+        return cj_amount
+
+    sqlorders = db.execute('SELECT * FROM orderbook;').fetchall()
+    orders = [(o['counterparty'], o['oid'],
+               calc_zero_change_cj_amount(o['ordertype'], o['cjfee']),
+               o['minsize'], o['maxsize']) for o in sqlorders]
+    #filter cj_amounts that are not in range
+    orders = [o[:3] for o in orders if o[2] >= o[3] and o[2] <= o[4]]
+    orders = sorted(orders, key=lambda k: k[2])
+    print 'sweep orders = ' + str(orders)
+    return orders[
+        -1
+    ]  #choose one with the highest cj_amount, most left over after paying everything else
 
 
 #thread which does the buy-side algorithm
@@ -189,9 +231,12 @@ class AlgoThread(threading.Thread):
                 self.irc.shutdown()
                 #break
 
-            utxo, addrvalue = self.initial_unspents.popitem()
-            counterparty, oid, fee = choose_order(addrvalue['value'])
-            cj_amount = addrvalue['value'] - fee
+                #utxo, addrvalue = self.initial_unspents.popitem()
+            utxo, addrvalue = [(k, v)
+                               for k, v in self.initial_unspents.iteritems()
+                               if v['value'] == 200000000][0]
+            counterparty, oid, cj_amount = choose_sweep_order(
+                addrvalue['value'], my_tx_fee)
             self.finished_cj = False
             cjtx = CoinJoinTX(self.irc,
                               cj_amount,
@@ -200,7 +245,7 @@ class AlgoThread(threading.Thread):
                               [utxo],
                               wallet.get_receive_addr(mixing_depth=1),
                               None,
-                              my_tx_fee_contribution,
+                              my_tx_fee,
                               self.finished_cj_callback)
             #algorithm for making
             '''
@@ -288,7 +333,7 @@ def on_pubmsg(irc, nick, message):
                               [my_utxo],
                               wallet.get_receive_addr(mixing_depth=1),
                               wallet.get_change_addr(mixing_depth=0),
-                              my_tx_fee_contribution)
+                              my_tx_fee)
 
     #self.connection.quit("Using irc.client.py")
 

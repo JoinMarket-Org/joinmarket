@@ -9,7 +9,7 @@ import bitcoin as btc
 # m/0/n/0/k kth receive address, for mixing depth n
 # m/0/n/1/k kth change address, for mixing depth n
 
-seed = btc.sha256('dont use brainwallets')
+seed = sys.argv[1]  #btc.sha256('dont use brainwallets')
 #seed = '256 bits of randomness'
 
 master = btc.bip32_master_key(seed)  #, btc.TESTNET_PRIVATE)

@@ -5,8 +5,8 @@ import datetime
 import json
 
 server = 'irc.freenode.net'
-port = 6667
 channel = '#joinmarket'
+port = 6667
 
 command_prefix = '!'
 MAX_PRIVMSG_LEN = 450
@@ -156,7 +156,8 @@ def calc_cj_fee(ordertype, cjfee, cj_amount):
     if ordertype == 'absorder':
         real_cjfee = int(cjfee)
     elif ordertype == 'relorder':
-        real_cjfee = int(Decimal(cjfee) * Decimal(cj_amount))
+        real_cjfee = int((Decimal(cjfee) * Decimal(cj_amount)).quantize(Decimal(
+            1)))
     else:
         raise RuntimeError('unknown order type: ' + str(ordertype))
     return real_cjfee
