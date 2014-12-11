@@ -7,10 +7,9 @@ HOWTO try
 1. use bip32-tool.py to output a bunch of addresses
  send testnet coins to one mixing-depth=0 receive address
  do this for two wallet seeds, one for each taker and maker
+ seeds are taken as a command line argument
 
-2. open taker.py and maker.py and set the wallet seed for each
- one in the source code
- also for taker.py set the unspent transaction output (utxo) variable
+2. for taker.py set the unspent transaction output (utxo) variable
  for the coin you want to spend
 
 3. join irc.freenode.net #joinmarket and run both taker.py and maker.py
@@ -50,6 +49,9 @@ some other notes below..
 #TODO
 #ask people on the testnet stuff to code up a few trading algos to see if the interface/protocol that
 # iv invented is general enough
+a few algos:
+fees proportional to how many utxos used, since the marginal cost is unrelated to your cj amount, only to
+ the amount of utxos you use up
 
 #TODO think of names
 #cj-market, cjex, but this isnt really an exchange
@@ -80,6 +82,7 @@ some other notes below..
 # but that wont stop mitm
 # after chats on irc, easiest is to do Trust On First Use, maker sends a pubkey over
 #  TOFU requires a human to verify each first time, might not be practical
+#  skip the human verification, it will probably be okay
 # also theres some algorithm for detecting mitm
 
 #TODO implement something against dust
@@ -88,7 +91,26 @@ some other notes below..
 #TODO completely abstract away the irc stuff, so it can be switched to something else
 # e.g. twitter but more likely darkwallet obelisk and/or electrum server
 
+TODO combine the taker and maker code into one file where you can make different kinds of
+ bot which combine both roles
+e.g. tumbler.py repeatedly takes orders on the same coins again and again in an effort
+ to improve privacy and break the link between them, make sure to split up and combine them again
+ in random amounts, because the income-collector will also be splitting and combining coins
+e.g. patient-tumbler.py which waits a while being a maker, then just starts to take orders
+ after a time limit for people who want to mix coins but dont mind waiting until a fixed upper time limit
+e.g. income-collector.py which acts as a maker solely for the purpose of making money
+ might need to take orders at some point, for very small outputs which have a small probability of being filled
+e.g. single-tx.py which takes a single order, using it to send coins to some address
+ typically as a payment, so this is what the electrum plugin would look like
+
+TODO
+code a gui where a human can see the state of the orderbook and easily choose orders to fill
+code a gui that easily explains to a human how they can choose a fee for their income-collector.py
+both are important for market forces, since markets emerge from human decisions and actions
+
 #TODO add random delays to the orderbook stuff so there isnt such a traffic spike when a new bot joins
+#two options, random delay !orderbook for ones which dont mind, !orderbook without delay for bots
+# which need the orders asap
 
 #TODO make sure the outputs are in random order
 # i.e. so its not like the taker always gets outputs 0,1 and maker 2,3
