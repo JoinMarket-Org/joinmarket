@@ -16,46 +16,47 @@ seed = sys.argv[
 
 class CoinJoinOrder(object):
 
-    def __init__(self, irc, nick, oid, amount):
+    def __init__(self, maker, nick, oid, amount):
+        self.maker = maker
         self.oid = oid
         self.cj_amount = amount
         order = db.execute('SELECT * FROM myorders WHERE oid=?;',
                            (oid,)).fetchone()
         if amount <= order['minsize'] or amount >= order['maxsize']:
-            irc.privmsg(nick, command_prefix + 'error Amount out of range')
+            maker.privmsg(nick, command_prefix + 'error amount out of range')
         #TODO logic for this error causing the order to be removed from list of open orders
-        self.utxos, self.mixing_depth = oid_to_order(oid, amount)
+        self.utxos, self.mixing_depth = oid_to_order(maker.wallet, oid, amount)
         self.ordertype = order['ordertype']
         self.txfee = order['txfee']
         self.cjfee = order['cjfee']
-        self.cj_addr = wallet.get_receive_addr(self.mixing_depth)
-        self.change_addr = wallet.get_change_addr(self.mixing_depth - 1)
+        self.cj_addr = maker.wallet.get_receive_addr(self.mixing_depth)
+        self.change_addr = maker.wallet.get_change_addr(self.mixing_depth - 1)
         self.b64txparts = []
         #even if the order ends up never being furfilled, you dont want someone
         # pretending to fill all your orders to find out which addresses you use
-        irc.privmsg(nick, command_prefix + 'myparts ' + ','.join(self.utxos) +
-                    ' ' + self.cj_addr + ' ' + self.change_addr)
+        maker.privmsg(nick, command_prefix + 'myparts ' + ','.join(self.utxos) +
+                      ' ' + self.cj_addr + ' ' + self.change_addr)
 
     def recv_tx_part(self, b64txpart):
         self.b64txparts.append(b64txpart)
         #TODO this is a dos opportunity, flood someone with !txpart
         #repeatedly to fill up their memory
 
-    def recv_tx(self, irc, nick, b64txpart):
+    def recv_tx(self, nick, b64txpart):
         self.b64txparts.append(b64txpart)
         tx = base64.b64decode(''.join(self.b64txparts)).encode('hex')
         txd = btc.deserialize(tx)
         goodtx, errmsg = self.verify_unsigned_tx(txd)
         if not goodtx:
-            irc.privmsg(nick, command_prefix + 'error ' + errmsg)
+            self.maker.privmsg(nick, command_prefix + 'error ' + errmsg)
             return False
         sigs = []
         for index, ins in enumerate(txd['ins']):
             utxo = ins['outpoint']['hash'] + ':' + str(ins['outpoint']['index'])
-            if utxo not in wallet.unspent:
+            if utxo not in self.maker.wallet.unspent:
                 continue
-            addr = wallet.unspent[utxo]['address']
-            txs = btc.sign(tx, index, wallet.get_key_from_addr(addr))
+            addr = self.maker.wallet.unspent[utxo]['address']
+            txs = btc.sign(tx, index, self.maker.wallet.get_key_from_addr(addr))
             sigs.append(base64.b64encode(btc.deserialize(txs)['ins'][index][
                 'script'].decode('hex')))
         if len(sigs) == 0:
@@ -67,10 +68,10 @@ class CoinJoinOrder(object):
             prev_sigline = sigline
             sigline = sigline + command_prefix + 'sig ' + sig
             if len(sigline) > MAX_PRIVMSG_LEN:
-                irc.privmsg(nick, prev_sigline)
+                self.maker.privmsg(nick, prev_sigline)
                 sigline = command_prefix + 'sig ' + sig
         if len(sigline) > 0:
-            irc.privmsg(nick, sigline)
+            self.maker.privmsg(nick, sigline)
         return True
 
     def verify_unsigned_tx(self, txd):
@@ -80,7 +81,7 @@ class CoinJoinOrder(object):
             return False, 'my utxos are not contained'
         my_total_in = 0
         for u in self.utxos:
-            usvals = wallet.unspent[u]
+            usvals = self.maker.wallet.unspent[u]
             my_total_in += int(usvals['value'])
 
         real_cjfee = calc_cj_fee(self.ordertype, self.cjfee, self.cj_amount)
@@ -107,13 +108,9 @@ class CoinJoinOrder(object):
         return True, None
 
 
-wallet = Wallet(seed)
-active_orders = {}
-
-
 #these two functions create_my_orders() and oid_to_uxto() define the
 # sell-side pricing algorithm of this bot
-def create_my_orders():
+def create_my_orders(wallet):
     db.execute("CREATE TABLE myorders(oid INTEGER, ordertype TEXT, " +
                "minsize INTEGER, maxsize INTEGER, txfee INTEGER, cjfee TEXT);")
 
@@ -134,7 +131,7 @@ def create_my_orders():
 	'''
 
 
-def oid_to_order(oid, amount):
+def oid_to_order(wallet, oid, amount):
     unspent = []
     for utxo, addrvalue in wallet.unspent.iteritems():
         unspent.append({'value': addrvalue['value'], 'utxo': utxo})
@@ -148,78 +145,71 @@ def oid_to_order(oid, amount):
 	'''
 
 
-#TODO this belongs in irclib.py
-def irc_privmsg_size_throttle(irc, target, lines, prefix=''):
-    line = ''
-    for l in lines:
-        line += l
-        if len(line) > MAX_PRIVMSG_LEN:
-            irc.privmsg(target, prefix + line)
-            line = ''
-    if len(line) > 0:
-        irc.privmsg(target, prefix + line)
+class Maker(irclib.IRCClient):
 
+    def __init__(self, wallet):
+        self.active_orders = {}
+        self.wallet = wallet
 
-def privmsg_all_orders(irc, target):
-    orderdb_keys = ['ordertype', 'oid', 'minsize', 'maxsize', 'txfee', 'cjfee']
-    orderline = ''
-    for order in db.execute('SELECT * FROM myorders;').fetchall():
-        elem_list = [str(order[k]) for k in orderdb_keys]
-        orderline += (command_prefix + ' '.join(elem_list))
-        if len(orderline) > MAX_PRIVMSG_LEN:
-            irc.privmsg(target, orderline)
-            orderline = ''
-    if len(orderline) > 0:
-        irc.privmsg(target, orderline)
+    def privmsg_all_orders(self, target):
+        orderdb_keys = ['ordertype', 'oid', 'minsize', 'maxsize', 'txfee',
+                        'cjfee']
+        orderline = ''
+        for order in db.execute('SELECT * FROM myorders;').fetchall():
+            elem_list = [str(order[k]) for k in orderdb_keys]
+            orderline += (command_prefix + ' '.join(elem_list))
+            if len(orderline) > MAX_PRIVMSG_LEN:
+                self.privmsg(target, orderline)
+                orderline = ''
+        if len(orderline) > 0:
+            self.privmsg(target, orderline)
 
+    def on_welcome(self):
+        self.privmsg_all_orders(CHANNEL)
 
-def on_welcome(irc):
-    privmsg_all_orders(irc, channel)
+    def on_privmsg(self, nick, message):
+        #debug("privmsg nick=%s message=%s" % (nick, message))
+        if message[0] != command_prefix:
+            return
+        command_lines = message.split(command_prefix)
+        for command_line in command_lines:
+            chunks = command_line.split(" ")
+            if chunks[0] == 'fill':
+                oid = chunks[1]
+                amount = int(chunks[2])
+                self.active_orders[nick] = CoinJoinOrder(self, nick, oid,
+                                                         amount)
+            elif chunks[0] == 'txpart':
+                b64txpart = chunks[1]  #TODO check nick appears in active_orders
+                self.active_orders[nick].recv_tx_part(b64txpart)
+            elif chunks[0] == 'tx':
+                b64txpart = chunks[1]
+                self.active_orders[nick].recv_tx(nick, b64txpart)
 
+    #each order has an id for referencing to and looking up
+    # using the same id again overwrites it, they'll be plenty of times when an order
+    # has to be modified and its better to just have !order rather than !cancelorder then !order
+    def on_pubmsg(self, nick, message):
+        #debug("pubmsg nick=%s message=%s" % (nick, message))
+        if message[0] == command_prefix:
+            chunks = message[1:].split(" ")
+            if chunks[0] == '%quit' or chunks[0] == '%makerquit':
+                self.shutdown()
+            elif chunks[
+                    0] == '%say':  #% is a way to remind me its a testing cmd
+                self.pubmsg(message[6:])
+            elif chunks[0] == '%rm':
+                self.pubmsg('!cancel ' + chunks[1])
+            elif chunks[0] == 'orderbook':
+                self.privmsg_all_orders(nick)
 
-def on_privmsg(irc, nick, message):
-    #debug("privmsg nick=%s message=%s" % (nick, message))
-    if message[0] != command_prefix:
-        return
-    command_lines = message.split(command_prefix)
-    for command_line in command_lines:
-        chunks = command_line.split(" ")
-        if chunks[0] == 'fill':
-            oid = chunks[1]
-            amount = int(chunks[2])
-            active_orders[nick] = CoinJoinOrder(irc, nick, oid, amount)
-        elif chunks[0] == 'txpart':
-            b64txpart = chunks[1]  #TODO check nick appears in active_orders
-            active_orders[nick].recv_tx_part(b64txpart)
-        elif chunks[0] == 'tx':
-            b64txpart = chunks[1]
-            active_orders[nick].recv_tx(irc, nick, b64txpart)
-
-
-#each order has an id for referencing to and looking up
-# using the same id again overwrites it, they'll be plenty of times when an order
-# has to be modified and its better to just have !order rather than !cancelorder then !order
-def on_pubmsg(irc, nick, message):
-    #debug("pubmsg nick=%s message=%s" % (nick, message))
-    if message[0] == command_prefix:
-        chunks = message[1:].split(" ")
-        if chunks[0] == '%quit' or chunks[0] == '%makerquit':
-            irc.shutdown()
-        elif chunks[0] == '%say':  #% is a way to remind me its a testing cmd
-            irc.pubmsg(message[6:])
-        elif chunks[0] == '%rm':
-            irc.pubmsg('!cancel ' + chunks[1])
-        elif chunks[0] == 'orderbook':
-            privmsg_all_orders(irc, nick)
-
-
-def on_set_topic(irc, newtopic):
-    chunks = newtopic.split('|')
-    try:
-        print chunks[1]
-        print chunks[3]
-    except IndexError:
-        pass
+    def on_set_topic(self, newtopic):
+        chunks = newtopic.split('|')
+        try:
+            print chunks[1].strip()
+            print chunks[3].strip()
+        except IndexError:
+            pass
 
 
 def main():
@@ -229,17 +219,15 @@ def main():
     con = sqlite3.connect(":memory:")
     con.row_factory = sqlite3.Row
     db = con.cursor()
+
+    wallet = Wallet(seed)
     wallet.download_wallet_history()
     wallet.find_unspent_addresses()
-    create_my_orders()
+    print 'downloaded wallet history'
 
-    print 'starting irc'
-    irc = irclib.IRCClient()
-    irc.on_privmsg = on_privmsg
-    irc.on_pubmsg = on_pubmsg
-    irc.on_welcome = on_welcome
-    irc.on_set_topic = on_set_topic
-    irc.run(server, port, nickname, channel)
+    create_my_orders(wallet)
+    maker = Maker(wallet)
+    maker.run(HOST, PORT, nickname, CHANNEL)
 
 
 if __name__ == "__main__":

@@ -18,7 +18,7 @@ my_tx_fee = 10000
 class CoinJoinTX(object):
 
     def __init__(self,
-                 irc,
+                 taker,
                  cj_amount,
                  counterparties,
                  oids,
@@ -31,11 +31,12 @@ class CoinJoinTX(object):
 		if my_change is None then there wont be a change address
 		thats used if you want to entirely coinjoin one utxo with no change left over
 		'''
+        self.taker = taker
         self.cj_amount = cj_amount
         self.active_orders = dict(zip(counterparties, oids))
         self.nonrespondants = list(counterparties)
         self.my_utxos = my_utxos
-        self.utxos = {irc.nick: my_utxos}
+        self.utxos = {taker.nick: my_utxos}
         self.finishcallback = finishcallback
         self.my_txfee = my_txfee
         self.outputs = [{'address': my_cj_addr, 'value': self.cj_amount}]
@@ -43,19 +44,20 @@ class CoinJoinTX(object):
         self.cjfee_total = 0
         self.latest_tx = None
         for c, oid in zip(counterparties, oids):
-            irc.privmsg(
+            taker.privmsg(
                 c, command_prefix + 'fill ' + str(oid) + ' ' + str(cj_amount))
 
-    def recv_tx_parts(self, irc, nick, utxo_list, cj_addr, change_addr):
+    def recv_tx_parts(self, nick, utxo_list, cj_addr, change_addr):
         if nick not in self.nonrespondants:
             debug('nick(' + nick + ') not in nonrespondants ' + str(
                 self.nonrespondants))
             return
         self.utxos[nick] = utxo_list
         self.nonrespondants.remove(nick)
-        order = db.execute('SELECT ordertype, txfee, cjfee FROM '
-                           'orderbook WHERE oid=? AND counterparty=?',
-                           (self.active_orders[nick], nick)).fetchone()
+        order = self.taker.db.execute(
+            'SELECT ordertype, txfee, cjfee FROM '
+            'orderbook WHERE oid=? AND counterparty=?',
+            (self.active_orders[nick], nick)).fetchone()
         total_input = calc_total_input_value(self.utxos[nick])
         real_cjfee = calc_cj_fee(order['ordertype'], order['cjfee'],
                                  self.cj_amount)
@@ -73,7 +75,7 @@ class CoinJoinTX(object):
 
         my_total_in = 0
         for u in self.my_utxos:
-            usvals = wallet.unspent[u]
+            usvals = self.taker.wallet.unspent[u]
             my_total_in += int(usvals['value'])
 
         my_change_value = my_total_in - self.cj_amount - self.cjfee_total - self.my_txfee
@@ -94,19 +96,19 @@ class CoinJoinTX(object):
         txparts = [txb64[i:i + n] for i in range(0, len(txb64), n)]
         for p in txparts[:-1]:
             for nickk in self.active_orders.keys():
-                irc.privmsg(nickk, command_prefix + 'txpart' + p)
+                self.taker.privmsg(nickk, command_prefix + 'txpart' + p)
         for nickk in self.active_orders.keys():
-            irc.privmsg(nickk, command_prefix + 'tx ' + txparts[-1])
-        #now sign it ourselves here
+            self.taker.privmsg(nickk, command_prefix + 'tx ' + txparts[-1])
 
+        #now sign it ourselves here
         for index, ins in enumerate(btc.deserialize(tx)['ins']):
             utxo = ins['outpoint']['hash'] + ':' + str(ins['outpoint']['index'])
             if utxo not in self.my_utxos:
                 continue
-            if utxo not in wallet.unspent:
+            if utxo not in self.taker.wallet.unspent:
                 continue
-            addr = wallet.unspent[utxo]['address']
-            tx = btc.sign(tx, index, wallet.get_key_from_addr(addr))
+            addr = self.taker.wallet.unspent[utxo]['address']
+            tx = btc.sign(tx, index, self.taker.wallet.get_key_from_addr(addr))
         self.latest_tx = btc.deserialize(tx)
 
     def add_signature(self, sigb64):
@@ -115,6 +117,8 @@ class CoinJoinTX(object):
         inserted_sig = False
         tx = btc.serialize(self.latest_tx)
         for index, ins in enumerate(self.latest_tx['ins']):
+            if ins['script'] != '':
+                continue
             ftx = btc.blockr_fetchtx(ins['outpoint']['hash'], get_network())
             src_val = btc.deserialize(ftx)['outs'][ins['outpoint']['index']]
             sig_good = btc.verify_tx_input(tx, index, src_val['script'], *
@@ -144,7 +148,6 @@ class CoinJoinTX(object):
             self.finishcallback()
 
 
-wallet = Wallet(seed)
 cjtx = None
 
 algo_thread = None
@@ -209,10 +212,10 @@ def choose_sweep_order(my_total_input, my_tx_fee):
 # chooses which coinjoins to initiate and when
 class AlgoThread(threading.Thread):
 
-    def __init__(self, irc, initial_unspents):
+    def __init__(self, taker, initial_unspents):
         threading.Thread.__init__(self)
         self.daemon = True
-        self.irc = irc
+        self.taker = taker
         self.initial_unspents = initial_unspents
         self.finished_cj = False
 
@@ -229,7 +232,7 @@ class AlgoThread(threading.Thread):
             #TODO just make this do one tx and then stop
             if len(self.initial_unspents) == 0:
                 print 'finished mixing, closing...'
-                self.irc.shutdown()
+                self.taker.shutdown()
                 #break
 
                 #utxo, addrvalue = self.initial_unspents.popitem()
@@ -239,15 +242,16 @@ class AlgoThread(threading.Thread):
             counterparty, oid, cj_amount = choose_sweep_order(
                 addrvalue['value'], my_tx_fee)
             self.finished_cj = False
-            cjtx = CoinJoinTX(self.irc,
-                              cj_amount,
-                              [counterparty],
-                              [int(oid)],
-                              [utxo],
-                              wallet.get_receive_addr(mixing_depth=1),
-                              None,
-                              my_tx_fee,
-                              self.finished_cj_callback)
+            cjtx = CoinJoinTX(
+                self.taker,
+                cj_amount,
+                [counterparty],
+                [int(oid)],
+                [utxo],
+                self.taker.wallet.get_receive_addr(mixing_depth=1),
+                None,
+                my_tx_fee,
+                self.finished_cj_callback)
             #algorithm for making
             '''
 			single_cj_amount = 112000000
@@ -265,124 +269,113 @@ class AlgoThread(threading.Thread):
             print 'woken algo thread'
 
 
-def add_order(nick, chunks):
-    db.execute('INSERT INTO orderbook VALUES(?, ?, ?, ?, ?, ?, ?);', (
-        nick, chunks[1], chunks[0], chunks[2], chunks[3], chunks[4], chunks[5]))
+class Taker(irclib.IRCClient):
 
+    def __init__(self, wallet):
+        con = sqlite3.connect(":memory:", check_same_thread=False)
+        con.row_factory = sqlite3.Row
+        self.db = con.cursor()
+        self.db.execute(
+            "CREATE TABLE orderbook(counterparty TEXT, oid INTEGER, ordertype TEXT, "
+            + "minsize INTEGER, maxsize INTEGER, txfee INTEGER, cjfee TEXT);")
 
-def on_privmsg(irc, nick, message):
-    #debug("privmsg nick=%s message=%s" % (nick, message))
-    if message[0] != command_prefix:
-        return
+        self.wallet = wallet
 
-    for command in message[1:].split(command_prefix):
-        chunks = command.split(" ")
-        if chunks[0] in ordername_list:
-            add_order(nick, chunks)
-        elif chunks[0] == 'myparts':
-            utxo_list = chunks[1].split(',')
-            cj_addr = chunks[2]
-            change_addr = chunks[3]
-            cjtx.recv_tx_parts(irc, nick, utxo_list, cj_addr, change_addr)
-        elif chunks[0] == 'sig':
-            sig = chunks[1]
-            cjtx.add_signature(sig)
+    def add_order(self, nick, chunks):
+        self.db.execute('INSERT INTO orderbook VALUES(?, ?, ?, ?, ?, ?, ?);',
+                        (nick, chunks[1], chunks[0], chunks[2], chunks[3],
+                         chunks[4], chunks[5]))
 
+    def on_privmsg(self, nick, message):
+        #debug("privmsg nick=%s message=%s" % (nick, message))
+        if message[0] != command_prefix:
+            return
 
-#each order has an id for referencing to and looking up
-# using the same id again overwrites it, they'll be plenty of times when an order
-# has to be modified and its better to just have !order rather than !cancelorder then !order
-def on_pubmsg(irc, nick, message):
-    global cjtx
-    print("pubmsg nick=%s message=%s" % (nick, message))
-    if message[0] != command_prefix:
-        return
+        for command in message[1:].split(command_prefix):
+            chunks = command.split(" ")
+            if chunks[0] in ordername_list:
+                self.add_order(nick, chunks)
+            elif chunks[0] == 'myparts':
+                utxo_list = chunks[1].split(',')
+                cj_addr = chunks[2]
+                change_addr = chunks[3]
+                cjtx.recv_tx_parts(nick, utxo_list, cj_addr, change_addr)
+            elif chunks[0] == 'sig':
+                sig = chunks[1]
+                cjtx.add_signature(sig)
 
-    for command in message[1:].split(command_prefix):
-        #commands starting with % are for testing and will be removed in the final version
-        chunks = command.split(" ")
-        if chunks[0] == '%quit' or chunks[0] == '%takerquit':
-            irc.shutdown()
-        elif chunks[0] == 'cancel':
-            #!cancel [oid]
-            try:
-                oid = int(chunks[1])
-                db.execute(
-                    "DELETE FROM orderbook WHERE counterparty=? AND oid=?;",
-                    (nick, oid))
-            except ValueError as e:
-                debug("!cancel " + repr(e))
-                return
-        elif chunks[0] in ordername_list:
-            add_order(nick, chunks)
-        elif chunks[0] == '%showob':
-            print('printing orderbook')
-            for o in db.execute('SELECT * FROM orderbook;').fetchall():
-                print '(%s %s %d %d-%d %d %s)' % (
-                    o['counterparty'], o['ordertype'], o['oid'], o['minsize'],
-                    o['maxsize'], o['txfee'], o['cjfee'])
-            print('done')
-        elif chunks[0] == '%fill':
-            counterparty = chunks[1]
-            oid = chunks[2]
-            amount = chunks[3]
-            #!fill [counterparty] [oid] [amount]
-            cjtx = CoinJoinTX(irc,
-                              int(amount),
-                              [counterparty],
-                              [int(oid)],
-                              [my_utxo],
-                              wallet.get_receive_addr(mixing_depth=1),
-                              wallet.get_change_addr(mixing_depth=0),
-                              my_tx_fee)
+    #each order has an id for referencing to and looking up
+    # using the same id again overwrites it, they'll be plenty of times when an order
+    # has to be modified and its better to just have !order rather than !cancelorder then !order
+    def on_pubmsg(self, nick, message):
+        global cjtx
+        print("pubmsg nick=%s message=%s" % (nick, message))
+        if message[0] != command_prefix:
+            return
 
-    #self.connection.quit("Using irc.client.py")
+        for command in message[1:].split(command_prefix):
+            #commands starting with % are for testing and will be removed in the final version
+            chunks = command.split(" ")
+            if chunks[0] == '%quit' or chunks[0] == '%takerquit':
+                self.shutdown()
+            elif chunks[0] == 'cancel':
+                #!cancel [oid]
+                try:
+                    oid = int(chunks[1])
+                    self.db.execute(
+                        "DELETE FROM orderbook WHERE counterparty=? AND oid=?;",
+                        (nick, oid))
+                except ValueError as e:
+                    debug("!cancel " + repr(e))
+                    return
+            elif chunks[0] in ordername_list:
+                self.add_order(nick, chunks)
+            elif chunks[0] == '%showob':
+                print('printing orderbook')
+                for o in self.db.execute('SELECT * FROM orderbook;').fetchall():
+                    print '(%s %s %d %d-%d %d %s)' % (
+                        o['counterparty'], o['ordertype'], o['oid'],
+                        o['minsize'], o['maxsize'], o['txfee'], o['cjfee'])
+                print('done')
+            elif chunks[0] == '%fill':
+                counterparty = chunks[1]
+                oid = chunks[2]
+                amount = chunks[3]
+                #!fill [counterparty] [oid] [amount]
+                cjtx = CoinJoinTX(self,
+                                  int(amount),
+                                  [counterparty],
+                                  [int(oid)],
+                                  [my_utxo],
+                                  self.wallet.get_receive_addr(mixing_depth=1),
+                                  self.wallet.get_change_addr(mixing_depth=0),
+                                  my_tx_fee)
 
+        #self.connection.quit("Using irc.client.py")
 
-def on_welcome(irc):
-    global algo_thread
-    irc.pubmsg(command_prefix + 'orderbook')
-    algo_thread = AlgoThread(irc, wallet.unspent.copy())
-    #algo_thread.start()
+    def on_welcome(self):
+        global algo_thread
+        self.pubmsg(command_prefix + 'orderbook')
+        algo_thread = AlgoThread(self, self.wallet.unspent.copy())
+        #algo_thread.start()
 
-
-def on_set_topic(irc, newtopic):
-    chunks = newtopic.split('|')
-    try:
-        print chunks[1]
-        print chunks[2]
-    except IndexError:
-        pass
-
-
-'''
-for m in range(2):
-	print 'mixing depth ' + str(m)
-	for forchange in range(2):
-		print ' forchange=' + str(forchange)
-		for n in range(3):
-			#print '   ' + str(n) + ' ' + btc.privtoaddr(wallet.get_key(m, forchange, n), 0x6f)
-'''
+    def on_set_topic(self, newtopic):
+        chunks = newtopic.split('|')
+        try:
+            print chunks[1].strip()
+            print chunks[2].strip()
+        except IndexError:
+            pass
 
 
 def main():
-    global db
-    con = sqlite3.connect(":memory:", check_same_thread=False)
-    con.row_factory = sqlite3.Row
-    db = con.cursor()
-    db.execute(
-        "CREATE TABLE orderbook(counterparty TEXT, oid INTEGER, ordertype TEXT, "
-        + "minsize INTEGER, maxsize INTEGER, txfee INTEGER, cjfee TEXT);")
+    wallet = Wallet(seed)
     wallet.download_wallet_history()
     wallet.find_unspent_addresses()
 
     print 'starting irc'
-    irc = irclib.IRCClient()
-    irc.on_privmsg = on_privmsg
-    irc.on_pubmsg = on_pubmsg
-    irc.on_welcome = on_welcome
-    irc.on_set_topic = on_set_topic
-    irc.run(server, port, nickname, channel)
+    taker = Taker(wallet)
+    taker.run(HOST, PORT, nickname, CHANNEL)
 
 
 if __name__ == "__main__":

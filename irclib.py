@@ -40,13 +40,22 @@ class PingThread(threading.Thread):
 #handle one channel at a time
 class IRCClient(object):
 
-    def __init__(self):
-        self.on_privmsg = None
-        self.on_pubmsg = None
-        self.on_welcome = None
-        self.on_set_topic = None
-        self.on_leave = None
-        self.on_nick_change = None  #TODO implement
+    def on_privmsg(self, nick, message):
+        pass
+
+    def on_pubmsg(self, nick, message):
+        pass
+
+    def on_welcome(self):
+        pass
+
+    def on_set_topic(self, newtopic):
+        pass
+
+    def on_leave(self, nick):
+        pass
+
+    #TODO implement on_nick_change
 
     def close(self):
         self.send_raw("QUIT")
@@ -59,7 +68,7 @@ class IRCClient(object):
         self.send_raw("PRIVMSG " + self.channel + " :" + message)
 
     def privmsg(self, nick, message):
-        print '>> ' + nick + ' :' + message
+        #print '>> ' + nick + ' :' + message
         self.send_raw("PRIVMSG " + nick + " :" + message)
 
     def send_raw(self, line):
@@ -76,11 +85,9 @@ class IRCClient(object):
             #self.send_raw('PRIVMSG ' + nick + ' :\x01VERSION 
             #TODO ctcp version here, since some servers dont let you get on without
         if target == self.nick:
-            if self.on_privmsg != None:
-                self.on_privmsg(self, nick, message)
+            self.on_privmsg(nick, message)
         else:
-            if self.on_privmsg != None:
-                self.on_pubmsg(self, nick, message)
+            self.on_pubmsg(nick, message)
 
     def __handle_line(self, line):
         line = line.rstrip()
@@ -104,27 +111,22 @@ class IRCClient(object):
             self.send_raw('NICK ' + self.nick)
         elif chunks[1] == '366':  #end of names list
             self.connect_attempts = 0
-            if self.on_welcome != None:
-                self.on_welcome(self)
+            self.on_welcome()
         elif chunks[1] == '332' or chunks[1] == 'TOPIC':  #channel topic
             topic = get_irc_text(line)
-            if self.on_set_topic != None:
-                self.on_set_topic(self, topic)
+            self.on_set_topic(topic)
         elif chunks[1] == 'QUIT':
             nick = get_irc_nick(chunks[0])
             if nick == self.nick:
                 raise IOError('we quit')
             else:
-                if self.on_leave != None:
-                    self.on_leave(self, nick)
+                self.on_leave(nick)
         elif chunks[1] == 'KICK':
             target = chunks[3]
-            if self.on_leave != None:
-                self.on_leave(self, nick)
+            self.on_leave(nick)
         elif chunks[1] == 'PART':
             nick = get_irc_nick(chunks[0])
-            if self.on_leave != None:
-                self.on_leave(self, nick)
+            self.on_leave(nick)
         elif chunks[1] == 'JOIN':
             channel = chunks[2][1:]
             nick = get_irc_nick(chunks[0])
@@ -172,8 +174,20 @@ class IRCClient(object):
             finally:
                 self.fd.close()
                 self.sock.close()
-            self.connect_attempts += 1
+            print 'disconnected irc'
             time.sleep(10)
+            self.connect_attempts += 1
             print 'reconnecting'
         print 'ending irc'
         self.give_up = True
+
+
+def irc_privmsg_size_throttle(irc, target, lines, prefix=''):
+    line = ''
+    for l in lines:
+        line += l
+        if len(line) > MAX_PRIVMSG_LEN:
+            irc.privmsg(target, prefix + line)
+            line = ''
+    if len(line) > 0:
+        irc.privmsg(target, prefix + line)

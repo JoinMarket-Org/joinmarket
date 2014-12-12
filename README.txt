@@ -78,6 +78,8 @@ fees proportional to how many utxos used, since the marginal cost is unrelated t
 #TODO option for how many blocks deep to wait before using a utxo for more mixing
 # 1 confirm is probably enough
 
+TODO implement rate limiting for irc.privmsg to stop the bot being killed due to flood
+
 #TODO encrypt messages between taker and maker, to stop trivial server eavesdropping
 # but that wont stop mitm
 # after chats on irc, easiest is to do Trust On First Use, maker sends a pubkey over

@@ -4,10 +4,11 @@ import sys
 import datetime
 import json
 
-server = 'irc.freenode.net'
-channel = '#joinmarket'
-port = 6667
+HOST = 'irc.freenode.net'
+CHANNEL = '#joinmarket'
+PORT = 6667
 
+#TODO make this var all in caps
 command_prefix = '!'
 MAX_PRIVMSG_LEN = 450
 
@@ -132,6 +133,9 @@ class Wallet(object):
             for forchange in [0, 1]:
                 addrs += [self.get_addr(m, forchange, n)
                           for n in range(self.index[m][forchange])]
+        if len(addrs) == 0:
+            print 'no tx used'
+            return
 
         #TODO send a pull request to pybitcointools 
         # unspent() doesnt tell you which address, you get a bunch of utxos
