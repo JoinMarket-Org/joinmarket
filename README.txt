@@ -73,7 +73,10 @@ fees proportional to how many utxos used, since the marginal cost is unrelated t
 #TODO use electrum json_rpc instead of the pybitcointools stuff
 # problem, i dont think that supports testnet
 # bitcoind json_rpc obviously supports testnet, but someone else can download
-#  the blockchain 
+#  the blockchain, actually it seems you cant replace pybitcointools with bitcoind
+#  cant look up any txid or address
+# could use a websocket api for learning when new blocks/tx appear
+# could use python-bitcoinlib to be a node in the p2p network
 
 #TODO option for how many blocks deep to wait before using a utxo for more mixing
 # 1 confirm is probably enough
@@ -85,6 +88,7 @@ TODO implement rate limiting for irc.privmsg to stop the bot being killed due to
 # after chats on irc, easiest is to do Trust On First Use, maker sends a pubkey over
 #  TOFU requires a human to verify each first time, might not be practical
 #  skip the human verification, it will probably be okay
+# make the irc nick be a hash of the pubkey
 # also theres some algorithm for detecting mitm
 
 #TODO implement something against dust
@@ -106,6 +110,8 @@ e.g. income-collector.py which acts as a maker solely for the purpose of making 
  might need to take orders at some point, for very small outputs which have a small probability of being filled
 e.g. single-tx.py which takes a single order, using it to send coins to some address
  typically as a payment, so this is what the electrum plugin would look like
+e.g. gui-taker.py has a gui which shows the user the orderbook and they can easily fill and order
+ and see other statistics, could be easily done by opening a http port and sending a html form and graphics
 
 TODO
 code a gui where a human can see the state of the orderbook and easily choose orders to fill
