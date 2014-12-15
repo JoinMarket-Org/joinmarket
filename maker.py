@@ -8,7 +8,7 @@ import sqlite3
 import base64
 
 from socket import gethostname
-nickname = 'cj-maker' + btc.sha256(gethostname())[:6]
+nickname = 'cj-maker-' + btc.sha256(gethostname())[:6]
 seed = sys.argv[
     1
 ]  #btc.sha256('dont use brainwallets except for holding testnet coins')
@@ -20,8 +20,7 @@ class CoinJoinOrder(object):
         self.maker = maker
         self.oid = oid
         self.cj_amount = amount
-        order = db.execute('SELECT * FROM myorders WHERE oid=?;',
-                           (oid,)).fetchone()
+        order = [o for o in orderlist if o['oid'] == oid][0]
         if amount <= order['minsize'] or amount >= order['maxsize']:
             maker.privmsg(nick, command_prefix + 'error amount out of range')
         #TODO logic for this error causing the order to be removed from list of open orders
@@ -111,17 +110,24 @@ class CoinJoinOrder(object):
 #these two functions create_my_orders() and oid_to_uxto() define the
 # sell-side pricing algorithm of this bot
 def create_my_orders(wallet):
-    db.execute("CREATE TABLE myorders(oid INTEGER, ordertype TEXT, " +
-               "minsize INTEGER, maxsize INTEGER, txfee INTEGER, cjfee TEXT);")
 
     #tells the highest value possible made by combining all utxos
     #fee is 0.2% of the cj amount
     total_value = 0
     for utxo, addrvalue in wallet.unspent.iteritems():
         total_value += addrvalue['value']
-    db.execute('INSERT INTO myorders VALUES(?, ?, ?, ?, ?, ?);',
-               (0, 'relorder', 0, total_value, 10000, '0.002'))
+
+    order = {'oid': 0,
+             'ordertype': 'relorder',
+             'minsize': 0,
+             'maxsize': total_value,
+             'txfee': 10000,
+             'cjfee': '0.002'}
+    global orderlist
+    orderlist = [order]
     '''
+        db.execute("CREATE TABLE myorders(oid INTEGER, ordertype TEXT, "
+		+ "minsize INTEGER, maxsize INTEGER, txfee INTEGER, cjfee TEXT);")
 	#simple algorithm where each utxo we have becomes an order
 	oid = 0
 	for un in db.execute('SELECT * FROM unspent;').fetchall():
@@ -152,11 +158,11 @@ class Maker(irclib.IRCClient):
         self.wallet = wallet
 
     def privmsg_all_orders(self, target):
-        orderdb_keys = ['ordertype', 'oid', 'minsize', 'maxsize', 'txfee',
-                        'cjfee']
+        order_keys = ['ordertype', 'oid', 'minsize', 'maxsize', 'txfee', 'cjfee'
+                     ]
         orderline = ''
-        for order in db.execute('SELECT * FROM myorders;').fetchall():
-            elem_list = [str(order[k]) for k in orderdb_keys]
+        for order in orderlist:
+            elem_list = [str(order[k]) for k in order_keys]
             orderline += (command_prefix + ' '.join(elem_list))
             if len(orderline) > MAX_PRIVMSG_LEN:
                 self.privmsg(target, orderline)
@@ -175,7 +181,7 @@ class Maker(irclib.IRCClient):
         for command_line in command_lines:
             chunks = command_line.split(" ")
             if chunks[0] == 'fill':
-                oid = chunks[1]
+                oid = int(chunks[1])
                 amount = int(chunks[2])
                 self.active_orders[nick] = CoinJoinOrder(self, nick, oid,
                                                          amount)
@@ -215,10 +221,6 @@ class Maker(irclib.IRCClient):
 def main():
     #TODO using sqlite3 to store my own orders is overkill, just
     # use a python data structure
-    global db
-    con = sqlite3.connect(":memory:")
-    con.row_factory = sqlite3.Row
-    db = con.cursor()
 
     wallet = Wallet(seed)
     wallet.download_wallet_history()
