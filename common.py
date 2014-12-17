@@ -24,7 +24,7 @@ def get_network():
 
 
 #TODO change this name into get_addr_ver() or something
-def get_vbyte():
+def get_addr_vbyte():
     if get_network() == 'testnet':
         return 0x6f
     else:
@@ -62,7 +62,7 @@ class Wallet(object):
 
     def get_addr(self, mixing_depth, forchange, i):
         return btc.privtoaddr(
-            self.get_key(mixing_depth, forchange, i), get_vbyte())
+            self.get_key(mixing_depth, forchange, i), get_addr_vbyte())
 
     def get_new_addr(self, mixing_depth, forchange):
         index = self.index[mixing_depth]
@@ -92,6 +92,7 @@ class Wallet(object):
         for mix_depth in range(MAX_MIX_DEPTH):
             for forchange in [0, 1]:
                 unused_addr_count = 0
+                last_used_addr = ''
                 while unused_addr_count < gaplimit:
                     addrs = [self.get_new_addr(mix_depth, forchange)
                              for i in range(addr_req_count)]
@@ -104,8 +105,6 @@ class Wallet(object):
                         blockr_url = 'http://btc.blockr.io/api/v1/address/txs/'
                     res = btc.make_request(blockr_url + ','.join(addrs))
                     data = json.loads(res)['data']
-                    last_used_addr = ''
-                    unused_addr_count = 0
                     for dat in data:
                         if dat['nb_txs'] != 0:
                             last_used_addr = dat['address']
@@ -113,11 +112,11 @@ class Wallet(object):
                             unused_addr_count += 1
                             if unused_addr_count >= gaplimit:
                                 break
-                    if last_used_addr == '':
-                        self.index[mix_depth][forchange] = 0
-                    else:
-                        self.index[mix_depth][forchange] = self.addr_cache[
-                            last_used_addr][2] + 1
+                if last_used_addr == '':
+                    self.index[mix_depth][forchange] = 0
+                else:
+                    self.index[mix_depth][forchange] = self.addr_cache[
+                        last_used_addr][2] + 1
 
     def find_unspent_addresses(self):
         '''
