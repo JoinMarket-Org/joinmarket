@@ -1,5 +1,6 @@
 
 import bitcoin as btc
+import sys
 
 #structure for cj market wallet
 # m/0/ root key
@@ -21,14 +22,14 @@ print 'master = ' + master
 addr_vbyte = 0x6f #testnet
 
 m_0 = btc.bip32_ckd(master, 0)
-for n in range(3):
+for n in range(2):
 	print 'mixing depth ' + str(n) + ' m/0/' + str(n) + '/'
 	m_0_n = btc.bip32_ckd(m_0, n)
 	for forchange in range(2):
 		print(' ' + ('receive' if forchange==0 else 'change') +
 			' addresses m/0/%d/%d/' % (n, forchange))
 		m_0_n_c = btc.bip32_ckd(m_0_n, forchange)
-		for k in range(4):
+		for k in range(15):
 			m_0_n_c_k = btc.bip32_ckd(m_0_n_c, k)
 			priv = btc.bip32_extract_key(m_0_n_c_k)
 			print'  m/0/%d/%d/%d/ ' % (n, forchange, k) + btc.privtoaddr(priv, addr_vbyte)# + ' ' + btc.encode_privkey(priv, 'wif')

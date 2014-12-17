@@ -85,7 +85,7 @@ class CoinJoinOrder(object):
 		times_seen_cj_addr = 0
 		times_seen_change_addr = 0
 		for outs in txd['outs']:
-			addr = btc.script_to_address(outs['script'], get_vbyte())
+			addr = btc.script_to_address(outs['script'], get_addr_vbyte())
 			if addr == self.cj_addr:
 				times_seen_cj_addr += 1
 				if outs['value'] != self.cj_amount:
@@ -201,13 +201,12 @@ class Maker(irclib.IRCClient):
 			pass	
 
 def main():
-	#TODO using sqlite3 to store my own orders is overkill, just
-	# use a python data structure
-
 	wallet = Wallet(seed)
 	wallet.download_wallet_history()
 	wallet.find_unspent_addresses()
 	print 'downloaded wallet history'
+
+	
 
 	create_my_orders(wallet)
 	maker = Maker(wallet)
