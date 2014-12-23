@@ -31,10 +31,11 @@ class CoinJoinOrder(object):
         self.cj_addr = maker.wallet.get_receive_addr(self.mixing_depth)
         self.change_addr = maker.wallet.get_change_addr(self.mixing_depth - 1)
         self.b64txparts = []
+        debug('new cjorder nick=%s oid=%d amount=%d' % (nick, oid, amount))
         #always a new address even if the order ends up never being
         # furfilled, you dont want someone pretending to fill all your
         # orders to find out which addresses you use
-        maker.privmsg(nick, command_prefix + 'myparts ' + ','.join(self.utxos) +
+        maker.privmsg(nick, command_prefix + 'addrs ' + ','.join(self.utxos) +
                       ' ' + self.cj_addr + ' ' + self.change_addr)
 
     def recv_tx_part(self, b64txpart):
@@ -46,10 +47,14 @@ class CoinJoinOrder(object):
         self.b64txparts.append(b64txpart)
         self.tx = base64.b64decode(''.join(self.b64txparts)).encode('hex')
         txd = btc.deserialize(self.tx)
+        import pprint
+        debug('obtained tx\n' + pprint.pformat(txd))
         goodtx, errmsg = self.verify_unsigned_tx(txd)
         if not goodtx:
+            debug('not a good tx, reason=' + errmsg)
             self.maker.privmsg(nick, command_prefix + 'error ' + errmsg)
             return False
+        debug('goodtx')
         sigs = []
         for index, ins in enumerate(txd['ins']):
             utxo = ins['outpoint']['hash'] + ':' + str(ins['outpoint']['index'])
@@ -65,6 +70,7 @@ class CoinJoinOrder(object):
         add_addr_notify(self.change_addr, self.unconfirm_callback,
                         self.confirm_callback)
 
+        debug('sending sigs ' + str(sigs))
         #TODO make this a function in irclib.py
         sigline = ''
         for sig in sigs:
@@ -78,10 +84,12 @@ class CoinJoinOrder(object):
         return True
 
     def unconfirm_callback(self, value):
+        debug('saw tx on network')
         to_cancel, to_announce = self.maker.on_tx_unconfirmed(self, value)
         self.handle_modified_orders(to_cancel, to_announce)
 
     def confirm_callback(self, confirmations, txid, value):
+        debug('tx in a block')
         to_cancel, to_announce = self.maker.on_tx_confirmed(self, confirmations,
                                                             txid, value)
         self.handle_modified_orders(to_cancel, to_announce)
@@ -158,7 +166,7 @@ class Maker(irclib.IRCClient):
         self.privmsg_all_orders(CHANNEL)
 
     def on_privmsg(self, nick, message):
-        #debug("privmsg nick=%s message=%s" % (nick, message))
+        debug("privmsg nick=%s message=%s" % (nick, message))
         if message[0] != command_prefix:
             return
         command_lines = message.split(command_prefix)
@@ -182,7 +190,7 @@ class Maker(irclib.IRCClient):
     # using the same id again overwrites it, they'll be plenty of times when an order
     # has to be modified and its better to just have !order rather than !cancelorder then !order
     def on_pubmsg(self, nick, message):
-        #debug("pubmsg nick=%s message=%s" % (nick, message))
+        debug("pubmsg nick=%s message=%s" % (nick, message))
         if message[0] == command_prefix:
             chunks = message[1:].split(" ")
             if chunks[0] == '%quit' or chunks[0] == '%makerquit':
@@ -263,7 +271,6 @@ class Maker(irclib.IRCClient):
     #gets called when the tx is seen on the network
     #must return which orders to cancel or recreate
     def on_tx_unconfirmed(self, order, value):
-        print 'tx unconfirmed'
         return ([order.oid], [])
 
     #gets called when the tx is included in a block
@@ -271,7 +278,6 @@ class Maker(irclib.IRCClient):
     # and i have to think about how that will work for both
     # the blockchain explorer api method and the bitcoid walletnotify
     def on_tx_confirmed(self, order, confirmations, txid, value):
-        print 'tx confirmed'
         to_announce = []
         txd = btc.deserialize(order.tx)
         for i, out in enumerate(txd['outs']):

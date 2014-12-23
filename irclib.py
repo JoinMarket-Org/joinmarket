@@ -1,6 +1,5 @@
-import socket
-import threading
-import time
+import socket, threading, time
+from common import debug
 
 PING_INTERVAL = 40
 PING_TIMEOUT = 10
@@ -71,14 +70,16 @@ class IRCClient(object):
         self.give_up = True
 
     def pubmsg(self, message):
+        #debug('pubmsg ' + message)
         self.send_raw("PRIVMSG " + self.channel + " :" + message)
 
     def privmsg(self, nick, message):
-        #print '>> ' + nick + ' :' + message
+        #debug('privmsg to ' + nick + ' ' + message)
         self.send_raw("PRIVMSG " + nick + " :" + message)
 
     def send_raw(self, line):
-        #print('>> ' + line)
+        if not line.startswith('PING LAG'):
+            debug('sendraw ' + line)
         self.sock.sendall(line + '\r\n')
 
     def __handle_privmsg(self, source, target, message):

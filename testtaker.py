@@ -16,16 +16,17 @@ class TestTaker(Taker):
             return
         for command in message[1:].split(command_prefix):
             chunks = command.split(" ")
-        if chunks[0] == 'myparts':
+        if chunks[0] == 'addrs':
             utxo_list = chunks[1].split(',')
             cj_addr = chunks[2]
             change_addr = chunks[3]
-            self.cjtx.recv_tx_parts(nick, utxo_list, cj_addr, change_addr)
+            self.cjtx.recv_addrs(nick, utxo_list, cj_addr, change_addr)
         elif chunks[0] == 'sig':
             sig = chunks[1]
             self.cjtx.add_signature(sig)
 
     def on_pubmsg(self, nick, message):
+        print("pubmsg nick=%s message=%s" % (nick, message))
         Taker.on_pubmsg(self, nick, message)
         if message[0] != command_prefix:
             return
@@ -43,17 +44,35 @@ class TestTaker(Taker):
                 from pprint import pprint
                 pprint(self.wallet.unspent)
             elif chunks[0] == '%fill':
+                #!fill [counterparty] [oid] [amount] [utxo]
                 counterparty = chunks[1]
                 oid = chunks[2]
                 amount = chunks[3]
                 my_utxo = chunks[4]
-                #!fill [counterparty] [oid] [amount] [utxo]
                 print 'making cjtx'
                 self.cjtx = CoinJoinTX(
                     self,
                     int(amount),
                     [counterparty],
                     [int(oid)],
+                    [my_utxo],
+                    self.wallet.get_receive_addr(mixing_depth=1),
+                    self.wallet.get_change_addr(mixing_depth=0),
+                    my_tx_fee)
+            elif chunks[0] == '%2fill':
+                #!2fill [amount] [utxo] [counterparty1] [oid1] [counterparty2] [oid2]
+                amount = int(chunks[1])
+                my_utxo = chunks[2]
+                cp1 = chunks[3]
+                oid1 = int(chunks[4])
+                cp2 = chunks[5]
+                oid2 = int(chunks[6])
+                print 'creating cjtx'
+                self.cjtx = CoinJoinTX(
+                    self,
+                    amount,
+                    [cp1, cp2],
+                    [oid1, oid2],
                     [my_utxo],
                     self.wallet.get_receive_addr(mixing_depth=1),
                     self.wallet.get_change_addr(mixing_depth=0),
