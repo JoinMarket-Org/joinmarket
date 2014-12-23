@@ -58,6 +58,9 @@ class IRCClient(object):
     def on_leave(self, nick):
         pass
 
+    def on_disconnect(self):
+        pass
+
     #TODO implement on_nick_change
 
     def close(self):
@@ -177,6 +180,7 @@ class IRCClient(object):
             finally:
                 self.fd.close()
                 self.sock.close()
+            self.on_disconnect()
             print 'disconnected irc'
             time.sleep(10)
             self.connect_attempts += 1
