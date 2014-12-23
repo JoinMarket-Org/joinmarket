@@ -214,10 +214,10 @@ class Maker(irclib.IRCClient):
 		for utxo, addrvalue in self.wallet.unspent.iteritems():
 			order = {'oid': self.get_next_oid(), 'ordertype': 'absorder', 'minsize': 0,
 				'maxsize': addrvalue['value'], 'txfee': 10000, 'cjfee': 100000,
-				'utxo': utxo}
+				'utxo': utxo, 'mixdepth': addrvalue['mixdepth']}
 			orderlist.append(order)
 		#yes you can add keys there that are never used by the rest of the Maker code
-		# so im adding utxo here
+		# so im adding utxo and mixdepth here
 		return orderlist
 		
 
@@ -235,7 +235,7 @@ class Maker(irclib.IRCClient):
 		'''
 
 		order = [o for o in self.orderlist if o['oid'] == oid][0]
-		mixing_depth = 1 #TODO in this toy algo sort out mixing depth
+		mixing_depth = order['mixdepth'] + 1
 		return [order['utxo']], mixing_depth
 		
 	def get_next_oid(self):

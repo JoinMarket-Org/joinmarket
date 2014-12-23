@@ -112,31 +112,42 @@ class Wallet(object):
 		you know which addresses have been used
 		'''
 
+		addr_req_count = 20
+
 		#TODO handle the case where there are so many addresses it cant
 		# fit into one api call (>50 or so)
-		addrs = []
+		addrs = {}
 		for m in range(MAX_MIX_DEPTH):
 			for forchange in [0, 1]:
-				addrs += [self.get_addr(m, forchange, n) for n in range(self.index[m][forchange])]
+				for n in range(self.index[m][forchange]):
+					addrs[self.get_addr(m, forchange, n)] = m
 		if len(addrs) == 0:
 			print 'no tx used'
 			return
 
-		#TODO send a pull request to pybitcointools 
-		# unspent() doesnt tell you which address, you get a bunch of utxos
-		# but dont know which privkey to sign with
-		if get_network() == 'testnet':
-			blockr_url = 'http://tbtc.blockr.io/api/v1/address/unspent/'
-		elif network == 'btc':
-			blockr_url = 'http://btc.blockr.io/api/v1/address/unspent/'
-		res = btc.make_request(blockr_url+','.join(addrs))
-		data = json.loads(res)['data']
-		if 'unspent' in data:
-			data = [data]
-		for dat in data:
-			for u in dat['unspent']:
-				self.unspent[u['tx']+':'+str(u['n'])] = {'address':
-				dat['address'], 'value': int(u['amount'].replace('.', ''))}
+		i = 0
+		addrkeys = addrs.keys()
+		while i < len(addrkeys):
+			inc = min(len(addrkeys) - i, addr_req_count)
+			req = addrkeys[i:i + inc]
+			i += inc
+
+			#TODO send a pull request to pybitcointools 
+			# unspent() doesnt tell you which address, you get a bunch of utxos
+			# but dont know which privkey to sign with
+			if get_network() == 'testnet':
+				blockr_url = 'http://tbtc.blockr.io/api/v1/address/unspent/'
+			elif network == 'btc':
+				blockr_url = 'http://btc.blockr.io/api/v1/address/unspent/'
+			res = btc.make_request(blockr_url+','.join(req))
+			data = json.loads(res)['data']
+			if 'unspent' in data:
+				data = [data]
+			for dat in data:
+				for u in dat['unspent']:
+					self.unspent[u['tx']+':'+str(u['n'])] = {'address':
+						dat['address'], 'value': int(u['amount'].replace('.', '')),
+						'mixdepth': addrs[dat['address']]}
 
 #awful way of doing this, but works for now
 # later use websocket api for people who dont download the blockchain

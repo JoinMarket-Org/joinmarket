@@ -9,24 +9,21 @@ HOWTO try
  do this for two wallet seeds, one for each taker and maker
  seeds are taken as a command line argument
 
-2. for taker.py set the unspent transaction output (utxo) variable
- for the coin you want to spend
+2. join irc.freenode.net #joinmarket and run both taker.py and maker.py
 
-3. join irc.freenode.net #joinmarket and run both taker.py and maker.py
-
-4. when both bots join and have announced their orders, use this
+3. when both bots join and have announced their orders, use this
  command to start a coinjoining
- !%fill [counterparty] [order-id] [cj-amount]
+ !%fill [counterparty] [order-id] [cj-amount] [utxo]
 
 so for example if the maker is called 'cj-maker' and you want to mix 1.9btc
- !%fill cj-maker 0 190000000
+ !%fill cj-maker 0 190000000 5cf68d4c42132f8f0bef8573454036953ddb3ba77a3bf3797d9862b7102d65cd:1
 
 all values are in satoshis, the first order has order-id 0 and it counts up
+you can use !%unspent to see a printout of taker's unspent transaction outputs
+and !%showob to see the orderbook
 
-5. watch the outputs of both bots, soon enough taker.py will say it has completed
- a transaction, it will not do pushtx() but instead print the tx hex
- you can examine this, with a blockchain explorer or my coin-jumble app and
- push it to the network yourself, or not, whatever
+4. watch the outputs of both bots, soon enough taker.py will say it has completed
+ a transaction, maker will wait for the transaction to be seen and confirmed
 
 theres lots that needs to be done
 some other notes below..
