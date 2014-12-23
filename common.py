@@ -1,9 +1,8 @@
 
 import bitcoin as btc
 from decimal import Decimal
-import sys
-import datetime
-import json
+import sys, datetime, json, time
+import threading
 
 HOST = 'irc.freenode.net'
 CHANNEL = '#joinmarket'
@@ -11,7 +10,7 @@ PORT = 6667
 
 #TODO make this var all in caps
 command_prefix = '!'
-MAX_PRIVMSG_LEN = 450
+MAX_PRIVMSG_LEN = 400
 
 ordername_list = ["absorder", "relorder"]
 
@@ -139,6 +138,47 @@ class Wallet(object):
 				self.unspent[u['tx']+':'+str(u['n'])] = {'address':
 				dat['address'], 'value': int(u['amount'].replace('.', ''))}
 
+#awful way of doing this, but works for now
+# later use websocket api for people who dont download the blockchain
+# and -walletnotify for people who do
+def add_addr_notify(address, unconfirmfun, confirmfun):
+
+	class NotifyThread(threading.Thread):
+		def __init__(self, address, unconfirmfun, confirmfun):
+			threading.Thread.__init__(self)
+			self.daemon = True
+			self.address = address
+			self.unconfirmfun = unconfirmfun
+			self.confirmfun = confirmfun
+
+		def run(self):
+			while True:
+				time.sleep(5)
+				if get_network() == 'testnet':
+					blockr_url = 'http://tbtc.blockr.io/api/v1/address/balance/'
+				else:
+					blockr_url = 'http://btc.blockr.io/api/v1/address/balance/'
+				res = btc.make_request(blockr_url + self.address + '?confirmations=0')
+				data = json.loads(res)['data']
+				if data['balance'] > 0:
+					break
+			self.unconfirmfun(data['balance']*1e8)
+			while True:
+				time.sleep(5 * 60)
+				if get_network() == 'testnet':
+					blockr_url = 'http://tbtc.blockr.io/api/v1/address/txs/'
+				else:
+					blockr_url = 'http://btc.blockr.io/api/v1/address/txs/'
+				res = btc.make_request(blockr_url + self.address + '?confirmations=0')
+				data = json.loads(res)['data']
+				if data['nb_txs'] == 0:
+					continue
+				if data['txs'][0]['confirmations'] >= 1: #confirmation threshold
+					break
+			self.confirmfun(data['txs'][0]['confirmations'],
+				data['txs'][0]['tx'], data['txs'][0]['amount']*1e8)
+
+	NotifyThread(address, unconfirmfun, confirmfun).start()
 
 def calc_cj_fee(ordertype, cjfee, cj_amount):
 	real_cjfee = None
