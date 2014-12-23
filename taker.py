@@ -28,7 +28,7 @@ class CoinJoinTX(object):
 		for c, oid in zip(counterparties, oids):
 			taker.privmsg(c, command_prefix + 'fill ' + str(oid) + ' ' + str(cj_amount))
 
-	def recv_tx_parts(self, nick, utxo_list, cj_addr, change_addr):
+	def recv_addrs(self, nick, utxo_list, cj_addr, change_addr):
 		if nick not in self.nonrespondants:
 			debug('nick(' + nick + ') not in nonrespondants ' + str(self.nonrespondants))
 			return
@@ -64,13 +64,15 @@ class CoinJoinTX(object):
 			self.outputs.append({'address': self.my_change_addr, 'value': my_change_value})
 		utxo_tx = [dict([('output', u)]) for u in sum(self.utxos.values(), [])]
 		random.shuffle(self.outputs)
-		tx = btc.mktx(utxo_tx, self.outputs)
+		tx = btc.mktx(utxo_tx, self.outputs)	
+		import pprint
+		debug('obtained tx\n' + pprint.pformat(btc.deserialize(tx)))
 		txb64 = base64.b64encode(tx.decode('hex'))
 		n = MAX_PRIVMSG_LEN
 		txparts = [txb64[i:i+n] for i in range(0, len(txb64), n)]
 		for p in txparts[:-1]:
 			for nickk in self.active_orders.keys():
-				self.taker.privmsg(nickk, command_prefix + 'txpart' + p)
+				self.taker.privmsg(nickk, command_prefix + 'txpart ' + p)
 		for nickk in self.active_orders.keys():
 			self.taker.privmsg(nickk, command_prefix + 'tx ' + txparts[-1])
 
@@ -133,7 +135,7 @@ class Taker(irclib.IRCClient):
 			(nick, chunks[1], chunks[0], chunks[2], chunks[3], chunks[4], chunks[5]))
 
 	def on_privmsg(self, nick, message):
-		#debug("privmsg nick=%s message=%s" % (nick, message))
+		debug("privmsg nick=%s message=%s" % (nick, message))
 		if message[0] != command_prefix:
 			return
 
@@ -146,10 +148,9 @@ class Taker(irclib.IRCClient):
 	# using the same id again overwrites it, they'll be plenty of times when an order
 	# has to be modified and its better to just have !order rather than !cancelorder then !order
 	def on_pubmsg(self, nick, message):
-		#print("pubmsg nick=%s message=%s" % (nick, message))
+		debug("pubmsg nick=%s message=%s" % (nick, message))
 		if message[0] != command_prefix:
 			return
-
 		for command in message[1:].split(command_prefix):
 			#commands starting with % are for testing and will be removed in the final version
 			chunks = command.split(" ")
