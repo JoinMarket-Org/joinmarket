@@ -13,6 +13,8 @@ import sys
 seed = sys.argv[1]  #btc.sha256('dont use brainwallets')
 #seed = '256 bits of randomness'
 
+print_privkey = len(sys.argv) > 2
+
 master = btc.bip32_master_key(seed)  #, btc.TESTNET_PRIVATE)
 print 'master = ' + master
 
@@ -28,11 +30,13 @@ for n in range(2):
                if forchange == 0 else 'change') + ' addresses m/0/%d/%d/' %
               (n, forchange))
         m_0_n_c = btc.bip32_ckd(m_0_n, forchange)
-        for k in range(15):
+        for k in range(3):
             m_0_n_c_k = btc.bip32_ckd(m_0_n_c, k)
             priv = btc.bip32_extract_key(m_0_n_c_k)
-            print '  m/0/%d/%d/%d/ ' % (n, forchange, k) + btc.privtoaddr(
-                priv, addr_vbyte)  # + ' ' + btc.encode_privkey(priv, 'wif')
+            output = btc.privtoaddr(priv, addr_vbyte)
+            if print_privkey:
+                output += ' ' + btc.encode_privkey(priv, 'wif', addr_vbyte)
+            print '  m/0/%d/%d/%d/ ' % (n, forchange, k) + output
 '''
 #default key on http://bip32.org/
 m_priv =\

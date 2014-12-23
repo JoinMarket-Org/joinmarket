@@ -24,17 +24,20 @@ class PingThread(threading.Thread):
     def run(self):
         while not self.irc.give_up:
             time.sleep(PING_INTERVAL)
-            self.irc.ping_reply = False
-            #maybe use this to calculate the lag one day
-            self.irc.lockcond.acquire()
-            self.irc.send_raw('PING LAG' + str(int(time.time() * 1000)))
-            self.irc.lockcond.wait(PING_TIMEOUT)
-            self.irc.lockcond.release()
-            if not self.irc.ping_reply:
-                print 'irc ping timed out'
-                self.irc.close()
-                self.irc.fd.close()
-                self.irc.sock.close()
+            try:
+                self.irc.ping_reply = False
+                #maybe use this to calculate the lag one day
+                self.irc.lockcond.acquire()
+                self.irc.send_raw('PING LAG' + str(int(time.time() * 1000)))
+                self.irc.lockcond.wait(PING_TIMEOUT)
+                self.irc.lockcond.release()
+                if not self.irc.ping_reply:
+                    print 'irc ping timed out'
+                    self.irc.close()
+                    self.irc.fd.close()
+                    self.irc.sock.close()
+            except IOError:
+                pass
 
 
 #handle one channel at a time

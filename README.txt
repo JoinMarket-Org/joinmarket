@@ -82,6 +82,7 @@ fees proportional to how many utxos used, since the marginal cost is unrelated t
 # 1 confirm is probably enough
 
 TODO implement rate limiting for irc.privmsg to stop the bot being killed due to flood
+i suggest creating a thread that only dispatches/writes to the irc socket
 
 #TODO encrypt messages between taker and maker, to stop trivial server eavesdropping
 # but that wont stop mitm
@@ -113,6 +114,11 @@ e.g. single-tx.py which takes a single order, using it to send coins to some add
 e.g. gui-taker.py has a gui which shows the user the orderbook and they can easily fill and order
  and see other statistics, could be easily done by opening a http port and sending a html form and graphics
 
+TODO need to move onto the bip44 structure of HD wallets
+
+TODO
+probably a good idea to have a debug.log where loads of information is dumped
+
 TODO
 code a gui where a human can see the state of the orderbook and easily choose orders to fill
 code a gui that easily explains to a human how they can choose a fee for their income-collector.py
@@ -121,6 +127,11 @@ both are important for market forces, since markets emerge from human decisions 
 #TODO add random delays to the orderbook stuff so there isnt such a traffic spike when a new bot joins
 #two options, random delay !orderbook for ones which dont mind, !orderbook without delay for bots
 # which need the orders asap
+
+TODO
+the add_addr_notify() stuff doesnt work, so if theres several CoinJoinOrder's open it will start a few
+ threads to do the notifying, they could race condition or other multithreaded errors
+i suggest to create a single thread that sorts out all the stuff
 
 #TODO error checking so you cant crash the bot by sending malformed orders
 when an error happens, send back a !error command so the counterparty knows

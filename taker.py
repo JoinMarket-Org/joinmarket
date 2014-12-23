@@ -4,13 +4,12 @@ from common import *
 import irclib
 import bitcoin as btc
 
-import sqlite3, sys, base64
-import threading, time, random
+import sqlite3, sys, base64, threading, time, random
 
 from socket import gethostname
 nickname = 'cj-taker-' + btc.sha256(gethostname())[:6]
 seed = sys.argv[1]  #btc.sha256('your brainwallet goes here')
-my_utxo = '5cf68d4c42132f8f0bef8573454036953ddb3ba77a3bf3797d9862b7102d65cd:0'
+my_utxo = '5b0b416a5f5b8d8b08873de5e5b2df46c9190f4f5a440db638ce38f651b1bbf6:0'
 
 my_tx_fee = 10000
 
@@ -367,8 +366,12 @@ class Taker(irclib.IRCClient):
         except IndexError:
             pass
 
+    def on_leave(self, nick):
+        self.db.execute('DELETE FROM orderbook WHERE counterparty=?;', (nick,))
+
 
 def main():
+    print 'downloading wallet history'
     wallet = Wallet(seed)
     wallet.download_wallet_history()
     wallet.find_unspent_addresses()
