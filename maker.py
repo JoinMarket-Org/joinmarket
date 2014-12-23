@@ -232,10 +232,11 @@ class Maker(irclib.IRCClient):
                      'maxsize': addrvalue['value'],
                      'txfee': 10000,
                      'cjfee': 100000,
-                     'utxo': utxo}
+                     'utxo': utxo,
+                     'mixdepth': addrvalue['mixdepth']}
             orderlist.append(order)
         #yes you can add keys there that are never used by the rest of the Maker code
-        # so im adding utxo here
+        # so im adding utxo and mixdepth here
         return orderlist
 
         #has to return a list of utxos and mixing depth the cj address will be in
@@ -252,7 +253,7 @@ class Maker(irclib.IRCClient):
 		'''
 
         order = [o for o in self.orderlist if o['oid'] == oid][0]
-        mixing_depth = 1  #TODO in this toy algo sort out mixing depth
+        mixing_depth = order['mixdepth'] + 1
         return [order['utxo']], mixing_depth
 
     def get_next_oid(self):

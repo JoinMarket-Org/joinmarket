@@ -9,7 +9,6 @@ import sqlite3, sys, base64, threading, time, random
 from socket import gethostname
 nickname = 'cj-taker-' + btc.sha256(gethostname())[:6]
 seed = sys.argv[1]  #btc.sha256('your brainwallet goes here')
-my_utxo = '5b0b416a5f5b8d8b08873de5e5b2df46c9190f4f5a440db638ce38f651b1bbf6:0'
 
 my_tx_fee = 10000
 
@@ -336,11 +335,15 @@ class Taker(irclib.IRCClient):
                         o['counterparty'], o['ordertype'], o['oid'],
                         o['minsize'], o['maxsize'], o['txfee'], o['cjfee'])
                 print('done')
+            elif chunks[0] == '%unspent':
+                from pprint import pprint
+                pprint(self.wallet.unspent)
             elif chunks[0] == '%fill':
                 counterparty = chunks[1]
                 oid = chunks[2]
                 amount = chunks[3]
-                #!fill [counterparty] [oid] [amount]
+                my_utxo = chunks[4]
+                #!fill [counterparty] [oid] [amount] [utxo]
                 cjtx = CoinJoinTX(self,
                                   int(amount),
                                   [counterparty],
