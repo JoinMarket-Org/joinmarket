@@ -9,7 +9,7 @@ HOWTO try
  do this for two wallet seeds, one for each taker and maker
  seeds are taken as a command line argument
 
-2. join irc.freenode.net #joinmarket and run both taker.py and maker.py
+2. join irc.freenode.net #joinmarket and run both testtaker.py and maker.py
 
 3. when both bots join and have announced their orders, use this
  command to start a coinjoining
