@@ -4,8 +4,10 @@ import sys, datetime, json, time
 import threading
 
 HOST = 'irc.freenode.net'
-CHANNEL = '#joinmarket'
+CHANNEL = '#joinmarket-pit-test'
 PORT = 6667
+
+#for the mainnet its #joinmarket-pit
 
 #TODO make this var all in caps
 command_prefix = '!'
@@ -30,22 +32,20 @@ def get_addr_vbyte():
         return 0x00
 
 
-MAX_MIX_DEPTH = 2  #for now
-
-
 class Wallet(object):
 
-    def __init__(self, seed):
+    def __init__(self, seed, max_mix_depth=2):
+        self.max_mix_depth = max_mix_depth
         master = btc.bip32_master_key(seed)
         m_0 = btc.bip32_ckd(master, 0)
         mixing_depth_keys = [btc.bip32_ckd(m_0, c)
-                             for c in range(MAX_MIX_DEPTH)]
+                             for c in range(max_mix_depth)]
         self.keys = [(btc.bip32_ckd(m, 0), btc.bip32_ckd(m, 1))
                      for m in mixing_depth_keys]
 
-        #self.index = [[0, 0]]*MAX_MIX_DEPTH
+        #self.index = [[0, 0]]*max_mix_depth
         self.index = []
-        for i in range(MAX_MIX_DEPTH):
+        for i in range(max_mix_depth):
             self.index.append([0, 0])
 
         #example
@@ -82,13 +82,35 @@ class Wallet(object):
         else:
             return None
 
+    def remove_old_utxos(self, tx):
+        removed_utxos = {}
+        for ins in tx['ins']:
+            utxo = ins['outpoint']['hash'] + ':' + str(ins['outpoint']['index'])
+            if utxo not in self.unspent:
+                continue
+            removed_utxos[utxo] = self.unspent[utxo]
+            del self.unspent[utxo]
+        return removed_utxos
+
+    def add_new_utxos(self, tx, txid):
+        added_utxos = {}
+        for index, outs in enumerate(tx['outs']):
+            addr = btc.script_to_address(outs['script'], get_addr_vbyte())
+            if addr not in self.addr_cache:
+                continue
+            addrdict = {'address': addr, 'value': outs['value']}
+            utxo = txid + ':' + str(index)
+            added_utxos[utxo] = addrdict
+            self.unspent[utxo] = addrdict
+        return added_utxos
+
     def download_wallet_history(self, gaplimit=6):
         '''
 		sets Wallet internal indexes to be at the next unused address
 		'''
         addr_req_count = 20
 
-        for mix_depth in range(MAX_MIX_DEPTH):
+        for mix_depth in range(self.max_mix_depth):
             for forchange in [0, 1]:
                 unused_addr_count = 0
                 last_used_addr = ''
@@ -129,7 +151,7 @@ class Wallet(object):
         #TODO handle the case where there are so many addresses it cant
         # fit into one api call (>50 or so)
         addrs = {}
-        for m in range(MAX_MIX_DEPTH):
+        for m in range(self.max_mix_depth):
             for forchange in [0, 1]:
                 for n in range(self.index[m][forchange]):
                     addrs[self.get_addr(m, forchange, n)] = m
@@ -159,8 +181,7 @@ class Wallet(object):
                 for u in dat['unspent']:
                     self.unspent[u['tx'] + ':' + str(u[
                         'n'])] = {'address': dat['address'],
-                                  'value': int(u['amount'].replace('.', '')),
-                                  'mixdepth': addrs[dat['address']]}
+                                  'value': int(u['amount'].replace('.', ''))}
 
 
 #awful way of doing this, but works for now

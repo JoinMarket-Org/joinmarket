@@ -26,7 +26,6 @@ class TestTaker(Taker):
             self.cjtx.add_signature(sig)
 
     def on_pubmsg(self, nick, message):
-        print("pubmsg nick=%s message=%s" % (nick, message))
         Taker.on_pubmsg(self, nick, message)
         if message[0] != command_prefix:
             return

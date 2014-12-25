@@ -4,8 +4,7 @@ from common import *
 import irclib
 import bitcoin as btc
 import sys
-import sqlite3
-import base64
+import base64, pprint
 
 from socket import gethostname
 nickname = 'cj-maker-' + btc.sha256(gethostname())[:6]
@@ -24,12 +23,13 @@ class CoinJoinOrder(object):
         if amount <= order['minsize'] or amount >= order['maxsize']:
             maker.privmsg(nick, command_prefix + 'error amount out of range')
         #TODO logic for this error causing the order to be removed from list of open orders
-        self.utxos, self.mixing_depth = maker.oid_to_order(oid, amount)
+        self.utxos, cj_mixing_depth, change_mixing_depth = maker.oid_to_order(
+            oid, amount)
         self.ordertype = order['ordertype']
         self.txfee = order['txfee']
         self.cjfee = order['cjfee']
-        self.cj_addr = maker.wallet.get_receive_addr(self.mixing_depth)
-        self.change_addr = maker.wallet.get_change_addr(self.mixing_depth - 1)
+        self.cj_addr = maker.wallet.get_receive_addr(cj_mixing_depth)
+        self.change_addr = maker.wallet.get_change_addr(change_mixing_depth)
         self.b64txparts = []
         debug('new cjorder nick=%s oid=%d amount=%d' % (nick, oid, amount))
         #always a new address even if the order ends up never being
@@ -45,23 +45,23 @@ class CoinJoinOrder(object):
 
     def recv_tx(self, nick, b64txpart):
         self.b64txparts.append(b64txpart)
-        self.tx = base64.b64decode(''.join(self.b64txparts)).encode('hex')
-        txd = btc.deserialize(self.tx)
+        txhex = base64.b64decode(''.join(self.b64txparts)).encode('hex')
+        self.tx = btc.deserialize(txhex)
         import pprint
-        debug('obtained tx\n' + pprint.pformat(txd))
-        goodtx, errmsg = self.verify_unsigned_tx(txd)
+        debug('obtained tx\n' + pprint.pformat(self.tx))
+        goodtx, errmsg = self.verify_unsigned_tx(self.tx)
         if not goodtx:
             debug('not a good tx, reason=' + errmsg)
             self.maker.privmsg(nick, command_prefix + 'error ' + errmsg)
             return False
         debug('goodtx')
         sigs = []
-        for index, ins in enumerate(txd['ins']):
+        for index, ins in enumerate(self.tx['ins']):
             utxo = ins['outpoint']['hash'] + ':' + str(ins['outpoint']['index'])
             if utxo not in self.maker.wallet.unspent:
                 continue
             addr = self.maker.wallet.unspent[utxo]['address']
-            txs = btc.sign(self.tx, index,
+            txs = btc.sign(txhex, index,
                            self.maker.wallet.get_key_from_addr(addr))
             sigs.append(base64.b64encode(btc.deserialize(txs)['ins'][index][
                 'script'].decode('hex')))
@@ -83,15 +83,19 @@ class CoinJoinOrder(object):
             self.maker.privmsg(nick, sigline)
         return True
 
-    def unconfirm_callback(self, value):
-        debug('saw tx on network')
-        to_cancel, to_announce = self.maker.on_tx_unconfirmed(self, value)
+    def unconfirm_callback(self, balance):
+        removed_utxos = self.maker.wallet.remove_old_utxos(self.tx)
+        debug('saw tx on network, removed_utxos=\n' + pprint.pformat(
+            removed_utxos))
+        to_cancel, to_announce = self.maker.on_tx_unconfirmed(self, balance,
+                                                              removed_utxos)
         self.handle_modified_orders(to_cancel, to_announce)
 
-    def confirm_callback(self, confirmations, txid, value):
-        debug('tx in a block')
-        to_cancel, to_announce = self.maker.on_tx_confirmed(self, confirmations,
-                                                            txid, value)
+    def confirm_callback(self, confirmations, txid, balance):
+        added_utxos = self.maker.wallet.add_new_utxos(self.tx, txid)
+        debug('tx in a block, added_utxos=' + pprint.pformat(added_utxos))
+        to_cancel, to_announce = self.maker.on_tx_confirmed(
+            self, confirmations, txid, balance, added_utxos)
         self.handle_modified_orders(to_cancel, to_announce)
 
     def handle_modified_orders(self, to_cancel, to_announce):
@@ -241,7 +245,8 @@ class Maker(irclib.IRCClient):
                      'txfee': 10000,
                      'cjfee': 100000,
                      'utxo': utxo,
-                     'mixdepth': addrvalue['mixdepth']}
+                     'mixdepth':
+                     self.wallet.addr_cache[addrvalue['address']][0]}
             orderlist.append(order)
         #yes you can add keys there that are never used by the rest of the Maker code
         # so im adding utxo and mixdepth here
@@ -261,8 +266,9 @@ class Maker(irclib.IRCClient):
 		'''
 
         order = [o for o in self.orderlist if o['oid'] == oid][0]
-        mixing_depth = order['mixdepth'] + 1
-        return [order['utxo']], mixing_depth
+        cj_mixing_depth = order['mixdepth'] + 1
+        change_mixing_depth = order['mixdepth']
+        return [order['utxo']], cj_mixing_depth, change_mixing_depth
 
     def get_next_oid(self):
         self.nextoid += 1
@@ -270,19 +276,19 @@ class Maker(irclib.IRCClient):
 
     #gets called when the tx is seen on the network
     #must return which orders to cancel or recreate
-    def on_tx_unconfirmed(self, order, value):
-        return ([order.oid], [])
+    def on_tx_unconfirmed(self, cjorder, balance, removed_utxos):
+        return ([cjorder.oid], [])
 
     #gets called when the tx is included in a block
     #must return which orders to cancel or recreate
     # and i have to think about how that will work for both
     # the blockchain explorer api method and the bitcoid walletnotify
-    def on_tx_confirmed(self, order, confirmations, txid, value):
+    def on_tx_confirmed(self, cjorder, confirmations, txid, balance,
+                        added_utxos):
         to_announce = []
-        txd = btc.deserialize(order.tx)
-        for i, out in enumerate(txd['outs']):
+        for i, out in enumerate(cjorder.tx['outs']):
             addr = btc.script_to_address(out['script'], get_addr_vbyte())
-            if addr == order.change_addr:
+            if addr == cjorder.change_addr:
                 neworder = {'oid': self.get_next_oid(),
                             'ordertype': 'absorder',
                             'minsize': 0,
@@ -291,7 +297,7 @@ class Maker(irclib.IRCClient):
                             'cjfee': 100000,
                             'utxo': txid + ':' + str(i)}
                 to_announce.append(neworder)
-            if addr == order.cj_addr:
+            if addr == cjorder.cj_addr:
                 neworder = {'oid': self.get_next_oid(),
                             'ordertype': 'absorder',
                             'minsize': 0,

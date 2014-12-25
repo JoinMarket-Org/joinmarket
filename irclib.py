@@ -170,7 +170,10 @@ class IRCClient(object):
             self.send_raw('NICK ' + nick)
             try:
                 while 1:
-                    line = self.fd.readline()
+                    try:
+                        line = self.fd.readline()
+                    except AttributeError as e:
+                        raise IOError(repr(e))
                     if line == None:
                         break
                     if len(line) == 0:

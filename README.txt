@@ -111,6 +111,16 @@ e.g. single-tx.py which takes a single order, using it to send coins to some add
 e.g. gui-taker.py has a gui which shows the user the orderbook and they can easily fill and order
  and see other statistics, could be easily done by opening a http port and sending a html form and graphics
 
+TODO
+implement this the thing that gmaxwell wrote about in the original coinjoin post, as a kind of tumbler
+"Isn't the anonymity set size limited by how many parties you can get in a single transaction?"
+
+"Not quite. The anonymity set size of a single transaction is limited by the number of parties in it, obviously. And transaction size limits as well as failure (retry) risk mean that really huge joint transactions would not be wise. But because these transactions are cheap, there is no limit to the number of transactions you can cascade.
+
+In particular, if you have can build transactions with m participants per transaction you can create a sequence of m*3 transactions which form a three-stage switching network that permits any of m^2 final outputs to have come from any of m^2 original inputs (e.g. using three stages of 32 transactions with 32 inputs each 1024 users can be joined with a total of 96 transactions).  This allows the anonymity set to be any size, limited only by participation."
+https://en.wikipedia.org/wiki/Clos_network
+Not sure if it will actually be possible in this liquidity maker/taker system
+
 TODO need to move onto the bip44 structure of HD wallets
 
 TODO

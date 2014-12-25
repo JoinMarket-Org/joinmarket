@@ -27,17 +27,28 @@ def create_depth_graph(db):
     #fd.close()
 
 
-def do_nothing(arg):
+def do_nothing(arg, order):
     return arg
 
 
-def ordertype_display(ordertype):
+def ordertype_display(ordertype, order):
     ordertypes = {'absorder': 'Absolute Fee', 'relorder': 'Relative Fee'}
     return ordertypes[ordertype]
 
 
-def satoshi_to_unit(sat):
+def cjfee_display(cjfee, order):
+    if order['ordertype'] == 'absorder':
+        return satoshi_to_unit(cjfee, order)
+    elif order['ordertype'] == 'relorder':
+        return str(float(cjfee) * 100) + '%'
+
+
+def satoshi_to_unit(sat, order):
     return str(Decimal(sat) / Decimal(1e8))
+
+
+def order_str(s, order):
+    return str(s)
 
 
 class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
@@ -54,11 +65,11 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
             result += '<tr>'
             order_keys_display = (
                 ('ordertype', ordertype_display), ('counterparty', do_nothing),
-                ('oid', str), ('cjfee', satoshi_to_unit),
+                ('oid', order_str), ('cjfee', cjfee_display),
                 ('txfee', satoshi_to_unit), ('minsize', satoshi_to_unit),
                 ('maxsize', satoshi_to_unit))
             for key, displayer in order_keys_display:
-                result += '<td>' + displayer(o[key]) + '</td>'
+                result += '<td>' + displayer(o[key], o) + '</td>'
             result += '</tr>'
         return len(rows), result
 
