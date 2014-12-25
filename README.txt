@@ -99,12 +99,12 @@ TODO combine the taker and maker code into one file where you can make different
  bot which combine both roles
 e.g. tumbler.py repeatedly takes orders on the same coins again and again in an effort
  to improve privacy and break the link between them, make sure to split up and combine them again
- in random amounts, because the income-collector will also be splitting and combining coins
- random intervals between blocks included might be worth it too, since income-collector.py
+ in random amounts, because the yield-generator will also be splitting and combining coins
+ random intervals between blocks included might be worth it too, since yield-generator.py
  will appear to have coins which dont get mixed again for a while
 e.g. patient-tumbler.py which waits a while being a maker, then just starts to take orders
  after a time limit for people who want to mix coins but dont mind waiting until a fixed upper time limit
-e.g. income-collector.py which acts as a maker solely for the purpose of making money
+e.g. yield-generator.py which acts as a maker solely for the purpose of making money
  might need to take orders at some point, for very small outputs which have a small probability of being filled
 e.g. single-tx.py which takes a single order, using it to send coins to some address
  typically as a payment, so this is what the electrum plugin would look like
@@ -128,7 +128,7 @@ probably a good idea to have a debug.log where loads of information is dumped
 
 TODO
 code a gui where a human can see the state of the orderbook and easily choose orders to fill
-code a gui that easily explains to a human how they can choose a fee for their income-collector.py
+code a gui that easily explains to a human how they can choose a fee for their yield-generator.py
 both are important for market forces, since markets emerge from human decisions and actions
 
 #TODO add random delays to the orderbook stuff so there isnt such a traffic spike when a new bot joins
