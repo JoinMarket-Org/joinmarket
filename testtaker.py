@@ -1,7 +1,6 @@
 
 from taker import *
 
-
 my_tx_fee = 10000
 
 class TestTaker(Taker):
@@ -28,7 +27,6 @@ class TestTaker(Taker):
 
 
 	def on_pubmsg(self, nick, message):
-		print("pubmsg nick=%s message=%s" % (nick, message))
 		Taker.on_pubmsg(self, nick, message)
 		if message[0] != command_prefix:
 			return
