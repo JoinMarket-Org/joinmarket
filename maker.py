@@ -107,7 +107,7 @@ class CoinJoinOrder(object):
             self.maker.pubmsg(''.join(clines))
         if len(to_announce) > 0:
             self.maker.privmsg_all_orders(CHANNEL, to_announce)
-            self.maker.orderlist.append(to_announce)
+            self.maker.orderlist += to_announce
 
     def verify_unsigned_tx(self, txd):
         tx_utxos = set([ins['outpoint']['hash'] + ':' + str(ins['outpoint'][
