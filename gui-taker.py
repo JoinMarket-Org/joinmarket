@@ -19,6 +19,10 @@ tableheading = '''
  </tr>
 '''
 
+shutdownform = '<form action="shutdown" method="post"><input type="submit" value="Shutdown" /></form>'
+
+shutdownpage = '<html><body><center><h1>Successfully Shut down</h1></center></body></html>'
+
 
 def calc_depth_data(db, value):
     pass
@@ -80,6 +84,7 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
 
     def __init__(self, request, client_address, base_server):
         self.taker = base_server.taker
+        self.base_server = base_server
         SimpleHTTPServer.SimpleHTTPRequestHandler.__init__(
             self, request, client_address, base_server)
 
@@ -106,15 +111,12 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
     def do_GET(self):
         #SimpleHTTPServer.SimpleHTTPRequestHandler.do_GET(self)
         #print 'httpd received ' + self.path + ' request'
-
         pages = ['/', '/ordersize']
         if self.path not in pages:
             return
-
         fd = open('orderbook.html', 'r')
         orderbook_fmt = fd.read()
         fd.close()
-
         if self.path == '/':
             ordercount, ordertable = self.create_orderbook_table()
             replacements = {
@@ -123,7 +125,8 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
                 'SECONDHEADING': (
                     str(ordercount) + ' orders found by ' +
                     self.get_counterparty_count() + ' counterparties'),
-                'MAINBODY': tableheading + ordertable + '</table>\n'
+                'MAINBODY':
+                shutdownform + tableheading + ordertable + '</table>\n'
             }
         elif self.path == '/ordersize':
             replacements = {
@@ -132,16 +135,24 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
                 'SECONDHEADING': 'Order Size Histogram',
                 'MAINBODY': create_size_histogram(self.taker.db)
             }
-
         orderbook_page = orderbook_fmt
         for key, rep in replacements.iteritems():
             orderbook_page = orderbook_page.replace(key, rep)
-
         self.send_response(200)
         self.send_header('Content-Type', 'text/html')
         self.send_header('Content-Length', len(orderbook_page))
         self.end_headers()
         self.wfile.write(orderbook_page)
+
+    def do_POST(self):
+        if self.path == '/shutdown':
+            self.taker.shutdown()
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/html')
+            self.send_header('Content-Length', len(shutdownpage))
+            self.end_headers()
+            self.wfile.write(shutdownpage)
+            self.base_server.__shutdown_request = True
 
 
 class HTTPDThread(threading.Thread):
