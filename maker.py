@@ -84,7 +84,7 @@ class CoinJoinOrder(object):
 
 	def confirm_callback(self, confirmations, txid, balance):
 		added_utxos = self.maker.wallet.add_new_utxos(self.tx, txid)
-		debug('tx in a block, added_utxos=' + pprint.pformat(added_utxos))
+		debug('tx in a block, added_utxos=\n' + pprint.pformat(added_utxos))
 		to_cancel, to_announce = self.maker.on_tx_confirmed(self,
 			confirmations, txid, balance, added_utxos)
 		self.handle_modified_orders(to_cancel, to_announce)
@@ -98,6 +98,10 @@ class CoinJoinOrder(object):
 			self.maker.pubmsg(''.join(clines))
 		if len(to_announce) > 0:
 			self.maker.privmsg_all_orders(CHANNEL, to_announce)
+			for ann in to_announce:
+				oldorder_s = [order for order in self.maker.orderlist if order['oid'] == ann['oid']]
+				if len(oldorder_s) > 0:
+					self.maker.orderlist.remove(oldorder_s[0])
 			self.maker.orderlist += to_announce
 
 	def verify_unsigned_tx(self, txd):
