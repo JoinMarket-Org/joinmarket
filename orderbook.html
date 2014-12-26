@@ -1,7 +1,7 @@
 <html>
 
 <head>
-<title>Joinmarket Orderbook</title>
+<title>PAGETITLE</title>
 <style>
 body {
 	background-color: linen;
@@ -18,29 +18,43 @@ table, th, td, tr {
 	text-align: center;
 	padding: 5px;
 }
+
+ul {
+	list-style: none;
+	/* padding-left: 10px; */
+	padding: 0;
+	margin: 0;
+	float: left;
+	width: 100%;
+	
+}
+ul li {
+	/* float: left; */
+	display: inline;
+	padding: 0 5px 0 5px;
+	border-right: 1px solid #000;
+}
+ul li a {
+	padding 0.2em 1em;
+}
 </style>
 </head>
 
 
 <body>
 <center>
-<h1>Joinmarket Orderbook</h1>
-<h2>ORDERCOUNT orders found by CPCOUNT counterparties</h2>
+<ul>
+ <li><a href="/">Home</a></li>
+ <li><a href="/ordersize">Size Distribution</a></li>
+ <li><a href="/depth">Depth Chart</a></li>
+ <li><a href="/utxos">UTXOs</a></li>
+</ul>
+<h1>MAINHEADING</h1>
 
-DEPTHGRAPH
 
-<table>
- <tr>
-  <th>Type</th>
-  <th>Counterparty</th>
-  <th>Order ID</th>
-  <th>Fee</th>
-  <th>Miner Fee Contribution</th>
-  <th>Minimum Size</th>
-  <th>Maximum Size</th>
- </tr>
-ORDERTABLE
-</table>
+<h2>SECONDHEADING</h2>
+
+MAINBODY
 
 </center>
 </body>

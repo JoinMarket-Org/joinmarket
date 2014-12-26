@@ -6,25 +6,50 @@ from decimal import Decimal
 import io
 import base64
 
+tableheading = '''
+<table>
+ <tr>
+  <th>Type</th>
+  <th>Counterparty</th>
+  <th>Order ID</th>
+  <th>Fee</th>
+  <th>Miner Fee Contribution</th>
+  <th>Minimum Size</th>
+  <th>Maximum Size</th>
+ </tr>
+'''
 
-def create_depth_graph(db):
+
+def calc_depth_data(db, value):
+    pass
+
+
+def calc_order_size_data(db):
+    return ordersizes
+
+
+def create_size_histogram(db):
     try:
         import matplotlib.pyplot as plt
     except ImportError:
         return 'Install matplotlib to see graphs'
-    fig = plt.figure()
-    plt.plot(range(10), range(10))
-    plt.grid()
-    plt.title(
-        'this graph shows nothing but there could be a graph about the orderbook here later')
+    rows = db.execute('SELECT maxsize FROM orderbook;').fetchall()
+    ordersizes = [r['maxsize'] / 1e8 for r in rows]
 
+    fig = plt.figure()
+    plt.hist(ordersizes, 30, histtype='bar', rwidth=0.8)
+    plt.grid()
+    #plt.title('Order size distribution')
+    plt.xlabel('Order sizes / btc')
+    plt.ylabel('Frequency')
+    return get_graph_html(fig)
+
+
+def get_graph_html(fig):
     imbuf = io.BytesIO()
     fig.savefig(imbuf, format='png')
     b64 = base64.b64encode(imbuf.getvalue())
     return '<img src="data:image/png;base64,' + b64 + '" />'
-    #fd = open('fig.png', 'wb')
-    #fd.write(imbuf.getvalue())
-    #fd.close()
 
 
 def do_nothing(arg, order):
@@ -62,15 +87,15 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
         result = ''
         rows = self.taker.db.execute('SELECT * FROM orderbook;').fetchall()
         for o in rows:
-            result += '<tr>'
+            result += ' <tr>\n'
             order_keys_display = (
                 ('ordertype', ordertype_display), ('counterparty', do_nothing),
                 ('oid', order_str), ('cjfee', cjfee_display),
                 ('txfee', satoshi_to_unit), ('minsize', satoshi_to_unit),
                 ('maxsize', satoshi_to_unit))
             for key, displayer in order_keys_display:
-                result += '<td>' + displayer(o[key], o) + '</td>'
-            result += '</tr>'
+                result += '  <td>' + displayer(o[key], o) + '</td>\n'
+            result += ' </tr>\n'
         return len(rows), result
 
     def get_counterparty_count(self):
@@ -81,26 +106,42 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
     def do_GET(self):
         #SimpleHTTPServer.SimpleHTTPRequestHandler.do_GET(self)
         #print 'httpd received ' + self.path + ' request'
+
+        pages = ['/', '/ordersize']
+        if self.path not in pages:
+            return
+
+        fd = open('orderbook.html', 'r')
+        orderbook_fmt = fd.read()
+        fd.close()
+
         if self.path == '/':
-            fd = open('orderbook.html', 'r')
-            orderbook_fmt = fd.read()
-            fd.close()
             ordercount, ordertable = self.create_orderbook_table()
             replacements = {
-                'ORDERCOUNT': str(ordercount),
-                'CPCOUNT': self.get_counterparty_count(),
-                'ORDERTABLE': ordertable,
-                'DEPTHGRAPH': create_depth_graph(self.taker.db)
+                'PAGETITLE': 'Joinmarket Browser Interface',
+                'MAINHEADING': 'Joinmarket Orderbook',
+                'SECONDHEADING': (
+                    str(ordercount) + ' orders found by ' +
+                    self.get_counterparty_count() + ' counterparties'),
+                'MAINBODY': tableheading + ordertable + '</table>\n'
             }
-            orderbook_page = orderbook_fmt
-            for key, rep in replacements.iteritems():
-                orderbook_page = orderbook_page.replace(key, rep)
+        elif self.path == '/ordersize':
+            replacements = {
+                'PAGETITLE': 'Joinmarket Browser Interface',
+                'MAINHEADING': 'Order Sizes',
+                'SECONDHEADING': 'Order Size Histogram',
+                'MAINBODY': create_size_histogram(self.taker.db)
+            }
 
-            self.send_response(200)
-            self.send_header('Content-type', 'text/html')
-            self.send_header('Content-length', len(orderbook_page))
-            self.end_headers()
-            self.wfile.write(orderbook_page)
+        orderbook_page = orderbook_fmt
+        for key, rep in replacements.iteritems():
+            orderbook_page = orderbook_page.replace(key, rep)
+
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/html')
+        self.send_header('Content-Length', len(orderbook_page))
+        self.end_headers()
+        self.wfile.write(orderbook_page)
 
 
 class HTTPDThread(threading.Thread):
