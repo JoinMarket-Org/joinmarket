@@ -9,7 +9,7 @@ HOWTO try
  do this for two wallet seeds, one for each taker and maker
  seeds are taken as a command line argument
 
-2. join irc.freenode.net #joinmarket and run both testtaker.py and maker.py
+2. join irc.freenode.net #joinmarket-pit-test and run both testtaker.py and maker.py
 
 3. when both bots join and have announced their orders, use this
  command to start a coinjoining
@@ -49,16 +49,6 @@ some other notes below..
 a few algos:
 fees proportional to how many utxos used, since the marginal cost is unrelated to your cj amount, only to
  the amount of utxos you use up
-
-#TODO think of names
-#cj-market, cjex, but this isnt really an exchange
-#Indra's Net
-#If we now arbitrarily select one of these jewels for inspection and look closely at it, we will discover that in its polished surface there are reflected all the other jewels in the net, infinite in number. Not only that, but each of the jewels reflected in this one jewel is also reflecting all the other jewels, so that there is an infinite reflecting process occurring.
-# but it sounds a bit like 'internet' with an accent
-#maybe Indra, Indra's mixer
-#other allusions, hall of mirrors, mirror labyrinth
-#from discussing on irc, a simple name could just be JoinMarket or CoinJoinMarket
-# JoinMarket seems the best probably
 
 #TODO dont always pick the lowest cost order, instead have an exponentially decaying
 # distribution, so most of the time you pick the lowest and sometimes you take higher ones
@@ -108,6 +98,7 @@ e.g. yield-generator.py which acts as a maker solely for the purpose of making m
  might need to take orders at some point, for very small outputs which have a small probability of being filled
 e.g. single-tx.py which takes a single order, using it to send coins to some address
  typically as a payment, so this is what the electrum plugin would look like
+e.g. patient-single-tx.py which does the above but doesnt mind waiting up to a limit
 e.g. gui-taker.py has a gui which shows the user the orderbook and they can easily fill and order
  and see other statistics, could be easily done by opening a http port and sending a html form and graphics
 
