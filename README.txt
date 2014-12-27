@@ -4,12 +4,13 @@ you will need to know python somewhat to play around with it
  also get some testnet coins
 
 HOWTO try
-1. use bip32-tool.py to output a bunch of addresses
+1. create two wallet seeds string (can be just brainwallets if you're only storing testnet btc)
+ one seed for each maker and taker
+ use bip32-tool.py to output a bunch of addresses from the seeds
  send testnet coins to one mixing-depth=0 receive address
- do this for two wallet seeds, one for each taker and maker
  seeds are taken as a command line argument
 
-2. join irc.freenode.net #joinmarket-pit-test and run both testtaker.py and maker.py
+2. join irc.freenode.net #joinmarket-pit-test and run both taker.py and yield-generator.py
 
 3. when both bots join and have announced their orders, use this
  command to start a coinjoining

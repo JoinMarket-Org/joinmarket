@@ -1,4 +1,5 @@
-from taker import *
+import taker
+from common import *
 
 import BaseHTTPServer, SimpleHTTPServer, threading
 from decimal import Decimal
@@ -170,15 +171,16 @@ class HTTPDThread(threading.Thread):
         httpd.serve_forever()
 
 
-class GUITaker(Taker):
+class GUITaker(taker.OrderbookWatch):
 
     def on_welcome(self):
-        Taker.on_welcome(self)
+        taker.OrderbookWatch.on_welcome(self)
         HTTPDThread(self).start()
 
 
 def main():
     from socket import gethostname
+    import bitcoin as btc
     nickname = 'guitaker-' + btc.sha256(gethostname())[:6]
 
     print 'starting irc'
