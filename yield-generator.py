@@ -52,9 +52,10 @@ class YieldGenerator(Maker):
                    for utxo in order['utxos']]
         inputs = btc.select(unspent, amount)
         mixdepth = oid
-        cj_mixdepth = (mixdepth + 1) % self.wallet.max_mix_depth
-        change_mixdepth = mixdepth
-        return [i['utxo'] for i in inputs], cj_mixdepth, change_mixdepth
+        cj_addr = self.wallet.get_receive_addr(
+            (mixdepth + 1) % self.wallet.max_mix_depth)
+        change_addr = self.wallet.get_change_addr(mixdepth)
+        return [i['utxo'] for i in inputs], cj_addr, change_addr
 
     def on_tx_unconfirmed(self, cjorder, balance, removed_utxos):
         #want to replace the current relorders with the same

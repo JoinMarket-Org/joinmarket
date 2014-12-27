@@ -19,20 +19,18 @@ class CoinJoinOrder(object):
         if amount <= order['minsize'] or amount >= order['maxsize']:
             self.maker.send_error(nick, 'amount out of range')
         #TODO return addresses, not mixing depths, so you can coinjoin to outside your own wallet
-        self.utxos, cj_mixing_depth, change_mixing_depth = maker.oid_to_order(
-            oid, amount)
+        self.utxos, self.cj_addr, self.change_addr = maker.oid_to_order(oid,
+                                                                        amount)
         self.ordertype = order['ordertype']
         self.txfee = order['txfee']
         self.cjfee = order['cjfee']
-        self.cj_addr = maker.wallet.get_receive_addr(cj_mixing_depth)
-        self.change_addr = maker.wallet.get_change_addr(change_mixing_depth)
         self.b64txparts = []
         debug('new cjorder nick=%s oid=%d amount=%d' % (nick, oid, amount))
         #always a new address even if the order ends up never being
         # furfilled, you dont want someone pretending to fill all your
         # orders to find out which addresses you use
-        maker.privmsg(nick, command_prefix + 'addrs ' + ','.join(self.utxos) +
-                      ' ' + self.cj_addr + ' ' + self.change_addr)
+        maker.privmsg(nick, command_prefix + 'io ' + ','.join(self.utxos) + ' '
+                      + self.cj_addr + ' ' + self.change_addr)
 
     def recv_tx_part(self, b64txpart):
         self.b64txparts.append(b64txpart)
@@ -294,9 +292,9 @@ class Maker(irclib.IRCClient):
 		'''
 
         order = [o for o in self.orderlist if o['oid'] == oid][0]
-        cj_mixing_depth = order['mixdepth'] + 1
-        change_mixing_depth = order['mixdepth']
-        return [order['utxo']], cj_mixing_depth, change_mixing_depth
+        cj_addr = self.wallet.get_receive_addr(order['mixdepth'] + 1)
+        change_addr = self.wallet.get_change_addr(order['mixdepth'])
+        return [order['utxo']], cj_addr, change_addr
 
     def get_next_oid(self):
         self.nextoid += 1

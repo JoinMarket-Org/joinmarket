@@ -39,7 +39,7 @@ class CoinJoinTX(object):
             taker.privmsg(
                 c, command_prefix + 'fill ' + str(oid) + ' ' + str(cj_amount))
 
-    def recv_addrs(self, nick, utxo_list, cj_addr, change_addr):
+    def recv_txio(self, nick, utxo_list, cj_addr, change_addr):
         if nick not in self.nonrespondants:
             debug('nick(' + nick + ') not in nonrespondants ' + str(
                 self.nonrespondants))
@@ -228,11 +228,11 @@ class Taker(OrderbookWatch):
             return
         for command in message[1:].split(command_prefix):
             chunks = command.split(" ")
-        if chunks[0] == 'addrs':
+        if chunks[0] == 'io':
             utxo_list = chunks[1].split(',')
             cj_addr = chunks[2]
             change_addr = chunks[3]
-            self.cjtx.recv_addrs(nick, utxo_list, cj_addr, change_addr)
+            self.cjtx.recv_txio(nick, utxo_list, cj_addr, change_addr)
         elif chunks[0] == 'sig':
             sig = chunks[1]
             self.cjtx.add_signature(sig)
