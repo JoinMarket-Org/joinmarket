@@ -3,14 +3,7 @@
 from common import *
 import irclib
 import bitcoin as btc
-import sys
 import base64, pprint
-
-from socket import gethostname
-nickname = 'cj-maker-' + btc.sha256(gethostname())[:6]
-seed = sys.argv[
-    1
-]  #btc.sha256('dont use brainwallets except for holding testnet coins')
 
 
 class CoinJoinOrder(object):
@@ -19,10 +12,13 @@ class CoinJoinOrder(object):
         self.maker = maker
         self.oid = oid
         self.cj_amount = amount
-        order = [o for o in maker.orderlist if o['oid'] == oid][0]
+        order_s = [o for o in maker.orderlist if o['oid'] == oid]
+        if len(order_s) == 0:
+            self.maker.send_error(nick, 'oid not found')
+        order = order_s[0]
         if amount <= order['minsize'] or amount >= order['maxsize']:
-            maker.privmsg(nick, command_prefix + 'error amount out of range')
-        #TODO logic for this error causing the order to be removed from list of open orders
+            self.maker.send_error(nick, 'amount out of range')
+        #TODO return addresses, not mixing depths, so you can coinjoin to outside your own wallet
         self.utxos, cj_mixing_depth, change_mixing_depth = maker.oid_to_order(
             oid, amount)
         self.ordertype = order['ordertype']
@@ -40,19 +36,25 @@ class CoinJoinOrder(object):
 
     def recv_tx_part(self, b64txpart):
         self.b64txparts.append(b64txpart)
-        #TODO this is a dos opportunity, flood someone with !txpart
-        #repeatedly to fill up their memory
+        size = sum([len(s) for s in self.b64txparts])
+        if size > 60000000:  #~2MB * 2 * 4/3
+            self.maker.send_error(nick, 'tx too large, buffer limit reached')
 
     def recv_tx(self, nick, b64txpart):
         self.b64txparts.append(b64txpart)
-        txhex = base64.b64decode(''.join(self.b64txparts)).encode('hex')
-        self.tx = btc.deserialize(txhex)
-        import pprint
+        try:
+            txhex = base64.b64decode(''.join(self.b64txparts)).encode('hex')
+        except TypeError as e:
+            self.maker.send_error(nick, 'bad base64 tx. ' + repr(e))
+        try:
+            self.tx = btc.deserialize(txhex)
+        except IndexError as e:
+            self.maker.send_error(nick, 'malformed txhex. ' + repr(e))
         debug('obtained tx\n' + pprint.pformat(self.tx))
         goodtx, errmsg = self.verify_unsigned_tx(self.tx)
         if not goodtx:
             debug('not a good tx, reason=' + errmsg)
-            self.maker.privmsg(nick, command_prefix + 'error ' + errmsg)
+            self.maker.send_error(nick, errmsg)
             return False
         debug('goodtx')
         sigs = []
@@ -65,11 +67,10 @@ class CoinJoinOrder(object):
                            self.maker.wallet.get_key_from_addr(addr))
             sigs.append(base64.b64encode(btc.deserialize(txs)['ins'][index][
                 'script'].decode('hex')))
-        if len(sigs) == 0:
-            print 'ERROR no private keys found'
+        #len(sigs) > 0 guarenteed since i did verify_unsigned_tx()
+
         add_addr_notify(self.change_addr, self.unconfirm_callback,
                         self.confirm_callback)
-
         debug('sending sigs ' + str(sigs))
         #TODO make this a function in irclib.py
         sigline = ''
@@ -103,7 +104,8 @@ class CoinJoinOrder(object):
             order = [o for o in self.maker.orderlist if o['oid'] == oid][0]
             self.maker.orderlist.remove(order)
         if len(to_cancel) > 0:
-            clines = ['!cancel ' + str(oid) for oid in to_cancel]
+            clines = [command_prefix + 'cancel ' + str(oid)
+                      for oid in to_cancel]
             self.maker.pubmsg(''.join(clines))
         if len(to_announce) > 0:
             self.maker.privmsg_all_orders(CHANNEL, to_announce)
@@ -123,7 +125,7 @@ class CoinJoinOrder(object):
         my_total_in = 0
         for u in self.utxos:
             usvals = self.maker.wallet.unspent[u]
-            my_total_in += int(usvals['value'])
+            my_total_in += usvals['value']
 
         real_cjfee = calc_cj_fee(self.ordertype, self.cjfee, self.cj_amount)
         expected_change_value = (
@@ -149,6 +151,10 @@ class CoinJoinOrder(object):
         return True, None
 
 
+class CJMakerOrderError(StandardError):
+    pass
+
+
 class Maker(irclib.IRCClient):
 
     def __init__(self, wallet):
@@ -172,6 +178,11 @@ class Maker(irclib.IRCClient):
         if len(orderline) > 0:
             self.privmsg(target, orderline)
 
+    def send_error(self, nick, errmsg):
+        debug('error<%s> : %s' % (nick, errmsg))
+        self.privmsg(nick, command_prefix + 'error ' + errmsg)
+        raise CJMakerOrderError()
+
     def on_welcome(self):
         self.privmsg_all_orders(CHANNEL)
 
@@ -181,20 +192,36 @@ class Maker(irclib.IRCClient):
             return
         command_lines = message.split(command_prefix)
         for command_line in command_lines:
+            if len(command_line) == 0:
+                continue
             chunks = command_line.split(" ")
-            if chunks[0] == 'fill':
-                oid = int(chunks[1])
-                amount = int(
-                    chunks[2]
-                )  #TODO make sure that nick doesnt already have an open order
-                self.active_orders[nick] = CoinJoinOrder(self, nick, oid,
-                                                         amount)
-            elif chunks[0] == 'txpart':
-                b64txpart = chunks[1]  #TODO check nick appears in active_orders
-                self.active_orders[nick].recv_tx_part(b64txpart)
-            elif chunks[0] == 'tx':
-                b64txpart = chunks[1]
-                self.active_orders[nick].recv_tx(nick, b64txpart)
+            try:
+                if len(chunks) < 2:
+                    self.send_error(nick, 'Not enough arguments')
+                if chunks[0] == 'fill':
+                    if nick in self.active_orders and self.active_orders[
+                            nick] != None:
+                        self.send_error(nick,
+                                        'Already have partially-filled order')
+                    try:
+                        oid = int(chunks[1])
+                        amount = int(chunks[2])
+                    except (ValueError, IndexError) as e:
+                        self.send_error(nick, str(e))
+                    self.active_orders[nick] = CoinJoinOrder(self, nick, oid,
+                                                             amount)
+                elif chunks[0] == 'txpart' or chunks[0] == 'tx':
+                    if nick not in self.active_orders or self.active_orders[
+                            nick] == None:
+                        self.send_error(nick, 'No open order from this nick')
+                    b64txpart = chunks[1]
+                    if chunks[0] == 'txpart':
+                        self.active_orders[nick].recv_tx_part(b64txpart)
+                    else:
+                        self.active_orders[nick].recv_tx(nick, b64txpart)
+            except CJMakerOrderError:
+                self.active_orders[nick] = None
+                continue
 
     #each order has an id for referencing to and looking up
     # using the same id again overwrites it, they'll be plenty of times when an order
@@ -203,15 +230,10 @@ class Maker(irclib.IRCClient):
         debug("pubmsg nick=%s message=%s" % (nick, message))
         if message[0] == command_prefix:
             chunks = message[1:].split(" ")
-            if chunks[0] == '%quit' or chunks[0] == '%makerquit':
-                self.shutdown()
-            elif chunks[
-                    0] == '%say':  #% is a way to remind me its a testing cmd
-                self.pubmsg(message[6:])
-            elif chunks[0] == '%rm':
-                self.pubmsg('!cancel ' + chunks[1])
-            elif chunks[0] == 'orderbook':
+            if chunks[0] == 'orderbook':
                 self.privmsg_all_orders(nick)
+            elif chunks[0] == '%quit' or chunks[0] == '%makerquit':
+                self.shutdown()
 
     def on_set_topic(self, newtopic):
         chunks = newtopic.split('|')
@@ -316,6 +338,13 @@ class Maker(irclib.IRCClient):
 
 
 def main():
+    from socket import gethostname
+    nickname = 'cj-maker-' + btc.sha256(gethostname())[:6]
+    import sys
+    seed = sys.argv[
+        1
+    ]  #btc.sha256('dont use brainwallets except for holding testnet coins')
+
     print 'downloading wallet history'
     wallet = Wallet(seed)
     wallet.download_wallet_history()
