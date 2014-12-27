@@ -92,6 +92,9 @@ class YieldGenerator(Maker):
 		return ([], to_announce)
 
 def main():
+	import sys
+	seed = sys.argv[1] #btc.sha256('dont use brainwallets except for holding testnet coins')
+
 	print 'downloading wallet history'
 	wallet = Wallet(seed, max_mix_depth = mix_levels)
 	wallet.download_wallet_history()

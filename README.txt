@@ -119,6 +119,11 @@ TODO
 probably a good idea to have a debug.log where loads of information is dumped
 
 TODO
+for the !addrs command, firstly change its name since it also includes the utxo inputs
+ secondly, the utxo list might be longer than can fit in an irc message, so create a
+ !addrsparts or something command
+
+TODO
 code a gui where a human can see the state of the orderbook and easily choose orders to fill
 code a gui that easily explains to a human how they can choose a fee for their yield-generator.py
 both are important for market forces, since markets emerge from human decisions and actions
