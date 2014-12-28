@@ -104,6 +104,18 @@ class Wallet(object):
             self.unspent[utxo] = addrdict
         return added_utxos
 
+    def get_mix_utxo_list(self):
+        '''
+		returns a list of utxos sorted by different mix levels
+		'''
+        mix_utxo_list = {}
+        for utxo, addrvalue in self.unspent.iteritems():
+            mixdepth = self.addr_cache[addrvalue['address']][0]
+            if mixdepth not in mix_utxo_list:
+                mix_utxo_list[mixdepth] = []
+            mix_utxo_list[mixdepth].append(utxo)
+        return mix_utxo_list
+
     def download_wallet_history(self, gaplimit=6):
         '''
 		sets Wallet internal indexes to be at the next unused address

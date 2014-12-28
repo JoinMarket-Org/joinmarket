@@ -23,17 +23,8 @@ class YieldGenerator(Maker):
     def __init__(self, wallet):
         Maker.__init__(self, wallet)
 
-    def get_mix_utxo_list(self):
-        mix_utxo_list = {}
-        for utxo, addrvalue in self.wallet.unspent.iteritems():
-            mixdepth = self.wallet.addr_cache[addrvalue['address']][0]
-            if mixdepth not in mix_utxo_list:
-                mix_utxo_list[mixdepth] = []
-            mix_utxo_list[mixdepth].append(utxo)
-        return mix_utxo_list
-
     def create_my_orders(self):
-        mix_utxo_list = self.get_mix_utxo_list()
+        mix_utxo_list = self.wallet.get_mix_utxo_list()
         orderlist = []
         for mixdepth, utxo_list in mix_utxo_list.iteritems():
             total_value = 0
