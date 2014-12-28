@@ -14,6 +14,10 @@ mix_levels = 4
 #is a maker for the purposes of generating a yield from held bitcoins
 #for each mixing level, adds up the balance of all the addresses and put up
 # a relative fee order, oid=mix depth
+#TODO theres no need for seperate orders, just announce the order with the highest size
+# and when it arrives choose which mixdepth you want, best algorithm is probably
+# to try to keep coins concentrated into one depth so you can join larger amounts
+#TODO when a nick with an open order quits, is kicked or dies, remove him from open orders
 class YieldGenerator(Maker):
 
     def __init__(self, wallet):
