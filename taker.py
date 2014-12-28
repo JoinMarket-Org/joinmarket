@@ -168,8 +168,6 @@ class OrderbookWatch(irclib.IRCClient):
 			elif chunks[0] in ordername_list:
 				self.add_order(nick, chunks)
 
-		#self.connection.quit("Using irc.client.py")
-
 	def on_welcome(self):
 		self.pubmsg(command_prefix + 'orderbook')
 
@@ -187,13 +185,14 @@ class OrderbookWatch(irclib.IRCClient):
 	def on_disconnect(self):
 		self.db.execute('DELETE FROM orderbook;')
 
-my_tx_fee = 10000
-
+#assume this only has one open cj tx at a time
 class Taker(OrderbookWatch):
-	
-	def __init__(self, wallet):
+	def __init__(self):
 		OrderbookWatch.__init__(self)
-		self.wallet = wallet
+		self.cjtx = None
+		#TODO have a list of maker's nick we're coinjoining with, so
+		# that some other guy doesnt send you confusing stuff
+		#maybe a start_cj_tx() method is needed
 
 	def on_privmsg(self, nick, message):
 		OrderbookWatch.on_privmsg(self, nick, message)
@@ -202,18 +201,24 @@ class Taker(OrderbookWatch):
 			return
 		for command in message[1:].split(command_prefix):
 			chunks = command.split(" ")
-		if chunks[0] == 'io':
-			utxo_list = chunks[1].split(',')
-			cj_addr = chunks[2]
-			change_addr = chunks[3]
-			self.cjtx.recv_txio(nick, utxo_list, cj_addr, change_addr)	
-		elif chunks[0] == 'sig':
-			sig = chunks[1]
-			self.cjtx.add_signature(sig)
+			if chunks[0] == 'io':
+				utxo_list = chunks[1].split(',')
+				cj_addr = chunks[2]
+				change_addr = chunks[3]
+				self.cjtx.recv_txio(nick, utxo_list, cj_addr, change_addr)	
+			elif chunks[0] == 'sig':
+				sig = chunks[1]
+				self.cjtx.add_signature(sig)
 
+my_tx_fee = 10000
+
+class TestTaker(Taker):
+	def __init__(self, wallet):
+		Taker.__init__(self)
+		self.wallet = wallet
 
 	def on_pubmsg(self, nick, message):
-		OrderbookWatch.on_pubmsg(self, nick, message)
+		Taker.on_pubmsg(self, nick, message)
 		if message[0] != command_prefix:
 			return
 		for command in message[1:].split(command_prefix):
@@ -263,7 +268,7 @@ def main():
 	wallet.find_unspent_addresses()
 
 	print 'starting irc'
-	taker = Taker(wallet)
+	taker = TestTaker(wallet)
 	taker.run(HOST, PORT, nickname, CHANNEL)
 
 if __name__ == "__main__":
