@@ -12,8 +12,7 @@ class CoinJoinTX(object):
     def __init__(self,
                  taker,
                  cj_amount,
-                 counterparties,
-                 oids,
+                 orders,
                  my_utxos,
                  my_cj_addr,
                  my_change_addr,
@@ -22,11 +21,12 @@ class CoinJoinTX(object):
         '''
 		if my_change is None then there wont be a change address
 		thats used if you want to entirely coinjoin one utxo with no change left over
+		orders is the orders you want to fill {'counterpartynick': oid, 'cp2': oid2}
 		'''
         self.taker = taker
         self.cj_amount = cj_amount
-        self.active_orders = dict(zip(counterparties, oids))
-        self.nonrespondants = list(counterparties)
+        self.active_orders = dict(orders)
+        self.nonrespondants = list(orders.keys())
         self.my_utxos = my_utxos
         self.utxos = {taker.nick: my_utxos}
         self.finishcallback = finishcallback
@@ -35,7 +35,7 @@ class CoinJoinTX(object):
         self.my_change_addr = my_change_addr
         self.cjfee_total = 0
         self.latest_tx = None
-        for c, oid in zip(counterparties, oids):
+        for c, oid in orders.iteritems():
             taker.privmsg(
                 c, command_prefix + 'fill ' + str(oid) + ' ' + str(cj_amount))
 
@@ -266,15 +266,14 @@ class TestTaker(Taker):
             elif chunks[0] == '%fill':
                 #!fill [counterparty] [oid] [amount] [utxo]
                 counterparty = chunks[1]
-                oid = chunks[2]
+                oid = int(chunks[2])
                 amount = chunks[3]
                 my_utxo = chunks[4]
                 print 'making cjtx'
                 self.cjtx = CoinJoinTX(
                     self,
                     int(amount),
-                    [counterparty],
-                    [int(oid)],
+                    {counterparty: oid},
                     [my_utxo],
                     self.wallet.get_receive_addr(mixing_depth=1),
                     self.wallet.get_change_addr(mixing_depth=0),
@@ -291,8 +290,8 @@ class TestTaker(Taker):
                 self.cjtx = CoinJoinTX(
                     self,
                     amount,
-                    [cp1, cp2],
-                    [oid1, oid2],
+                    {cp1: oid1,
+                     cp2: oid2},
                     [my_utxo],
                     self.wallet.get_receive_addr(mixing_depth=1),
                     self.wallet.get_change_addr(mixing_depth=0),
