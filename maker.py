@@ -53,7 +53,6 @@ class CoinJoinOrder(object):
         if not goodtx:
             debug('not a good tx, reason=' + errmsg)
             self.maker.send_error(nick, errmsg)
-            return False
         debug('goodtx')
         sigs = []
         for index, ins in enumerate(self.tx['ins']):
@@ -80,7 +79,6 @@ class CoinJoinOrder(object):
                 sigline = command_prefix + 'sig ' + sig
         if len(sigline) > 0:
             self.maker.privmsg(nick, sigline)
-        return True
 
     def unconfirm_callback(self, balance):
         removed_utxos = self.maker.wallet.remove_old_utxos(self.tx)
@@ -217,6 +215,7 @@ class Maker(irclib.IRCClient):
                         self.active_orders[nick].recv_tx_part(b64txpart)
                     else:
                         self.active_orders[nick].recv_tx(nick, b64txpart)
+                        self.active_orders[nick] = None
             except CJMakerOrderError:
                 self.active_orders[nick] = None
                 continue
@@ -240,6 +239,9 @@ class Maker(irclib.IRCClient):
             print chunks[3].strip()
         except IndexError:
             pass
+
+    def on_leave(self, nick):
+        self.active_orders[nick] = None
 
     #these functions
     # create_my_orders()
