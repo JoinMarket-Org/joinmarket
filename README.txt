@@ -68,6 +68,10 @@ fees proportional to how many utxos used, since the marginal cost is unrelated t
 
 #TODO option for how many blocks deep to wait before using a utxo for more mixing
 # 1 confirm is probably enough
+TODO
+have the taker enforce this, look up the txhash of the maker's utxo and make sure
+ it is already in a block
+
 
 TODO implement rate limiting for irc.privmsg to stop the bot being killed due to flood
 i suggest creating a thread that only dispatches/writes to the irc socket
@@ -102,6 +106,9 @@ e.g. single-tx.py which takes a single order, using it to send coins to some add
 e.g. patient-single-tx.py which does the above but doesnt mind waiting up to a limit
 e.g. gui-taker.py has a gui which shows the user the orderbook and they can easily fill and order
  and see other statistics, could be easily done by opening a http port and sending a html form and graphics
+
+TODO
+extend send-payment.py to be able to do more than 2-party coinjoin
 
 TODO
 implement this the thing that gmaxwell wrote about in the original coinjoin post, as a kind of tumbler
