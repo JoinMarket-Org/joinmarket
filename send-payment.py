@@ -8,14 +8,20 @@ from optparse import OptionParser
 import threading
 
 
-def choose_order(db, cj_amount):
+def choose_order(db, cj_amount, n):
 	
 	sqlorders = db.execute('SELECT * FROM orderbook;').fetchall()
 	orders = [(o['counterparty'], o['oid'],	calc_cj_fee(o['ordertype'], o['cjfee'], cj_amount))
 		for o in sqlorders if cj_amount >= o['minsize'] or cj_amount <= o['maxsize']]
 	orders = sorted(orders, key=lambda k: k[2])
-	print 'orders = ' + str(orders)
-	return orders[0][:2] #choose the cheapest, later this will be chosen differently
+	print 'considered orders = ' + str(orders)
+	chosen_orders = []
+	for i in range(n):
+		chosen_order = orders[0] #choose the cheapest, later this will be chosen differently
+		orders = [o for o in orders if o[0] != chosen_order[0]]
+		chosen_orders.append(chosen_order)
+	chosen_orders = [o[:2] for o in chosen_orders]
+	return dict(chosen_orders)
 
 def choose_sweep_order(db, my_total_input, my_tx_fee):
 	'''
@@ -65,7 +71,8 @@ class PaymentThread(threading.Thread):
 	def run(self):
 		print 'waiting for all orders to certainly arrive'
 		time.sleep(self.taker.waittime)
-		counterparty, oid = choose_order(self.taker.db, self.taker.amount)
+		orders = choose_order(self.taker.db, self.taker.amount, self.taker.makercount)
+		print 'chosen orders to fill ' + str(orders)
 
 		utxo_list = self.taker.wallet.get_mix_utxo_list()[0] #only spend from the unmixed funds
 
@@ -76,7 +83,7 @@ class PaymentThread(threading.Thread):
 		print 'will spend ' + str(inputs)
 
 		self.taker.cjtx = takermodule.CoinJoinTX(self.taker, self.taker.amount,
-			[counterparty], [oid], utxos, self.taker.destaddr,
+			orders, utxos, self.taker.destaddr,
 			self.taker.wallet.get_change_addr(0), self.taker.txfee,
 			self.finishcallback)
 
@@ -88,11 +95,12 @@ class PaymentThread(threading.Thread):
 		'''
 
 class SendPayment(takermodule.Taker):
-	def __init__(self, wallet, destaddr, amount, txfee, waittime):
+	def __init__(self, wallet, destaddr, amount, makercount, txfee, waittime):
 		takermodule.Taker.__init__(self)
 		self.wallet = wallet
 		self.destaddr = destaddr
 		self.amount = amount
+		self.makercount = makercount
 		self.txfee = txfee
 		self.waittime = waittime
 
@@ -100,8 +108,6 @@ class SendPayment(takermodule.Taker):
 		takermodule.Taker.on_welcome(self)
 		PaymentThread(self).start()
 
-#how long to wait for all the orders to arrive before starting to do coinjoins
-ORDER_ARRIVAL_WAIT_TIME = 5
 def main():
 	parser = OptionParser(usage='usage: %prog [options] [seed] [amount] [destaddr]',
 		description='Sends a single payment from your wallet to an given address' +
@@ -110,6 +116,8 @@ def main():
 		default=5000, help='miner fee contribution')
 	parser.add_option('-w', '--wait-time', action='store', type='float', dest='waittime',
 		help='wait time in seconds to allow orders to arrive', default=10)
+	parser.add_option('-m', '--makercount', action='store', type='int', dest='makercount',
+		help='how many makers to coinjoin with', default=2)
 	(options, args) = parser.parse_args()
 
 	if len(args) < 3:
@@ -130,9 +138,8 @@ def main():
 	wallet.download_wallet_history()
 	wallet.find_unspent_addresses()
 
-	#TODO options number of parties in the coinjoin
 	print 'starting irc'
-	taker = SendPayment(wallet, destaddr, amount, options.txfee, options.waittime)
+	taker = SendPayment(wallet, destaddr, amount, options.makercount, options.txfee, options.waittime)
 	taker.run(HOST, PORT, nickname, CHANNEL)
 
 if __name__ == "__main__":
