@@ -82,6 +82,14 @@ class PaymentThread(threading.Thread):
     def run(self):
         print 'waiting for all orders to certainly arrive'
         time.sleep(self.taker.waittime)
+
+        crow = self.taker.db.execute(
+            'SELECT COUNT(DISTINCT counterparty) FROM orderbook;').fetchone()
+        counterparty_count = crow['COUNT(DISTINCT counterparty)']
+        if counterparty_count < self.taker.makercount:
+            print 'not enough counterparties to fill order, ending'
+            return
+
         orders = choose_order(self.taker.db, self.taker.amount,
                               self.taker.makercount)
         print 'chosen orders to fill ' + str(orders)
@@ -144,7 +152,7 @@ def main():
                       type='float',
                       dest='waittime',
                       help='wait time in seconds to allow orders to arrive',
-                      default=10)
+                      default=5)
     parser.add_option('-m',
                       '--makercount',
                       action='store',
