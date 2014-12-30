@@ -90,6 +90,9 @@ have the taker enforce this, look up the txhash of the maker's utxo and make sur
 TODO implement rate limiting for irc.privmsg to stop the bot being killed due to flood
 i suggest creating a thread that only dispatches/writes to the irc socket
 
+TODO sort out the nick = nick + '_' stuff in irclib
+its not a good way of doing it
+
 #TODO encrypt messages between taker and maker, to stop trivial server eavesdropping
 # but that wont stop mitm
 # after chats on irc, easiest is to do Trust On First Use, maker sends a pubkey over

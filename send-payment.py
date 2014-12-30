@@ -139,12 +139,12 @@ def main():
         description=
         'Sends a single payment from your wallet to an given address' +
         ' using coinjoin and then switches off.')
-    parser.add_option('-t',
+    parser.add_option('-f',
                       '--txfee',
                       action='store',
                       type='int',
                       dest='txfee',
-                      default=5000,
+                      default=10000,
                       help='miner fee contribution')
     parser.add_option('-w',
                       '--wait-time',
@@ -153,7 +153,7 @@ def main():
                       dest='waittime',
                       help='wait time in seconds to allow orders to arrive',
                       default=5)
-    parser.add_option('-m',
+    parser.add_option('-N',
                       '--makercount',
                       action='store',
                       type='int',
@@ -168,8 +168,6 @@ def main():
     seed = args[0]
     amount = int(args[1])
     destaddr = args[2]
-
-    #python send-payment.py -w 2 67286d672a2980ca30f7465084e90447 20000000 moovynzW3fioyQZEACSg9L27HjefZ3F5m2
 
     from socket import gethostname
     nickname = 'payer-' + btc.sha256(gethostname())[:6]
