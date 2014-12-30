@@ -2,12 +2,15 @@
 
 from maker import *
 import bitcoin as btc
+import time
 
 import pprint
 
 txfee = 1000
 cjfee = '0.01'  # 1% fee
 mix_levels = 5
+nickname = 'yield-generate'
+nickserv_password = ''
 
 
 #is a maker for the purposes of generating a yield from held
@@ -23,6 +26,10 @@ class YieldGenerator(Maker):
 
     def __init__(self, wallet):
         Maker.__init__(self, wallet)
+
+    def on_connect(self):
+        if len(nickserv_password) > 0:
+            self.privmsg('NickServ', 'identify ' + nickserv_password)
 
     def create_my_orders(self):
         mix_utxo_list = self.wallet.get_mix_utxo_list()
@@ -86,8 +93,6 @@ def main():
     seed = sys.argv[
         1
     ]  #btc.sha256('dont use brainwallets except for holding testnet coins')
-    from socket import gethostname
-    nickname = 'yield-gen-' + btc.sha256(gethostname())[:6]
 
     print 'downloading wallet history'
     wallet = Wallet(seed, max_mix_depth=mix_levels)

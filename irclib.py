@@ -60,6 +60,9 @@ class IRCClient(object):
     def on_disconnect(self):
         pass
 
+    def on_connect(self):
+        pass
+
     #TODO implement on_nick_change
 
     def close(self):
@@ -112,6 +115,7 @@ class IRCClient(object):
             self.lockcond.notify()
             self.lockcond.release()
         elif chunks[1] == '376':  #end of motd
+            self.on_connect()
             self.send_raw('JOIN ' + self.channel)
         elif chunks[1] == '433':  #nick in use
             self.nick += '_'
