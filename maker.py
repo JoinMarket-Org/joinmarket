@@ -14,7 +14,7 @@ class CoinJoinOrder(object):
 		if len(order_s) == 0:
 			self.maker.send_error(nick, 'oid not found')
 		order = order_s[0]
-		if amount <= order['minsize'] or amount >= order['maxsize']:
+		if amount < order['minsize'] or amount > order['maxsize']:
 			self.maker.send_error(nick, 'amount out of range')
 		#TODO return addresses, not mixing depths, so you can coinjoin to outside your own wallet
 		self.utxos, self.cj_addr, self.change_addr = maker.oid_to_order(oid, amount)
@@ -78,29 +78,14 @@ class CoinJoinOrder(object):
 		removed_utxos = self.maker.wallet.remove_old_utxos(self.tx)
 		debug('saw tx on network, removed_utxos=\n' + pprint.pformat(removed_utxos))
 		to_cancel, to_announce = self.maker.on_tx_unconfirmed(self, balance, removed_utxos)
-		self.handle_modified_orders(to_cancel, to_announce)
+		self.maker.modify_orders(to_cancel, to_announce)
 
 	def confirm_callback(self, confirmations, txid, balance):
 		added_utxos = self.maker.wallet.add_new_utxos(self.tx, txid)
 		debug('tx in a block, added_utxos=\n' + pprint.pformat(added_utxos))
 		to_cancel, to_announce = self.maker.on_tx_confirmed(self,
 			confirmations, txid, balance, added_utxos)
-		self.handle_modified_orders(to_cancel, to_announce)
-
-	def handle_modified_orders(self, to_cancel, to_announce):
-		for oid in to_cancel:
-			order = [o for o in self.maker.orderlist if o['oid'] == oid][0]
-			self.maker.orderlist.remove(order)
-		if len(to_cancel) > 0:
-			clines = [command_prefix + 'cancel ' + str(oid) for oid in to_cancel]
-			self.maker.pubmsg(''.join(clines))
-		if len(to_announce) > 0:
-			self.maker.privmsg_all_orders(CHANNEL, to_announce)
-			for ann in to_announce:
-				oldorder_s = [order for order in self.maker.orderlist if order['oid'] == ann['oid']]
-				if len(oldorder_s) > 0:
-					self.maker.orderlist.remove(oldorder_s[0])
-			self.maker.orderlist += to_announce
+		self.maker.modify_orders(to_cancel, to_announce)
 
 	def verify_unsigned_tx(self, txd):
 		tx_utxos = set([ins['outpoint']['hash'] + ':' + str(ins['outpoint']['index']) for ins in txd['ins']])
@@ -221,6 +206,21 @@ class Maker(irclib.IRCClient):
 
 	def on_leave(self, nick):
 		self.active_orders[nick] = None
+
+	def modify_orders(self, to_cancel, to_announce):
+		for oid in to_cancel:
+			order = [o for o in self.orderlist if o['oid'] == oid][0]
+			self.orderlist.remove(order)
+		if len(to_cancel) > 0:
+			clines = [command_prefix + 'cancel ' + str(oid) for oid in to_cancel]
+			self.pubmsg(''.join(clines))
+		if len(to_announce) > 0:
+			self.privmsg_all_orders(CHANNEL, to_announce)
+			for ann in to_announce:
+				oldorder_s = [order for order in self.orderlist if order['oid'] == ann['oid']]
+				if len(oldorder_s) > 0:
+					self.orderlist.remove(oldorder_s[0])
+			self.orderlist += to_announce
 
 	#these functions
 	# create_my_orders()
