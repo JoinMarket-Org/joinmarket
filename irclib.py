@@ -167,6 +167,7 @@ class IRCClient(object):
         PingThread(self).start()
 
         while self.connect_attempts < 10 and not self.give_up:
+            print 'connecting'
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.sock.connect((server, port))
             self.fd = self.sock.makefile()
@@ -192,7 +193,6 @@ class IRCClient(object):
             print 'disconnected irc'
             time.sleep(10)
             self.connect_attempts += 1
-            print 'reconnecting'
         print 'ending irc'
         self.give_up = True
 
