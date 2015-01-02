@@ -158,13 +158,18 @@ both are important for market forces, since markets emerge from human decisions 
 # which need the orders asap
 
 TODO
+code something that extends orderbookwatch and creates graphs
+ those graphs can be posted to a bitcointalk thread (like the bitstamp wall watch thread)
+ and could be a nice historical record and guide to pricing
+
+TODO
+code something that analyzes the blockchain, detects coinjoin tx likely made by joinmarket
+ and calculates the paid fee, therefore is a guide to pricing
+
+TODO
 the add_addr_notify() stuff doesnt work, so if theres several CoinJoinOrder's open it will start a few
  threads to do the notifying, they could race condition or other multithreaded errors
 i suggest to create a single thread that sorts out all the stuff
-
-#TODO error checking so you cant crash the bot by sending malformed orders
-when an error happens, send back a !error command so the counterparty knows
- something went wrong, and then cancel that partly filled order
 
 #TODO make an ordertype where maker publishes the utxo he will use
 # this is a way to auction off the use of a desirable coin, maybe a 
