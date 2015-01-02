@@ -125,9 +125,6 @@ e.g. gui-taker.py has a gui which shows the user the orderbook and they can easi
  and see other statistics, could be easily done by opening a http port and sending a html form and graphics
 
 TODO
-extend send-payment.py to be able to do more than 2-party coinjoin
-
-TODO
 implement this the thing that gmaxwell wrote about in the original coinjoin post, as a kind of tumbler
 "Isn't the anonymity set size limited by how many parties you can get in a single transaction?"
 
@@ -138,6 +135,10 @@ https://en.wikipedia.org/wiki/Clos_network
 Not sure if it will actually be possible in this liquidity maker/taker system
 
 TODO need to move onto the bip44 structure of HD wallets
+
+TODO think about this 
+<> some coinjoin tools we use today were broken
+<> one allowed people to use a mix of uncompressed and compressed keys, so it was obvious which party was which.
 
 TODO
 probably a good idea to have a debug.log where loads of information is dumped
