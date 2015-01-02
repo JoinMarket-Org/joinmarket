@@ -120,13 +120,13 @@ def main():
 		description='Sends a single payment from the zero mixing depth of your ' +
 			' wallet to an given address using coinjoin and then switches off.')
 	parser.add_option('-f', '--txfee', action='store', type='int', dest='txfee',
-		default=10000, help='miner fee contribution, in satoshis')
+		default=10000, help='miner fee contribution, in satoshis, default=10000')
 	parser.add_option('-w', '--wait-time', action='store', type='float', dest='waittime',
-		help='wait time in seconds to allow orders to arrive', default=5)
+		help='wait time in seconds to allow orders to arrive, default=5', default=5)
 	parser.add_option('-N', '--makercount', action='store', type='int', dest='makercount',
-		help='how many makers to coinjoin with', default=2)
+		help='how many makers to coinjoin with, default=2', default=2)
 	parser.add_option('-m', '--mixdepth', action='store', type='int', dest='mixdepth',
-		help='mixing depth to spend from', default=0)
+		help='mixing depth to spend from, default=0', default=0)
 	(options, args) = parser.parse_args()
 
 	if len(args) < 3:

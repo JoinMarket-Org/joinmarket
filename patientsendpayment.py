@@ -121,15 +121,15 @@ def main():
 			'waiting for someone to fill it. After a set period of time, gives' +
 			' up waiting and acts as a taker and coinjoins any remaining coins')
 	parser.add_option('-f', '--txfee', action='store', type='int', dest='txfee',
-		default=10000, help='miner fee contribution, in satoshis')
+		default=10000, help='miner fee contribution, in satoshis, default=10000')
 	parser.add_option('-N', '--makercount', action='store', type='int', dest='makercount',
-		help='how many makers to coinjoin with when taking liquidity', default=2)
+		help='how many makers to coinjoin with when taking liquidity, default=2', default=2)
 	parser.add_option('-w', '--wait-time', action='store', type='float', dest='waittime',
-		help='wait time in hours as a maker before becoming a taker', default=8)
+		help='wait time in hours as a maker before becoming a taker, default=8', default=8)
 	parser.add_option('-c', '--cjfee', action='store', type='int', dest='cjfee',
-		help='coinjoin fee for the maker, in satoshis per order filled', default=50000)
+		help='coinjoin fee asked for when being a maker, in satoshis per order filled, default=50000', default=50000)
 	parser.add_option('-m', '--mixdepth', action='store', type='int', dest='mixdepth',
-		help='mixing depth to spend from', default=0)
+		help='mixing depth to spend from, default=0', default=0)
 	(options, args) = parser.parse_args()
 
 	if len(args) < 3:
