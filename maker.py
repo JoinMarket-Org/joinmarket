@@ -8,10 +8,12 @@ import base64, pprint
 
 class CoinJoinOrder(object):
 
-    def __init__(self, maker, nick, oid, amount):
+    def __init__(self, maker, nick, oid, amount, i_utxo_pubkey):
         self.maker = maker
         self.oid = oid
         self.cj_amount = amount
+        #the btc pubkey of the utxo that the taker plans to use as input
+        self.i_utxo_pubkey = i_utxo_pubkey
         order_s = [o for o in maker.orderlist if o['oid'] == oid]
         if len(order_s) == 0:
             self.maker.send_error(nick, 'oid not found')
@@ -29,8 +31,14 @@ class CoinJoinOrder(object):
         #always a new address even if the order ends up never being
         # furfilled, you dont want someone pretending to fill all your
         # orders to find out which addresses you use
+
+        #initiate encryption handshake by sending signed pubkey
+        btc_key = maker.wallet.get_key_from_addr(self.cj_addr)
+        btc_pub = btc.privtopub(btc_key)
+        btc_sig = btc.ecdsa_sign(maker.enc_kp.hex_pk(), btc_key)
         maker.privmsg(nick, command_prefix + 'io ' + ','.join(self.utxos) + ' '
-                      + self.cj_addr + ' ' + self.change_addr)
+                      + self.cj_addr + ' ' + self.change_addr + ' ' + btc_pub +
+                      ' ' + btc_sig + ' ' + maker.enc_kp.hex_pk())
 
     def recv_tx_part(self, b64txpart):
         self.b64txparts.append(b64txpart)
@@ -153,7 +161,8 @@ class CJMakerOrderError(StandardError):
 
 class Maker(irclib.IRCClient):
 
-    def __init__(self, wallet):
+    def __init__(self, wallet, keyfile):
+        self.init_encryption(keyfile)
         self.active_orders = {}
         self.wallet = wallet
         self.nextoid = -1
@@ -182,6 +191,18 @@ class Maker(irclib.IRCClient):
     def on_welcome(self):
         self.privmsg_all_orders(CHANNEL)
 
+    def auth_counterparty(self, nick, cjorder, enc_pk, btc_sig):
+        #TODO: add check that the pubkey's address is part of the order.
+        btc_pub = cjorder.i_utxo_pubkey
+        if not btc.ecdsa_verify(enc_pk, btc_sig, btc_pub):
+            print 'signature didnt match pubkey and message'
+            return False
+        #authorisation passed: initiate encryption for future
+        #messages
+        self.start_encryption(nick, enc_pk)
+        #send pubkey info to counterparty
+        return True
+
     def on_privmsg(self, nick, message):
         debug("privmsg nick=%s message=%s" % (nick, message))
         if message[0] != command_prefix:
@@ -194,6 +215,19 @@ class Maker(irclib.IRCClient):
             try:
                 if len(chunks) < 2:
                     self.send_error(nick, 'Not enough arguments')
+                if chunks[0] == 'auth':
+                    if nick not in self.active_orders:
+                        self.send_error(
+                            nick,
+                            "Encryption handshake message received out of order, ignored.")
+                        continue
+                    try:
+                        cjorder = self.active_orders[nick]
+                        enc_pk = chunks[1]
+                        btc_sig = chunks[2]
+                        self.auth_counterparty(nick, cjorder, enc_pk, btc_sig)
+                    except (ValueError, IndexError) as e:
+                        self.send_error(nick, str(e))
                 if chunks[0] == 'fill':
                     if nick in self.active_orders and self.active_orders[
                             nick] != None:
@@ -202,10 +236,11 @@ class Maker(irclib.IRCClient):
                     try:
                         oid = int(chunks[1])
                         amount = int(chunks[2])
+                        i_utxo_pubkey = chunks[3]
                     except (ValueError, IndexError) as e:
                         self.send_error(nick, str(e))
-                    self.active_orders[nick] = CoinJoinOrder(self, nick, oid,
-                                                             amount)
+                    self.active_orders[nick] = CoinJoinOrder(
+                        self, nick, oid, amount, i_utxo_pubkey)
                 elif chunks[0] == 'txpart' or chunks[0] == 'tx':
                     if nick not in self.active_orders or self.active_orders[
                             nick] == None:
@@ -344,13 +379,13 @@ def main():
     seed = sys.argv[
         1
     ]  #btc.sha256('dont use brainwallets except for holding testnet coins')
-
+    keyfile = sys.argv[2]
     print 'downloading wallet history'
-    wallet = Wallet(seed)
+    wallet = Wallet(seed, max_mix_depth=5)
     wallet.download_wallet_history()
     wallet.find_unspent_addresses()
 
-    maker = Maker(wallet)
+    maker = Maker(wallet, keyfile)
     print 'connecting to irc'
     maker.run(HOST, PORT, nickname, CHANNEL)
 
