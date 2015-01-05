@@ -188,21 +188,33 @@ class Wallet(object):
 						dat['address'], 'value': int(u['amount'].replace('.', ''))}
 
 #awful way of doing this, but works for now
-# later use websocket api for people who dont download the blockchain
 # and -walletnotify for people who do
-def add_addr_notify(address, unconfirmfun, confirmfun):
+#timeouts in minutes
+def add_addr_notify(address, unconfirmfun, confirmfun, unconfirmtimeout=5,
+	unconfirmtimeoutfun=None, confirmtimeout=120, confirmtimeoutfun=None):
 
 	class NotifyThread(threading.Thread):
-		def __init__(self, address, unconfirmfun, confirmfun):
+		def __init__(self, address, unconfirmfun, confirmfun, unconfirmtimeout,
+				unconfirmtimeoutfun, confirmtimeout, confirmtimeoutfun):
 			threading.Thread.__init__(self)
 			self.daemon = True
 			self.address = address
 			self.unconfirmfun = unconfirmfun
 			self.confirmfun = confirmfun
+			self.unconfirmtimeout = unconfirmtimeout*60
+			self.unconfirmtimeoutfun = unconfirmtimeoutfun
+			self.confirmtimeout = confirmtimeout*60
+			self.confirmtimeoutfun = confirmtimeoutfun
 
 		def run(self):
+			st = int(time.time())
 			while True:
 				time.sleep(5)
+				if int(time.time()) - st > self.unconfirmtimeout:
+					if unconfirmtimeoutfun != None:
+						unconfirmtimeoutfun()
+					debug('checking for unconfirmed tx timed out')
+					return
 				if get_network() == 'testnet':
 					blockr_url = 'http://tbtc.blockr.io/api/v1/address/balance/'
 				else:
@@ -212,8 +224,14 @@ def add_addr_notify(address, unconfirmfun, confirmfun):
 				if data['balance'] > 0:
 					break
 			self.unconfirmfun(data['balance']*1e8)
+			st = int(time.time())
 			while True:
 				time.sleep(5 * 60)
+				if int(time.time()) - st > self.confirmtimeout:
+					if confirmtimeoutfun != None:
+						confirmtimeoutfun()
+					debug('checking for confirmed tx timed out')
+					return
 				if get_network() == 'testnet':
 					blockr_url = 'http://tbtc.blockr.io/api/v1/address/txs/'
 				else:
@@ -227,7 +245,8 @@ def add_addr_notify(address, unconfirmfun, confirmfun):
 			self.confirmfun(data['txs'][0]['confirmations'],
 				data['txs'][0]['tx'], data['txs'][0]['amount']*1e8)
 
-	NotifyThread(address, unconfirmfun, confirmfun).start()
+	NotifyThread(address, unconfirmfun, confirmfun, unconfirmtimeout,
+		unconfirmtimeoutfun, confirmtimeout, confirmtimeoutfun).start()
 
 def calc_cj_fee(ordertype, cjfee, cj_amount):
 	real_cjfee = None
