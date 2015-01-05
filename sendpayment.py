@@ -94,10 +94,7 @@ class PaymentThread(threading.Thread):
                               self.taker.makercount)
         print 'chosen orders to fill ' + str(orders)
 
-        utxo_list = self.taker.wallet.get_mix_utxo_list()[
-            0
-        ]  #only spend from the unmixed funds
-
+        utxo_list = self.taker.wallet.get_mix_utxo_list()[self.taker.mixdepth]
         unspent = [{'utxo': utxo,
                     'value': self.taker.wallet.unspent[utxo]['value']}
                    for utxo in utxo_list]
@@ -107,8 +104,8 @@ class PaymentThread(threading.Thread):
 
         self.taker.cjtx = takermodule.CoinJoinTX(
             self.taker, self.taker.amount, orders, utxos, self.taker.destaddr,
-            self.taker.wallet.get_change_addr(0), self.taker.txfee,
-            self.finishcallback)
+            self.taker.wallet.get_change_addr(self.taker.mixdepth),
+            self.taker.txfee, self.finishcallback)
         '''
 		counterparty, oid, cj_amount = choose_sweep_order(addrvalue['value'], my_tx_fee)
 		cjtx = CoinJoinTX(self.taker, cj_amount, [counterparty], [int(oid)],
@@ -119,7 +116,8 @@ class PaymentThread(threading.Thread):
 
 class SendPayment(takermodule.Taker):
 
-    def __init__(self, wallet, destaddr, amount, makercount, txfee, waittime):
+    def __init__(self, wallet, destaddr, amount, makercount, txfee, waittime,
+                 mixdepth):
         takermodule.Taker.__init__(self)
         self.wallet = wallet
         self.destaddr = destaddr
@@ -127,6 +125,7 @@ class SendPayment(takermodule.Taker):
         self.makercount = makercount
         self.txfee = txfee
         self.waittime = waittime
+        self.mixdepth = mixdepth
 
     def on_welcome(self):
         takermodule.Taker.on_welcome(self)
@@ -136,30 +135,37 @@ class SendPayment(takermodule.Taker):
 def main():
     parser = OptionParser(
         usage='usage: %prog [options] [seed] [amount] [destaddr]',
-        description=
-        'Sends a single payment from your wallet to an given address' +
-        ' using coinjoin and then switches off.')
+        description='Sends a single payment from the zero mixing depth of your '
+        + ' wallet to an given address using coinjoin and then switches off.')
     parser.add_option('-f',
                       '--txfee',
                       action='store',
                       type='int',
                       dest='txfee',
                       default=10000,
-                      help='miner fee contribution')
-    parser.add_option('-w',
-                      '--wait-time',
-                      action='store',
-                      type='float',
-                      dest='waittime',
-                      help='wait time in seconds to allow orders to arrive',
-                      default=5)
+                      help='miner fee contribution, in satoshis, default=10000')
+    parser.add_option(
+        '-w',
+        '--wait-time',
+        action='store',
+        type='float',
+        dest='waittime',
+        help='wait time in seconds to allow orders to arrive, default=5',
+        default=5)
     parser.add_option('-N',
                       '--makercount',
                       action='store',
                       type='int',
                       dest='makercount',
-                      help='how many makers to coinjoin with',
+                      help='how many makers to coinjoin with, default=2',
                       default=2)
+    parser.add_option('-m',
+                      '--mixdepth',
+                      action='store',
+                      type='int',
+                      dest='mixdepth',
+                      help='mixing depth to spend from, default=0',
+                      default=0)
     (options, args) = parser.parse_args()
 
     if len(args) < 3:
@@ -179,7 +185,7 @@ def main():
 
     print 'starting irc'
     taker = SendPayment(wallet, destaddr, amount, options.makercount,
-                        options.txfee, options.waittime)
+                        options.txfee, options.waittime, options.mixdepth)
     taker.run(HOST, PORT, nickname, CHANNEL)
 
 

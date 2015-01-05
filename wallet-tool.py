@@ -24,19 +24,19 @@ parser.add_option('-p',
                   '--privkey',
                   action='store_true',
                   dest='showprivkey',
-                  help='print private key along with address')
+                  help='print private key along with address, default false')
 parser.add_option('-m',
                   '--maxmixdepth',
                   action='store',
                   type='int',
                   dest='maxmixdepth',
                   default=2,
-                  help='maximum mixing depth to look for')
+                  help='maximum mixing depth to look for, default=2')
 parser.add_option('-g',
                   '--gap-limit',
                   action='store',
                   dest='gaplimit',
-                  help='gap limit for wallet',
+                  help='gap limit for wallet, default=6',
                   default=6)
 (options, args) = parser.parse_args()
 
@@ -59,6 +59,7 @@ wallet.find_unspent_addresses()
 if method == 'display':
     for m in range(wallet.max_mix_depth):
         print 'mixing depth %d m/0/%d/' % (m, m)
+        balance_depth = 0
         for forchange in [0, 1]:
             print(' ' +
                   ('receive'
@@ -70,9 +71,11 @@ if method == 'display':
                 for addrvalue in wallet.unspent.values():
                     if addr == addrvalue['address']:
                         balance += addrvalue['value']
+                balance_depth += balance
                 used = ('used' if k < wallet.index[m][forchange] else ' new')
                 print '  m/0/%d/%d/%02d %s %s %.8fbtc' % (m, forchange, k, addr,
                                                           used, balance / 1e8)
+        print 'for mixdepth=%d balance=%.8fbtc' % (m, balance_depth / 1e8)
 elif method == 'combine':
     ins = []
     outs = []
