@@ -88,6 +88,7 @@ class PaymentThread(threading.Thread):
         counterparty_count = crow['COUNT(DISTINCT counterparty)']
         if counterparty_count < self.taker.makercount:
             print 'not enough counterparties to fill order, ending'
+            self.taker.shutdown()
             return
 
         orders = choose_order(self.taker.db, self.taker.amount,
