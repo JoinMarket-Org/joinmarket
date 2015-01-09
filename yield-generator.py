@@ -6,10 +6,12 @@ import time
 
 import pprint
 
+from socket import gethostname
+nickname = 'yigen-' + btc.sha256(gethostname())[:6]
+
 txfee = 1000
 cjfee = '0.01'  # 1% fee
 mix_levels = 5
-nickname = 'yield-generate'
 nickserv_password = ''
 
 
