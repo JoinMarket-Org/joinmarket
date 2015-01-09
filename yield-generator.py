@@ -40,7 +40,7 @@ class YieldGenerator(Maker):
                 total_value += self.wallet.unspent[utxo]['value']
             mix_balance[mixdepth] = total_value
 
-        if len([b for m, b in mixbalance.iteritems() if b > 0]) == 0:
+        if len([b for m, b in mix_balance.iteritems() if b > 0]) == 0:
             debug('do not have any coins left')
             return []
 
