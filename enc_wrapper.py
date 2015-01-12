@@ -62,4 +62,5 @@ Notes:
  2. Nonce is handled at the implementation layer.
 '''
 
-#TODO: Sign, verify.
+#TODO: Sign, verify. At the moment we are using
+#bitcoin signatures so it isn't necessary.

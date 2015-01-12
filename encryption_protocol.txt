@@ -1,0 +1,32 @@
+Encryption handshake in JoinMarket
+==================================
+
+In the clear
+============
+
+TAK: !fill <order id> <coinjoin amount> <taker encryption pubkey>
+MAK: !pubkey <maker encryption pubkey>
+
+Both maker and taker construct a crypto Box object to allow authenticated encryption between the parties.
+
+Encrypted
+=========
+
+TAK: !auth <input utxo pubkey> <btc sig of taker encryption pubkey using input utxo pubkey>
+(Maker verifies the btc sig; if not valid, connection is dropped - send REJECT message)
+MAK: !auth <utxo list> <coinjoin pubkey> <change address> <btc sig of maker encryption pubkey using coinjoin pubkey>
+(Taker verifies the btc sig; if not valid, as for previous)
+
+Because the !auth messages are under encryption, there is no privacy leak of bitcoin pubkeys or output addresses.
+
+If both verifications pass, the remainder of the messages exchanged between the two parties will continue under encryption.
+
+Note
+====
+A key part of the authorisation process is the matching between the bitcoin pubkeys used in the coinjoin
+transaction and the encryption pubkeys used. This ensures that the messages we are sending are only
+readable by the entity which is conducting the bitcoin transaction with us.
+
+To ensure this, the maker should not sign any transaction that doesn't use the previously identified
+input utxo as its input, and the taker should not push/sign any transaction that doesn't use the
+previously identified maker coinjoin pubkey/address as its output.

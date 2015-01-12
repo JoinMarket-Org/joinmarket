@@ -139,7 +139,7 @@ class IRCClient(object):
         print "We are going to send these chunks: "
         print message_chunks
         for m in message_chunks:
-            trailer = ' :' if m == message_chunks[-1] else ' ;'
+            trailer = ' ~' if m == message_chunks[-1] else ' ;'
             self.send_raw("PRIVMSG " + nick + " :" + m + trailer)
 
     def send_raw(self, line):
@@ -158,17 +158,15 @@ class IRCClient(object):
             #TODO ctcp version here, since some servers dont let you get on without
 
         if target == self.nick:
-            if nick not in self.built_privmsg:
+            if nick not in self.built_privmsg or self.built_privmsg[nick] == '':
                 self.built_privmsg[nick] = message[:-2]
             else:
                 self.built_privmsg[nick] += message[:-2]
             if message[-1] == ';':
                 self.waiting[nick] = True
-            elif message[-1] == ':':
+            elif message[-1] == '~':
                 self.waiting[nick] = False
                 if nick in self.encrypting.keys() and self.encrypting[nick]:
-                    print 'about to decrypt a message: '
-                    print self.built_privmsg[nick]
                     parsed = self.decode_decrypt(self.built_privmsg[nick], nick)
                 else:
                     parsed = self.built_privmsg[nick]
