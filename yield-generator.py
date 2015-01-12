@@ -29,8 +29,8 @@ minsize = int(
 # so try to keep coins concentrated in one mixing depth
 class YieldGenerator(Maker):
 
-    def __init__(self, wallet):
-        Maker.__init__(self, wallet)
+    def __init__(self, wallet, keyfile):
+        Maker.__init__(self, wallet, keyfile)
 
     def on_connect(self):
         if len(nickserv_password) > 0:
@@ -88,11 +88,11 @@ class YieldGenerator(Maker):
         neworders = self.create_my_orders()
         if len(neworders) == 0:
             return ([oldorder], [])  #cancel old order
-        elif oldorder['maxsize'] == neworder['maxsize']:
+        elif oldorder['maxsize'] == neworders[0]['maxsize']:
             return ([], [])  #change nothing
         else:
             #announce new order, replacing the old order
-            return ([], [neworder[0]])
+            return ([], [neworders[0]])
 
     def on_tx_confirmed(self, cjorder, confirmations, txid, balance,
                         added_utxos):
@@ -104,13 +104,13 @@ def main():
     seed = sys.argv[
         1
     ]  #btc.sha256('dont use brainwallets except for holding testnet coins')
-
+    keyfile = sys.argv[2]
     print 'downloading wallet history'
     wallet = Wallet(seed, max_mix_depth=mix_levels)
     wallet.download_wallet_history()
     wallet.find_unspent_addresses()
 
-    maker = YieldGenerator(wallet)
+    maker = YieldGenerator(wallet, keyfile)
     print 'connecting to irc'
     maker.run(HOST, PORT, nickname, CHANNEL)
 
