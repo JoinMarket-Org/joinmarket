@@ -31,9 +31,10 @@ class CoinJoinTX(object):
 		self.signing_btc_pub = btc.privtopub(taker.wallet.get_key_from_addr(self.signing_btc_add))
 		for c, oid in orders.iteritems():
 			taker.privmsg(c, command_prefix + 'fill ' + \
-			str(oid) + ' ' + str(cj_amount) + ' ' + self.signing_btc_pub)
+			str(oid) + ' ' + str(cj_amount) + ' ' + taker.enc_kp.hex_pk())
 	
-	def recv_txio(self, nick, utxo_list, cj_addr, change_addr):
+	def recv_txio(self, nick, utxo_list, cj_pub, change_addr):
+		cj_addr = btc.pubtoaddr(cj_pub,get_addr_vbyte())
 		if nick not in self.nonrespondants:
 			debug('nick(' + nick + ') not in nonrespondants ' + str(self.nonrespondants))
 			return
@@ -195,27 +196,19 @@ class Taker(OrderbookWatch):
 	def __init__(self,keyfile):
 		OrderbookWatch.__init__(self)
 		self.cjtx = None
+		self.maker_pks = {}
 		#TODO have a list of maker's nick we're coinjoining with, so
 		# that some other guy doesnt send you confusing stuff
 		#maybe a start_cj_tx() method is needed
 		self.init_encryption(keyfile)
 	
-	def auth_counterparty(self,nick,btc_pub,btc_sig,cj_addr,enc_pk, signing_add):
-		if not cj_addr==btc.pubtoaddr(btc_pub,magicbyte=get_addr_vbyte()):
-			print 'coinjoin address and pubkey didnt match'
-			return False
-		if not btc.ecdsa_verify(enc_pk,btc_sig,btc_pub):
+	def auth_counterparty(self,nick,btc_sig,cj_pub):
+		'''Validate the counterpartys claim to own the btc
+		address/pubkey that will be used for coinjoining 
+		with an ecdsa verification.'''
+		if not btc.ecdsa_verify(self.maker_pks[nick],btc_sig,cj_pub):
 			print 'signature didnt match pubkey and message'
 			return False
-		#send authorisation response
-		my_btc_sig = btc.ecdsa_sign(self.enc_kp.hex_pk(),\
-		                            self.wallet.get_key_from_addr(signing_add))
-		message = '!auth ' + self.enc_kp.hex_pk() + ' ' + my_btc_sig
-		self.privmsg(nick,message) #note: we do this *before* starting encryption
-		#TODO: should both sides send acks to acknowledge successful handshake?
-		#authorisation passed: initiate encryption for future
-		#messages
-		self.start_encryption(nick,enc_pk)
 		return True
 	
 	def on_privmsg(self, nick, message):
@@ -225,19 +218,27 @@ class Taker(OrderbookWatch):
 			return
 		for command in message[1:].split(command_prefix):
 			chunks = command.split(" ")
-			if chunks[0] == 'io':
+			if chunks[0] == 'pubkey':
+				maker_pk = chunks[1]
+				#store the declared pubkeys in a dict indexed by maker nick
+				self.maker_pks[nick] = maker_pk
+				self.start_encryption(nick, self.maker_pks[nick])
+				#send authorisation request
+				my_btc_priv = self.wallet.get_key_from_addr(self.wallet.unspent[self.cjtx.my_utxos[0]]['address'])
+				my_btc_pub = btc.privtopub(my_btc_priv)
+				my_btc_sig = btc.ecdsa_sign(self.enc_kp.hex_pk(),my_btc_priv)
+				message = '!auth ' + my_btc_pub + ' ' + my_btc_sig
+				self.privmsg(nick,message) #note: we do this *before* starting encryption				
+			if chunks[0] == 'auth':
 				utxo_list = chunks[1].split(',')
-				cj_addr = chunks[2]
+				cj_pub = chunks[2]
 				change_addr = chunks[3]
-				btc_pub = chunks[4]
-				btc_sig = chunks[5]
-				enc_pk = chunks[6]
-				if not self.auth_counterparty(nick,btc_pub,btc_sig,cj_addr,enc_pk,\
-				        self.cjtx.signing_btc_add):
+				btc_sig = chunks[4]
+				if not self.auth_counterparty(nick,btc_sig,cj_pub):
 					print 'Authenticated encryption with counterparty: ' + nick + \
 					' not established. TODO: send rejection message'
 					continue
-				self.cjtx.recv_txio(nick, utxo_list, cj_addr, change_addr)	
+				self.cjtx.recv_txio(nick, utxo_list, cj_pub, change_addr)	
 			elif chunks[0] == 'sig':
 				sig = chunks[1]
 				self.cjtx.add_signature(sig)
