@@ -23,6 +23,7 @@ class PingThread(threading.Thread):
         self.irc = irc
 
     def run(self):
+        debug('starting ping thread')
         while not self.irc.give_up:
             time.sleep(PING_INTERVAL)
             try:
@@ -33,12 +34,22 @@ class PingThread(threading.Thread):
                 self.irc.lockcond.wait(PING_TIMEOUT)
                 self.irc.lockcond.release()
                 if not self.irc.ping_reply:
-                    print 'irc ping timed out'
-                    self.irc.close()
-                    self.irc.fd.close()
-                    self.irc.sock.close()
-            except IOError:
-                pass
+                    debug('irc ping timed out')
+                    try:
+                        self.irc.close()
+                    except IOError:
+                        pass
+                    try:
+                        self.irc.fd.close()
+                    except IOError:
+                        pass
+                    try:
+                        self.irc.sock.close()
+                    except IOError:
+                        pass
+            except IOError as e:
+                debug('ping thread: ' + repr(e))
+        debug('ended ping thread')
 
 
 #handle one channel at a time
@@ -118,7 +129,10 @@ class IRCClient(object):
     #############################
 
     def close(self):
-        self.send_raw("QUIT")
+        try:
+            self.send_raw("QUIT")
+        except IOError as e:
+            debug('errored while trying to quit: ' + repr(e))
 
     def shutdown(self):
         self.close()
@@ -264,8 +278,10 @@ class IRCClient(object):
                     except AttributeError as e:
                         raise IOError(repr(e))
                     if line == None:
+                        debug('line returned null')
                         break
                     if len(line) == 0:
+                        debug('line was zero length')
                         break
                     self.__handle_line(line)
             except IOError as e:
@@ -277,7 +293,7 @@ class IRCClient(object):
             print 'disconnected irc'
             time.sleep(10)
             self.connect_attempts += 1
-        print 'ending irc'
+        debug('ending irc')
         self.give_up = True
 
 
