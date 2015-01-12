@@ -88,11 +88,11 @@ class YieldGenerator(Maker):
         neworders = self.create_my_orders()
         if len(neworders) == 0:
             return ([oldorder], [])  #cancel old order
-        elif oldorder['maxsize'] == neworder['maxsize']:
+        elif oldorder['maxsize'] == neworders[0]['maxsize']:
             return ([], [])  #change nothing
         else:
             #announce new order, replacing the old order
-            return ([], [neworder[0]])
+            return ([], [neworders[0]])
 
     def on_tx_confirmed(self, cjorder, confirmations, txid, balance,
                         added_utxos):
