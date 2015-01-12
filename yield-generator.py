@@ -6,11 +6,16 @@ import time
 
 import pprint
 
+from socket import gethostname
+nickname = 'yigen-' + btc.sha256(gethostname())[:6]
+
 txfee = 1000
 cjfee = '0.01' # 1% fee
 mix_levels = 5
-nickname = 'yield-generate'
 nickserv_password = ''
+minsize = int(2 * txfee / float(cjfee)) #minimum size is such that you always net profit at least the miners fee
+
+
 
 #is a maker for the purposes of generating a yield from held
 # bitcoins without ruining privacy for the taker, the taker could easily check
@@ -38,9 +43,13 @@ class YieldGenerator(Maker):
 				total_value += self.wallet.unspent[utxo]['value']
 			mix_balance[mixdepth] = total_value
 
+		if len([b for m, b in mix_balance.iteritems() if b > 0]) == 0:
+			debug('do not have any coins left')
+			return []
+
 		#print mix_balance
 		max_mix = max(mix_balance, key=mix_balance.get)
-		order = {'oid': 0, 'ordertype': 'relorder', 'minsize': 0,
+		order = {'oid': 0, 'ordertype': 'relorder', 'minsize': minsize,
 			'maxsize': mix_balance[max_mix], 'txfee': txfee, 'cjfee': cjfee,
 			'mix_balance': mix_balance}
 		return [order]
@@ -68,12 +77,14 @@ class YieldGenerator(Maker):
 	def on_tx_unconfirmed(self, cjorder, balance, removed_utxos):
 		#if the balance of the highest-balance mixing depth change then reannounce it
 		oldorder = self.orderlist[0]
-		neworder = self.create_my_orders()[0]
-		if oldorder['maxsize'] == neworder['maxsize']:
-			return ([], [])
+		neworders = self.create_my_orders()
+		if len(neworders) == 0:
+			return ([oldorder], []) #cancel old order
+		elif oldorder['maxsize'] == neworder['maxsize']:
+			return ([], []) #change nothing
 		else:
-			return ([], [neworder])
-		return ([], [neworder])
+			#announce new order, replacing the old order
+			return ([], [neworder[0]])
 
 	def on_tx_confirmed(self, cjorder, confirmations, txid, balance, added_utxos):
 		return self.on_tx_unconfirmed(None, None, None)
