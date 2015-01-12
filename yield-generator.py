@@ -13,6 +13,9 @@ txfee = 1000
 cjfee = '0.01' # 1% fee
 mix_levels = 5
 nickserv_password = ''
+minsize = int(2 * txfee / float(cjfee)) #minimum size is such that you always net profit at least the miners fee
+
+
 
 #is a maker for the purposes of generating a yield from held
 # bitcoins without ruining privacy for the taker, the taker could easily check
@@ -46,7 +49,7 @@ class YieldGenerator(Maker):
 
 		#print mix_balance
 		max_mix = max(mix_balance, key=mix_balance.get)
-		order = {'oid': 0, 'ordertype': 'relorder', 'minsize': 0,
+		order = {'oid': 0, 'ordertype': 'relorder', 'minsize': minsize,
 			'maxsize': mix_balance[max_mix], 'txfee': txfee, 'cjfee': cjfee,
 			'mix_balance': mix_balance}
 		return [order]
