@@ -19,6 +19,9 @@ ordername_list = ["absorder", "relorder"]
 def debug(msg):
 	print datetime.datetime.now().strftime("[%Y/%m/%d %H:%M:%S] ") + msg
 
+def chunks(d, n):
+	return [d[x: x+n] for x in xrange(0, len(d), n)]
+
 def get_network():
 	return 'testnet'
 

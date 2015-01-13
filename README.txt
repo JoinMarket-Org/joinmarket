@@ -45,8 +45,12 @@ taker collects all the utxos and outputs and makes a transaction
 taker then signs his own and pushtx()
 
 IRC commands used when starting a coinjoin, everything in pm
-<taker> !fill [order id] [coinjoin amount]
-<maker> !io [comma seperated list of utxos] [coinjoin address] [change address]
+<taker> !fill [order id] [coinjoin amount] [input_pubkey]
+<maker> !io [comma seperated list of utxos] [coinjoin address] [change address] [coinjoin pubkey] [bitcoin signature] [encryption pubkey]
+
+<taker> !auth [encryption pubkey] [btc_sig]
+After this, messages sent between taker and maker will be encrypted.
+
 when taker collects inputs and outputs of all the makers it's contacted, it creates a tx out of them
 <taker> !txpart [base64 encoded tx part]
 ...

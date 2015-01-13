@@ -27,8 +27,8 @@ minsize = int(2 * txfee / float(cjfee)) #minimum size is such that you always ne
 #spent from utxos that try to make the highest balance even higher
 # so try to keep coins concentrated in one mixing depth
 class YieldGenerator(Maker):
-	def __init__(self, wallet):
-		Maker.__init__(self, wallet)
+	def __init__(self, wallet,keyfile):
+		Maker.__init__(self, wallet,keyfile)
 
 	def on_connect(self):
 		if len(nickserv_password) > 0:
@@ -92,13 +92,13 @@ class YieldGenerator(Maker):
 def main():
 	import sys
 	seed = sys.argv[1] #btc.sha256('dont use brainwallets except for holding testnet coins')
-
+	keyfile = sys.argv[2]
 	print 'downloading wallet history'
 	wallet = Wallet(seed, max_mix_depth = mix_levels)
 	wallet.download_wallet_history()
 	wallet.find_unspent_addresses()
 	
-	maker = YieldGenerator(wallet)
+	maker = YieldGenerator(wallet,keyfile)
 	print 'connecting to irc'
 	maker.run(HOST, PORT, nickname, CHANNEL)
 
