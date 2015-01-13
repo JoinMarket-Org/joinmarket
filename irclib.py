@@ -1,5 +1,7 @@
 import socket, threading, time
-from common import debug
+from common import debug, chunks
+import enc_wrapper
+import base64, os
 
 PING_INTERVAL = 40
 PING_TIMEOUT = 10
@@ -76,6 +78,56 @@ class IRCClient(object):
 
     #TODO implement on_nick_change
 
+    ###############################
+    #Encryption code
+    ###############################
+    def init_encryption(self, fname):
+        if not os.path.isfile(fname):
+            self.enc_kp = enc_wrapper.init_keypair(fname)
+        else:
+            self.enc_kp = enc_wrapper.libnacl.utils.load_key(fname)
+
+    def start_encryption(self, nick, c_pk_hex):
+        '''sets encryption mode on
+		for all succeeding messages
+		until end_encryption is called.
+		Public key of counterparty must be
+		passed in in hex.'''
+        if not self.enc_kp:
+            raise Exception("Cannot initialise encryption without a keypair")
+        self.cp_pubkeys[nick] = enc_wrapper.init_pubkey(c_pk_hex)
+        self.enc_boxes[nick] = enc_wrapper.as_init_encryption(
+            self.enc_kp, self.cp_pubkeys[nick])
+        self.encrypting[nick] = True
+
+    def end_encryption(self, nick):
+        self.encrypting[nick] = False
+        #for safety, blank out all data related
+        #to the connection
+        self.cp_pubkeys[nick] = None
+        self.enc_boxes[nick] = None
+
+    def encrypt_encode(self, msg, nick):
+        if not (nick in self.encrypting.keys()) or not (
+                nick in self.enc_boxes.keys()):
+            raise Exception("Encryption is not switched on.")
+        if not (self.encrypting[nick] and self.enc_boxes[nick]):
+            raise Exception("Encryption is not switched on.")
+        encrypted = self.enc_boxes[nick].encrypt(msg)
+        return base64.b64encode(encrypted)
+
+    def decode_decrypt(self, msg, nick):
+        if not (nick in self.encrypting.keys()) or not (
+                nick in self.enc_boxes.keys()):
+            raise Exception("Encryption is not switched on.")
+        if not (self.encrypting[nick] and self.enc_boxes[nick]):
+            raise Exception("Encryption is not switched on.")
+        decoded = base64.b64decode(msg)
+        return self.enc_boxes[nick].decrypt(decoded)
+    #############################
+    #End encryption code
+    #############################
+
     def close(self):
         try:
             self.send_raw("QUIT")
@@ -92,7 +144,17 @@ class IRCClient(object):
 
     def privmsg(self, nick, message):
         #debug('privmsg to ' + nick + ' ' + message)
-        self.send_raw("PRIVMSG " + nick + " :" + message)
+        if nick in self.encrypting.keys() and self.encrypting[nick]:
+            message = self.encrypt_encode(message, nick)
+        if len(message) > 350:
+            message_chunks = chunks(message, 350)
+        else:
+            message_chunks = [message]
+        print "We are going to send these chunks: "
+        print message_chunks
+        for m in message_chunks:
+            trailer = ' ~' if m == message_chunks[-1] else ' ;'
+            self.send_raw("PRIVMSG " + nick + " :" + m + trailer)
 
     def send_raw(self, line):
         if not line.startswith('PING LAG'):
@@ -108,8 +170,25 @@ class IRCClient(object):
             ctcp = message[1:endindex + 1]
             #self.send_raw('PRIVMSG ' + nick + ' :\x01VERSION 
             #TODO ctcp version here, since some servers dont let you get on without
+
         if target == self.nick:
-            self.on_privmsg(nick, message)
+            if nick not in self.built_privmsg or self.built_privmsg[nick] == '':
+                self.built_privmsg[nick] = message[:-2]
+            else:
+                self.built_privmsg[nick] += message[:-2]
+            if message[-1] == ';':
+                self.waiting[nick] = True
+            elif message[-1] == '~':
+                self.waiting[nick] = False
+                if nick in self.encrypting.keys() and self.encrypting[nick]:
+                    parsed = self.decode_decrypt(self.built_privmsg[nick], nick)
+                else:
+                    parsed = self.built_privmsg[nick]
+                #wipe the message buffer waiting for the next one
+                self.built_privmsg[nick] = ''
+                self.on_privmsg(nick, parsed)
+            else:
+                raise Exception("message formatting error")
         else:
             self.on_pubmsg(nick, message)
 
@@ -174,7 +253,12 @@ class IRCClient(object):
         self.nick = nick
         self.channel = channel
         self.connect_attempts = 0
-
+        #set up encryption management variables
+        self.cp_pubkeys = {}
+        self.enc_boxes = {}
+        self.encrypting = {}
+        self.waiting = {}
+        self.built_privmsg = {}
         self.give_up = False
         self.ping_reply = True
         self.lockcond = threading.Condition()
