@@ -227,6 +227,7 @@ class IRCClient(object):
                 self.on_leave(nick)
         elif chunks[1] == 'KICK':
             target = chunks[3]
+            nick = get_irc_nick(chunks[0])
             self.on_leave(nick)
         elif chunks[1] == 'PART':
             nick = get_irc_nick(chunks[0])

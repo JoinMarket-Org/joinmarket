@@ -87,7 +87,7 @@ class YieldGenerator(Maker):
         oldorder = self.orderlist[0]
         neworders = self.create_my_orders()
         if len(neworders) == 0:
-            return ([oldorder], [])  #cancel old order
+            return ([0], [])  #cancel old order
         elif oldorder['maxsize'] == neworders[0]['maxsize']:
             return ([], [])  #change nothing
         else:
@@ -104,12 +104,12 @@ def main():
     seed = sys.argv[
         1
     ]  #btc.sha256('dont use brainwallets except for holding testnet coins')
-    keyfile = sys.argv[2]
     print 'downloading wallet history'
     wallet = Wallet(seed, max_mix_depth=mix_levels)
     wallet.download_wallet_history()
     wallet.find_unspent_addresses()
 
+    keyfile = 'keyfile-' + str(seed) + '.txt'
     maker = YieldGenerator(wallet, keyfile)
     print 'connecting to irc'
     maker.run(HOST, PORT, nickname, CHANNEL)
