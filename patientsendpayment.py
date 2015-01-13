@@ -42,7 +42,7 @@ class TakerThread(threading.Thread):
 			self.tmaker.txfee, self.finishcallback)
 
 class PatientSendPayment(maker.Maker, taker.Taker):
-	def __init__(self, wallet, destaddr, amount, makercount, txfee, cjfee,
+	def __init__(self, wallet, keyfile, destaddr, amount, makercount, txfee, cjfee,
 			waittime, mixdepth):
 		self.destaddr = destaddr
 		self.amount = amount
@@ -51,8 +51,8 @@ class PatientSendPayment(maker.Maker, taker.Taker):
 		self.cjfee = cjfee
 		self.waittime = waittime
 		self.mixdepth = mixdepth
-		maker.Maker.__init__(self, wallet)
-		taker.Taker.__init__(self)
+		maker.Maker.__init__(self, wallet, keyfile)
+		taker.Taker.__init__(self, keyfile)
 
 	def on_privmsg(self, nick, message):
 		maker.Maker.on_privmsg(self, nick, message)
@@ -148,11 +148,12 @@ def main():
 	wallet = Wallet(seed)
 	wallet.download_wallet_history()
 	wallet.find_unspent_addresses()
+	keyfile = 'keyfile-' + str(seed) + '.txt'
 
 	utxo_list = wallet.get_mix_utxo_list()[options.mixdepth]
 	available_balance = 0
 	for utxo in utxo_list:
-		available_balance = wallet.unspent[utxo]['value']
+		available_balance += wallet.unspent[utxo]['value']
 	if available_balance < amount:
 		print 'not enough money at mixdepth=%d, exiting' % (options.mixdepth)
 		return
@@ -161,7 +162,7 @@ def main():
 	nickname = 'ppayer-' + btc.sha256(gethostname())[:6]
 
 	print 'starting irc'
-	bot = PatientSendPayment(wallet, destaddr, amount, options.makercount,
+	bot = PatientSendPayment(wallet, keyfile, destaddr, amount, options.makercount,
 		options.txfee, options.cjfee, waittime, options.mixdepth)
 	bot.run(HOST, PORT, nickname, CHANNEL)
 

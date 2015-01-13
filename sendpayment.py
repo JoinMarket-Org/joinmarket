@@ -102,8 +102,8 @@ class PaymentThread(threading.Thread):
 		'''
 
 class SendPayment(takermodule.Taker):
-	def __init__(self, wallet, destaddr, amount, makercount, txfee, waittime, mixdepth):
-		takermodule.Taker.__init__(self)
+	def __init__(self, wallet, keyfile, destaddr, amount, makercount, txfee, waittime, mixdepth):
+		takermodule.Taker.__init__(self, keyfile)
 		self.wallet = wallet
 		self.destaddr = destaddr
 		self.amount = amount
@@ -144,9 +144,10 @@ def main():
 	wallet = Wallet(seed)
 	wallet.download_wallet_history()
 	wallet.find_unspent_addresses()
+	keyfile = 'keyfile-' + str(seed) + '.txt'
 
 	print 'starting irc'
-	taker = SendPayment(wallet, destaddr, amount, options.makercount, options.txfee,
+	taker = SendPayment(wallet, keyfile, destaddr, amount, options.makercount, options.txfee,
 		options.waittime, options.mixdepth)
 	taker.run(HOST, PORT, nickname, CHANNEL)
 
