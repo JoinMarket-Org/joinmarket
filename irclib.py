@@ -44,6 +44,7 @@ class PingThread(threading.Thread):
                     except IOError:
                         pass
                     try:
+                        self.irc.sock.shutdown(SHUT_RDWR)
                         self.irc.sock.close()
                     except IOError:
                         pass
