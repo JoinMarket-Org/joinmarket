@@ -266,13 +266,13 @@ class IRCClient(object):
         PingThread(self).start()
 
         while self.connect_attempts < 10 and not self.give_up:
-            print 'connecting'
-            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.sock.connect((server, port))
-            self.fd = self.sock.makefile()
-            self.send_raw('USER %s b c :%s' % (username, realname))
-            self.send_raw('NICK ' + nick)
             try:
+                print 'connecting'
+                self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self.sock.connect((server, port))
+                self.fd = self.sock.makefile()
+                self.send_raw('USER %s b c :%s' % (username, realname))
+                self.send_raw('NICK ' + nick)
                 while 1:
                     try:
                         line = self.fd.readline()
