@@ -32,6 +32,13 @@ def get_addr_vbyte():
 	else:
 		return 0x00
 
+def get_signed_tx(wallet,ins,outs):
+	tx = btc.mktx(ins, outs)
+	for index, utxo in enumerate(ins):
+		addr = wallet.unspent[utxo['output']]['address']
+		tx = btc.sign(tx, index, wallet.get_key_from_addr(addr))
+	return tx
+
 class Wallet(object):
 	def __init__(self, seed, max_mix_depth=2):
 		self.max_mix_depth = max_mix_depth
