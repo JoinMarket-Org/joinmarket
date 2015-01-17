@@ -1,5 +1,5 @@
 import bitcoin as btc
-from common import Wallet
+from common import Wallet, get_signed_tx
 
 import sys
 from optparse import OptionParser
@@ -76,6 +76,7 @@ if method == 'display':
                 print '  m/0/%d/%d/%02d %s %s %.8fbtc' % (m, forchange, k, addr,
                                                           used, balance / 1e8)
         print 'for mixdepth=%d balance=%.8fbtc' % (m, balance_depth / 1e8)
+
 elif method == 'combine':
     ins = []
     outs = []
@@ -94,8 +95,15 @@ elif method == 'combine':
                 destaddr = wallet.get_addr(m, forchange,
                                            wallet.index[m][forchange])
                 outs.append({'address': destaddr, 'value': balance})
-    tx = btc.mktx(ins, outs)
-    for index, utxo in enumerate(ins):
-        addr = wallet.unspent[utxo['output']]['address']
-        tx = btc.sign(tx, index, wallet.get_key_from_addr(addr))
-    print tx
+    print get_signed_tx(wallet, ins, outs)
+
+elif method == 'reset':
+    ins = []
+    outs = []
+    balance = 0
+    for utxo, addrvalue in wallet.unspent.iteritems():
+        ins.append({'output': utxo})
+        balance += addrvalue['value']
+    destaddr = wallet.get_addr(0, 0, 0)
+    outs.append({'address': destaddr, 'value': balance})
+    print get_signed_tx(wallet, ins, outs)
