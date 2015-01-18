@@ -381,10 +381,9 @@ def main():
         1
     ]  #btc.sha256('dont use brainwallets except for holding testnet coins')
     keyfile = sys.argv[2]
-    print 'downloading wallet history'
+
     wallet = Wallet(seed, max_mix_depth=5)
-    wallet.download_wallet_history()
-    wallet.find_unspent_addresses()
+    wallet.sync_wallet()
 
     maker = Maker(wallet, keyfile)
     print 'connecting to irc'
