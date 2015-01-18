@@ -79,7 +79,7 @@ elif method == 'combine':
 			if balance > 0:
 				destaddr = wallet.get_addr(m, forchange, wallet.index[m][forchange])
 				outs.append({'address': destaddr, 'value': balance})
-	print get_signed_tx(wallet,ins,outs)
+	print get_signed_tx(wallet, ins, outs)
 
 elif method == 'reset':
 	ins = []
@@ -90,6 +90,6 @@ elif method == 'reset':
 		balance += addrvalue['value']
 	destaddr = wallet.get_addr(0,0,0)
 	outs.append({'address': destaddr, 'value': balance})	
-	print get_signed_tx(wallet,ins,outs)
+	print get_signed_tx(wallet, ins, outs)
 	
 	

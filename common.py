@@ -32,7 +32,7 @@ def get_addr_vbyte():
 	else:
 		return 0x00
 
-def get_signed_tx(wallet,ins,outs):
+def get_signed_tx(wallet, ins, outs):
 	tx = btc.mktx(ins, outs)
 	for index, utxo in enumerate(ins):
 		addr = wallet.unspent[utxo['output']]['address']
