@@ -7,7 +7,6 @@ import time
 import pprint
 
 from socket import gethostname
-nickname = 'yigen-' + btc.sha256(gethostname())[:6]
 
 txfee = 1000
 cjfee = '0.01'  # 1% fee
@@ -108,8 +107,8 @@ def main():
     wallet = Wallet(seed, max_mix_depth=mix_levels)
     wallet.download_wallet_history()
     wallet.find_unspent_addresses()
-
-    keyfile = 'keyfile-' + str(seed) + '.txt'
+    keyfile = sys.argv[2]
+    nickname = 'yigen-' + sys.argv[2][:3] + btc.sha256(gethostname())[:6]
     maker = YieldGenerator(wallet, keyfile)
     print 'connecting to irc'
     maker.run(HOST, PORT, nickname, CHANNEL)

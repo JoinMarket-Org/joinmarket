@@ -267,6 +267,10 @@ class Taker(OrderbookWatch):
                     continue
                 self.cjtx.recv_txio(nick, utxo_list, cj_pub, change_addr)
             elif chunks[0] == 'sig':
+                #whether the signature is correct or not,
+                #we treat this as the last message for this tx from
+                #this nick, and therefore switch off encryption
+                self.end_encryption(nick)
                 sig = chunks[1]
                 self.cjtx.add_signature(sig)
 
@@ -359,7 +363,7 @@ def main():
     seed = sys.argv[1]  #btc.sha256('your brainwallet goes here')
     keyfile = sys.argv[2]
     from socket import gethostname
-    nickname = 'taker-' + btc.sha256(gethostname())[:6]
+    nickname = 'taker-' + sys.argv[2][:3] + btc.sha256(gethostname())[:6]
 
     print 'downloading wallet history'
     wallet = Wallet(seed, max_mix_depth=5)

@@ -100,6 +100,8 @@ class CoinJoinOrder(object):
                 sigline = command_prefix + 'sig ' + sig
         if len(sigline) > 0:
             self.maker.privmsg(nick, sigline)
+        #once signature is sent, close encrypted channel to this taker.
+        self.maker.end_encryption(nick)
 
     def unconfirm_callback(self, balance):
         removed_utxos = self.maker.wallet.remove_old_utxos(self.tx)
