@@ -387,7 +387,13 @@ def main():
 
     maker = Maker(wallet, keyfile)
     print 'connecting to irc'
-    maker.run(HOST, PORT, nickname, CHANNEL)
+    try:
+        maker.run(HOST, PORT, nickname, CHANNEL)
+    finally:
+        debug('CRASHING, DUMPING EVERYTHING')
+        debug('wallet seed = ' + seed)
+        debug_dump_object(wallet, ['addr_cache'])
+        debug_dump_object(taker)
 
 
 if __name__ == "__main__":

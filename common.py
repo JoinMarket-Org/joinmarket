@@ -36,6 +36,21 @@ def get_addr_vbyte():
         return 0x00
 
 
+def debug_dump_object(obj, skip_fields=[]):
+    print 'Class debug dump, name:' + obj.__class__.__name__
+    for k, v in obj.__dict__.iteritems():
+        if k in skip_fields:
+            continue
+        print 'key=' + k
+        if isinstance(v, str):
+            print 'string: len:' + str(len(v))
+            print v
+        elif isinstance(v, dict) or isinstance(v, list):
+            pprint.pprint(v)
+        else:
+            print v
+
+
 class Wallet(object):
 
     def __init__(self, seed, max_mix_depth=2):

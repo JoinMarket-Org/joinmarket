@@ -308,7 +308,6 @@ class TestTaker(Taker):
                     self.wallet.get_receive_addr(mixing_depth=1),
                     self.wallet.get_change_addr(mixing_depth=0),
                     my_tx_fee)
-
             if chunks[0] == '%showob':
                 print('printing orderbook')
                 for o in self.db.execute('SELECT * FROM orderbook;').fetchall():
@@ -366,7 +365,13 @@ def main():
 
     print 'starting irc'
     taker = TestTaker(wallet, keyfile)
-    taker.run(HOST, PORT, nickname, CHANNEL)
+    try:
+        taker.run(HOST, PORT, nickname, CHANNEL)
+    finally:
+        debug('CRASHING, DUMPING EVERYTHING')
+        debug('wallet seed = ' + seed)
+        debug_dump_object(wallet, ['addr_cache'])
+        debug_dump_object(taker)
 
 
 if __name__ == "__main__":

@@ -215,7 +215,13 @@ def main():
     bot = PatientSendPayment(wallet, keyfile, destaddr, amount,
                              options.makercount, options.txfee, options.cjfee,
                              waittime, options.mixdepth)
-    bot.run(HOST, PORT, nickname, CHANNEL)
+    try:
+        bot.run(HOST, PORT, nickname, CHANNEL)
+    finally:
+        debug('CRASHING, DUMPING EVERYTHING')
+        debug('wallet seed = ' + seed)
+        debug_dump_object(wallet, ['addr_cache'])
+        debug_dump_object(taker)
 
 
 if __name__ == "__main__":
