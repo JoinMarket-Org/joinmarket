@@ -202,11 +202,11 @@ class OrderbookWatch(irclib.IRCClient):
 
     def on_set_topic(self, newtopic):
         chunks = newtopic.split('|')
-        try:
+        if len(chunks) > 1:
+            print '=' * 60
+            print 'MESSAGE FROM BELCHER!'
             print chunks[1].strip()
-            print chunks[2].strip()
-        except IndexError:
-            pass
+            print '=' * 60
 
     def on_leave(self, nick):
         self.db.execute('DELETE FROM orderbook WHERE counterparty=?;', (nick,))
