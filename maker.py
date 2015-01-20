@@ -247,8 +247,6 @@ class Maker(irclib.IRCClient):
             chunks = message[1:].split(" ")
             if chunks[0] == 'orderbook':
                 self.privmsg_all_orders(nick)
-            elif chunks[0] == '%quit' or chunks[0] == '%makerquit':
-                self.shutdown()
 
     def on_set_topic(self, newtopic):
         chunks = newtopic.split('|')

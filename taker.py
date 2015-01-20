@@ -182,9 +182,7 @@ class OrderbookWatch(irclib.IRCClient):
         for command in message[1:].split(command_prefix):
             #commands starting with % are for testing and will be removed in the final version
             chunks = command.split(" ")
-            if chunks[0] == '%quit' or chunks[0] == '%takerquit':
-                self.shutdown()
-            elif chunks[0] == 'cancel':
+            if chunks[0] == 'cancel':
                 #!cancel [oid]
                 try:
                     oid = int(chunks[1])
