@@ -31,7 +31,7 @@ class YieldGenerator(Maker):
 
 	def on_connect(self):
 		if len(nickserv_password) > 0:
-			self.privmsg('NickServ', 'identify ' + nickserv_password)
+			self.send_raw('PRIVMSG NickServ :identify ' + nickserv_password)
 
 	def create_my_orders(self):
 		mix_utxo_list = self.wallet.get_mix_utxo_list()
@@ -97,7 +97,13 @@ def main():
 	nickname = 'yigen-' + sys.argv[2][:3] + btc.sha256(gethostname())[:6]
 	maker = YieldGenerator(wallet, keyfile)
 	print 'connecting to irc'
-	maker.run(HOST, PORT, nickname, CHANNEL)
+	try:
+		maker.run(HOST, PORT, nickname, CHANNEL)
+	finally:
+		debug('CRASHING, DUMPING EVERYTHING')
+		debug('wallet seed = ' + seed)
+		debug_dump_object(wallet, ['addr_cache'])
+		debug_dump_object(maker)
 
 if __name__ == "__main__":
 	main()
