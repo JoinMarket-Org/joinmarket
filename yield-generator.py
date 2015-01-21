@@ -117,7 +117,7 @@ def main():
         debug('CRASHING, DUMPING EVERYTHING')
         debug('wallet seed = ' + seed)
         debug_dump_object(wallet, ['addr_cache'])
-        debug_dump_object(taker)
+        debug_dump_object(maker)
 
 
 if __name__ == "__main__":
