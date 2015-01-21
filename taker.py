@@ -158,6 +158,8 @@ class OrderbookWatch(irclib.IRCClient):
             + "minsize INTEGER, maxsize INTEGER, txfee INTEGER, cjfee TEXT);")
 
     def add_order(self, nick, chunks):
+        self.db.execute("DELETE FROM orderbook WHERE counterparty=? AND oid=?;",
+                        (nick, chunks[1]))
         self.db.execute('INSERT INTO orderbook VALUES(?, ?, ?, ?, ?, ?, ?);',
                         (nick, chunks[1], chunks[0], chunks[2], chunks[3],
                          chunks[4], chunks[5]))
@@ -194,6 +196,13 @@ class OrderbookWatch(irclib.IRCClient):
                     return
             elif chunks[0] in ordername_list:
                 self.add_order(nick, chunks)
+            elif chunks[0] == '%showob':
+                print('printing orderbook')
+                for o in self.db.execute('SELECT * FROM orderbook;').fetchall():
+                    print '(%s %s %d %d-%d %d %s)' % (
+                        o['counterparty'], o['ordertype'], o['oid'],
+                        o['minsize'], o['maxsize'], o['txfee'], o['cjfee'])
+                print('done')
 
     def on_welcome(self):
         self.pubmsg(command_prefix + 'orderbook')
@@ -306,13 +315,6 @@ class TestTaker(Taker):
                     self.wallet.get_receive_addr(mixing_depth=1),
                     self.wallet.get_change_addr(mixing_depth=0),
                     my_tx_fee)
-            if chunks[0] == '%showob':
-                print('printing orderbook')
-                for o in self.db.execute('SELECT * FROM orderbook;').fetchall():
-                    print '(%s %s %d %d-%d %d %s)' % (
-                        o['counterparty'], o['ordertype'], o['oid'],
-                        o['minsize'], o['maxsize'], o['txfee'], o['cjfee'])
-                print('done')
             elif chunks[0] == '%unspent':
                 from pprint import pprint
                 pprint(self.wallet.unspent)
