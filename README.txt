@@ -1,32 +1,41 @@
+Bitcointalk thread:
+https://bitcointalk.org/index.php?topic=919116.msg10096563
+
+
 FIRST IMPLEMENTATION OF JOINMARKET
 
 you will need to know python somewhat to play around with it
  also get some testnet coins
 
 HOWTO try
-1. create two wallet seeds string (can be just brainwallets if you're only storing testnet btc)
- one seed for each maker and taker
- use wallet-tool.py to output a bunch of addresses from the seeds
- send testnet coins to one mixing-depth=0 receive address
- seeds are taken as a command line argument
+1. You will need libsodium installed
+ Get it here: http://doc.libsodium.org/installation/README.html
 
-2. join irc.freenode.net #joinmarket-pit-test and run both taker.py and yield-generator.py
+2. Come up with a wallet seed. This is a bit like a brainwallet, it can be any string.
+ For real bitcoins you would probably generate it from 128 bits of entropy and encode
+ in a 12-word mnemonic. For testnet just use anything.
 
-3. when both bots join and have announced their orders, use this
- command to start a coinjoining
- !%fill [counterparty] [order-id] [cj-amount] [utxo]
+$ python wallet-tool.py [seed]
+  To print out a bunch of addresses, send some testnet coins to an address
 
-so for example if the maker is called 'cj-maker' and you want to mix 1.9btc
- !%fill cj-maker 0 190000000 5cf68d4c42132f8f0bef8573454036953ddb3ba77a3bf3797d9862b7102d65cd:1
+$ python sendpayment.py -N 1 [seed] [amount-in-satoshi] [destination address]
+  Chooses the cheapest offer to do a 2-party coinjoin to send money to a destination address
 
-all values are in satoshis, the first order has order-id 0 and it counts up
-you can use !%unspent to see a printout of taker's unspent transaction outputs
-and !%showob to see the orderbook
+If you're a frugal user and don't want to pay for a coinjoin if you dont have to, use this command
+$ python patientsendpayments.py -N 1 -w 2 [wallet seed] [amount in satoshi] [destination address]
+  Announces orders and waits to coinjoin for a maximum of 2 hours. Once that time it up cancels the
+  orders and pays to do a 2-party coinjoin.
 
-4. watch the outputs of both bots, soon enough taker.py will say it has completed
+$ python gui-taker.py
+  Starts a local http server which you can connect to and will display the orderbook as well as some graphs
+
+
+Watch the output of your bot(s), soon enough the taker will say it has completed
  a transaction, maker will wait for the transaction to be seen and confirmed
+If there are no orders, you could run two bots from the same machine. Be sure to use
+ two seperate wallet seeds though.
 
-theres lots that needs to be done
+
 some other notes below..
 
 #COINJOIN PROTOCOL
