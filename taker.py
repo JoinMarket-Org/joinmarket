@@ -315,10 +315,8 @@ def main():
 	from socket import gethostname
 	nickname = 'taker-' + sys.argv[2][:3] + btc.sha256(gethostname())[:6]
 
-	print 'downloading wallet history'
 	wallet = Wallet(seed, max_mix_depth=5)
-	wallet.download_wallet_history()
-	wallet.find_unspent_addresses()
+	wallet.sync_wallet()
 
 	print 'starting irc'
 	taker = TestTaker(wallet,keyfile)

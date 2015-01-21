@@ -1,7 +1,7 @@
 
 import bitcoin as btc
 from decimal import Decimal
-import sys, datetime, json, time
+import sys, datetime, json, time, pprint
 import threading
 
 HOST = 'irc.freenode.net'
@@ -118,6 +118,12 @@ class Wallet(object):
 			mix_utxo_list[mixdepth].append(utxo)
 		return mix_utxo_list
 
+	def sync_wallet(self, gaplimit=6):
+		debug('synchronizing wallet')
+		self.download_wallet_history(gaplimit)
+		self.find_unspent_addresses()
+		self.print_debug_wallet_info()
+
 	def download_wallet_history(self, gaplimit=6):
 		'''
 		sets Wallet internal indexes to be at the next unused address
@@ -193,6 +199,14 @@ class Wallet(object):
 				for u in dat['unspent']:
 					self.unspent[u['tx']+':'+str(u['n'])] = {'address':
 						dat['address'], 'value': int(u['amount'].replace('.', ''))}
+
+	def print_debug_wallet_info(self):
+		debug('printing debug wallet information')
+		print 'utxos'
+		pprint.pprint(self.unspent)
+		print 'wallet.index'
+		pprint.pprint(self.index)
+
 
 #awful way of doing this, but works for now
 # and -walletnotify for people who do
