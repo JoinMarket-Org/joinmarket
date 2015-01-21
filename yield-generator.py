@@ -72,15 +72,11 @@ class YieldGenerator(Maker):
             mixdepth = (mixdepth - 1) % self.wallet.max_mix_depth
         #mixdepth is the chosen depth we'll be spending from
 
-        mix_utxo_list = self.wallet.get_mix_utxo_list()
-        unspent = [{'utxo': utxo,
-                    'value': self.wallet.unspent[utxo]['value']}
-                   for utxo in mix_utxo_list[mixdepth]]
-        inputs = btc.select(unspent, amount)
+        utxos = self.wallet.select_utxos(mixdepth, amount)
         cj_addr = self.wallet.get_receive_addr(
             (mixdepth + 1) % self.wallet.max_mix_depth)
         change_addr = self.wallet.get_change_addr(mixdepth)
-        return [i['utxo'] for i in inputs], cj_addr, change_addr
+        return utxos, cj_addr, change_addr
 
     def on_tx_unconfirmed(self, cjorder, balance, removed_utxos):
         #if the balance of the highest-balance mixing depth change then reannounce it

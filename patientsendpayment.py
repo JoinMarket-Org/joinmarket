@@ -31,14 +31,8 @@ class TakerThread(threading.Thread):
                                           self.tmaker.makercount)
         print 'chosen orders to fill ' + str(orders)
 
-        utxo_list = self.tmaker.wallet.get_mix_utxo_list()[self.tmaker.mixdepth]
-        unspent = [{'utxo': utxo,
-                    'value': self.tmaker.wallet.unspent[utxo]['value']}
-                   for utxo in utxo_list]
-        inputs = btc.select(unspent, self.tmaker.amount)
-        utxos = [i['utxo'] for i in inputs]
-        print 'will spend ' + str(inputs)
-
+        utxos = self.taker.wallet.select_utxos(self.tmaker.mixdepth,
+                                               self.tmaker.amount)
         self.tmaker.cjtx = taker.CoinJoinTX(
             self.tmaker, self.tmaker.amount, orders, utxos,
             self.tmaker.destaddr,
@@ -90,12 +84,7 @@ class PatientSendPayment(maker.Maker, taker.Taker):
         #if an order arrives and before it finishes another order arrives
         # its possible this bot will end up paying to the destaddr more than it
         # intended
-        utxo_list = self.wallet.get_mix_utxo_list()[self.mixdepth]
-        unspent = [{'utxo': utxo,
-                    'value': self.wallet.unspent[utxo]['value']}
-                   for utxo in utxo_list]
-        inputs = btc.select(unspent, amount)
-        utxos = [i['utxo'] for i in inputs]
+        utxos = self.wallet.select_utxos(self.mixdepth, amount)
         return utxos, self.destaddr, self.wallet.get_change_addr(self.mixdepth)
 
     def on_tx_unconfirmed(self, cjorder, balance, removed_utxos):

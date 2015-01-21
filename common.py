@@ -135,6 +135,16 @@ class Wallet(object):
             mix_utxo_list[mixdepth].append(utxo)
         return mix_utxo_list
 
+    def select_utxos(self, mixdepth, amount):
+        utxo_list = self.get_mix_utxo_list()[mixdepth]
+        unspent = [{'utxo': utxo,
+                    'value': self.unspent[utxo]['value']} for utxo in utxo_list]
+        inputs = btc.select(unspent, amount)
+        debug('for mixdepth=' + str(mixdepth) + ' amount=' + str(amount) +
+              ' selected:')
+        pprint.pprint(inputs)
+        return [i['utxo'] for i in inputs]
+
     def sync_wallet(self, gaplimit=6):
         debug('synchronizing wallet')
         self.download_wallet_history(gaplimit)
