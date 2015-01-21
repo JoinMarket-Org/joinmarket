@@ -32,7 +32,7 @@ class YieldGenerator(Maker):
 
 	def on_connect(self):
 		if len(nickserv_password) > 0:
-			self.privmsg('NickServ', 'identify ' + nickserv_password)
+			self.send_raw('PRIVMSG NickServ :identify ' + nickserv_password)
 
 	def create_my_orders(self):
 		mix_utxo_list = self.wallet.get_mix_utxo_list()
