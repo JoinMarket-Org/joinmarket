@@ -1,32 +1,41 @@
+Bitcointalk thread:
+https://bitcointalk.org/index.php?topic=919116.msg10096563
+
+
 FIRST IMPLEMENTATION OF JOINMARKET
 
 you will need to know python somewhat to play around with it
  also get some testnet coins
 
 HOWTO try
-1. create two wallet seeds string (can be just brainwallets if you're only storing testnet btc)
- one seed for each maker and taker
- use bip32-tool.py to output a bunch of addresses from the seeds
- send testnet coins to one mixing-depth=0 receive address
- seeds are taken as a command line argument
+1. You will need libsodium installed
+ Get it here: http://doc.libsodium.org/installation/README.html
 
-2. join irc.freenode.net #joinmarket-pit-test and run both taker.py and yield-generator.py
+2. Come up with a wallet seed. This is a bit like a brainwallet, it can be any string.
+ For real bitcoins you would probably generate it from 128 bits of entropy and encode
+ in a 12-word mnemonic. For testnet just use anything.
 
-3. when both bots join and have announced their orders, use this
- command to start a coinjoining
- !%fill [counterparty] [order-id] [cj-amount] [utxo]
+$ python wallet-tool.py [seed]
+  To print out a bunch of addresses, send some testnet coins to an address
 
-so for example if the maker is called 'cj-maker' and you want to mix 1.9btc
- !%fill cj-maker 0 190000000 5cf68d4c42132f8f0bef8573454036953ddb3ba77a3bf3797d9862b7102d65cd:1
+$ python sendpayment.py -N 1 [seed] [amount-in-satoshi] [destination address]
+  Chooses the cheapest offer to do a 2-party coinjoin to send money to a destination address
 
-all values are in satoshis, the first order has order-id 0 and it counts up
-you can use !%unspent to see a printout of taker's unspent transaction outputs
-and !%showob to see the orderbook
+If you're a frugal user and don't want to pay for a coinjoin if you dont have to, use this command
+$ python patientsendpayments.py -N 1 -w 2 [wallet seed] [amount in satoshi] [destination address]
+  Announces orders and waits to coinjoin for a maximum of 2 hours. Once that time it up cancels the
+  orders and pays to do a 2-party coinjoin.
 
-4. watch the outputs of both bots, soon enough taker.py will say it has completed
+$ python gui-taker.py
+  Starts a local http server which you can connect to and will display the orderbook as well as some graphs
+
+
+Watch the output of your bot(s), soon enough the taker will say it has completed
  a transaction, maker will wait for the transaction to be seen and confirmed
+If there are no orders, you could run two bots from the same machine. Be sure to use
+ two seperate wallet seeds though.
 
-theres lots that needs to be done
+
 some other notes below..
 
 #COINJOIN PROTOCOL
@@ -61,120 +70,3 @@ it signs its own utxos and extracts just the script from it which contains signa
 taker collects all scripts and places them into the tx
 taker pushes tx when all the scripts have arrived
 
-
-#TODO
-#ask people on the testnet stuff to code up a few trading algos to see if the interface/protocol that
-# iv invented is general enough
-a few algos:
-fees proportional to how many utxos used, since the marginal cost is unrelated to your cj amount, only to
- the amount of utxos you use up
-
-#TODO dont always pick the lowest cost order, instead have an exponentially decaying
-# distribution, so most of the time you pick the lowest and sometimes you take higher ones
-# this represents your uncertainty in sybil attackers, the cheapest may not always be the best
-#i.e. randomly chosen makers, weighted by the price they offer
-
-#TODO on nickname change, change also the counterparty variable in any open orders
-
-#TODO use electrum json_rpc instead of the pybitcointools stuff
-# problem, i dont think that supports testnet
-# bitcoind json_rpc obviously supports testnet, but someone else can download
-#  the blockchain, actually it seems you cant replace pybitcointools with bitcoind
-#  cant look up any txid or address
-# could use a websocket api for learning when new blocks/tx appear
-# could use python-bitcoinlib to be a node in the p2p network
-
-#TODO option for how many blocks deep to wait before using a utxo for more mixing
-# 1 confirm is probably enough
-TODO
-have the taker enforce this, look up the txhash of the maker's utxo and make sure
- it is already in a block
-
-
-TODO implement rate limiting for irc.privmsg to stop the bot being killed due to flood
-i suggest creating a thread that only dispatches/writes to the irc socket
-
-TODO sort out the nick = nick + '_' stuff in irclib
-its not a good way of doing it
-
-#TODO encrypt messages between taker and maker, to stop trivial server eavesdropping
-# but that wont stop mitm
-# after chats on irc, easiest is to do Trust On First Use, maker sends a pubkey over
-#  TOFU requires a human to verify each first time, might not be practical
-#  skip the human verification, it will probably be okay
-# make the irc nick be a hash of the pubkey
-# also theres some algorithm for detecting mitm
-
-#TODO implement something against dust
-# e.g. where the change address ends up having an output of value 1000 satoshis
-
-#TODO completely abstract away the irc stuff, so it can be switched to something else
-# e.g. twitter but more likely darkwallet obelisk and/or electrum server
-
-TODO combine the taker and maker code into one file where you can make different kinds of
- bot which combine both roles
-e.g. tumbler.py repeatedly takes orders on the same coins again and again in an effort
- to improve privacy and break the link between them, make sure to split up and combine them again
- in random amounts, because the yield-generator will also be splitting and combining coins
- random intervals between blocks included might be worth it too, since yield-generator.py
- will appear to have coins which dont get mixed again for a while
-e.g. patient-tumbler.py which waits a while being a maker, then just starts to take orders
- after a time limit for people who want to mix coins but dont mind waiting until a fixed upper time limit
-e.g. yield-generator.py which acts as a maker solely for the purpose of making money
- might need to take orders at some point, for very small outputs which have a small probability of being filled
-e.g. single-tx.py which takes a single order, using it to send coins to some address
- typically as a payment, so this is what the electrum plugin would look like
-e.g. patient-single-tx.py which does the above but doesnt mind waiting up to a limit
-e.g. gui-taker.py has a gui which shows the user the orderbook and they can easily fill and order
- and see other statistics, could be easily done by opening a http port and sending a html form and graphics
-
-TODO
-implement this the thing that gmaxwell wrote about in the original coinjoin post, as a kind of tumbler
-"Isn't the anonymity set size limited by how many parties you can get in a single transaction?"
-
-"Not quite. The anonymity set size of a single transaction is limited by the number of parties in it, obviously. And transaction size limits as well as failure (retry) risk mean that really huge joint transactions would not be wise. But because these transactions are cheap, there is no limit to the number of transactions you can cascade.
-
-In particular, if you have can build transactions with m participants per transaction you can create a sequence of m*3 transactions which form a three-stage switching network that permits any of m^2 final outputs to have come from any of m^2 original inputs (e.g. using three stages of 32 transactions with 32 inputs each 1024 users can be joined with a total of 96 transactions).  This allows the anonymity set to be any size, limited only by participation."
-https://en.wikipedia.org/wiki/Clos_network
-Not sure if it will actually be possible in this liquidity maker/taker system
-
-TODO need to move onto the bip44 structure of HD wallets
-
-TODO think about this 
-<> some coinjoin tools we use today were broken
-<> one allowed people to use a mix of uncompressed and compressed keys, so it was obvious which party was which.
-
-TODO
-probably a good idea to have a debug.log where loads of information is dumped
-
-TODO
-for the !addrs command, firstly change its name since it also includes the utxo inputs
- secondly, the utxo list might be longer than can fit in an irc message, so create a
- !addrsparts or something command
-
-TODO
-code a gui where a human can see the state of the orderbook and easily choose orders to fill
-code a gui that easily explains to a human how they can choose a fee for their yield-generator.py
-both are important for market forces, since markets emerge from human decisions and actions
-
-#TODO add random delays to the orderbook stuff so there isnt such a traffic spike when a new bot joins
-#two options, random delay !orderbook for ones which dont mind, !orderbook without delay for bots
-# which need the orders asap
-
-TODO
-code something that extends orderbookwatch and creates graphs
- those graphs can be posted to a bitcointalk thread (like the bitstamp wall watch thread)
- and could be a nice historical record and guide to pricing
-
-TODO
-code something that analyzes the blockchain, detects coinjoin tx likely made by joinmarket
- and calculates the paid fee, therefore is a guide to pricing
-
-TODO
-the add_addr_notify() stuff doesnt work, so if theres several CoinJoinOrder's open it will start a few
- threads to do the notifying, they could race condition or other multithreaded errors
-i suggest to create a single thread that sorts out all the stuff
-
-#TODO make an ordertype where maker publishes the utxo he will use
-# this is a way to auction off the use of a desirable coin, maybe a 
-# very newly mined coin or one which hasnt been moved for years

@@ -249,16 +249,14 @@ class Maker(irclib.IRCClient):
             chunks = message[1:].split(" ")
             if chunks[0] == 'orderbook':
                 self.privmsg_all_orders(nick)
-            elif chunks[0] == '%quit' or chunks[0] == '%makerquit':
-                self.shutdown()
 
     def on_set_topic(self, newtopic):
         chunks = newtopic.split('|')
-        try:
+        if len(chunks) > 1:
+            print '=' * 60
+            print 'MESSAGE FROM BELCHER!'
             print chunks[1].strip()
-            print chunks[3].strip()
-        except IndexError:
-            pass
+            print '=' * 60
 
     def on_leave(self, nick):
         self.active_orders[nick] = None
@@ -389,7 +387,13 @@ def main():
 
     maker = Maker(wallet, keyfile)
     print 'connecting to irc'
-    maker.run(HOST, PORT, nickname, CHANNEL)
+    try:
+        maker.run(HOST, PORT, nickname, CHANNEL)
+    finally:
+        debug('CRASHING, DUMPING EVERYTHING')
+        debug('wallet seed = ' + seed)
+        debug_dump_object(wallet, ['addr_cache'])
+        debug_dump_object(maker)
 
 
 if __name__ == "__main__":
