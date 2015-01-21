@@ -70,7 +70,6 @@ class YieldGenerator(Maker):
                 break
             mixdepth = (mixdepth - 1) % self.wallet.max_mix_depth
         #mixdepth is the chosen depth we'll be spending from
-
         mix_utxo_list = self.wallet.get_mix_utxo_list()
         unspent = [{'utxo': utxo,
                     'value': self.wallet.unspent[utxo]['value']}
@@ -83,15 +82,15 @@ class YieldGenerator(Maker):
 
     def on_tx_unconfirmed(self, cjorder, balance, removed_utxos):
         #if the balance of the highest-balance mixing depth change then reannounce it
-        oldorder = self.orderlist[0]
+        oldorder = self.orderlist[0] if len(self.orderlist) > 0 else None
         neworders = self.create_my_orders()
         if len(neworders) == 0:
             return ([0], [])  #cancel old order
-        elif oldorder['maxsize'] == neworders[0]['maxsize']:
-            return ([], [])  #change nothing
-        else:
-            #announce new order, replacing the old order
-            return ([], [neworders[0]])
+        if oldorder:  #oldorder may not exist when this is called from on_tx_confirmed
+            if oldorder['maxsize'] == neworders[0]['maxsize']:
+                return ([], [])  #change nothing
+        #announce new order, replacing the old order
+        return ([], [neworders[0]])
 
     def on_tx_confirmed(self, cjorder, confirmations, txid, balance,
                         added_utxos):
