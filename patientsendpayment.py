@@ -196,10 +196,8 @@ def main():
         options.txfee, options.cjfee, str(timedelta(hours=options.waittime)),
         options.makercount)
 
-    print 'downloading wallet history'
     wallet = Wallet(seed)
-    wallet.download_wallet_history()
-    wallet.find_unspent_addresses()
+    wallet.sync_wallet()
     keyfile = 'keyfile-' + str(seed) + '.txt'
 
     utxo_list = wallet.get_mix_utxo_list()[options.mixdepth]

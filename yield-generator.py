@@ -103,10 +103,9 @@ def main():
     seed = sys.argv[
         1
     ]  #btc.sha256('dont use brainwallets except for holding testnet coins')
-    print 'downloading wallet history'
+
     wallet = Wallet(seed, max_mix_depth=mix_levels)
-    wallet.download_wallet_history()
-    wallet.find_unspent_addresses()
+    wallet.sync_wallet()
     keyfile = sys.argv[2]
     nickname = 'yigen-' + sys.argv[2][:3] + btc.sha256(gethostname())[:6]
     maker = YieldGenerator(wallet, keyfile)
