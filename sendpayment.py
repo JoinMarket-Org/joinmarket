@@ -82,13 +82,7 @@ class PaymentThread(threading.Thread):
 		orders = choose_order(self.taker.db, self.taker.amount, self.taker.makercount)
 		print 'chosen orders to fill ' + str(orders)
 
-		utxo_list = self.taker.wallet.get_mix_utxo_list()[self.taker.mixdepth]
-		unspent = [{'utxo': utxo, 'value': self.taker.wallet.unspent[utxo]['value']}
-			for utxo in utxo_list]
-		inputs = btc.select(unspent, self.taker.amount)
-		utxos = [i['utxo'] for i in inputs]
-		print 'will spend ' + str(inputs)
-
+		utxos = self.taker.wallet.select_utxos(self.taker.mixdepth, self.taker.amount)
 		self.taker.cjtx = takermodule.CoinJoinTX(self.taker, self.taker.amount,
 			orders, utxos, self.taker.destaddr,
 			self.taker.wallet.get_change_addr(self.taker.mixdepth), self.taker.txfee,
