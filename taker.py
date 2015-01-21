@@ -125,8 +125,19 @@ class CoinJoinTX(object):
 		print btc.serialize(self.latest_tx)
 		ret = btc.blockr_pushtx(btc.serialize(self.latest_tx), get_network())
 		debug('pushed tx ' + str(ret))
+		#watch thread to remove used utxos
+		add_addr_notify(self.my_change_addr, self.unconfirm_callback, self.confirm_callback)
+		
 		if self.finishcallback != None:
 			self.finishcallback()
+			
+	def unconfirm_callback(self, balance):
+		removed_utxos = self.taker.wallet.remove_old_utxos(self.latest_tx)
+		debug('saw tx on network, removed_utxos=\n' + pprint.pformat(removed_utxos))		
+	
+	def confirm_callback(self, confirmations, txid, balance):
+		added_utxos = self.taker.wallet.add_new_utxos(self.latest_tx, txid)
+		debug('tx in a block, added_utxos=\n' + pprint.pformat(added_utxos))
 
 class OrderbookWatch(irclib.IRCClient):
 	def __init__(self):
@@ -252,7 +263,7 @@ my_tx_fee = 10000
 class TestTaker(Taker):
 	def __init__(self, wallet,keyfile):
 		Taker.__init__(self,keyfile)
-		self.wallet = wallet
+		self.wallet = wallet	
 		
 	def on_pubmsg(self, nick, message):
 		Taker.on_pubmsg(self, nick, message)
@@ -266,14 +277,18 @@ class TestTaker(Taker):
 				cp = chunks[1]
 				oid = chunks[2]
 				amt = chunks[3]
-				utxo_list = self.wallet.get_mix_utxo_list()[0] #only spend from the unmixed funds
+				#this testing command implements a very dumb algorithm.
+				#just take 1 utxo from anywhere and output it to a level 1
+				#change address.
+				utxo_dict = self.wallet.get_mix_utxo_list()
+				utxo_list = [x for v in utxo_dict.itervalues() for x in v]
 				unspent = [{'utxo': utxo, 'value': self.wallet.unspent[utxo]['value']} \
 				           for utxo in utxo_list]
 				inputs = btc.select(unspent, amt)
 				utxos = [i['utxo'] for i in inputs]				
 				print 'making cjtx'
 				self.cjtx = CoinJoinTX(self, int(amt), {cp: oid},
-			                [utxos[0]], self.wallet.get_receive_addr(mixing_depth=1),
+			                utxos, self.wallet.get_receive_addr(mixing_depth=1),
 			                self.wallet.get_change_addr(mixing_depth=0), my_tx_fee)								
 				
 			if chunks[0] == '%showob':

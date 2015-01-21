@@ -19,7 +19,9 @@ parser = OptionParser(usage='usage: %prog [options] [seed] [method]',
 	description='Does useful little lasts involving your bip32 wallet. The'
 	+ ' method is one of the following: Display- shows all addresses and balances'
 	+ '. Combine- combines all utxos into one output for each mixing level. Used for'
-	+ ' testing and is detrimental to privacy.')
+	+ ' testing and is detrimental to privacy.'
+        + ' reset - send all utxos back to first receiving address at zeroth mixing level.'
+        + ' Also only for testing and destroys privacy.')
 parser.add_option('-p', '--privkey', action='store_true', dest='showprivkey',
 	help='print private key along with address, default false')
 parser.add_option('-m', '--maxmixdepth', action='store', type='int', dest='maxmixdepth',
