@@ -27,9 +27,19 @@ TODO
 have the taker enforce this, look up the txhash of the maker's utxo and make sure
  it is already in a block
 
+TODO
+remove the badly done chunking code in the coinjoin layer, such as !txpart !tx
+ since chunking should be done in the messaging layer
+
+TODO
+remove the keyfile feature totally, there is no need for persistent keys
+just generate a key at startup, 
 
 TODO implement rate limiting for irc.privmsg to stop the bot being killed due to flood
 i suggest creating a thread that only dispatches/writes to the irc socket
+
+TODO have an option for sendpayment.py take advantage of the small orders posted
+by patientsendpayment.py
 
 TODO sort out the nick = nick + '_' stuff in irclib
 its not a good way of doing it
