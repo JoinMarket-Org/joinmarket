@@ -108,6 +108,10 @@ class IRCClient(object):
         self.cp_pubkeys[nick] = None
         self.enc_boxes[nick] = None
 
+    def end_all_encryption(self):
+        for k, v in self.encrypting.iteritems():
+            if v: self.end_encryption(k)
+
     def encrypt_encode(self, msg, nick):
         if not (nick in self.encrypting.keys()) or not (
                 nick in self.enc_boxes.keys()):

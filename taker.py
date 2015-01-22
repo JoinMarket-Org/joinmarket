@@ -140,24 +140,13 @@ class CoinJoinTX(object):
         if not tx_signed:
             return
         debug('the entire tx is signed, ready to pushtx()')
+        #end encryption channel with all counterparties
+        self.taker.end_all_encryption()
         print btc.serialize(self.latest_tx)
         ret = btc.blockr_pushtx(btc.serialize(self.latest_tx), get_network())
         debug('pushed tx ' + str(ret))
-        #watch thread to remove used utxos
-        add_addr_notify(self.my_change_addr, self.unconfirm_callback,
-                        self.confirm_callback)
-
         if self.finishcallback != None:
             self.finishcallback()
-
-    def unconfirm_callback(self, balance):
-        removed_utxos = self.taker.wallet.remove_old_utxos(self.latest_tx)
-        debug('saw tx on network, removed_utxos=\n' + pprint.pformat(
-            removed_utxos))
-
-    def confirm_callback(self, confirmations, txid, balance):
-        added_utxos = self.taker.wallet.add_new_utxos(self.latest_tx, txid)
-        debug('tx in a block, added_utxos=\n' + pprint.pformat(added_utxos))
 
 
 class OrderbookWatch(irclib.IRCClient):
@@ -287,10 +276,6 @@ class Taker(OrderbookWatch):
                     continue
                 self.cjtx.recv_txio(nick, utxo_list, cj_pub, change_addr)
             elif chunks[0] == 'sig':
-                #whether the signature is correct or not,
-                #we treat this as the last message for this tx from
-                #this nick, and therefore switch off encryption
-                self.end_encryption(nick)
                 sig = chunks[1]
                 self.cjtx.add_signature(sig)
 
@@ -303,6 +288,13 @@ class TestTaker(Taker):
     def __init__(self, wallet, keyfile):
         Taker.__init__(self, keyfile)
         self.wallet = wallet
+
+    def finish_callback(self):
+        removed_utxos = self.wallet.remove_old_utxos(self.cjtx.latest_tx)
+        added_utxos = self.wallet.add_new_utxos(
+            self.cjtx.latest_tx, btc.txhash(btc.serialize(self.cjtx.latest_tx)))
+        debug('tx published, added_utxos=\n' + pprint.pformat(added_utxos))
+        debug('removed_utxos=\n' + pprint.pformat(removed_utxos))
 
     def on_pubmsg(self, nick, message):
         Taker.on_pubmsg(self, nick, message)
@@ -333,7 +325,8 @@ class TestTaker(Taker):
                     utxos,
                     self.wallet.get_receive_addr(mixing_depth=1),
                     self.wallet.get_change_addr(mixing_depth=0),
-                    my_tx_fee)
+                    my_tx_fee,
+                    self.finish_callback)
             elif chunks[0] == '%unspent':
                 from pprint import pprint
                 pprint(self.wallet.unspent)
@@ -351,7 +344,8 @@ class TestTaker(Taker):
                     [my_utxo],
                     self.wallet.get_receive_addr(mixing_depth=1),
                     self.wallet.get_change_addr(mixing_depth=0),
-                    my_tx_fee)
+                    my_tx_fee,
+                    self.finish_callback)
             elif chunks[0] == '%2fill':
                 #!2fill [amount] [utxo] [counterparty1] [oid1] [counterparty2] [oid2]
                 amount = int(chunks[1])
@@ -369,7 +363,8 @@ class TestTaker(Taker):
                     [my_utxo],
                     self.wallet.get_receive_addr(mixing_depth=1),
                     self.wallet.get_change_addr(mixing_depth=0),
-                    my_tx_fee)
+                    my_tx_fee,
+                    self.finish_callback)
 
 
 def main():
