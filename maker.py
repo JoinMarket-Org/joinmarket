@@ -262,6 +262,8 @@ class Maker(irclib.IRCClient):
         self.active_orders[nick] = None
 
     def modify_orders(self, to_cancel, to_announce):
+        debug('modifying orders. to_cancel=' + str(to_cancel) + '\nto_announce='
+              + str(to_announce))
         for oid in to_cancel:
             order = [o for o in self.orderlist if o['oid'] == oid][0]
             self.orderlist.remove(order)

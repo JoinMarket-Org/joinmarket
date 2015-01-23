@@ -117,6 +117,8 @@ class Wallet(object):
                 continue
             removed_utxos[utxo] = self.unspent[utxo]
             del self.unspent[utxo]
+        debug('removed utxos, wallet now is \n' + pprint.pformat(
+            self.get_mix_utxo_list()))
         return removed_utxos
 
     def add_new_utxos(self, tx, txid):
@@ -129,6 +131,8 @@ class Wallet(object):
             utxo = txid + ':' + str(index)
             added_utxos[utxo] = addrdict
             self.unspent[utxo] = addrdict
+        debug('added utxos, wallet now is \n' + pprint.pformat(
+            self.get_mix_utxo_list()))
         return added_utxos
 
     def get_mix_utxo_list(self):
