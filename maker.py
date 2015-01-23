@@ -94,6 +94,8 @@ class CoinJoinOrder(object):
 				sigline = command_prefix + 'sig ' + sig
 		if len(sigline) > 0:
 			self.maker.privmsg(nick, sigline)
+		#once signature is sent, close encrypted channel to this taker.
+		self.maker.end_encryption(nick)
 
 	def unconfirm_callback(self, balance):
 		removed_utxos = self.maker.wallet.remove_old_utxos(self.tx)
@@ -193,7 +195,7 @@ class Maker(irclib.IRCClient):
 						btc_sig = chunks[2]
 					except (ValueError,IndexError) as e:
 						self.send_error(nick, str(e))
-					self.active_orders[nick].auth_counterparty(nick,i_utxo_pubkey,btc_sig)
+					self.active_orders[nick].auth_counterparty(nick, i_utxo_pubkey, btc_sig)
 					
 				if chunks[0] == 'fill':
 					if nick in self.active_orders and self.active_orders[nick] != None:
