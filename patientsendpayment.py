@@ -27,12 +27,15 @@ class TakerThread(threading.Thread):
         print 'giving up waiting'
         #cancel the remaining order
         self.tmaker.modify_orders([0], [])
-        orders = sendpayment.choose_order(self.tmaker.db, self.tmaker.amount,
-                                          self.tmaker.makercount)
-        print 'chosen orders to fill ' + str(orders)
+        orders, total_cj_fee = choose_order(self.tmaker.db, self.tmaker.amount,
+                                            self.tmaker.makercount)
+        print 'chosen orders to fill ' + str(orders) + ' totalcjfee=' + str(
+            total_cj_fee)
+        total_amount = self.tmaker.amount + total_cj_fee + self.tmaker.txfee
+        print 'total amount spent = ' + str(total_amount)
 
         utxos = self.taker.wallet.select_utxos(self.tmaker.mixdepth,
-                                               self.tmaker.amount)
+                                               total_amount)
         self.tmaker.cjtx = taker.CoinJoinTX(
             self.tmaker, self.tmaker.amount, orders, utxos,
             self.tmaker.destaddr,

@@ -44,6 +44,10 @@ by patientsendpayment.py
 TODO sort out the nick = nick + '_' stuff in irclib
 its not a good way of doing it
 
+TODO
+robustness in the taker code
+for instance if the maker being joined with quits halfway through
+
 #TODO encrypt messages between taker and maker, to stop trivial server eavesdropping
 # but that wont stop mitm
 # after chats on irc, easiest is to do Trust On First Use, maker sends a pubkey over
