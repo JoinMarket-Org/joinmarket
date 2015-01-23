@@ -140,6 +140,8 @@ class CoinJoinTX(object):
         if not tx_signed:
             return
         debug('the entire tx is signed, ready to pushtx()')
+        #end encryption channel with all counterparties
+        self.taker.end_all_encryption()
         print btc.serialize(self.latest_tx)
         ret = btc.blockr_pushtx(btc.serialize(self.latest_tx), get_network())
         debug('pushed tx ' + str(ret))
@@ -287,6 +289,13 @@ class TestTaker(Taker):
         Taker.__init__(self, keyfile)
         self.wallet = wallet
 
+    def finish_callback(self):
+        removed_utxos = self.wallet.remove_old_utxos(self.cjtx.latest_tx)
+        added_utxos = self.wallet.add_new_utxos(
+            self.cjtx.latest_tx, btc.txhash(btc.serialize(self.cjtx.latest_tx)))
+        debug('tx published, added_utxos=\n' + pprint.pformat(added_utxos))
+        debug('removed_utxos=\n' + pprint.pformat(removed_utxos))
+
     def on_pubmsg(self, nick, message):
         Taker.on_pubmsg(self, nick, message)
         if message[0] != command_prefix:
@@ -299,9 +308,11 @@ class TestTaker(Taker):
                 cp = chunks[1]
                 oid = chunks[2]
                 amt = chunks[3]
-                utxo_list = self.wallet.get_mix_utxo_list()[
-                    0
-                ]  #only spend from the unmixed funds
+                #this testing command implements a very dumb algorithm.
+                #just take 1 utxo from anywhere and output it to a level 1
+                #change address.
+                utxo_dict = self.wallet.get_mix_utxo_list()
+                utxo_list = [x for v in utxo_dict.itervalues() for x in v]
                 unspent = [{'utxo': utxo, 'value': self.wallet.unspent[utxo]['value']} \
                            for utxo in utxo_list]
                 inputs = btc.select(unspent, amt)
@@ -311,10 +322,11 @@ class TestTaker(Taker):
                     self,
                     int(amt),
                     {cp: oid},
-                    [utxos[0]],
+                    utxos,
                     self.wallet.get_receive_addr(mixing_depth=1),
                     self.wallet.get_change_addr(mixing_depth=0),
-                    my_tx_fee)
+                    my_tx_fee,
+                    self.finish_callback)
             elif chunks[0] == '%unspent':
                 from pprint import pprint
                 pprint(self.wallet.unspent)
@@ -332,7 +344,8 @@ class TestTaker(Taker):
                     [my_utxo],
                     self.wallet.get_receive_addr(mixing_depth=1),
                     self.wallet.get_change_addr(mixing_depth=0),
-                    my_tx_fee)
+                    my_tx_fee,
+                    self.finish_callback)
             elif chunks[0] == '%2fill':
                 #!2fill [amount] [utxo] [counterparty1] [oid1] [counterparty2] [oid2]
                 amount = int(chunks[1])
@@ -350,7 +363,8 @@ class TestTaker(Taker):
                     [my_utxo],
                     self.wallet.get_receive_addr(mixing_depth=1),
                     self.wallet.get_change_addr(mixing_depth=0),
-                    my_tx_fee)
+                    my_tx_fee,
+                    self.finish_callback)
 
 
 def main():
@@ -358,7 +372,7 @@ def main():
     seed = sys.argv[1]  #btc.sha256('your brainwallet goes here')
     keyfile = sys.argv[2]
     from socket import gethostname
-    nickname = 'taker-' + btc.sha256(gethostname())[:6]
+    nickname = 'taker-' + sys.argv[2][:3] + btc.sha256(gethostname())[:6]
 
     wallet = Wallet(seed, max_mix_depth=5)
     wallet.sync_wallet()

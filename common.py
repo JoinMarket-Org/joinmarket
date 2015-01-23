@@ -36,6 +36,14 @@ def get_addr_vbyte():
         return 0x00
 
 
+def get_signed_tx(wallet, ins, outs):
+    tx = btc.mktx(ins, outs)
+    for index, utxo in enumerate(ins):
+        addr = wallet.unspent[utxo['output']]['address']
+        tx = btc.sign(tx, index, wallet.get_key_from_addr(addr))
+    return tx
+
+
 def debug_dump_object(obj, skip_fields=[]):
     print 'Class debug dump, name:' + obj.__class__.__name__
     for k, v in obj.__dict__.iteritems():

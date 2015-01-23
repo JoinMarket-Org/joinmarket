@@ -7,7 +7,6 @@ import time
 import pprint
 
 from socket import gethostname
-nickname = 'yigen-' + btc.sha256(gethostname())[:6]
 
 txfee = 1000
 cjfee = '0.01'  # 1% fee
@@ -71,7 +70,6 @@ class YieldGenerator(Maker):
                 break
             mixdepth = (mixdepth - 1) % self.wallet.max_mix_depth
         #mixdepth is the chosen depth we'll be spending from
-
         utxos = self.wallet.select_utxos(mixdepth, amount)
         cj_addr = self.wallet.get_receive_addr(
             (mixdepth + 1) % self.wallet.max_mix_depth)
@@ -80,15 +78,15 @@ class YieldGenerator(Maker):
 
     def on_tx_unconfirmed(self, cjorder, balance, removed_utxos):
         #if the balance of the highest-balance mixing depth change then reannounce it
-        oldorder = self.orderlist[0]
+        oldorder = self.orderlist[0] if len(self.orderlist) > 0 else None
         neworders = self.create_my_orders()
         if len(neworders) == 0:
             return ([0], [])  #cancel old order
-        elif oldorder['maxsize'] == neworders[0]['maxsize']:
-            return ([], [])  #change nothing
-        else:
-            #announce new order, replacing the old order
-            return ([], [neworders[0]])
+        if oldorder:  #oldorder may not exist when this is called from on_tx_confirmed
+            if oldorder['maxsize'] == neworders[0]['maxsize']:
+                return ([], [])  #change nothing
+        #announce new order, replacing the old order
+        return ([], [neworders[0]])
 
     def on_tx_confirmed(self, cjorder, confirmations, txid, balance,
                         added_utxos):
@@ -103,8 +101,8 @@ def main():
 
     wallet = Wallet(seed, max_mix_depth=mix_levels)
     wallet.sync_wallet()
-
-    keyfile = 'keyfile-' + str(seed) + '.txt'
+    keyfile = sys.argv[2]
+    nickname = 'yigen-' + sys.argv[2][:3] + btc.sha256(gethostname())[:6]
     maker = YieldGenerator(wallet, keyfile)
     print 'connecting to irc'
     try:
