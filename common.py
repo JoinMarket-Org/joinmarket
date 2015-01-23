@@ -313,4 +313,20 @@ def calc_total_input_value(utxos):
 		input_sum += int(btc.deserialize(tx)['outs'][int(utxo[65:])]['value'])
 	return input_sum
 
+def choose_order(db, cj_amount, n):
+	
+	sqlorders = db.execute('SELECT * FROM orderbook;').fetchall()
+	orders = [(o['counterparty'], o['oid'],	calc_cj_fee(o['ordertype'], o['cjfee'], cj_amount))
+		for o in sqlorders if cj_amount >= o['minsize'] or cj_amount <= o['maxsize']]
+	orders = sorted(orders, key=lambda k: k[2])
+	debug('considered orders = ' + str(orders))
+	total_cj_fee = 0
+	chosen_orders = []
+	for i in range(n):
+		chosen_order = orders[0] #choose the cheapest, later this will be chosen differently
+		orders = [o for o in orders if o[0] != chosen_order[0]]
+		chosen_orders.append(chosen_order)
+		total_cj_fee += chosen_order[2]
+	chosen_orders = [o[:2] for o in chosen_orders]
+	return dict(chosen_orders), total_cj_fee
 

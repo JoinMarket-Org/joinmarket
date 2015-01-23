@@ -7,22 +7,6 @@ import bitcoin as btc
 from optparse import OptionParser
 import threading
 
-
-def choose_order(db, cj_amount, n):
-	
-	sqlorders = db.execute('SELECT * FROM orderbook;').fetchall()
-	orders = [(o['counterparty'], o['oid'],	calc_cj_fee(o['ordertype'], o['cjfee'], cj_amount))
-		for o in sqlorders if cj_amount >= o['minsize'] or cj_amount <= o['maxsize']]
-	orders = sorted(orders, key=lambda k: k[2])
-	print 'considered orders = ' + str(orders)
-	chosen_orders = []
-	for i in range(n):
-		chosen_order = orders[0] #choose the cheapest, later this will be chosen differently
-		orders = [o for o in orders if o[0] != chosen_order[0]]
-		chosen_orders.append(chosen_order)
-	chosen_orders = [o[:2] for o in chosen_orders]
-	return dict(chosen_orders)
-
 def choose_sweep_order(db, my_total_input, my_tx_fee):
 	'''
 	choose an order given that we want to be left with no change
@@ -79,10 +63,12 @@ class PaymentThread(threading.Thread):
 			self.taker.shutdown()
 			return
 
-		orders = choose_order(self.taker.db, self.taker.amount, self.taker.makercount)
-		print 'chosen orders to fill ' + str(orders)
+		orders, total_cj_fee = choose_order(self.taker.db, self.taker.amount, self.taker.makercount)
+		print 'chosen orders to fill ' + str(orders) + ' totalcjfee=' + str(total_cj_fee)
+		total_amount = self.taker.amount + total_cj_fee + self.taker.txfee
+		print 'total amount spent = ' + str(total_amount)
 
-		utxos = self.taker.wallet.select_utxos(self.taker.mixdepth, self.taker.amount)
+		utxos = self.taker.wallet.select_utxos(self.taker.mixdepth, total_amount)
 		self.taker.cjtx = takermodule.CoinJoinTX(self.taker, self.taker.amount,
 			orders, utxos, self.taker.destaddr,
 			self.taker.wallet.get_change_addr(self.taker.mixdepth), self.taker.txfee,
