@@ -29,11 +29,7 @@ have the taker enforce this, look up the txhash of the maker's utxo and make sur
 
 TODO
 remove the badly done chunking code in the coinjoin layer, such as !txpart !tx
- since chunking should be done in the messaging layer
-
-TODO
-remove the keyfile feature totally, there is no need for persistent keys
-just generate a key at startup, 
+ since chunking should be done in the messaging layer 
 
 TODO implement rate limiting for irc.privmsg to stop the bot being killed due to flood
 i suggest creating a thread that only dispatches/writes to the irc socket
@@ -47,14 +43,6 @@ its not a good way of doing it
 TODO
 robustness in the taker code
 for instance if the maker being joined with quits halfway through
-
-#TODO encrypt messages between taker and maker, to stop trivial server eavesdropping
-# but that wont stop mitm
-# after chats on irc, easiest is to do Trust On First Use, maker sends a pubkey over
-#  TOFU requires a human to verify each first time, might not be practical
-#  skip the human verification, it will probably be okay
-# make the irc nick be a hash of the pubkey
-# also theres some algorithm for detecting mitm
 
 #TODO implement something against dust
 # e.g. where the change address ends up having an output of value 1000 satoshis
