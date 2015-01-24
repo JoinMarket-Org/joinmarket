@@ -348,7 +348,7 @@ def choose_order(db, cj_amount, n):
     orders = [(o['counterparty'], o['oid'], calc_cj_fee(o['ordertype'],
                                                         o['cjfee'], cj_amount))
               for o in sqlorders
-              if cj_amount >= o['minsize'] or cj_amount <= o['maxsize']]
+              if cj_amount >= o['minsize'] and cj_amount <= o['maxsize']]
     orders = sorted(orders, key=lambda k: k[2])
     debug('considered orders = ' + str(orders))
     total_cj_fee = 0
