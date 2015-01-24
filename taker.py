@@ -201,14 +201,14 @@ class OrderbookWatch(irclib.IRCClient):
 
 #assume this only has one open cj tx at a time
 class Taker(OrderbookWatch):
-	def __init__(self,keyfile):
+	def __init__(self):
 		OrderbookWatch.__init__(self)
 		self.cjtx = None
 		self.maker_pks = {}
 		#TODO have a list of maker's nick we're coinjoining with, so
 		# that some other guy doesnt send you confusing stuff
 		#maybe a start_cj_tx() method is needed
-		self.init_encryption(keyfile)
+		self.init_encryption()
 	
 	def auth_counterparty(self,nick,btc_sig,cj_pub):
 		'''Validate the counterpartys claim to own the btc
@@ -254,8 +254,8 @@ class Taker(OrderbookWatch):
 my_tx_fee = 10000
 		
 class TestTaker(Taker):
-	def __init__(self, wallet,keyfile):
-		Taker.__init__(self,keyfile)
+	def __init__(self, wallet):
+		Taker.__init__(self)
 		self.wallet = wallet	
 	
 	def finish_callback(self):
@@ -318,15 +318,14 @@ class TestTaker(Taker):
 def main():
 	import sys
 	seed = sys.argv[1] #btc.sha256('your brainwallet goes here')
-	keyfile = sys.argv[2]
 	from socket import gethostname
-	nickname = 'taker-' + sys.argv[2][:3] + btc.sha256(gethostname())[:6]
+	nickname = 'taker-'  + btc.sha256(gethostname())[:6]
 
 	wallet = Wallet(seed, max_mix_depth=5)
 	wallet.sync_wallet()
 
 	print 'starting irc'
-	taker = TestTaker(wallet,keyfile)
+	taker = TestTaker(wallet)
 	try:
 		taker.run(HOST, PORT, nickname, CHANNEL)
 	finally:
