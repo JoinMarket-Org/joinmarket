@@ -28,8 +28,8 @@ minsize = int(
 # so try to keep coins concentrated in one mixing depth
 class YieldGenerator(Maker):
 
-    def __init__(self, wallet, keyfile):
-        Maker.__init__(self, wallet, keyfile)
+    def __init__(self, wallet):
+        Maker.__init__(self, wallet)
 
     def on_connect(self):
         if len(nickserv_password) > 0:
@@ -101,9 +101,8 @@ def main():
 
     wallet = Wallet(seed, max_mix_depth=mix_levels)
     wallet.sync_wallet()
-    keyfile = sys.argv[2]
-    nickname = 'yigen-' + sys.argv[2][:3] + btc.sha256(gethostname())[:6]
-    maker = YieldGenerator(wallet, keyfile)
+    nickname = 'yigen-' + btc.sha256(gethostname())[:6]
+    maker = YieldGenerator(wallet)
     print 'connecting to irc'
     try:
         maker.run(HOST, PORT, nickname, CHANNEL)

@@ -82,11 +82,8 @@ class IRCClient(object):
     ###############################
     #Encryption code
     ###############################
-    def init_encryption(self, fname):
-        if not os.path.isfile(fname):
-            self.enc_kp = enc_wrapper.init_keypair(fname)
-        else:
-            self.enc_kp = enc_wrapper.libnacl.utils.load_key(fname)
+    def init_encryption(self):
+        self.enc_kp = enc_wrapper.init_keypair()
 
     def start_encryption(self, nick, c_pk_hex):
         '''sets encryption mode on
