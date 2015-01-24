@@ -90,16 +90,8 @@ class CoinJoinOrder(object):
         add_addr_notify(self.change_addr, self.unconfirm_callback,
                         self.confirm_callback)
         debug('sending sigs ' + str(sigs))
-        #TODO make this a function in irclib.py
-        sigline = ''
-        for sig in sigs:
-            prev_sigline = sigline
-            sigline = sigline + command_prefix + 'sig ' + sig
-            if len(sigline) > MAX_PRIVMSG_LEN:
-                self.maker.privmsg(nick, prev_sigline)
-                sigline = command_prefix + 'sig ' + sig
-        if len(sigline) > 0:
-            self.maker.privmsg(nick, sigline)
+        self.maker.privmsg(nick,
+                           ''.join([command_prefix + 'sig ' + s for s in sigs]))
         #once signature is sent, close encrypted channel to this taker.
         self.maker.end_encryption(nick)
 
