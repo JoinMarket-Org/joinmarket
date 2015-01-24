@@ -59,3 +59,44 @@ Notes:
 #TODO: Sign, verify. At the moment we are using
 #bitcoin signatures so it isn't necessary.
 
+
+def test_case(case_name, alice_box, bob_box, ab_message, ba_message, num_iterations=1):
+    for i in range(num_iterations): 
+        otw_amsg = alice_box.encrypt(ab_message)
+        bob_ptext = bob_box.decrypt(otw_amsg)
+        assert bob_ptext == ab_message, "Encryption test: FAILED. Alice sent: "\
+               +ab_message+" , Bob received: " + bob_ptext
+        
+        otw_bmsg = bob_box.encrypt(ba_message)
+        alice_ptext = alice_box.decrypt(otw_bmsg)
+        assert alice_ptext == ba_message, "Encryption test: FAILED. Bob sent: "\
+               +ba_message+" , Alice received: " + alice_ptext
+        
+    print "Encryption test PASSED for case: "+case_name
+
+#to test the encryption functionality       
+if __name__ == "__main__":
+    alice_kp = init_keypair()
+    bob_kp = init_keypair()
+    
+    #this is the DH key exchange part
+    bob_otwpk = get_pubkey(bob_kp,True)
+    alice_otwpk = get_pubkey(alice_kp,True)
+    
+    bob_pk = init_pubkey(bob_otwpk)
+    alice_box = as_init_encryption(alice_kp,bob_pk)
+    alice_pk = init_pubkey(alice_otwpk)
+    bob_box = as_init_encryption(bob_kp,alice_pk)
+    
+    #now Alice and Bob can use their 'box'
+    #constructs (both of which utilise the same
+    #shared secret) to perform encryption/decryption
+    
+    test_case("short ascii", alice_box, bob_box,"Attack at dawn","Not tonight Josephine!",5)
+    
+    import base64, string, random
+    longb641 = base64.b64encode(''.join(random.choice(string.ascii_letters) for x in range(5000)))
+    longb642 = base64.b64encode(''.join(random.choice(string.ascii_letters) for x in range(5000)))
+    test_case("long b64", alice_box, bob_box, longb641, longb642,5)
+    
+    print "All test cases passed - encryption and decryption should work correctly."
