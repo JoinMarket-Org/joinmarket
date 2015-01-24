@@ -158,8 +158,8 @@ class CJMakerOrderError(StandardError):
 
 class Maker(irclib.IRCClient):
 
-    def __init__(self, wallet, keyfile):
-        self.init_encryption(keyfile)
+    def __init__(self, wallet):
+        self.init_encryption()
         self.active_orders = {}
         self.wallet = wallet
         self.nextoid = -1
@@ -382,12 +382,11 @@ def main():
     seed = sys.argv[
         1
     ]  #btc.sha256('dont use brainwallets except for holding testnet coins')
-    keyfile = sys.argv[2]
 
     wallet = Wallet(seed, max_mix_depth=5)
     wallet.sync_wallet()
 
-    maker = Maker(wallet, keyfile)
+    maker = Maker(wallet)
     print 'connecting to irc'
     try:
         maker.run(HOST, PORT, nickname, CHANNEL)
