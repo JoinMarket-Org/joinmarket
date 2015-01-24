@@ -87,8 +87,8 @@ def test_case(case_name,
 
 #to test the encryption functionality
 if __name__ == "__main__":
-    alice_kp = init_keypair(fname='alice1.txt')
-    bob_kp = init_keypair(fname='bob1.txt')
+    alice_kp = init_keypair()
+    bob_kp = init_keypair()
 
     #this is the DH key exchange part
     bob_otwpk = get_pubkey(bob_kp, True)
