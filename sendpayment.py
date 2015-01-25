@@ -32,7 +32,7 @@ class PaymentThread(threading.Thread):
             self.taker.shutdown()
             return
 
-        totalin = 450000000
+        totalin = 100000000
         ret = choose_sweep_order(self.taker.db, totalin, self.taker.txfee,
                                  self.taker.makercount)
         return
