@@ -145,11 +145,13 @@ class IRCClient(object):
         self.send_raw("PRIVMSG " + self.channel + " :" + message)
 
     def privmsg(self, nick, message):
-        will_encrypt = ''
+        clearmsg = message
+        will_encrypt = False
         if nick in self.encrypting.keys() and self.encrypting[nick]:
             message = self.encrypt_encode(message, nick)
-            will_encrypt = 'enc '
-        debug('>>privmsg ' + will_encrypt + 'nick=' + nick + ' msg=' + message)
+            will_encrypt = True
+        debug('>>privmsg ' + ('enc ' if will_encrypt else '') + 'nick=' + nick +
+              ' msg=' + clearmsg)
         if len(message) > 350:
             message_chunks = chunks(message, 350)
         else:
