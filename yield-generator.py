@@ -11,6 +11,7 @@ from socket import gethostname
 txfee = 1000
 cjfee = '0.01' # 1% fee
 mix_levels = 5
+nickname = 'yigen-' + btc.sha256(gethostname())[:6]
 nickserv_password = ''
 minsize = int(2 * txfee / float(cjfee)) #minimum size is such that you always net profit at least the miners fee
 
@@ -90,7 +91,6 @@ def main():
 
 	wallet = Wallet(seed, max_mix_depth = mix_levels)
 	wallet.sync_wallet()
-	nickname = 'yigen-' + btc.sha256(gethostname())[:6]
 	maker = YieldGenerator(wallet)
 	print 'connecting to irc'
 	try:
