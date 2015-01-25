@@ -389,9 +389,11 @@ def choose_sweep_order(db, my_total_input, my_tx_fee, n):
 		cjamount = int(cjamount.quantize(Decimal(1)))
 		return cjamount
 
-	def amount_in_range(ordercombo, cjamount):
+	def is_amount_in_range(ordercombo, cjamount):
 		for order in ordercombo:
-			if order['maxsize'
+			if cjamount >= order['maxsize'] or cjamount <= order['minsize']:
+				return False
+		return True
 
 	sqlorders = db.execute('SELECT * FROM orderbook;').fetchall()
 	orderkeys = ['counterparty', 'oid', 'ordertype', 'minsize', 'maxsize', 'txfee', 'cjfee']
@@ -399,17 +401,16 @@ def choose_sweep_order(db, my_total_input, my_tx_fee, n):
 
 	ordercombos = create_combination(orderlist, n)
 
-	print 'with cjamount'
 	ordercombos = [(c, calc_zero_change_cj_amount(c)) for c in ordercombos]
-	#ordercombos = [for oc in ordercombos if oc[1] > ]
+	ordercombos = [oc for oc in ordercombos if is_amount_in_range(oc[0], oc[1])]
 	ordercombos = sorted(ordercombos, key=lambda k: k[1])
-	pprint.pprint(ordercombos)
-	return None
+	dbgprint = [([(o['counterparty'], o['oid']) for o in oc[0]], oc[1]) for oc in ordercombos]
+	debug('considered order combinations')
+	pprint.pprint(dbgprint)
+	ordercombo = ordercombos[-1] #choose the cheapest, i.e. highest cj_amount
+	orders = dict([(o['counterparty'], o['oid']) for o in ordercombo[0]])
+	cjamount = ordercombo[1]
+	debug('chosen orders = ' + str(orders))
+	debug('cj amount = ' + str(cjamount))
+	return orders, cjamount
 
-	orders = [(o['counterparty'], o['oid'],	calc_zero_change_cj_amount(o['ordertype'], o['cjfee']),
-		o['minsize'], o['maxsize']) for o in sqlorders]
-	#filter cj_amounts that are not in range
-	orders = [o[:3] for o in orders if o[2] >= o[3] and o[2] <= o[4]]
-	orders = sorted(orders, key=lambda k: k[2])
-	print 'sweep orders = ' + str(orders)
-	return orders[-1] #choose one with the highest cj_amount, most left over after paying everything else
