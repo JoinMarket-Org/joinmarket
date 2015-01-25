@@ -141,26 +141,26 @@ class IRCClient(object):
         self.give_up = True
 
     def pubmsg(self, message):
-        #debug('pubmsg ' + message)
+        debug('>>pubmsg ' + message)
         self.send_raw("PRIVMSG " + self.channel + " :" + message)
 
     def privmsg(self, nick, message):
-        #debug('privmsg to ' + nick + ' ' + message)
+        debug('>>privmsg to ' + nick + ' ' + message)
         if nick in self.encrypting.keys() and self.encrypting[nick]:
             message = self.encrypt_encode(message, nick)
         if len(message) > 350:
             message_chunks = chunks(message, 350)
         else:
             message_chunks = [message]
-        print "We are going to send these chunks: "
-        print message_chunks
+        #print "We are going to send these chunks: "
+        #print message_chunks
         for m in message_chunks:
             trailer = ' ~' if m == message_chunks[-1] else ' ;'
             self.send_raw("PRIVMSG " + nick + " :" + m + trailer)
 
     def send_raw(self, line):
-        if not line.startswith('PING LAG'):
-            debug('sendraw ' + line)
+        #if not line.startswith('PING LAG'):
+        #	debug('sendraw ' + line)
         self.sock.sendall(line + '\r\n')
 
     def __handle_privmsg(self, source, target, message):
@@ -188,10 +188,12 @@ class IRCClient(object):
                     parsed = self.built_privmsg[nick]
                 #wipe the message buffer waiting for the next one
                 self.built_privmsg[nick] = ''
+                debug("<<privmsg nick=%s message=%s" % (nick, message))
                 self.on_privmsg(nick, parsed)
             else:
                 raise Exception("message formatting error")
         else:
+            debug("<<pubmsg nick=%s message=%s" % (nick, message))
             self.on_pubmsg(nick, message)
 
     def __handle_line(self, line):
@@ -269,7 +271,7 @@ class IRCClient(object):
 
         while self.connect_attempts < 10 and not self.give_up:
             try:
-                print 'connecting'
+                debug('connecting')
                 self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 self.sock.connect((server, port))
                 self.fd = self.sock.makefile()
