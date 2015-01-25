@@ -37,6 +37,11 @@ i suggest creating a thread that only dispatches/writes to the irc socket
 TODO have an option for sendpayment.py take advantage of the small orders posted
 by patientsendpayment.py
 
+TODO patientsendpayment.py needs a different algo
+if someone fills the entire order all at once, they pay very little
+
+TODO remove the !txpart !tx stuff since irclib.py now handles chunking
+
 TODO sort out the nick = nick + '_' stuff in irclib
 its not a good way of doing it
 
