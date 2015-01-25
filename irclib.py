@@ -145,9 +145,11 @@ class IRCClient(object):
         self.send_raw("PRIVMSG " + self.channel + " :" + message)
 
     def privmsg(self, nick, message):
-        debug('>>privmsg to ' + nick + ' ' + message)
+        will_encrypt = ''
         if nick in self.encrypting.keys() and self.encrypting[nick]:
             message = self.encrypt_encode(message, nick)
+            will_encrypt = 'enc '
+        debug('>>privmsg ' + will_encrypt + 'nick=' + nick + ' msg=' + message)
         if len(message) > 350:
             message_chunks = chunks(message, 350)
         else:
@@ -188,7 +190,7 @@ class IRCClient(object):
                     parsed = self.built_privmsg[nick]
                 #wipe the message buffer waiting for the next one
                 self.built_privmsg[nick] = ''
-                debug("<<privmsg nick=%s message=%s" % (nick, message))
+                debug("<<privmsg nick=%s message=%s" % (nick, parsed))
                 self.on_privmsg(nick, parsed)
             else:
                 raise Exception("message formatting error")
