@@ -145,7 +145,6 @@ class OrderbookWatch(irclib.IRCClient):
 			(nick, chunks[1], chunks[0], chunks[2], chunks[3], chunks[4], chunks[5]))
 
 	def on_privmsg(self, nick, message):
-		debug("privmsg nick=%s message=%s" % (nick, message))
 		if message[0] != command_prefix:
 			return
 
@@ -158,7 +157,6 @@ class OrderbookWatch(irclib.IRCClient):
 	# using the same id again overwrites it, they'll be plenty of times when an order
 	# has to be modified and its better to just have !order rather than !cancelorder then !order
 	def on_pubmsg(self, nick, message):
-		debug("pubmsg nick=%s message=%s" % (nick, message))
 		if message[0] != command_prefix:
 			return
 		for command in message[1:].split(command_prefix):
