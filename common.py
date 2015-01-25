@@ -375,29 +375,35 @@ def choose_sweep_order(db, my_total_input, my_tx_fee, n):
 	=> 0 = totalin - mytxfee - sum(absfee) - cjamount*(1 + sum(relfee))
 	=> cjamount = (totalin - mytxfee - sum(absfee)) / (1 + sum(relfee))
 	'''
-	def calc_zero_change_cj_amount(ordertype, cjfee):
-		cj_amount = None
-		if ordertype == 'absorder':
-			cj_amount = my_total_input - my_tx_fee - cjfee
-		elif ordertype == 'relorder':
-			cj_amount = (my_total_input - my_tx_fee) / (Decimal(cjfee) + 1)
-			cj_amount = int(cj_amount.quantize(Decimal(1)))
-		else:
-			raise RuntimeError('unknown order type: ' + str(ordertype))
-		return cj_amount
+	def calc_zero_change_cj_amount(ordercombo):
+		sumabsfee = 0
+		sumrelfee = Decimal('0')
+		for order in ordercombo:
+			if order['ordertype'] == 'absorder':
+				sumabsfee += int(order['cjfee'])
+			elif order['ordertype'] == 'relorder':
+				sumrelfee += Decimal(order['cjfee'])
+			else:
+				raise RuntimeError('unknown order type: ' + str(ordertype))
+		cjamount = (my_total_input - my_tx_fee - sumabsfee) / (1 + sumrelfee)
+		cjamount = int(cjamount.quantize(Decimal(1)))
+		return cjamount
 
-	#def calc_zero_change_cj_amount(
+	def amount_in_range(ordercombo, cjamount):
+		for order in ordercombo:
+			if order['maxsize'
 
 	sqlorders = db.execute('SELECT * FROM orderbook;').fetchall()
 	orderkeys = ['counterparty', 'oid', 'ordertype', 'minsize', 'maxsize', 'txfee', 'cjfee']
 	orderlist = [dict([(k, o[k]) for k in orderkeys]) for o in sqlorders]
 
 	ordercombos = create_combination(orderlist, n)
-	print 'order combos'
-	pprint.pprint(ordercombos)
 
 	print 'with cjamount'
 	ordercombos = [(c, calc_zero_change_cj_amount(c)) for c in ordercombos]
+	#ordercombos = [for oc in ordercombos if oc[1] > ]
+	ordercombos = sorted(ordercombos, key=lambda k: k[1])
+	pprint.pprint(ordercombos)
 	return None
 
 	orders = [(o['counterparty'], o['oid'],	calc_zero_change_cj_amount(o['ordertype'], o['cjfee']),
