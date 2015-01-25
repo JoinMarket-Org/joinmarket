@@ -7,40 +7,6 @@ import bitcoin as btc
 from optparse import OptionParser
 import threading
 
-def choose_sweep_order(db, my_total_input, my_tx_fee):
-	'''
-	choose an order given that we want to be left with no change
-	i.e. sweep an entire group of utxos
-
-	solve for cjamount when mychange = 0
-	ABS FEE
-	mychange = totalin - cjamount - mytxfee - absfee = 0
-	=> cjamount = totalin - mytxfee - absfee
-	REL FEE
-	mychange = totalin - cjamount - mytxfee - relfee*cjamount
-	=> 0 = totalin - mytxfee - cjamount*(1 + relfee)
-	=> cjamount = (totalin - mytxfee) / (1 + relfee)
-	'''
-	def calc_zero_change_cj_amount(ordertype, cjfee):
-		cj_amount = None
-		if ordertype == 'absorder':
-			cj_amount = my_total_input - my_tx_fee - cjfee
-		elif ordertype == 'relorder':
-			cj_amount = (my_total_input - my_tx_fee) / (Decimal(cjfee) + 1)
-			cj_amount = int(cj_amount.quantize(Decimal(1)))
-		else:
-			raise RuntimeError('unknown order type: ' + str(ordertype))
-		return cj_amount
-
-	sqlorders = db.execute('SELECT * FROM orderbook;').fetchall()
-	orders = [(o['counterparty'], o['oid'],	calc_zero_change_cj_amount(o['ordertype'], o['cjfee']),
-		o['minsize'], o['maxsize']) for o in sqlorders]
-	#filter cj_amounts that are not in range
-	orders = [o[:3] for o in orders if o[2] >= o[3] and o[2] <= o[4]]
-	orders = sorted(orders, key=lambda k: k[2])
-	print 'sweep orders = ' + str(orders)
-	return orders[-1] #choose one with the highest cj_amount, most left over after paying everything else
-
 #thread which does the buy-side algorithm
 # chooses which coinjoins to initiate and when
 class PaymentThread(threading.Thread):
@@ -62,6 +28,10 @@ class PaymentThread(threading.Thread):
 			print 'not enough counterparties to fill order, ending'
 			self.taker.shutdown()
 			return
+
+		totalin = 450000000
+		ret = choose_sweep_order(self.taker.db, totalin, self.taker.txfee, self.taker.makercount)
+		return
 
 		orders, total_cj_fee = choose_order(self.taker.db, self.taker.amount, self.taker.makercount)
 		print 'chosen orders to fill ' + str(orders) + ' totalcjfee=' + str(total_cj_fee)

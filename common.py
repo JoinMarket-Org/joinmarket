@@ -1,6 +1,7 @@
 
 import bitcoin as btc
 from decimal import Decimal
+from math import factorial
 import sys, datetime, json, time, pprint
 import threading
 
@@ -324,9 +325,85 @@ def choose_order(db, cj_amount, n):
 	chosen_orders = []
 	for i in range(n):
 		chosen_order = orders[0] #choose the cheapest, later this will be chosen differently
-		orders = [o for o in orders if o[0] != chosen_order[0]]
+		orders = [o for o in orders if o[0] != chosen_order[0]] #remove all orders from that same counterparty
 		chosen_orders.append(chosen_order)
 		total_cj_fee += chosen_order[2]
 	chosen_orders = [o[:2] for o in chosen_orders]
 	return dict(chosen_orders), total_cj_fee
 
+def nCk(n, k):
+	'''
+	n choose k
+	'''
+	return factorial(n) / factorial(k) / factorial(n - k)
+
+def create_combination(li, n):
+	'''
+	Creates a list of combinations of elements of a given list
+	For example, combination(['apple', 'orange', 'pear'], 2)
+		= [('apple', 'orange'), ('apple', 'pear'), ('orange', 'pear')]
+	'''
+	if n < 2:
+		raise ValueError('n must be >= 2')
+	result = []
+	if n == 2:
+		#creates a list oft
+		for i, e1 in enumerate(li):
+			for e2 in li[i+1:]:
+				result.append((e1, e2))
+	else:
+		for i, e in enumerate(li):
+			if len(li[i:]) < n:
+				#there wont be 
+				continue
+			combn1 = create_combination(li[i:], n - 1)
+			for c in combn1:
+				if e not in c:
+					result.append((e,) + c)
+
+	assert len(result) == nCk(len(li), n)
+	return result
+
+def choose_sweep_order(db, my_total_input, my_tx_fee, n):
+	'''
+	choose an order given that we want to be left with no change
+	i.e. sweep an entire group of utxos
+
+	solve for cjamount when mychange = 0
+	for an order with many makers, a mixture of absorder and relorder
+	mychange = totalin - cjamount - mytxfee - sum(absfee) - sum(relfee*cjamount)
+	=> 0 = totalin - mytxfee - sum(absfee) - cjamount*(1 + sum(relfee))
+	=> cjamount = (totalin - mytxfee - sum(absfee)) / (1 + sum(relfee))
+	'''
+	def calc_zero_change_cj_amount(ordertype, cjfee):
+		cj_amount = None
+		if ordertype == 'absorder':
+			cj_amount = my_total_input - my_tx_fee - cjfee
+		elif ordertype == 'relorder':
+			cj_amount = (my_total_input - my_tx_fee) / (Decimal(cjfee) + 1)
+			cj_amount = int(cj_amount.quantize(Decimal(1)))
+		else:
+			raise RuntimeError('unknown order type: ' + str(ordertype))
+		return cj_amount
+
+	#def calc_zero_change_cj_amount(
+
+	sqlorders = db.execute('SELECT * FROM orderbook;').fetchall()
+	orderkeys = ['counterparty', 'oid', 'ordertype', 'minsize', 'maxsize', 'txfee', 'cjfee']
+	orderlist = [dict([(k, o[k]) for k in orderkeys]) for o in sqlorders]
+
+	ordercombos = create_combination(orderlist, n)
+	print 'order combos'
+	pprint.pprint(ordercombos)
+
+	print 'with cjamount'
+	ordercombos = [(c, calc_zero_change_cj_amount(c)) for c in ordercombos]
+	return None
+
+	orders = [(o['counterparty'], o['oid'],	calc_zero_change_cj_amount(o['ordertype'], o['cjfee']),
+		o['minsize'], o['maxsize']) for o in sqlorders]
+	#filter cj_amounts that are not in range
+	orders = [o[:3] for o in orders if o[2] >= o[3] and o[2] <= o[4]]
+	orders = sorted(orders, key=lambda k: k[2])
+	print 'sweep orders = ' + str(orders)
+	return orders[-1] #choose one with the highest cj_amount, most left over after paying everything else
