@@ -29,7 +29,7 @@ have the taker enforce this, look up the txhash of the maker's utxo and make sur
 
 TODO
 remove the badly done chunking code in the coinjoin layer, such as !txpart !tx
- since chunking should be done in the messaging layer 
+ since chunking should be done in the messaging layer
 
 TODO implement rate limiting for irc.privmsg to stop the bot being killed due to flood
 i suggest creating a thread that only dispatches/writes to the irc socket
@@ -40,10 +40,11 @@ by patientsendpayment.py
 TODO patientsendpayment.py needs a different algo
 if someone fills the entire order all at once, they pay very little
 
-TODO remove the !txpart !tx stuff since irclib.py now handles chunking
-
 TODO sort out the nick = nick + '_' stuff in irclib
 its not a good way of doing it
+
+TODO
+implement sasl in the irc code, required for freenode over tor and better than sending nickserv :identify
 
 TODO
 robustness in the taker code
