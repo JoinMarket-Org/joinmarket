@@ -43,8 +43,7 @@ class PaymentThread(threading.Thread):
                                                   self.taker.makercount)
             self.taker.cjtx = takermodule.CoinJoinTX(
                 self.taker, cjamount, orders, utxo_list, self.taker.destaddr,
-                self.taker.wallet.get_change_addr(self.taker.mixdepth),
-                self.taker.txfee, self.finishcallback)
+                None, self.taker.txfee, self.finishcallback)
         else:
             orders, total_cj_fee = choose_order(
                 self.taker.db, self.taker.amount, self.taker.makercount)
