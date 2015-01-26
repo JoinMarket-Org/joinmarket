@@ -29,27 +29,27 @@ class PaymentThread(threading.Thread):
 			self.taker.shutdown()
 			return
 
-		totalin = 100000000
-		ret = choose_sweep_order(self.taker.db, totalin, self.taker.txfee, self.taker.makercount)
-		return
+		if self.taker.amount == 0:
+			total_value = 0
+			utxo_list = self.taker.wallet.get_mix_utxo_list()[self.taker.mixdepth]
+			for utxo in utxo_list:
+				total_value += self.taker.wallet.unspent[utxo]['value']
+			orders, cjamount = choose_sweep_order(self.taker.db, total_value, self.taker.txfee, self.taker.makercount)
+			self.taker.cjtx = takermodule.CoinJoinTX(self.taker, cjamount,
+				orders, utxo_list, self.taker.destaddr,
+				self.taker.wallet.get_change_addr(self.taker.mixdepth), self.taker.txfee,
+				self.finishcallback)
+		else:
+			orders, total_cj_fee = choose_order(self.taker.db, self.taker.amount, self.taker.makercount)
+			print 'chosen orders to fill ' + str(orders) + ' totalcjfee=' + str(total_cj_fee)
+			total_amount = self.taker.amount + total_cj_fee + self.taker.txfee
+			print 'total amount spent = ' + str(total_amount)
 
-		orders, total_cj_fee = choose_order(self.taker.db, self.taker.amount, self.taker.makercount)
-		print 'chosen orders to fill ' + str(orders) + ' totalcjfee=' + str(total_cj_fee)
-		total_amount = self.taker.amount + total_cj_fee + self.taker.txfee
-		print 'total amount spent = ' + str(total_amount)
-
-		utxos = self.taker.wallet.select_utxos(self.taker.mixdepth, total_amount)
-		self.taker.cjtx = takermodule.CoinJoinTX(self.taker, self.taker.amount,
-			orders, utxos, self.taker.destaddr,
-			self.taker.wallet.get_change_addr(self.taker.mixdepth), self.taker.txfee,
-			self.finishcallback)
-
-		'''
-		counterparty, oid, cj_amount = choose_sweep_order(addrvalue['value'], my_tx_fee)
-		cjtx = CoinJoinTX(self.taker, cj_amount, [counterparty], [int(oid)],
-			[utxo], self.taker.wallet.get_receive_addr(mixing_depth=1), None,
-			my_tx_fee, self.finished_cj_callback)
-		'''
+			utxos = self.taker.wallet.select_utxos(self.taker.mixdepth, total_amount)
+			self.taker.cjtx = takermodule.CoinJoinTX(self.taker, self.taker.amount,
+				orders, utxos, self.taker.destaddr,
+				self.taker.wallet.get_change_addr(self.taker.mixdepth), self.taker.txfee,
+				self.finishcallback)
 
 class SendPayment(takermodule.Taker):
 	def __init__(self, wallet, destaddr, amount, makercount, txfee, waittime, mixdepth):
@@ -69,7 +69,8 @@ class SendPayment(takermodule.Taker):
 def main():
 	parser = OptionParser(usage='usage: %prog [options] [seed] [amount] [destaddr]',
 		description='Sends a single payment from the zero mixing depth of your ' +
-			' wallet to an given address using coinjoin and then switches off.')
+			'wallet to an given address using coinjoin and then switches off. ' +
+			'Setting amount to zero will do a sweep, where the entire mix depth is emptied')
 	parser.add_option('-f', '--txfee', action='store', type='int', dest='txfee',
 		default=10000, help='miner fee contribution, in satoshis, default=10000')
 	parser.add_option('-w', '--wait-time', action='store', type='float', dest='waittime',
