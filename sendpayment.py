@@ -35,10 +35,8 @@ class PaymentThread(threading.Thread):
 			for utxo in utxo_list:
 				total_value += self.taker.wallet.unspent[utxo]['value']
 			orders, cjamount = choose_sweep_order(self.taker.db, total_value, self.taker.txfee, self.taker.makercount)
-			self.taker.cjtx = takermodule.CoinJoinTX(self.taker, cjamount,
-				orders, utxo_list, self.taker.destaddr,
-				self.taker.wallet.get_change_addr(self.taker.mixdepth), self.taker.txfee,
-				self.finishcallback)
+			self.taker.cjtx = takermodule.CoinJoinTX(self.taker, cjamount, orders, utxo_list,
+				self.taker.destaddr, None, self.taker.txfee, self.finishcallback)
 		else:
 			orders, total_cj_fee = choose_order(self.taker.db, self.taker.amount, self.taker.makercount)
 			print 'chosen orders to fill ' + str(orders) + ' totalcjfee=' + str(total_cj_fee)
