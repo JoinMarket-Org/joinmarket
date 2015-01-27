@@ -188,7 +188,7 @@ def main():
         options.txfee, options.cjfee, str(timedelta(hours=options.waittime)),
         options.makercount)
 
-    wallet = Wallet(seed)
+    wallet = Wallet(seed, options.mixdepth + 1)
     wallet.sync_wallet()
 
     utxo_list = wallet.get_mix_utxo_list()[options.mixdepth]

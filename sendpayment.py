@@ -126,7 +126,7 @@ def main():
     from socket import gethostname
     nickname = 'payer-' + btc.sha256(gethostname())[:6]
 
-    wallet = Wallet(seed)
+    wallet = Wallet(seed, options.mixdepth + 1)
     wallet.sync_wallet()
 
     print 'starting irc'
