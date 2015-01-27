@@ -23,8 +23,8 @@ class CoinJoinTX(object):
 		thats used if you want to entirely coinjoin one utxo with no change left over
 		orders is the orders you want to fill {'counterpartynick': oid, 'cp2': oid2}
 		'''
-        debug('starting cj to ' + my_cj_addr + ' with change at ' +
-              my_change_addr)
+        debug('starting cj to ' + my_cj_addr + ' with change at ' + str(
+            my_change_addr))
         self.taker = taker
         self.cj_amount = cj_amount
         self.active_orders = dict(orders)
@@ -81,7 +81,9 @@ class CoinJoinTX(object):
         print 'fee breakdown for me totalin=%d txfee=%d cjfee_total=%d => changevalue=%d' % (
             my_total_in, self.my_txfee, self.cjfee_total, my_change_value)
         if self.my_change_addr == None:
-            if my_change_value != 0:
+            if my_change_value != 0 or abs(my_change_value) != 1:
+                #seems you wont always get exactly zero because of integer rounding
+                # so 1 satoshi extra or fewer being spent as miner fees is acceptable
                 print 'WARNING CHANGE NOT BEING USED\nCHANGEVALUE = ' + str(
                     my_change_value)
         else:
