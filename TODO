@@ -27,10 +27,6 @@ TODO
 have the taker enforce this, look up the txhash of the maker's utxo and make sure
  it is already in a block
 
-TODO
-remove the badly done chunking code in the coinjoin layer, such as !txpart !tx
- since chunking should be done in the messaging layer
-
 TODO implement rate limiting for irc.privmsg to stop the bot being killed due to flood
 i suggest creating a thread that only dispatches/writes to the irc socket
 
