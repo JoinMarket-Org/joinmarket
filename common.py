@@ -136,6 +136,7 @@ class Wallet(object):
             self.get_mix_utxo_list()))
         return added_utxos
 
+    #TODO change the name of this to get_utxo_list_by_mixdepth
     def get_mix_utxo_list(self):
         '''
 		returns a list of utxos sorted by different mix levels
@@ -147,6 +148,16 @@ class Wallet(object):
                 mix_utxo_list[mixdepth] = []
             mix_utxo_list[mixdepth].append(utxo)
         return mix_utxo_list
+
+    def get_balance_by_mixdepth(self):
+        mix_utxo_list = self.wallet.get_mix_utxo_list()
+        mix_balance = {}
+        for mixdepth, utxo_list in mix_utxo_list.iteritems():
+            total_value = 0
+            for utxo in utxo_list:
+                total_value += self.wallet.unspent[utxo]['value']
+            mix_balance[mixdepth] = total_value
+        return mix_balance
 
     def select_utxos(self, mixdepth, amount):
         utxo_list = self.get_mix_utxo_list()[mixdepth]
