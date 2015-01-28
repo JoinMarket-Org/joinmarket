@@ -87,6 +87,7 @@ class CoinJoinOrder(object):
 		self.maker.privmsg(nick, ''.join([command_prefix + 'sig ' + s for s in sigs]))
 		#once signature is sent, close encrypted channel to this taker.
 		self.maker.end_encryption(nick)
+		self.maker.active_orders[nick] = None
 
 	def unconfirm_callback(self, balance):
 		removed_utxos = self.maker.wallet.remove_old_utxos(self.tx)
@@ -189,7 +190,9 @@ class Maker(irclib.IRCClient):
 					
 				if chunks[0] == 'fill':
 					if nick in self.active_orders and self.active_orders[nick] != None:
-						self.send_error(nick, 'Already have partially-filled order')
+						self.active_orders[nick] = None
+						self.end_encryption(nick)
+						debug('had a partially filled order but starting over now')
 					try:
 						oid = int(chunks[1])
 						amount = int(chunks[2])
@@ -205,7 +208,6 @@ class Maker(irclib.IRCClient):
 						self.active_orders[nick].recv_tx_part(b64txpart)
 					else:
 						self.active_orders[nick].recv_tx(nick, b64txpart)
-						self.active_orders[nick] = None
 			except CJMakerOrderError:
 				self.active_orders[nick] = None
 				continue
@@ -228,6 +230,7 @@ class Maker(irclib.IRCClient):
 			print '=' * 60
 
 	def on_leave(self, nick):
+		self.end_encryption(nick)
 		self.active_orders[nick] = None
 
 	def modify_orders(self, to_cancel, to_announce):

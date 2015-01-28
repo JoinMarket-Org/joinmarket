@@ -44,6 +44,9 @@ TODO sort out the nick = nick + '_' stuff in irclib
 its not a good way of doing it
 
 TODO
+bug in sweep, doesnt work for N=1 (just one maker)
+
+TODO
 implement sasl in the irc code, required for freenode over tor and better than sending nickserv :identify
 
 TODO
