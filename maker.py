@@ -26,7 +26,6 @@ class CoinJoinOrder(object):
         self.ordertype = order['ordertype']
         self.txfee = order['txfee']
         self.cjfee = order['cjfee']
-        self.b64txparts = []
         debug('new cjorder nick=%s oid=%d amount=%d' % (nick, oid, amount))
         #always a new address even if the order ends up never being
         # furfilled, you dont want someone pretending to fill all your
@@ -53,16 +52,9 @@ class CoinJoinOrder(object):
                        btc_pub + ' ' + self.change_addr + ' ' + btc_sig)
         return True
 
-    def recv_tx_part(self, b64txpart):
-        self.b64txparts.append(b64txpart)
-        size = sum([len(s) for s in self.b64txparts])
-        if size > 60000000:  #~2MB * 2 * 4/3
-            self.maker.send_error(nick, 'tx too large, buffer limit reached')
-
-    def recv_tx(self, nick, b64txpart):
-        self.b64txparts.append(b64txpart)
+    def recv_tx(self, nick, b64tx):
         try:
-            txhex = base64.b64decode(''.join(self.b64txparts)).encode('hex')
+            txhex = base64.b64decode(b64tx).encode('hex')
         except TypeError as e:
             self.maker.send_error(nick, 'bad base64 tx. ' + repr(e))
         try:
@@ -220,15 +212,12 @@ class Maker(irclib.IRCClient):
                         self.send_error(nick, str(e))
                     self.active_orders[nick] = CoinJoinOrder(self, nick, oid,
                                                              amount, taker_pk)
-                elif chunks[0] == 'txpart' or chunks[0] == 'tx':
+                elif chunks[0] == 'tx':
                     if nick not in self.active_orders or self.active_orders[
                             nick] == None:
                         self.send_error(nick, 'No open order from this nick')
-                    b64txpart = chunks[1]
-                    if chunks[0] == 'txpart':
-                        self.active_orders[nick].recv_tx_part(b64txpart)
-                    else:
-                        self.active_orders[nick].recv_tx(nick, b64txpart)
+                    b64tx = chunks[1]
+                    self.active_orders[nick].recv_tx(nick, b64tx)
             except CJMakerOrderError:
                 self.active_orders[nick] = None
                 continue

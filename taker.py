@@ -95,13 +95,8 @@ class CoinJoinTX(object):
         import pprint
         debug('obtained tx\n' + pprint.pformat(btc.deserialize(tx)))
         txb64 = base64.b64encode(tx.decode('hex'))
-        n = MAX_PRIVMSG_LEN
-        txparts = [txb64[i:i + n] for i in range(0, len(txb64), n)]
-        for p in txparts[:-1]:
-            for nickk in self.active_orders.keys():
-                self.taker.privmsg(nickk, command_prefix + 'txpart ' + p)
         for nickk in self.active_orders.keys():
-            self.taker.privmsg(nickk, command_prefix + 'tx ' + txparts[-1])
+            self.taker.privmsg(nickk, command_prefix + 'tx ' + txb64)
 
         #now sign it ourselves here
         for index, ins in enumerate(btc.deserialize(tx)['ins']):
