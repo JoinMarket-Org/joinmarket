@@ -4,6 +4,7 @@ from common import *
 import irclib
 import bitcoin as btc
 import base64, pprint
+import enc_wrapper
 
 
 class CoinJoinOrder(object):
@@ -14,6 +15,11 @@ class CoinJoinOrder(object):
         self.cj_amount = amount
         #the btc pubkey of the utxo that the taker plans to use as input
         self.taker_pk = taker_pk
+        #create DH keypair on the fly for this Order object
+        self.kp = enc_wrapper.init_keypair()
+        #the encryption channel crypto box for this Order object
+        self.crypto_box = enc_wrapper.as_init_encryption(self.kp, self.taker_pk)
+
         order_s = [o for o in maker.orderlist if o['oid'] == oid]
         if len(order_s) == 0:
             self.maker.send_error(nick, 'oid not found')
@@ -30,9 +36,15 @@ class CoinJoinOrder(object):
         #always a new address even if the order ends up never being
         # furfilled, you dont want someone pretending to fill all your
         # orders to find out which addresses you use
-        maker.privmsg(nick, command_prefix + 'pubkey ' + maker.enc_kp.hex_pk())
+        pubkeymsg = command_prefix + 'pubkey ' + self.kp.hex_pk()
+        self.send_priv(nick, pubkeymsg, False)
 
-        self.maker.start_encryption(nick, taker_pk)
+    def send_priv(self, nick, msg, enc=False):
+        if enc:
+            self.maker.privmsg(nick, enc_wrapper.encrypt_encode(
+                msg, self.crypto_box))
+        else:
+            self.maker.privmsg(nick, msg)
 
     def auth_counterparty(self, nick, i_utxo_pubkey, btc_sig):
         #TODO: add check that the pubkey's address is part of the order.
@@ -201,7 +213,6 @@ class Maker(irclib.IRCClient):
                     if nick in self.active_orders and self.active_orders[
                             nick] != None:
                         self.active_orders[nick] = None
-                        self.end_encryption(nick)
                         debug(
                             'had a partially filled order but starting over now')
                     try:

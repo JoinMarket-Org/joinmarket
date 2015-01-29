@@ -66,6 +66,17 @@ Notes:
 #bitcoin signatures so it isn't necessary.
 
 
+#encoding for passing over the wire
+def encrypt_encode(msg, box):
+    encrypted = box.encrypt(msg)
+    return base64.b64encode(encrypted)
+
+
+def decode_decrypt(msg, box):
+    decoded = base64.b64decode(msg)
+    return box.decrypt(decoded)
+
+
 def test_case(case_name,
               alice_box,
               bob_box,
