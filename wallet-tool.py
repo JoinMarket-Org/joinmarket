@@ -47,6 +47,7 @@ wallet.download_wallet_history(options.gaplimit)
 wallet.find_unspent_addresses()
 
 if method == 'display':
+	total_balance = 0
 	for m in range(wallet.max_mix_depth):
 		print 'mixing depth %d m/0/%d/' % (m, m)
 		balance_depth = 0
@@ -63,6 +64,8 @@ if method == 'display':
 				used = ('used' if k < wallet.index[m][forchange] else ' new')
 				print '  m/0/%d/%d/%02d %s %s %.8fbtc' % (m, forchange, k, addr, used, balance/1e8)
 		print 'for mixdepth=%d balance=%.8fbtc' % (m, balance_depth/1e8)
+		total_balance += balance_depth
+	print 'total balance = %.8fbtc' % (total_balance/1e8)
 		
 elif method == 'combine':
 	ins = []
