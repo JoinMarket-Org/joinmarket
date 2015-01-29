@@ -233,7 +233,7 @@ class Taker(OrderbookWatch):
 				my_btc_sig = btc.ecdsa_sign(self.enc_kp.hex_pk(),my_btc_priv)
 				message = '!auth ' + my_btc_pub + ' ' + my_btc_sig
 				self.privmsg(nick,message) #note: we do this *before* starting encryption				
-			if chunks[0] == 'auth':
+			if chunks[0] == 'auth': #TODO will be changing this name, to iosig or something
 				utxo_list = chunks[1].split(',')
 				cj_pub = chunks[2]
 				change_addr = chunks[3]
