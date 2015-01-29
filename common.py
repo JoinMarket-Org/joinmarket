@@ -150,12 +150,12 @@ class Wallet(object):
         return mix_utxo_list
 
     def get_balance_by_mixdepth(self):
-        mix_utxo_list = self.wallet.get_mix_utxo_list()
+        mix_utxo_list = self.get_mix_utxo_list()
         mix_balance = {}
         for mixdepth, utxo_list in mix_utxo_list.iteritems():
             total_value = 0
             for utxo in utxo_list:
-                total_value += self.wallet.unspent[utxo]['value']
+                total_value += self.unspent[utxo]['value']
             mix_balance[mixdepth] = total_value
         return mix_balance
 
