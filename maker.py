@@ -3,7 +3,7 @@
 from common import *
 import irclib
 import bitcoin as btc
-import base64, pprint
+import base64, pprint, threading
 import enc_wrapper
 
 class CoinJoinOrder(object):
@@ -24,7 +24,6 @@ class CoinJoinOrder(object):
 		order = order_s[0]
 		if amount < order['minsize'] or amount > order['maxsize']:
 			self.maker.send_error(nick, 'amount out of range')
-		#TODO return addresses, not mixing depths, so you can coinjoin to outside your own wallet
 		self.utxos, self.cj_addr, self.change_addr = maker.oid_to_order(oid, amount)
 		self.ordertype = order['ordertype']
 		self.txfee = order['txfee']
@@ -92,22 +91,34 @@ class CoinJoinOrder(object):
 		self.maker.active_orders[nick] = None
 
 	def unconfirm_callback(self, balance):
-		removed_utxos = self.maker.wallet.remove_old_utxos(self.tx)
+		self.wallet_unspent_lock.acquire()
+		try:
+			removed_utxos = self.maker.wallet.remove_old_utxos(self.tx)
+		finally:
+			self.wallet_unspent_lock.release()
 		debug('saw tx on network, removed_utxos=\n' + pprint.pformat(removed_utxos))
 		to_cancel, to_announce = self.maker.on_tx_unconfirmed(self, balance, removed_utxos)
 		self.maker.modify_orders(to_cancel, to_announce)
 
 	def confirm_callback(self, confirmations, txid, balance):
-		added_utxos = self.maker.wallet.add_new_utxos(self.tx, txid)
+		self.wallet_unspent_lock.acquire()
+		try:
+			added_utxos = self.maker.wallet.add_new_utxos(self.tx, txid)
+		finally:
+			self.wallet_unspent_lock.release()
 		debug('tx in a block, added_utxos=\n' + pprint.pformat(added_utxos))
 		to_cancel, to_announce = self.maker.on_tx_confirmed(self,
 			confirmations, txid, balance, added_utxos)
 		self.maker.modify_orders(to_cancel, to_announce)
 
 	def verify_unsigned_tx(self, txd):
-		tx_utxos = set([ins['outpoint']['hash'] + ':' + str(ins['outpoint']['index']) for ins in txd['ins']])
-		if not tx_utxos.issuperset(set(self.utxos)):
+		tx_utxo_set = set([ins['outpoint']['hash'] + ':' + str(ins['outpoint']['index']) for ins in txd['ins']])
+		my_uxto_set = set(self.utxos)
+		wallet_uxtos = set(self.wallet.unspent)
+		if not tx_utxo_set.issuperset(my_utxo_set):
 			return False, 'my utxos are not contained'
+		if not wallet.utxos.issuperset(my_utxo_set):
+			return False, 'my utxos already spent'
 		my_total_in = 0
 		for u in self.utxos:
 			usvals = self.maker.wallet.unspent[u]
@@ -144,6 +155,7 @@ class Maker(irclib.IRCClient):
 		self.wallet = wallet
 		self.nextoid = -1
 		self.orderlist = self.create_my_orders()
+		self.wallet_unspent_lock = threading.Lock()
 
 	def privmsg_all_orders(self, target, orderlist=None):
 		if orderlist == None:
@@ -178,19 +190,10 @@ class Maker(irclib.IRCClient):
 			try:
 				if len(chunks) < 2:
 					self.send_error(nick, 'Not enough arguments')
-				if chunks[0] == 'auth':
-					if nick not in self.active_orders or self.active_orders[nick] == None:
-						self.send_error(nick, 'No open order from this nick')
-					cjorder = self.active_orders[nick]
 					encmsg = enc_wrapper.decode_decrypt(chunks[1],self.active_orders[nick].crypto_box)
 					encrypted_chunks = encmsg.split(" ")
-					try:
 						i_utxo_pubkey = encrypted_chunks[0]
 						btc_sig = encrypted_chunks[1]
-					except (ValueError,IndexError) as e:
-						self.send_error(nick, str(e))
-					self.active_orders[nick].auth_counterparty(nick, i_utxo_pubkey, btc_sig)
-					
 				if chunks[0] == 'fill':
 					if nick in self.active_orders and self.active_orders[nick] != None:
 						self.active_orders[nick] = None
@@ -201,12 +204,31 @@ class Maker(irclib.IRCClient):
 						taker_pk = chunks[3]
 					except (ValueError, IndexError) as e:
 						self.send_error(nick, str(e))
-					self.active_orders[nick] = CoinJoinOrder(self, nick, oid, amount, taker_pk)
+					self.wallet_unspent_lock.acquire()
+					try:
+						self.active_orders[nick] = CoinJoinOrder(self, nick, oid, amount, taker_pk)
+					finally:
+						self.wallet_unspent_lock.release()
+				elif chunks[0] == 'auth':
+					if nick not in self.active_orders or self.active_orders[nick] == None:
+						self.send_error(nick, 'No open order from this nick')
+					cjorder = self.active_orders[nick]
+					try:
+						i_utxo_pubkey = chunks[1]
+						btc_sig = chunks[2]
+					except (ValueError,IndexError) as e:
+						self.send_error(nick, str(e))
+					self.active_orders[nick].auth_counterparty(nick, i_utxo_pubkey, btc_sig)
+					
 				elif chunks[0] == 'tx':
 					if nick not in self.active_orders or self.active_orders[nick] == None:
 						self.send_error(nick, 'No open order from this nick')
 					encb64tx = chunks[1]
-					self.active_orders[nick].recv_tx(nick, enc_wrapper.decode_decrypt(encb64tx,self.active_orders[nick].crypto_box))
+					self.wallet_unspent_lock.acquire()
+					try:
+						self.active_orders[nick].recv_tx(nick, enc_wrapper.decode_decrypt(encb64tx,self.active_orders[nick].crypto_box))
+					finally:
+						self.wallet_unspent_lock.release()
 			except CJMakerOrderError:
 				self.active_orders[nick] = None
 				continue

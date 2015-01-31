@@ -35,14 +35,7 @@ class YieldGenerator(Maker):
 			self.send_raw('PRIVMSG NickServ :identify ' + nickserv_password)
 
 	def create_my_orders(self):
-		mix_utxo_list = self.wallet.get_mix_utxo_list()
-		mix_balance = {}
-		for mixdepth, utxo_list in mix_utxo_list.iteritems():
-			total_value = 0
-			for utxo in utxo_list:
-				total_value += self.wallet.unspent[utxo]['value']
-			mix_balance[mixdepth] = total_value
-
+		mix_balance = self.wallet.get_balance_by_mixdepth()
 		if len([b for m, b in mix_balance.iteritems() if b > 0]) == 0:
 			debug('do not have any coins left')
 			return []
@@ -50,12 +43,11 @@ class YieldGenerator(Maker):
 		#print mix_balance
 		max_mix = max(mix_balance, key=mix_balance.get)
 		order = {'oid': 0, 'ordertype': 'relorder', 'minsize': minsize,
-			'maxsize': mix_balance[max_mix], 'txfee': txfee, 'cjfee': cjfee,
-			'mix_balance': mix_balance}
+			'maxsize': mix_balance[max_mix], 'txfee': txfee, 'cjfee': cjfee}
 		return [order]
 
 	def oid_to_order(self, oid, amount):
-		mix_balance = self.orderlist[0]['mix_balance']
+		mix_balance = self.wallet.get_balance_by_mixdepth()
 		max_mix = max(mix_balance, key=mix_balance.get)
 
 		#algo attempts to make the largest-balance mixing depth get an even larger balance
