@@ -91,21 +91,21 @@ class CoinJoinOrder(object):
 		self.maker.active_orders[nick] = None
 
 	def unconfirm_callback(self, balance):
-		self.wallet_unspent_lock.acquire()
+		self.maker.wallet_unspent_lock.acquire()
 		try:
 			removed_utxos = self.maker.wallet.remove_old_utxos(self.tx)
 		finally:
-			self.wallet_unspent_lock.release()
+			self.maker.wallet_unspent_lock.release()
 		debug('saw tx on network, removed_utxos=\n' + pprint.pformat(removed_utxos))
 		to_cancel, to_announce = self.maker.on_tx_unconfirmed(self, balance, removed_utxos)
 		self.maker.modify_orders(to_cancel, to_announce)
 
 	def confirm_callback(self, confirmations, txid, balance):
-		self.wallet_unspent_lock.acquire()
+		self.maker.wallet_unspent_lock.acquire()
 		try:
 			added_utxos = self.maker.wallet.add_new_utxos(self.tx, txid)
 		finally:
-			self.wallet_unspent_lock.release()
+			self.maker.wallet_unspent_lock.release()
 		debug('tx in a block, added_utxos=\n' + pprint.pformat(added_utxos))
 		to_cancel, to_announce = self.maker.on_tx_confirmed(self,
 			confirmations, txid, balance, added_utxos)
@@ -113,11 +113,11 @@ class CoinJoinOrder(object):
 
 	def verify_unsigned_tx(self, txd):
 		tx_utxo_set = set([ins['outpoint']['hash'] + ':' + str(ins['outpoint']['index']) for ins in txd['ins']])
-		my_uxto_set = set(self.utxos)
-		wallet_uxtos = set(self.wallet.unspent)
+		my_utxo_set = set(self.utxos)
+		wallet_utxos = set(self.maker.wallet.unspent)
 		if not tx_utxo_set.issuperset(my_utxo_set):
 			return False, 'my utxos are not contained'
-		if not wallet.utxos.issuperset(my_utxo_set):
+		if not wallet_utxos.issuperset(my_utxo_set):
 			return False, 'my utxos already spent'
 		my_total_in = 0
 		for u in self.utxos:
