@@ -190,10 +190,7 @@ class Maker(irclib.IRCClient):
 			try:
 				if len(chunks) < 2:
 					self.send_error(nick, 'Not enough arguments')
-					encmsg = enc_wrapper.decode_decrypt(chunks[1],self.active_orders[nick].crypto_box)
-					encrypted_chunks = encmsg.split(" ")
-						i_utxo_pubkey = encrypted_chunks[0]
-						btc_sig = encrypted_chunks[1]
+					
 				if chunks[0] == 'fill':
 					if nick in self.active_orders and self.active_orders[nick] != None:
 						self.active_orders[nick] = None
@@ -213,9 +210,11 @@ class Maker(irclib.IRCClient):
 					if nick not in self.active_orders or self.active_orders[nick] == None:
 						self.send_error(nick, 'No open order from this nick')
 					cjorder = self.active_orders[nick]
+					encmsg = enc_wrapper.decode_decrypt(chunks[1],self.active_orders[nick].crypto_box)
+					encrypted_chunks = encmsg.split(" ")
 					try:
-						i_utxo_pubkey = chunks[1]
-						btc_sig = chunks[2]
+						i_utxo_pubkey = encrypted_chunks[0]
+						btc_sig = encrypted_chunks[1]					
 					except (ValueError,IndexError) as e:
 						self.send_error(nick, str(e))
 					self.active_orders[nick].auth_counterparty(nick, i_utxo_pubkey, btc_sig)
@@ -226,7 +225,7 @@ class Maker(irclib.IRCClient):
 					encb64tx = chunks[1]
 					self.wallet_unspent_lock.acquire()
 					try:
-						self.active_orders[nick].recv_tx(nick, enc_wrapper.decode_decrypt(encb64tx,self.active_orders[nick].crypto_box))
+						self.active_orders[nick].recv_tx(nick, enc_wrapper.decode_decrypt(encb64tx, self.active_orders[nick].crypto_box))
 					finally:
 						self.wallet_unspent_lock.release()
 			except CJMakerOrderError:
