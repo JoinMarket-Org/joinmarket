@@ -79,57 +79,6 @@ class IRCClient(object):
 
     #TODO implement on_nick_change
 
-    ###############################
-    #Encryption code
-    ###############################
-    def init_encryption(self):
-        self.enc_kp = enc_wrapper.init_keypair()
-
-    def start_encryption(self, nick, c_pk_hex):
-        '''sets encryption mode on
-		for all succeeding messages
-		until end_encryption is called.
-		Public key of counterparty must be
-		passed in in hex.'''
-        if not self.enc_kp:
-            raise Exception("Cannot initialise encryption without a keypair")
-        self.cp_pubkeys[nick] = enc_wrapper.init_pubkey(c_pk_hex)
-        self.enc_boxes[nick] = enc_wrapper.as_init_encryption(
-            self.enc_kp, self.cp_pubkeys[nick])
-        self.encrypting[nick] = True
-
-    def end_encryption(self, nick):
-        self.encrypting[nick] = False
-        #for safety, blank out all data related
-        #to the connection
-        self.cp_pubkeys[nick] = None
-        self.enc_boxes[nick] = None
-
-    def end_all_encryption(self):
-        for k, v in self.encrypting.iteritems():
-            if v: self.end_encryption(k)
-
-    def encrypt_encode(self, msg, nick):
-        if not (nick in self.encrypting.keys()) or not (
-                nick in self.enc_boxes.keys()):
-            raise Exception("Encryption is not switched on.")
-        if not (self.encrypting[nick] and self.enc_boxes[nick]):
-            raise Exception("Encryption is not switched on.")
-        encrypted = self.enc_boxes[nick].encrypt(msg)
-        return base64.b64encode(encrypted)
-
-    def decode_decrypt(self, msg, nick):
-        if not (nick in self.encrypting.keys()) or not (
-                nick in self.enc_boxes.keys()):
-            raise Exception("Encryption is not switched on.")
-        if not (self.encrypting[nick] and self.enc_boxes[nick]):
-            raise Exception("Encryption is not switched on.")
-        decoded = base64.b64decode(msg)
-        return self.enc_boxes[nick].decrypt(decoded)
-    #############################
-    #End encryption code
-    #############################
-
     def close(self):
         try:
             self.send_raw("QUIT")

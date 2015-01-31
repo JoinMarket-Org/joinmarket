@@ -18,7 +18,8 @@ class CoinJoinOrder(object):
         #create DH keypair on the fly for this Order object
         self.kp = enc_wrapper.init_keypair()
         #the encryption channel crypto box for this Order object
-        self.crypto_box = enc_wrapper.as_init_encryption(self.kp, self.taker_pk)
+        self.crypto_box = enc_wrapper.as_init_encryption(
+            self.kp, enc_wrapper.init_pubkey(self.taker_pk))
 
         order_s = [o for o in maker.orderlist if o['oid'] == oid]
         if len(order_s) == 0:
@@ -36,15 +37,14 @@ class CoinJoinOrder(object):
         #always a new address even if the order ends up never being
         # furfilled, you dont want someone pretending to fill all your
         # orders to find out which addresses you use
-        pubkeymsg = command_prefix + 'pubkey ' + self.kp.hex_pk()
-        self.send_priv(nick, pubkeymsg, False)
+        self.send_priv(nick, '!pubkey', self.kp.hex_pk(), False)
 
-    def send_priv(self, nick, msg, enc=False):
+    def send_priv(self, nick, cmd, msg, enc=False):
         if enc:
-            self.maker.privmsg(nick, enc_wrapper.encrypt_encode(
+            self.maker.privmsg(nick, cmd + ' ' + enc_wrapper.encrypt_encode(
                 msg, self.crypto_box))
         else:
-            self.maker.privmsg(nick, msg)
+            self.maker.privmsg(nick, cmd + ' ' + msg)
 
     def auth_counterparty(self, nick, i_utxo_pubkey, btc_sig):
         #TODO: add check that the pubkey's address is part of the order.
@@ -58,10 +58,10 @@ class CoinJoinOrder(object):
         #TODO the next 2 lines are a little inefficient.
         btc_key = self.maker.wallet.get_key_from_addr(self.cj_addr)
         btc_pub = btc.privtopub(btc_key)
-        btc_sig = btc.ecdsa_sign(self.maker.enc_kp.hex_pk(), btc_key)
-
-        self.maker.privmsg(nick, command_prefix + 'auth ' + str(','.join(self.utxos)) + ' ' + \
-                       btc_pub + ' ' + self.change_addr + ' ' + btc_sig)
+        btc_sig = btc.ecdsa_sign(self.kp.hex_pk(), btc_key)
+        authmsg = str(','.join(self.utxos)) + ' ' + \
+                       btc_pub + ' ' + self.change_addr + ' ' + btc_sig
+        self.send_priv(nick, '!auth', authmsg, True)
         return True
 
     def recv_tx(self, nick, b64tx):
@@ -78,6 +78,7 @@ class CoinJoinOrder(object):
         if not goodtx:
             debug('not a good tx, reason=' + errmsg)
             self.maker.send_error(nick, errmsg)
+        #TODO: the above 3 errors should be encrypted, but it's a bit messy.
         debug('goodtx')
         sigs = []
         for index, ins in enumerate(self.tx['ins']):
@@ -94,10 +95,8 @@ class CoinJoinOrder(object):
         add_addr_notify(self.change_addr, self.unconfirm_callback,
                         self.confirm_callback)
         debug('sending sigs ' + str(sigs))
-        self.maker.privmsg(nick,
-                           ''.join([command_prefix + 'sig ' + s for s in sigs]))
-        #once signature is sent, close encrypted channel to this taker.
-        self.maker.end_encryption(nick)
+        for s in sigs:
+            self.send_priv(nick, '!sig', s, True)
         self.maker.active_orders[nick] = None
 
     def unconfirm_callback(self, balance):
@@ -156,7 +155,6 @@ class CJMakerOrderError(StandardError):
 class Maker(irclib.IRCClient):
 
     def __init__(self, wallet):
-        self.init_encryption()
         self.active_orders = {}
         self.wallet = wallet
         self.nextoid = -1
@@ -201,9 +199,12 @@ class Maker(irclib.IRCClient):
                             nick] == None:
                         self.send_error(nick, 'No open order from this nick')
                     cjorder = self.active_orders[nick]
+                    encmsg = enc_wrapper.decode_decrypt(
+                        chunks[1], self.active_orders[nick].crypto_box)
+                    encrypted_chunks = encmsg.split(" ")
                     try:
-                        i_utxo_pubkey = chunks[1]
-                        btc_sig = chunks[2]
+                        i_utxo_pubkey = encrypted_chunks[0]
+                        btc_sig = encrypted_chunks[1]
                     except (ValueError, IndexError) as e:
                         self.send_error(nick, str(e))
                     self.active_orders[nick].auth_counterparty(
@@ -227,8 +228,10 @@ class Maker(irclib.IRCClient):
                     if nick not in self.active_orders or self.active_orders[
                             nick] == None:
                         self.send_error(nick, 'No open order from this nick')
-                    b64tx = chunks[1]
-                    self.active_orders[nick].recv_tx(nick, b64tx)
+                    encb64tx = chunks[1]
+                    self.active_orders[nick].recv_tx(
+                        nick, enc_wrapper.decode_decrypt(
+                            encb64tx, self.active_orders[nick].crypto_box))
             except CJMakerOrderError:
                 self.active_orders[nick] = None
                 continue
@@ -251,7 +254,6 @@ class Maker(irclib.IRCClient):
             print '=' * 60
 
     def on_leave(self, nick):
-        self.end_encryption(nick)
         self.active_orders[nick] = None
 
     def modify_orders(self, to_cancel, to_announce):

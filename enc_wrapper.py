@@ -5,7 +5,7 @@
 #symmetric encryption.
 
 import libnacl.public
-import binascii
+import binascii, base64
 
 
 def init_keypair(fname=None):
