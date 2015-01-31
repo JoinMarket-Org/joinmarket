@@ -5,7 +5,7 @@ import sys, datetime, json, time, pprint
 import threading
 
 HOST = 'irc.freenode.net'
-CHANNEL = '#joinmarket-pit-test2'
+CHANNEL = '#joinmarket-pit-test'
 PORT = 6667
 
 #for the mainnet its #joinmarket-pit
