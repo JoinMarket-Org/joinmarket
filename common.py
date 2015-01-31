@@ -6,7 +6,7 @@ import sys, datetime, json, time, pprint
 import threading
 
 HOST = 'irc.freenode.net'
-CHANNEL = '#joinmarket-pit-test'
+CHANNEL = '#joinmarket-pit-test2'
 PORT = 6667
 
 #for the mainnet its #joinmarket-pit
@@ -16,7 +16,7 @@ command_prefix = '!'
 MAX_PRIVMSG_LEN = 400
 
 ordername_list = ["absorder", "relorder"]
-
+valid_commands = ["absorder", "relorder", "fill", "pubkey", "auth", "tx", "sig", "error", "orderbook"]
 def debug(msg):
 	print datetime.datetime.now().strftime("[%Y/%m/%d %H:%M:%S] ") + msg
 
