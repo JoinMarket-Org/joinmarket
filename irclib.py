@@ -1,6 +1,5 @@
 import socket, threading, time
 from common import debug, chunks
-import enc_wrapper
 import base64, os
 
 PING_INTERVAL = 40
@@ -94,19 +93,12 @@ class IRCClient(object):
         self.send_raw("PRIVMSG " + self.channel + " :" + message)
 
     def privmsg(self, nick, message):
-        clearmsg = message
-        will_encrypt = False
-        if nick in self.encrypting.keys() and self.encrypting[nick]:
-            message = self.encrypt_encode(message, nick)
-            will_encrypt = True
-        debug('>>privmsg ' + ('enc ' if will_encrypt else '') + 'nick=' + nick +
-              ' msg=' + clearmsg)
+        debug('>>privmsg ' + 'nick=' + nick + ' msg=' + message)
         if len(message) > 350:
             message_chunks = chunks(message, 350)
         else:
             message_chunks = [message]
-        #print "We are going to send these chunks: "
-        #print message_chunks
+
         for m in message_chunks:
             trailer = ' ~' if m == message_chunks[-1] else ' ;'
             self.send_raw("PRIVMSG " + nick + " :" + m + trailer)
@@ -135,10 +127,7 @@ class IRCClient(object):
                 self.waiting[nick] = True
             elif message[-1] == '~':
                 self.waiting[nick] = False
-                if nick in self.encrypting.keys() and self.encrypting[nick]:
-                    parsed = self.decode_decrypt(self.built_privmsg[nick], nick)
-                else:
-                    parsed = self.built_privmsg[nick]
+                parsed = self.built_privmsg[nick]
                 #wipe the message buffer waiting for the next one
                 self.built_privmsg[nick] = ''
                 debug("<<privmsg nick=%s message=%s" % (nick, parsed))
@@ -211,10 +200,6 @@ class IRCClient(object):
         self.nick = nick
         self.channel = channel
         self.connect_attempts = 0
-        #set up encryption management variables
-        self.cp_pubkeys = {}
-        self.enc_boxes = {}
-        self.encrypting = {}
         self.waiting = {}
         self.built_privmsg = {}
         self.give_up = False
