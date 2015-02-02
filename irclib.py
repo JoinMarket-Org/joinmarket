@@ -1,6 +1,7 @@
 import socket, threading, time
-from common import debug, chunks
+from common import *
 import base64, os
+import enc_wrapper
 
 PING_INTERVAL = 40
 PING_TIMEOUT = 10
@@ -78,6 +79,29 @@ class IRCClient(object):
 
     #TODO implement on_nick_change
 
+    def encrypting(self, cmd, nick, sending=False):
+        '''Establish whether the message is to be
+		encrypted/decrypted based on the command string.
+		If so, retrieve the appropriate crypto_box object
+		and return. Sending/receiving flag enables us
+		to check which command strings correspond to which
+		type of object (maker/taker).'''
+
+        if cmd in plaintext_commands:
+            return None
+        elif cmd not in encrypted_commands:
+            raise Exception("Invalid command type: " + cmd)
+
+        maker_strings = ['tx', 'auth'] if not sending else ['ioauth', 'sig']
+        taker_strings = ['ioauth', 'sig'] if not sending else ['tx', 'auth']
+
+        if cmd in maker_strings:
+            return self.active_orders[nick].crypto_box
+        elif cmd in taker_strings:
+            return self.cjtx.crypto_boxes[nick][1]
+        else:
+            raise Exception("Invalid command type: " + cmd)
+
     def close(self):
         try:
             self.send_raw("QUIT")
@@ -92,8 +116,14 @@ class IRCClient(object):
         debug('>>pubmsg ' + message)
         self.send_raw("PRIVMSG " + self.channel + " :" + message)
 
-    def privmsg(self, nick, message):
-        debug('>>privmsg ' + 'nick=' + nick + ' msg=' + message)
+    def privmsg(self, nick, cmd, message):
+        debug('>>privmsg ' + 'nick=' + nick + 'cmd=' + cmd + ' msg=' + message)
+        #should we encrypt?
+        box = self.encrypting(cmd, nick, sending=True)
+        #encrypt before chunking
+        if box:
+            message = enc_wrapper.encrypt_encode(message, box)
+
         if len(message) > 350:
             message_chunks = chunks(message, 350)
         else:
@@ -101,7 +131,9 @@ class IRCClient(object):
 
         for m in message_chunks:
             trailer = ' ~' if m == message_chunks[-1] else ' ;'
-            self.send_raw("PRIVMSG " + nick + " :" + m + trailer)
+            header = "PRIVMSG " + nick + " :"
+            if m == message_chunks[0]: header += '!' + cmd + ' '
+            self.send_raw(header + m + trailer)
 
     def send_raw(self, line):
         #if not line.startswith('PING LAG'):
@@ -119,17 +151,28 @@ class IRCClient(object):
             #TODO ctcp version here, since some servers dont let you get on without
 
         if target == self.nick:
-            if nick not in self.built_privmsg or self.built_privmsg[nick] == '':
-                self.built_privmsg[nick] = message[:-2]
+            if nick not in self.built_privmsg:
+                #new message starting
+                cmd_string = ''.join(message.split(' ')[0][1:])
+                self.built_privmsg[nick] = [cmd_string, message[:-2]]
             else:
-                self.built_privmsg[nick] += message[:-2]
+                self.built_privmsg[nick][1] += message[:-2]
+            box = self.encrypting(self.built_privmsg[nick][0], nick)
             if message[-1] == ';':
                 self.waiting[nick] = True
             elif message[-1] == '~':
                 self.waiting[nick] = False
-                parsed = self.built_privmsg[nick]
+                if box:
+                    #need to decrypt everything after the command string
+                    to_decrypt = ''.join(self.built_privmsg[nick][1].split(' ')[
+                        1])
+                    decrypted = enc_wrapper.decode_decrypt(to_decrypt, box)
+                    parsed = self.built_privmsg[nick][1].split(' ')[
+                        0] + ' ' + decrypted
+                else:
+                    parsed = self.built_privmsg[nick][1]
                 #wipe the message buffer waiting for the next one
-                self.built_privmsg[nick] = ''
+                del self.built_privmsg[nick]
                 debug("<<privmsg nick=%s message=%s" % (nick, parsed))
                 self.on_privmsg(nick, parsed)
             else:
