@@ -229,13 +229,15 @@ class Wallet(object):
 				blockr_url = 'http://tbtc.blockr.io/api/v1/address/unspent/'
 			elif network == 'btc':
 				blockr_url = 'http://btc.blockr.io/api/v1/address/unspent/'
-			res = btc.make_request(blockr_url+','.join(req))
+			blockr_url += ','.join(req) + '?unconfirmed=1'
+			res = btc.make_request(blockr_url)
 			data = json.loads(res)['data']
 			if 'unspent' in data:
 				data = [data]
 			for dat in data:
 				for u in dat['unspent']:
-					self.unspent[u['tx']+':'+str(u['n'])] = {'address':
+					if u['confirmations'] != 0:
+						self.unspent[u['tx']+':'+str(u['n'])] = {'address':
 						dat['address'], 'value': int(u['amount'].replace('.', ''))}
 
 	def print_debug_wallet_info(self):
