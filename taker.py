@@ -105,7 +105,7 @@ class CoinJoinTX(object):
 		debug('obtained tx\n' + pprint.pformat(btc.deserialize(tx)))
 		txb64 = base64.b64encode(tx.decode('hex'))
 		for nickk in self.active_orders.keys():
-			self.taker.privmsg(nickk, 'tx',txb64)
+			self.taker.privmsg(nickk, 'tx', txb64)
 
 		#now sign it ourselves here
 		for index, ins in enumerate(btc.deserialize(tx)['ins']):
@@ -118,7 +118,7 @@ class CoinJoinTX(object):
 			tx = btc.sign(tx, index, self.taker.wallet.get_key_from_addr(addr))
 		self.latest_tx = btc.deserialize(tx)
 
-	def add_signature(self, nick, sigb64):
+	def add_signature(self, sigb64):
 		sig = base64.b64decode(sigb64).encode('hex')
 		inserted_sig = False
 		tx = btc.serialize(self.latest_tx)
@@ -252,7 +252,7 @@ class Taker(OrderbookWatch):
 				self.cjtx.recv_txio(nick, utxo_list, cj_pub, change_addr)	
 			elif chunks[0] == 'sig':
 				sig = chunks[1]
-				self.cjtx.add_signature(nick,sig)
+				self.cjtx.add_signature(sig)
 
 my_tx_fee = 10000
 		
