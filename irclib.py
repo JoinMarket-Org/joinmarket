@@ -117,7 +117,7 @@ class IRCClient(object):
         self.send_raw("PRIVMSG " + self.channel + " :" + message)
 
     def privmsg(self, nick, cmd, message):
-        debug('>>privmsg ' + 'nick=' + nick + 'cmd=' + cmd + ' msg=' + message)
+        debug('>>privmsg ' + 'nick=' + nick + ' cmd=' + cmd + ' msg=' + message)
         #should we encrypt?
         box = self.encrypting(cmd, nick, sending=True)
         #encrypt before chunking
