@@ -5,7 +5,7 @@
 #symmetric encryption.
 
 import libnacl.public
-import binascii
+import binascii, base64
 
 def init_keypair(fname = None):
     '''Create a new encryption 
@@ -59,7 +59,15 @@ Notes:
 #TODO: Sign, verify. At the moment we are using
 #bitcoin signatures so it isn't necessary.
 
-
+#encoding for passing over the wire
+def encrypt_encode(msg,box):
+    encrypted = box.encrypt(msg)
+    return base64.b64encode(encrypted)
+	
+def decode_decrypt(msg,box):
+    decoded = base64.b64decode(msg)
+    return box.decrypt(decoded)
+	    
 def test_case(case_name, alice_box, bob_box, ab_message, ba_message, num_iterations=1):
     for i in range(num_iterations): 
         otw_amsg = alice_box.encrypt(ab_message)

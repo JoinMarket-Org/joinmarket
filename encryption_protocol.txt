@@ -8,6 +8,8 @@ TAK: !fill <order id> <coinjoin amount> <taker encryption pubkey>
 MAK: !pubkey <maker encryption pubkey>
 
 Both maker and taker construct a crypto Box object to allow authenticated encryption between the parties.
+These Box objects are properties of the CoinJoinTx and CoinJoinOrder objects, so they are specific to 
+transactions and not to Maker and Taker entities.
 
 Encrypted
 =========
@@ -20,6 +22,11 @@ MAK: !auth <utxo list> <coinjoin pubkey> <change address> <btc sig of maker encr
 Because the !auth messages are under encryption, there is no privacy leak of bitcoin pubkeys or output addresses.
 
 If both verifications pass, the remainder of the messages exchanged between the two parties will continue under encryption.
+
+Specifically, these message types will be encrypted:
+!auth
+!tx
+!sig
 
 Note
 ====
