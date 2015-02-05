@@ -118,8 +118,8 @@ class CoinJoinOrder(object):
         tx_utxo_set = set([ins['outpoint']['hash'] + ':' \
                            + str(ins['outpoint']['index']) for ins in txd['ins']])
         #complete authentication: check the tx input uses the authing pubkey
-        if not btc.pubtoaddr(self.i_utxo_pubkey,get_addr_vbyte()) \
-           in [get_addr_from_utxo(i['outpoint']['hash'],i['outpoint']['index']) \
+        if not btc.pubtoaddr(self.i_utxo_pubkey, get_addr_vbyte()) \
+           in [get_addr_from_utxo(i['outpoint']['hash'], i['outpoint']['index']) \
            for i in txd['ins']]:
             return False, "authenticating bitcoin address is not contained"
         my_utxo_set = set(self.utxos)
