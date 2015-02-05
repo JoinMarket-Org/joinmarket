@@ -35,10 +35,10 @@ class CoinJoinOrder(object):
 		# orders to find out which addresses you use
 		self.maker.privmsg(nick, 'pubkey', self.kp.hex_pk())
 		
-	def auth_counterparty(self,nick,i_utxo_pubkey,btc_sig):
+	def auth_counterparty(self, nick, i_utxo_pubkey, btc_sig):
 		self.i_utxo_pubkey = i_utxo_pubkey
 		
-		if not btc.ecdsa_verify(self.taker_pk,btc_sig,self.i_utxo_pubkey):
+		if not btc.ecdsa_verify(self.taker_pk, btc_sig, self.i_utxo_pubkey):
 			print 'signature didnt match pubkey and message'
 			return False
 		#authorisation of taker passed 
@@ -47,7 +47,7 @@ class CoinJoinOrder(object):
 		#TODO the next 2 lines are a little inefficient.
 		btc_key = self.maker.wallet.get_key_from_addr(self.cj_addr)
 		btc_pub = btc.privtopub(btc_key)
-		btc_sig = btc.ecdsa_sign(self.kp.hex_pk(),btc_key)
+		btc_sig = btc.ecdsa_sign(self.kp.hex_pk(), btc_key)
 		authmsg = str(','.join(self.utxos)) + ' ' + \
 	                btc_pub + ' ' + self.change_addr + ' ' + btc_sig
 		self.maker.privmsg(nick, 'ioauth', authmsg)		
@@ -110,8 +110,8 @@ class CoinJoinOrder(object):
 		tx_utxo_set = set([ins['outpoint']['hash'] + ':' \
 		                   + str(ins['outpoint']['index']) for ins in txd['ins']])
 		#complete authentication: check the tx input uses the authing pubkey
-		if not btc.pubtoaddr(self.i_utxo_pubkey,get_addr_vbyte()) \
-		   in [get_addr_from_utxo(i['outpoint']['hash'],i['outpoint']['index']) \
+		if not btc.pubtoaddr(self.i_utxo_pubkey, get_addr_vbyte()) \
+		   in [get_addr_from_utxo(i['outpoint']['hash'], i['outpoint']['index']) \
 		   for i in txd['ins']]:
 		        return False, "authenticating bitcoin address is not contained"			
 		my_utxo_set = set(self.utxos)
@@ -165,7 +165,7 @@ class Maker(irclib.IRCClient):
 		orderline = ''
 		for order in orderlist:
 			elem_list = [str(order[k]) for k in order_keys]
-			self.privmsg(target,order['ordertype'],' '.join(elem_list))
+			self.privmsg(target, order['ordertype'],' '.join(elem_list))
 		
 	def send_error(self, nick, errmsg):
 		debug('error<%s> : %s' % (nick, errmsg))
@@ -209,7 +209,7 @@ class Maker(irclib.IRCClient):
 					try:
 						i_utxo_pubkey = chunks[1]
 						btc_sig = chunks[2]					
-					except (ValueError,IndexError) as e:
+					except (ValueError, IndexError) as e:
 						self.send_error(nick, str(e))
 					self.active_orders[nick].auth_counterparty(nick, i_utxo_pubkey, btc_sig)
 					
@@ -349,7 +349,7 @@ def main():
 	import sys
 	seed = sys.argv[1] #btc.sha256('dont use brainwallets except for holding testnet coins')
 
-	wallet = Wallet(seed,max_mix_depth=5)
+	wallet = Wallet(seed, max_mix_depth=5)
 	wallet.sync_wallet()
 
 	maker = Maker(wallet)

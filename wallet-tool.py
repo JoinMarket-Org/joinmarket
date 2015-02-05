@@ -105,7 +105,7 @@ elif method == 'reset':
 	ins = []
 	outs = []
 	balance = 0
-	for utxo,addrvalue in wallet.unspent.iteritems():
+	for utxo, addrvalue in wallet.unspent.iteritems():
 		ins.append({'output': utxo})
 		balance += addrvalue['value']
 	destaddr = wallet.get_addr(0,0,0)

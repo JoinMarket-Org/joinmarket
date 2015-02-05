@@ -43,7 +43,7 @@ def as_init_encryption(kp, c_pk):
     pubkey c_pk, create a Box 
     ready for encryption/decryption.
     '''
-    return libnacl.public.Box(kp.sk,c_pk)
+    return libnacl.public.Box(kp.sk, c_pk)
 '''
 After initialisation, it's possible
 to use the box object returned from
@@ -88,13 +88,13 @@ if __name__ == "__main__":
     bob_kp = init_keypair()
     
     #this is the DH key exchange part
-    bob_otwpk = get_pubkey(bob_kp,True)
-    alice_otwpk = get_pubkey(alice_kp,True)
+    bob_otwpk = get_pubkey(bob_kp, True)
+    alice_otwpk = get_pubkey(alice_kp, True)
     
     bob_pk = init_pubkey(bob_otwpk)
-    alice_box = as_init_encryption(alice_kp,bob_pk)
+    alice_box = as_init_encryption(alice_kp, bob_pk)
     alice_pk = init_pubkey(alice_otwpk)
-    bob_box = as_init_encryption(bob_kp,alice_pk)
+    bob_box = as_init_encryption(bob_kp, alice_pk)
     
     #now Alice and Bob can use their 'box'
     #constructs (both of which utilise the same

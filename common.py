@@ -60,7 +60,7 @@ def get_addr_from_utxo(txhash, index):
 	'''return the bitcoin address of the outpoint at 
 	the specified index for the transaction with specified hash.
 	Return None if no such index existed for that transaction.'''
-	data = get_blockchain_data('txinfo',csv_params=[txhash])
+	data = get_blockchain_data('txinfo', csv_params=[txhash])
 	for a in data['vouts']:
 		if a['n']==index:
 			return a['address']
@@ -292,7 +292,7 @@ def add_addr_notify(address, unconfirmfun, confirmfun, unconfirmtimeout=5,
 						unconfirmtimeoutfun()
 					debug('checking for unconfirmed tx timed out')
 					return
-				data = get_blockchain_data('addrbalance',csv_params=[self.address],
+				data = get_blockchain_data('addrbalance', csv_params=[self.address],
 				                           query_params=['confirmations=0'])
 				if data['balance'] > 0:
 					break
@@ -305,7 +305,7 @@ def add_addr_notify(address, unconfirmfun, confirmfun, unconfirmtimeout=5,
 						confirmtimeoutfun()
 					debug('checking for confirmed tx timed out')
 					return
-				data = get_blockchain_data('addrtx',csv_params=[self.address],
+				data = get_blockchain_data('addrtx', csv_params=[self.address],
 				                           query_params=['confirmations=0'])
 				if data['nb_txs'] == 0:
 					continue

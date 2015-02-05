@@ -98,7 +98,7 @@ class IRCClient(object):
 		box = self.encrypting(cmd, nick, sending=True)
 		#encrypt before chunking
 		if box:
-			message = enc_wrapper.encrypt_encode(message,box)
+			message = enc_wrapper.encrypt_encode(message, box)
 		
 		if len(message) > 350:
 			message_chunks = chunks(message, 350)
