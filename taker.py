@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 
 from common import *
+import enc_wrapper
 import irclib
 import bitcoin as btc
 
@@ -37,13 +38,39 @@ class CoinJoinTX(object):
         self.my_change_addr = my_change_addr
         self.cjfee_total = 0
         self.latest_tx = None
+        #create DH keypair on the fly for this Tx object
+        self.kp = enc_wrapper.init_keypair()
+        self.crypto_boxes = {}
         #find the btc pubkey of the first utxo being used
         self.signing_btc_add = taker.wallet.unspent[self.my_utxos[0]]['address']
         self.signing_btc_pub = btc.privtopub(taker.wallet.get_key_from_addr(
             self.signing_btc_add))
         for c, oid in orders.iteritems():
-            taker.privmsg(c, command_prefix + 'fill ' + \
-            str(oid) + ' ' + str(cj_amount) + ' ' + taker.enc_kp.hex_pk())
+            cmd = 'fill'
+            omsg = str(oid) + ' ' + str(cj_amount) + ' ' + self.kp.hex_pk()
+            self.taker.privmsg(c, cmd, omsg)
+
+    def start_encryption(self, nick, maker_pk):
+        if nick not in self.active_orders.keys():
+            raise Exception("Counterparty not part of this transaction.")
+        self.crypto_boxes[nick] = [maker_pk,enc_wrapper.as_init_encryption(\
+                                self.kp, enc_wrapper.init_pubkey(maker_pk))]
+        #send authorisation request
+        my_btc_priv = self.taker.wallet.get_key_from_addr(\
+                self.taker.wallet.unspent[self.my_utxos[0]]['address'])
+        my_btc_pub = btc.privtopub(my_btc_priv)
+        my_btc_sig = btc.ecdsa_sign(self.kp.hex_pk(), my_btc_priv)
+        message = my_btc_pub + ' ' + my_btc_sig
+        self.taker.privmsg(nick, 'auth', message)
+
+    def auth_counterparty(self, nick, btc_sig, cj_pub):
+        '''Validate the counterpartys claim to own the btc
+		address/pubkey that will be used for coinjoining 
+		with an ecdsa verification.'''
+        if not btc.ecdsa_verify(self.crypto_boxes[nick][0], btc_sig, cj_pub):
+            print 'signature didnt match pubkey and message'
+            return False
+        return True
 
     def recv_txio(self, nick, utxo_list, cj_pub, change_addr):
         cj_addr = btc.pubtoaddr(cj_pub, get_addr_vbyte())
@@ -96,7 +123,7 @@ class CoinJoinTX(object):
         debug('obtained tx\n' + pprint.pformat(btc.deserialize(tx)))
         txb64 = base64.b64encode(tx.decode('hex'))
         for nickk in self.active_orders.keys():
-            self.taker.privmsg(nickk, command_prefix + 'tx ' + txb64)
+            self.taker.privmsg(nickk, 'tx', txb64)
 
         #now sign it ourselves here
         for index, ins in enumerate(btc.deserialize(tx)['ins']):
@@ -109,9 +136,8 @@ class CoinJoinTX(object):
             tx = btc.sign(tx, index, self.taker.wallet.get_key_from_addr(addr))
         self.latest_tx = btc.deserialize(tx)
 
-    def add_signature(self, sigb64):
+    def add_signature(self, nick, sigb64):
         sig = base64.b64decode(sigb64).encode('hex')
-
         inserted_sig = False
         tx = btc.serialize(self.latest_tx)
         for index, ins in enumerate(self.latest_tx['ins']):
@@ -139,8 +165,7 @@ class CoinJoinTX(object):
         if not tx_signed:
             return
         debug('the entire tx is signed, ready to pushtx()')
-        #end encryption channel with all counterparties
-        self.taker.end_all_encryption()
+
         print btc.serialize(self.latest_tx)
         ret = btc.blockr_pushtx(btc.serialize(self.latest_tx), get_network())
         debug('pushed tx ' + str(ret))
@@ -231,16 +256,6 @@ class Taker(OrderbookWatch):
         #TODO have a list of maker's nick we're coinjoining with, so
         # that some other guy doesnt send you confusing stuff
         #maybe a start_cj_tx() method is needed
-        self.init_encryption()
-
-    def auth_counterparty(self, nick, btc_sig, cj_pub):
-        '''Validate the counterpartys claim to own the btc
-		address/pubkey that will be used for coinjoining 
-		with an ecdsa verification.'''
-        if not btc.ecdsa_verify(self.maker_pks[nick], btc_sig, cj_pub):
-            print 'signature didnt match pubkey and message'
-            return False
-        return True
 
     def on_privmsg(self, nick, message):
         OrderbookWatch.on_privmsg(self, nick, message)
@@ -251,30 +266,20 @@ class Taker(OrderbookWatch):
             chunks = command.split(" ")
             if chunks[0] == 'pubkey':
                 maker_pk = chunks[1]
-                #store the declared pubkeys in a dict indexed by maker nick
-                self.maker_pks[nick] = maker_pk
-                self.start_encryption(nick, self.maker_pks[nick])
-                #send authorisation request
-                my_btc_priv = self.wallet.get_key_from_addr(self.wallet.unspent[
-                    self.cjtx.my_utxos[0]]['address'])
-                my_btc_pub = btc.privtopub(my_btc_priv)
-                my_btc_sig = btc.ecdsa_sign(self.enc_kp.hex_pk(), my_btc_priv)
-                message = '!auth ' + my_btc_pub + ' ' + my_btc_sig
-                self.privmsg(nick, message
-                            )  #note: we do this *before* starting encryption
-            if chunks[0] == 'auth':
+                self.cjtx.start_encryption(nick, maker_pk)
+            if chunks[0] == 'ioauth':
                 utxo_list = chunks[1].split(',')
                 cj_pub = chunks[2]
                 change_addr = chunks[3]
                 btc_sig = chunks[4]
-                if not self.auth_counterparty(nick, btc_sig, cj_pub):
+                if not self.cjtx.auth_counterparty(nick, btc_sig, cj_pub):
                     print 'Authenticated encryption with counterparty: ' + nick + \
-                    ' not established. TODO: send rejection message'
-                    continue
+                           ' not established. TODO: send rejection message'
+                    return
                 self.cjtx.recv_txio(nick, utxo_list, cj_pub, change_addr)
             elif chunks[0] == 'sig':
                 sig = chunks[1]
-                self.cjtx.add_signature(sig)
+                self.cjtx.add_signature(nick, sig)
 
 
 my_tx_fee = 10000

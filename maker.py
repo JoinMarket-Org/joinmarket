@@ -4,6 +4,7 @@ from common import *
 import irclib
 import bitcoin as btc
 import base64, pprint, threading
+import enc_wrapper
 
 
 class CoinJoinOrder(object):
@@ -14,6 +15,12 @@ class CoinJoinOrder(object):
         self.cj_amount = amount
         #the btc pubkey of the utxo that the taker plans to use as input
         self.taker_pk = taker_pk
+        #create DH keypair on the fly for this Order object
+        self.kp = enc_wrapper.init_keypair()
+        #the encryption channel crypto box for this Order object
+        self.crypto_box = enc_wrapper.as_init_encryption(self.kp, \
+                                enc_wrapper.init_pubkey(taker_pk))
+
         order_s = [o for o in maker.orderlist if o['oid'] == oid]
         if len(order_s) == 0:
             self.maker.send_error(nick, 'oid not found')
@@ -29,8 +36,7 @@ class CoinJoinOrder(object):
         #always a new address even if the order ends up never being
         # furfilled, you dont want someone pretending to fill all your
         # orders to find out which addresses you use
-        maker.privmsg(nick, command_prefix + 'pubkey ' + maker.enc_kp.hex_pk())
-        self.maker.start_encryption(nick, taker_pk)
+        self.maker.privmsg(nick, 'pubkey', self.kp.hex_pk())
 
     def auth_counterparty(self, nick, i_utxo_pubkey, btc_sig):
         #TODO: add check that the pubkey's address is part of the order.
@@ -44,10 +50,10 @@ class CoinJoinOrder(object):
         #TODO the next 2 lines are a little inefficient.
         btc_key = self.maker.wallet.get_key_from_addr(self.cj_addr)
         btc_pub = btc.privtopub(btc_key)
-        btc_sig = btc.ecdsa_sign(self.maker.enc_kp.hex_pk(), btc_key)
-
-        self.maker.privmsg(nick, command_prefix + 'auth ' + str(','.join(self.utxos)) + ' ' + \
-                       btc_pub + ' ' + self.change_addr + ' ' + btc_sig)
+        btc_sig = btc.ecdsa_sign(self.kp.hex_pk(), btc_key)
+        authmsg = str(','.join(self.utxos)) + ' ' + \
+                       btc_pub + ' ' + self.change_addr + ' ' + btc_sig
+        self.maker.privmsg(nick, 'ioauth', authmsg)
         return True
 
     def recv_tx(self, nick, b64tx):
@@ -64,6 +70,7 @@ class CoinJoinOrder(object):
         if not goodtx:
             debug('not a good tx, reason=' + errmsg)
             self.maker.send_error(nick, errmsg)
+        #TODO: the above 3 errors should be encrypted, but it's a bit messy.
         debug('goodtx')
         sigs = []
         for index, ins in enumerate(self.tx['ins']):
@@ -80,10 +87,8 @@ class CoinJoinOrder(object):
         add_addr_notify(self.change_addr, self.unconfirm_callback,
                         self.confirm_callback)
         debug('sending sigs ' + str(sigs))
-        self.maker.privmsg(nick,
-                           ''.join([command_prefix + 'sig ' + s for s in sigs]))
-        #once signature is sent, close encrypted channel to this taker.
-        self.maker.end_encryption(nick)
+        for s in sigs:
+            self.maker.privmsg(nick, 'sig', s)
         self.maker.active_orders[nick] = None
 
     def unconfirm_callback(self, balance):
@@ -154,7 +159,6 @@ class CJMakerOrderError(StandardError):
 class Maker(irclib.IRCClient):
 
     def __init__(self, wallet):
-        self.init_encryption()
         self.active_orders = {}
         self.wallet = wallet
         self.nextoid = -1
@@ -164,21 +168,15 @@ class Maker(irclib.IRCClient):
     def privmsg_all_orders(self, target, orderlist=None):
         if orderlist == None:
             orderlist = self.orderlist
-        order_keys = ['ordertype', 'oid', 'minsize', 'maxsize', 'txfee', 'cjfee'
-                     ]
+        order_keys = ['oid', 'minsize', 'maxsize', 'txfee', 'cjfee']
         orderline = ''
         for order in orderlist:
             elem_list = [str(order[k]) for k in order_keys]
-            orderline += (command_prefix + ' '.join(elem_list))
-            if len(orderline) > MAX_PRIVMSG_LEN:
-                self.privmsg(target, orderline)
-                orderline = ''
-        if len(orderline) > 0:
-            self.privmsg(target, orderline)
+            self.privmsg(target, order['ordertype'], ' '.join(elem_list))
 
     def send_error(self, nick, errmsg):
         debug('error<%s> : %s' % (nick, errmsg))
-        self.privmsg(nick, command_prefix + 'error ' + errmsg)
+        self.privmsg(nick, 'error', errmsg)
         raise CJMakerOrderError()
 
     def on_welcome(self):
@@ -195,11 +193,11 @@ class Maker(irclib.IRCClient):
             try:
                 if len(chunks) < 2:
                     self.send_error(nick, 'Not enough arguments')
+
                 if chunks[0] == 'fill':
                     if nick in self.active_orders and self.active_orders[
                             nick] != None:
                         self.active_orders[nick] = None
-                        self.end_encryption(nick)
                         debug(
                             'had a partially filled order but starting over now')
                     try:
@@ -259,7 +257,6 @@ class Maker(irclib.IRCClient):
             print '=' * 60
 
     def on_leave(self, nick):
-        self.end_encryption(nick)
         self.active_orders[nick] = None
 
     def modify_orders(self, to_cancel, to_announce):

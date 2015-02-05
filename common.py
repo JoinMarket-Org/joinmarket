@@ -15,6 +15,9 @@ command_prefix = '!'
 MAX_PRIVMSG_LEN = 400
 
 ordername_list = ["absorder", "relorder"]
+encrypted_commands = ["auth", "ioauth", "tx", "sig"]
+plaintext_commands = ["fill", "error", "pubkey", "orderbook", "relorder",
+                      "absorder"]
 
 
 def debug(msg):
