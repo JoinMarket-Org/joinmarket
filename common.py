@@ -122,7 +122,7 @@ class Wallet(object):
             removed_utxos[utxo] = self.unspent[utxo]
             del self.unspent[utxo]
         debug('removed utxos, wallet now is \n' + pprint.pformat(
-            self.get_mix_utxo_list()))
+            self.get_utxo_list_by_mixdepth()))
         return removed_utxos
 
     def add_new_utxos(self, tx, txid):
@@ -136,11 +136,10 @@ class Wallet(object):
             added_utxos[utxo] = addrdict
             self.unspent[utxo] = addrdict
         debug('added utxos, wallet now is \n' + pprint.pformat(
-            self.get_mix_utxo_list()))
+            self.get_utxo_list_by_mixdepth()))
         return added_utxos
 
-    #TODO change the name of this to get_utxo_list_by_mixdepth
-    def get_mix_utxo_list(self):
+    def get_utxo_list_by_mixdepth(self):
         '''
 		returns a list of utxos sorted by different mix levels
 		'''
@@ -153,7 +152,7 @@ class Wallet(object):
         return mix_utxo_list
 
     def get_balance_by_mixdepth(self):
-        mix_utxo_list = self.get_mix_utxo_list()
+        mix_utxo_list = self.get_utxo_list_by_mixdepth()
         mix_balance = {}
         for mixdepth, utxo_list in mix_utxo_list.iteritems():
             total_value = 0
@@ -163,7 +162,7 @@ class Wallet(object):
         return mix_balance
 
     def select_utxos(self, mixdepth, amount):
-        utxo_list = self.get_mix_utxo_list()[mixdepth]
+        utxo_list = self.get_utxo_list_by_mixdepth()[mixdepth]
         unspent = [{'utxo': utxo,
                     'value': self.unspent[utxo]['value']} for utxo in utxo_list]
         inputs = btc.select(unspent, amount)
