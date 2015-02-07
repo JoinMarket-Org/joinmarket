@@ -170,9 +170,9 @@ class Maker(irclib.IRCClient):
 		self.privmsg_all_orders(CHANNEL)
 		
 	def on_privmsg(self, nick, message):
-		if message[0] != command_prefix:
+		if message[0] != COMMAND_PREFIX:
 			return
-		command_lines = message.split(command_prefix)
+		command_lines = message.split(COMMAND_PREFIX)
 		for command_line in command_lines:
 			if len(command_line) == 0:
 				continue
@@ -224,7 +224,7 @@ class Maker(irclib.IRCClient):
 	# using the same id again overwrites it, they'll be plenty of times when an order
 	# has to be modified and its better to just have !order rather than !cancelorder then !order
 	def on_pubmsg(self, nick, message):
-		if message[0] == command_prefix:
+		if message[0] == COMMAND_PREFIX:
 			chunks = message[1:].split(" ")
 			if chunks[0] == 'orderbook':
 				self.privmsg_all_orders(nick)
@@ -246,7 +246,7 @@ class Maker(irclib.IRCClient):
 			order = [o for o in self.orderlist if o['oid'] == oid][0]
 			self.orderlist.remove(order)
 		if len(to_cancel) > 0:
-			clines = [command_prefix + 'cancel ' + str(oid) for oid in to_cancel]
+			clines = [COMMAND_PREFIX + 'cancel ' + str(oid) for oid in to_cancel]
 			self.pubmsg(''.join(clines))
 		if len(to_announce) > 0:
 			self.privmsg_all_orders(CHANNEL, to_announce)
