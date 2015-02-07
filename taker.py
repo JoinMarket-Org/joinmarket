@@ -282,7 +282,7 @@ class TestTaker(Taker):
 				#this testing command implements a very dumb algorithm.
 				#just take 1 utxo from anywhere and output it to a level 1
 				#change address.
-				utxo_dict = self.wallet.get_mix_utxo_list()
+				utxo_dict = self.wallet.get_utxo_list_by_mixdepth()
 				utxo_list = [x for v in utxo_dict.itervalues() for x in v]
 				unspent = [{'utxo': utxo, 'value': self.wallet.unspent[utxo]['value']} \
 				           for utxo in utxo_list]
