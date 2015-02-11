@@ -4,6 +4,7 @@ from decimal import Decimal
 from math import factorial
 import sys, datetime, json, time, pprint
 import threading
+import blockchaininterface
 
 HOST = 'irc.freenode.net'
 CHANNEL = '#joinmarket-pit-test'
@@ -14,7 +15,7 @@ PORT = 6667
 #TODO make this var all in caps
 command_prefix = '!'
 MAX_PRIVMSG_LEN = 400
-
+blockchain_source = 'regtest'
 ordername_list = ["absorder", "relorder"]
 encrypted_commands = ["auth", "ioauth", "tx", "sig"]
 plaintext_commands = ["fill", "error", "pubkey", "orderbook", "relorder", "absorder"]
@@ -66,20 +67,52 @@ def get_addr_from_utxo(txhash, index):
 			return a['address']
 	return None
 	
-def get_blockchain_data(body, source='blockr', csv_params=[],
+def get_blockchain_data(body, csv_params=[],
                         query_params=[], network='test', output_key='data'):
 	'''A first step towards encapsulating blockchain queries.'''
-	if source != 'blockr': raise Exception ("source not yet implemented")
-	stem = 'http://btc.blockr.io/api/v1/'
-	if network=='test': stem = stem[:7]+'t'+stem[7:]
-	elif network != 'main': raise Exception("unrecognised bitcoin network type")
+	if blockchain_source=='regtest':
+		stem = 'regtest:'
+	elif blockchain_source=='blockr':
+		stem = 'http://btc.blockr.io/api/v1/'
+		if network=='test': 
+			stem = stem[:7]+'t'+stem[7:]
+		elif network != 'main': 
+			raise Exception("unrecognised bitcoin network type")	
+	else:
+		raise Exception("Unrecognised blockchain source")
+	
 	bodies = {'addrtx':'address/txs/','txinfo':'tx/info/','addrunspent':'address/unspent/',
 	          'addrbalance':'address/balance/'}
 	url = stem + bodies[body] + ','.join(csv_params) 
 	if query_params:
 		url += '?'+','.join(query_params)
-	res = btc.make_request(url)
+	if blockchain_source=='blockr':
+		res = get_blockr_data(url) 
+	elif blockchain_source=='regtest':
+		res = get_regtest_data(url)
+	else:
+		raise Exception("Unrecognised blockchain source"
+		                "")
 	return json.loads(res)[output_key]
+
+def get_blockr_data(req):
+	return btc.make_request(req)
+
+def get_regtest_data(req):
+	bitcointoolsdir = '/home/adam/DevRepos/bitcoin/src/'
+	btc_client = bitcointoolsdir + 'bitcoin-cli'
+	myBCI = blockchaininterface.RegTestImp(btc_client)
+	if not req.startswith('regtest'):
+		raise Exception("Invalid request to regtest")
+	req = ''.join(req.split(':')[1:]).split('/')
+	if req[0]=='address' and req[1]=='txs':
+		addrs = req[2].split(',')
+		#NB: we don't allow unconfirmeds in regtest
+		#for now; TODO
+		if 'unconfirmed' in addrs[-1]:
+			addrs = addrs[:-1]
+		return myBCI.get_txs_from_addr(addrs)
+	
 	
 class Wallet(object):
 	def __init__(self, seed, max_mix_depth=2):
