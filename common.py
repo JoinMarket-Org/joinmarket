@@ -10,8 +10,7 @@ PORT = 6667
 
 #for the mainnet its #joinmarket-pit
 
-#TODO make this var all in caps
-command_prefix = '!'
+COMMAND_PREFIX = '!'
 MAX_PRIVMSG_LEN = 400
 
 ordername_list = ["absorder", "relorder"]
