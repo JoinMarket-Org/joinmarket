@@ -168,10 +168,10 @@ class OrderbookWatch(irclib.IRCClient):
 			(nick, chunks[1], chunks[0], chunks[2], chunks[3], chunks[4], chunks[5]))
 
 	def on_privmsg(self, nick, message):
-		if message[0] != command_prefix:
+		if message[0] != COMMAND_PREFIX:
 			return
 
-		for command in message[1:].split(command_prefix):
+		for command in message[1:].split(COMMAND_PREFIX):
 			chunks = command.split(" ")
 			if chunks[0] in ordername_list:
 				self.add_order(nick, chunks)
@@ -180,9 +180,9 @@ class OrderbookWatch(irclib.IRCClient):
 	# using the same id again overwrites it, they'll be plenty of times when an order
 	# has to be modified and its better to just have !order rather than !cancelorder then !order
 	def on_pubmsg(self, nick, message):
-		if message[0] != command_prefix:
+		if message[0] != COMMAND_PREFIX:
 			return
-		for command in message[1:].split(command_prefix):
+		for command in message[1:].split(COMMAND_PREFIX):
 			#commands starting with % are for testing and will be removed in the final version
 			chunks = command.split(" ")
 			if chunks[0] == 'cancel':
@@ -204,7 +204,7 @@ class OrderbookWatch(irclib.IRCClient):
 				print('done')
 
 	def on_welcome(self):
-		self.pubmsg(command_prefix + 'orderbook')
+		self.pubmsg(COMMAND_PREFIX + 'orderbook')
 
 	def on_set_topic(self, newtopic):
 		chunks = newtopic.split('|')
@@ -233,9 +233,9 @@ class Taker(OrderbookWatch):
 	def on_privmsg(self, nick, message):
 		OrderbookWatch.on_privmsg(self, nick, message)
 		#debug("privmsg nick=%s message=%s" % (nick, message))
-		if message[0] != command_prefix:
+		if message[0] != COMMAND_PREFIX:
 			return
-		for command in message[1:].split(command_prefix):
+		for command in message[1:].split(COMMAND_PREFIX):
 			chunks = command.split(" ")
 			if chunks[0] == 'pubkey':
 				maker_pk = chunks[1]
@@ -269,9 +269,9 @@ class TestTaker(Taker):
 		
 	def on_pubmsg(self, nick, message):
 		Taker.on_pubmsg(self, nick, message)
-		if message[0] != command_prefix:
+		if message[0] != COMMAND_PREFIX:
 			return
-		for command in message[1:].split(command_prefix):
+		for command in message[1:].split(COMMAND_PREFIX):
 			#commands starting with % are for testing and will be removed in the final version
 			chunks = command.split(" ")
 			if chunks[0] == '%go':
