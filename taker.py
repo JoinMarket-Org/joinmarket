@@ -53,7 +53,7 @@ class CoinJoinTX(object):
     def start_encryption(self, nick, maker_pk):
         if nick not in self.active_orders.keys():
             raise Exception("Counterparty not part of this transaction.")
-        self.crypto_boxes[nick] = [maker_pk,enc_wrapper.as_init_encryption(\
+        self.crypto_boxes[nick] = [maker_pk, enc_wrapper.as_init_encryption(\
                                 self.kp, enc_wrapper.init_pubkey(maker_pk))]
         #send authorisation request
         my_btc_priv = self.taker.wallet.get_key_from_addr(\
