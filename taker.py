@@ -173,15 +173,30 @@ class CoinJoinTX(object):
             self.finishcallback()
 
 
-class OrderbookWatch(irclib.IRCClient):
+class CoinJoinerPeer(object):
+    pass
 
-    def __init__(self):
+
+class OrderbookWatch(CoinJoinerPeer):
+
+    def __init__(self, msgchan):
+        self.msgchan = msgchan
+        self.msgchan.register_orderbookwatch_callbacks(on_orders_seen,
+                                                       on_orders_cancel)
+
         con = sqlite3.connect(":memory:", check_same_thread=False)
         con.row_factory = sqlite3.Row
         self.db = con.cursor()
         self.db.execute(
             "CREATE TABLE orderbook(counterparty TEXT, oid INTEGER, ordertype TEXT, "
             + "minsize INTEGER, maxsize INTEGER, txfee INTEGER, cjfee TEXT);")
+
+    #accept a list
+    def on_orders_seen(self):
+        pass
+
+    def on_orders_cancel(self, nick, oid):
+        pass
 
     def add_order(self, nick, chunks):
         self.db.execute("DELETE FROM orderbook WHERE counterparty=? AND oid=?;",
