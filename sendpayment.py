@@ -34,7 +34,7 @@ class PaymentThread(threading.Thread):
 
         if self.taker.amount == 0:
             total_value = 0
-            utxo_list = self.taker.wallet.get_mix_utxo_list()[
+            utxo_list = self.taker.wallet.get_utxo_list_by_mixdepth()[
                 self.taker.mixdepth]
             for utxo in utxo_list:
                 total_value += self.taker.wallet.unspent[utxo]['value']
