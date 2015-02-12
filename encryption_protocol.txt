@@ -16,7 +16,7 @@ Encrypted
 
 TAK: !auth <input utxo pubkey> <btc sig of taker encryption pubkey using input utxo pubkey>
 (Maker verifies the btc sig; if not valid, connection is dropped - send REJECT message)
-MAK: !auth <utxo list> <coinjoin pubkey> <change address> <btc sig of maker encryption pubkey using coinjoin pubkey>
+MAK: !ioauth <utxo list> <coinjoin pubkey> <change address> <btc sig of maker encryption pubkey using coinjoin pubkey>
 (Taker verifies the btc sig; if not valid, as for previous)
 
 Because the !auth messages are under encryption, there is no privacy leak of bitcoin pubkeys or output addresses.
@@ -25,6 +25,7 @@ If both verifications pass, the remainder of the messages exchanged between the 
 
 Specifically, these message types will be encrypted:
 !auth
+!ioauth
 !tx
 !sig
 

@@ -42,7 +42,7 @@ class CoinJoinTX(object):
 	def start_encryption(self, nick, maker_pk):
 		if nick not in self.active_orders.keys():
 			raise Exception("Counterparty not part of this transaction.")
-		self.crypto_boxes[nick] = [maker_pk,enc_wrapper.as_init_encryption(\
+		self.crypto_boxes[nick] = [maker_pk, enc_wrapper.as_init_encryption(\
 		                        self.kp, enc_wrapper.init_pubkey(maker_pk))]
 		#send authorisation request
 		my_btc_priv = self.taker.wallet.get_key_from_addr(\
@@ -62,7 +62,7 @@ class CoinJoinTX(object):
 		return True
 	
 	def recv_txio(self, nick, utxo_list, cj_pub, change_addr):	
-		cj_addr = btc.pubtoaddr(cj_pub,get_addr_vbyte())
+		cj_addr = btc.pubtoaddr(cj_pub, get_addr_vbyte())
 		if nick not in self.nonrespondants:
 			debug('nick(' + nick + ') not in nonrespondants ' + str(self.nonrespondants))
 			return
@@ -291,7 +291,7 @@ class TestTaker(Taker):
 				print 'making cjtx'
 				self.cjtx = CoinJoinTX(self, int(amt), {cp: oid},
 			                utxos, self.wallet.get_receive_addr(mixing_depth=1),
-			                self.wallet.get_change_addr(mixing_depth=0), my_tx_fee,self.finish_callback)								
+			                self.wallet.get_change_addr(mixing_depth=0), my_tx_fee, self.finish_callback)								
 			elif chunks[0] == '%unspent':
 				from pprint import pprint
 				pprint(self.wallet.unspent)
@@ -304,7 +304,7 @@ class TestTaker(Taker):
 				print 'making cjtx'
 				self.cjtx = CoinJoinTX(self, int(amount), {counterparty: oid},
 					[my_utxo], self.wallet.get_receive_addr(mixing_depth=1),
-					self.wallet.get_change_addr(mixing_depth=0), my_tx_fee,self.finish_callback)
+					self.wallet.get_change_addr(mixing_depth=0), my_tx_fee, self.finish_callback)
 			elif chunks[0] == '%2fill':
 				#!2fill [amount] [utxo] [counterparty1] [oid1] [counterparty2] [oid2]
 				amount = int(chunks[1])
@@ -316,7 +316,7 @@ class TestTaker(Taker):
 				print 'creating cjtx'
 				self.cjtx = CoinJoinTX(self, amount, {cp1: oid1, cp2: oid2},
 					[my_utxo], self.wallet.get_receive_addr(mixing_depth=1),
-					self.wallet.get_change_addr(mixing_depth=0), my_tx_fee,self.finish_callback)
+					self.wallet.get_change_addr(mixing_depth=0), my_tx_fee, self.finish_callback)
 
 def main():
 	import sys
