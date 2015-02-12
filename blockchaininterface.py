@@ -4,6 +4,7 @@ import unittest
 import json
 import abc
 from decimal import Decimal
+import bitcoin as btc
 
 
 class BlockChainInterface(object):
@@ -100,6 +101,20 @@ class RegTestImp(BlockChainInterface):
                             'amount': a['amount']})
             result.append({'nb_txs': nbtxs, 'address': address, 'txs': txs})
         return {'data': result}
+
+    def get_tx_info(self, txhash):
+        res = json.loads(self.rpc(['gettransaction', txhash, 'true']))
+        tx = btc.deserialize(res['hex'])
+        #build vout list
+        vouts = []
+        n = 0
+        for o in tx['outs']:
+            vouts.append({'n': n,
+                          'amount': o['value'],
+                          'address': btc.script_to_address(o['script'])})
+            n += 1
+
+        return {'data': {'vouts': vouts}}
 
     def get_balance_at_addr(self, address):
         #NB This will NOT return coinbase coins (but wont matter in our use case).
