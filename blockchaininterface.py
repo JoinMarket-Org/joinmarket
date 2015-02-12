@@ -4,6 +4,8 @@ import unittest
 import json
 import abc
 from decimal import Decimal
+import bitcoin as btc
+
 
 class BlockChainInterface(object):
     __metaclass__ = abc.ABCMeta
@@ -71,7 +73,7 @@ class RegTestImp(BlockChainInterface):
             utxos.append(r['txid']+':'+str(r['vout']))
         return utxos
     
-    def get_txs_from_addr(self,addresses):
+    def get_txs_from_addr(self, addresses):
         #use listtransactions and then filter
         #e.g.: -regtest listtransactions 'watchonly' 1000 0 true
         #to get the last 1000 transactions TODO 1000 is arbitrary
@@ -87,7 +89,20 @@ class RegTestImp(BlockChainInterface):
                 nbtxs += 1
                 txs.append({'confirmations':a['confirmations'],'tx':a['txid'],'amount':a['amount']})
             result.append({'nb_txs':nbtxs,'address':address,'txs':txs})
-        return {'data':result}    
+        return {'data':result} 
+    
+    def get_tx_info(self, txhash):
+        res = json.loads(self.rpc(['gettransaction',txhash,'true']))
+        tx = btc.deserialize(res['hex'])
+        #build vout list
+        vouts = []
+        n=0
+        for o in tx['outs']:
+            vouts.append({'n':n,'amount':o['value'],'address':btc.script_to_address(o['script'])})
+            n+=1
+        
+        return {'data':{'vouts':vouts}}
+        
     
     def get_balance_at_addr(self, address):
         #NB This will NOT return coinbase coins (but wont matter in our use case).

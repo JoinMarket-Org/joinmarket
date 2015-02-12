@@ -112,6 +112,11 @@ def get_regtest_data(req):
 		if 'unconfirmed' in addrs[-1]:
 			addrs = addrs[:-1]
 		return myBCI.get_txs_from_addr(addrs)
+	elif req[0]=='tx' and req[1]=='info':
+		txhash = req[2] #TODO currently only allowing one tx
+		return myBCI.get_tx_info(txhash)
+	elif req[0]=='addr' and req[1] == 'balance':
+		
 	
 	
 class Wallet(object):
