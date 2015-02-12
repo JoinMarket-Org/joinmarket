@@ -5,7 +5,7 @@
 #symmetric encryption.
 
 import libnacl.public
-import binascii
+import binascii, base64
 
 def init_keypair(fname = None):
     '''Create a new encryption 
@@ -43,7 +43,7 @@ def as_init_encryption(kp, c_pk):
     pubkey c_pk, create a Box 
     ready for encryption/decryption.
     '''
-    return libnacl.public.Box(kp.sk,c_pk)
+    return libnacl.public.Box(kp.sk, c_pk)
 '''
 After initialisation, it's possible
 to use the box object returned from
@@ -59,7 +59,15 @@ Notes:
 #TODO: Sign, verify. At the moment we are using
 #bitcoin signatures so it isn't necessary.
 
-
+#encoding for passing over the wire
+def encrypt_encode(msg, box):
+    encrypted = box.encrypt(msg)
+    return base64.b64encode(encrypted)
+	
+def decode_decrypt(msg, box):
+    decoded = base64.b64decode(msg)
+    return box.decrypt(decoded)
+	    
 def test_case(case_name, alice_box, bob_box, ab_message, ba_message, num_iterations=1):
     for i in range(num_iterations): 
         otw_amsg = alice_box.encrypt(ab_message)
@@ -80,13 +88,13 @@ if __name__ == "__main__":
     bob_kp = init_keypair()
     
     #this is the DH key exchange part
-    bob_otwpk = get_pubkey(bob_kp,True)
-    alice_otwpk = get_pubkey(alice_kp,True)
+    bob_otwpk = get_pubkey(bob_kp, True)
+    alice_otwpk = get_pubkey(alice_kp, True)
     
     bob_pk = init_pubkey(bob_otwpk)
-    alice_box = as_init_encryption(alice_kp,bob_pk)
+    alice_box = as_init_encryption(alice_kp, bob_pk)
     alice_pk = init_pubkey(alice_otwpk)
-    bob_box = as_init_encryption(bob_kp,alice_pk)
+    bob_box = as_init_encryption(bob_kp, alice_pk)
     
     #now Alice and Bob can use their 'box'
     #constructs (both of which utilise the same

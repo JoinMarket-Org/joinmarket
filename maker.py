@@ -4,6 +4,7 @@ from common import *
 import irclib
 import bitcoin as btc
 import base64, pprint, threading
+import enc_wrapper
 
 class CoinJoinOrder(object):
 	def __init__(self, maker, nick, oid, amount, taker_pk):
@@ -12,6 +13,12 @@ class CoinJoinOrder(object):
 		self.cj_amount = amount
 		#the btc pubkey of the utxo that the taker plans to use as input
 		self.taker_pk = taker_pk
+		#create DH keypair on the fly for this Order object
+		self.kp = enc_wrapper.init_keypair()
+		#the encryption channel crypto box for this Order object
+		self.crypto_box = enc_wrapper.as_init_encryption(self.kp, \
+		                        enc_wrapper.init_pubkey(taker_pk))
+		
 		order_s = [o for o in maker.orderlist if o['oid'] == oid]
 		if len(order_s) == 0:
 			self.maker.send_error(nick, 'oid not found')
@@ -26,25 +33,24 @@ class CoinJoinOrder(object):
 		#always a new address even if the order ends up never being
 		# furfilled, you dont want someone pretending to fill all your
 		# orders to find out which addresses you use
-		maker.privmsg(nick,command_prefix+ 'pubkey ' + maker.enc_kp.hex_pk())
-		self.maker.start_encryption(nick,taker_pk)
-	
-	def auth_counterparty(self,nick,i_utxo_pubkey,btc_sig):
-		#TODO: add check that the pubkey's address is part of the order.
+		self.maker.privmsg(nick, 'pubkey', self.kp.hex_pk())
+		
+	def auth_counterparty(self, nick, i_utxo_pubkey, btc_sig):
 		self.i_utxo_pubkey = i_utxo_pubkey
 		
-		if not btc.ecdsa_verify(self.taker_pk,btc_sig,self.i_utxo_pubkey):
+		if not btc.ecdsa_verify(self.taker_pk, btc_sig, self.i_utxo_pubkey):
 			print 'signature didnt match pubkey and message'
 			return False
-		#authorisation of taker passed
-		#send auth request to taker
+		#authorisation of taker passed 
+		#(but input utxo pubkey is checked in verify_unsigned_tx).
+		#Send auth request to taker
 		#TODO the next 2 lines are a little inefficient.
 		btc_key = self.maker.wallet.get_key_from_addr(self.cj_addr)
 		btc_pub = btc.privtopub(btc_key)
-		btc_sig = btc.ecdsa_sign(self.maker.enc_kp.hex_pk(),btc_key)
-
-		self.maker.privmsg(nick, command_prefix + 'auth ' + str(','.join(self.utxos)) + ' ' + \
-	                btc_pub + ' ' + self.change_addr + ' ' + btc_sig)		
+		btc_sig = btc.ecdsa_sign(self.kp.hex_pk(), btc_key)
+		authmsg = str(','.join(self.utxos)) + ' ' + \
+	                btc_pub + ' ' + self.change_addr + ' ' + btc_sig
+		self.maker.privmsg(nick, 'ioauth', authmsg)		
 		return True
 	
 	def recv_tx(self, nick, b64tx):
@@ -61,6 +67,7 @@ class CoinJoinOrder(object):
 		if not goodtx:
 			debug('not a good tx, reason=' + errmsg)
 			self.maker.send_error(nick, errmsg)
+		#TODO: the above 3 errors should be encrypted, but it's a bit messy.
 		debug('goodtx')
 		sigs = []
 		for index, ins in enumerate(self.tx['ins']):
@@ -74,39 +81,44 @@ class CoinJoinOrder(object):
 
 		add_addr_notify(self.change_addr, self.unconfirm_callback, self.confirm_callback)
 		debug('sending sigs ' + str(sigs))
-		self.maker.privmsg(nick, ''.join([command_prefix + 'sig ' + s for s in sigs]))
-		#once signature is sent, close encrypted channel to this taker.
-		self.maker.end_encryption(nick)
+		for s in sigs:
+			self.maker.privmsg(nick, 'sig', s)
 		self.maker.active_orders[nick] = None
 
 	def unconfirm_callback(self, balance):
-		self.wallet_unspent_lock.acquire()
+		self.maker.wallet_unspent_lock.acquire()
 		try:
 			removed_utxos = self.maker.wallet.remove_old_utxos(self.tx)
 		finally:
-			self.wallet_unspent_lock.release()
+			self.maker.wallet_unspent_lock.release()
 		debug('saw tx on network, removed_utxos=\n' + pprint.pformat(removed_utxos))
 		to_cancel, to_announce = self.maker.on_tx_unconfirmed(self, balance, removed_utxos)
 		self.maker.modify_orders(to_cancel, to_announce)
 
 	def confirm_callback(self, confirmations, txid, balance):
-		self.wallet_unspent_lock.acquire()
+		self.maker.wallet_unspent_lock.acquire()
 		try:
 			added_utxos = self.maker.wallet.add_new_utxos(self.tx, txid)
 		finally:
-			self.wallet_unspent_lock.release()
+			self.maker.wallet_unspent_lock.release()
 		debug('tx in a block, added_utxos=\n' + pprint.pformat(added_utxos))
 		to_cancel, to_announce = self.maker.on_tx_confirmed(self,
 			confirmations, txid, balance, added_utxos)
 		self.maker.modify_orders(to_cancel, to_announce)
 
 	def verify_unsigned_tx(self, txd):
-		tx_utxo_set = set([ins['outpoint']['hash'] + ':' + str(ins['outpoint']['index']) for ins in txd['ins']])
-		my_uxto_set = set(self.utxos)
-		wallet_uxtos = set(self.wallet.unspent)
+		tx_utxo_set = set([ins['outpoint']['hash'] + ':' \
+		                   + str(ins['outpoint']['index']) for ins in txd['ins']])
+		#complete authentication: check the tx input uses the authing pubkey
+		if not btc.pubtoaddr(self.i_utxo_pubkey, get_addr_vbyte()) \
+		   in [get_addr_from_utxo(i['outpoint']['hash'], i['outpoint']['index']) \
+		   for i in txd['ins']]:
+		        return False, "authenticating bitcoin address is not contained"			
+		my_utxo_set = set(self.utxos)
+		wallet_utxos = set(self.maker.wallet.unspent)
 		if not tx_utxo_set.issuperset(my_utxo_set):
 			return False, 'my utxos are not contained'
-		if not wallet.utxos.issuperset(my_utxo_set):
+		if not wallet_utxos.issuperset(my_utxo_set):
 			return False, 'my utxos already spent'
 		my_total_in = 0
 		for u in self.utxos:
@@ -140,7 +152,6 @@ class CJMakerOrderError(StandardError):
 
 class Maker(irclib.IRCClient):
 	def __init__(self, wallet):
-		self.init_encryption()
 		self.active_orders = {}
 		self.wallet = wallet
 		self.nextoid = -1
@@ -150,29 +161,24 @@ class Maker(irclib.IRCClient):
 	def privmsg_all_orders(self, target, orderlist=None):
 		if orderlist == None:
 			orderlist = self.orderlist
-		order_keys = ['ordertype', 'oid', 'minsize', 'maxsize', 'txfee', 'cjfee']
+		order_keys = ['oid', 'minsize', 'maxsize', 'txfee', 'cjfee']
 		orderline = ''
 		for order in orderlist:
 			elem_list = [str(order[k]) for k in order_keys]
-			orderline += (command_prefix + ' '.join(elem_list))
-			if len(orderline) > MAX_PRIVMSG_LEN:
-				self.privmsg(target, orderline)
-				orderline = ''
-		if len(orderline) > 0:
-			self.privmsg(target, orderline)
+			self.privmsg(target, order['ordertype'],' '.join(elem_list))
 		
 	def send_error(self, nick, errmsg):
 		debug('error<%s> : %s' % (nick, errmsg))
-		self.privmsg(nick, command_prefix + 'error ' + errmsg)
+		self.privmsg(nick,'error', errmsg)
 		raise CJMakerOrderError()
 
 	def on_welcome(self):
 		self.privmsg_all_orders(CHANNEL)
-	
+		
 	def on_privmsg(self, nick, message):
-		if message[0] != command_prefix:
+		if message[0] != COMMAND_PREFIX:
 			return
-		command_lines = message.split(command_prefix)
+		command_lines = message.split(COMMAND_PREFIX)
 		for command_line in command_lines:
 			if len(command_line) == 0:
 				continue
@@ -180,10 +186,10 @@ class Maker(irclib.IRCClient):
 			try:
 				if len(chunks) < 2:
 					self.send_error(nick, 'Not enough arguments')
+					
 				if chunks[0] == 'fill':
 					if nick in self.active_orders and self.active_orders[nick] != None:
 						self.active_orders[nick] = None
-						self.end_encryption(nick)
 						debug('had a partially filled order but starting over now')
 					try:
 						oid = int(chunks[1])
@@ -202,8 +208,8 @@ class Maker(irclib.IRCClient):
 					cjorder = self.active_orders[nick]
 					try:
 						i_utxo_pubkey = chunks[1]
-						btc_sig = chunks[2]
-					except (ValueError,IndexError) as e:
+						btc_sig = chunks[2]					
+					except (ValueError, IndexError) as e:
 						self.send_error(nick, str(e))
 					self.active_orders[nick].auth_counterparty(nick, i_utxo_pubkey, btc_sig)
 					
@@ -224,7 +230,7 @@ class Maker(irclib.IRCClient):
 	# using the same id again overwrites it, they'll be plenty of times when an order
 	# has to be modified and its better to just have !order rather than !cancelorder then !order
 	def on_pubmsg(self, nick, message):
-		if message[0] == command_prefix:
+		if message[0] == COMMAND_PREFIX:
 			chunks = message[1:].split(" ")
 			if chunks[0] == 'orderbook':
 				self.privmsg_all_orders(nick)
@@ -238,7 +244,6 @@ class Maker(irclib.IRCClient):
 			print '=' * 60
 
 	def on_leave(self, nick):
-		self.end_encryption(nick)
 		self.active_orders[nick] = None
 
 	def modify_orders(self, to_cancel, to_announce):
@@ -247,7 +252,7 @@ class Maker(irclib.IRCClient):
 			order = [o for o in self.orderlist if o['oid'] == oid][0]
 			self.orderlist.remove(order)
 		if len(to_cancel) > 0:
-			clines = [command_prefix + 'cancel ' + str(oid) for oid in to_cancel]
+			clines = [COMMAND_PREFIX + 'cancel ' + str(oid) for oid in to_cancel]
 			self.pubmsg(''.join(clines))
 		if len(to_announce) > 0:
 			self.privmsg_all_orders(CHANNEL, to_announce)
@@ -344,7 +349,7 @@ def main():
 	import sys
 	seed = sys.argv[1] #btc.sha256('dont use brainwallets except for holding testnet coins')
 
-	wallet = Wallet(seed,max_mix_depth=5)
+	wallet = Wallet(seed, max_mix_depth=5)
 	wallet.sync_wallet()
 
 	maker = Maker(wallet)

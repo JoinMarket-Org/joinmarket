@@ -1,8 +1,8 @@
 
 import socket, threading, time
-from common import debug, chunks
-import enc_wrapper
+from common import *
 import base64, os
+import enc_wrapper
 
 PING_INTERVAL = 40
 PING_TIMEOUT = 10
@@ -55,54 +55,29 @@ class IRCClient(object):
 	def on_connect(self): pass
 	#TODO implement on_nick_change
 	
-	###############################
-	#Encryption code
-	###############################
-	def init_encryption(self):
-		self.enc_kp = enc_wrapper.init_keypair()
-				
-	def start_encryption(self,nick,c_pk_hex):
-		'''sets encryption mode on
-		for all succeeding messages
-		until end_encryption is called.
-		Public key of counterparty must be
-		passed in in hex.'''
-		if not self.enc_kp:
-			raise Exception("Cannot initialise encryption without a keypair")
-		self.cp_pubkeys[nick] = enc_wrapper.init_pubkey(c_pk_hex) 
-		self.enc_boxes[nick] = enc_wrapper.as_init_encryption(self.enc_kp, self.cp_pubkeys[nick])
-		self.encrypting[nick]= True
+	def encrypting(self, cmd, nick, sending=False):
+		'''Establish whether the message is to be
+		encrypted/decrypted based on the command string.
+		If so, retrieve the appropriate crypto_box object
+		and return. Sending/receiving flag enables us
+		to check which command strings correspond to which
+		type of object (maker/taker).'''
+
+		if cmd in plaintext_commands:
+			return None
+		elif cmd not in encrypted_commands:
+			raise Exception("Invalid command type: " + cmd)
 		
-	def end_encryption(self, nick):
-		self.encrypting[nick]=False
-		#for safety, blank out all data related
-		#to the connection
-		self.cp_pubkeys[nick]=None
-		self.enc_boxes[nick]=None	
-	
-	def end_all_encryption(self):
-		for k,v in self.encrypting.iteritems():
-			if v: self.end_encryption(k)
-			
-	def encrypt_encode(self,msg,nick):
-		if not (nick in self.encrypting.keys()) or not (nick in self.enc_boxes.keys()):
-			raise Exception("Encryption is not switched on.")
-		if not (self.encrypting[nick] and self.enc_boxes[nick]):
-			raise Exception("Encryption is not switched on.")
-		encrypted = self.enc_boxes[nick].encrypt(msg)
-		return base64.b64encode(encrypted)
-	
-	def decode_decrypt(self,msg,nick):
-		if not (nick in self.encrypting.keys()) or not (nick in self.enc_boxes.keys()):
-			raise Exception("Encryption is not switched on.")
-		if not (self.encrypting[nick] and self.enc_boxes[nick]):
-			raise Exception("Encryption is not switched on.")
-		decoded = base64.b64decode(msg)
-		return self.enc_boxes[nick].decrypt(decoded)
-	#############################
-	#End encryption code
-	#############################
-	
+		maker_strings = ['tx','auth'] if not sending else ['ioauth','sig']
+		taker_strings = ['ioauth','sig'] if not sending else ['tx','auth']
+		
+		if cmd in maker_strings:
+			return self.active_orders[nick].crypto_box
+		elif cmd in taker_strings:
+			return self.cjtx.crypto_boxes[nick][1]		
+		else:
+			raise Exception("Invalid command type: " + cmd)
+				
 	def close(self):
 		try:
 			self.send_raw("QUIT")
@@ -117,22 +92,24 @@ class IRCClient(object):
 		debug('>>pubmsg ' + message)
 		self.send_raw("PRIVMSG " + self.channel + " :" + message)
 
-	def privmsg(self, nick, message):
-		clearmsg = message
-		will_encrypt = False
-		if nick in self.encrypting.keys() and self.encrypting[nick]:
-			message = self.encrypt_encode(message, nick)
-			will_encrypt = True
-		debug('>>privmsg ' + ('enc ' if will_encrypt else '') + 'nick=' + nick + ' msg=' + clearmsg)
+	def privmsg(self, nick, cmd, message):
+		debug('>>privmsg ' + 'nick=' + nick + ' cmd=' + cmd + ' msg=' + message)
+		#should we encrypt?
+		box = self.encrypting(cmd, nick, sending=True)
+		#encrypt before chunking
+		if box:
+			message = enc_wrapper.encrypt_encode(message, box)
+		
 		if len(message) > 350:
 			message_chunks = chunks(message, 350)
 		else: 
 			message_chunks = [message]
-		#print "We are going to send these chunks: "
-		#print message_chunks
+			
 		for m in message_chunks:
 			trailer = ' ~' if m==message_chunks[-1] else ' ;'
-			self.send_raw("PRIVMSG " + nick + " :" + m + trailer)
+			header = "PRIVMSG " + nick + " :"
+			if m==message_chunks[0]: header += '!'+cmd + ' '
+			self.send_raw(header + m + trailer)
 
 	def send_raw(self, line):
 		#if not line.startswith('PING LAG'):
@@ -150,19 +127,26 @@ class IRCClient(object):
 			#TODO ctcp version here, since some servers dont let you get on without
 		
 		if target == self.nick:
-			if nick not in self.built_privmsg or self.built_privmsg[nick]=='':
-				self.built_privmsg[nick] = message[:-2]
+			if nick not in self.built_privmsg:
+				#new message starting
+				cmd_string = ''.join(message.split(' ')[0][1:])
+				self.built_privmsg[nick] = [cmd_string, message[:-2]]
 			else:
-				self.built_privmsg[nick] += message[:-2]
+				self.built_privmsg[nick][1] += message[:-2]
+			box = self.encrypting(self.built_privmsg[nick][0], nick)						
 			if message[-1]==';':
 				self.waiting[nick]=True		
 			elif message[-1]=='~':
-				self.waiting[nick]=False 
-				if nick in self.encrypting.keys() and self.encrypting[nick]:
-					parsed = self.decode_decrypt(self.built_privmsg[nick],nick)
-				else: parsed = self.built_privmsg[nick]
+				self.waiting[nick]=False
+				if box:
+					#need to decrypt everything after the command string
+					to_decrypt = ''.join(self.built_privmsg[nick][1].split(' ')[1])
+					decrypted = enc_wrapper.decode_decrypt(to_decrypt, box)
+					parsed = self.built_privmsg[nick][1].split(' ')[0] + ' ' + decrypted
+				else:
+					parsed = self.built_privmsg[nick][1]
 				#wipe the message buffer waiting for the next one
-				self.built_privmsg[nick]=''
+				del self.built_privmsg[nick]
 				debug("<<privmsg nick=%s message=%s" % (nick, parsed))
 				self.on_privmsg(nick, parsed)
 			else:
@@ -222,15 +206,11 @@ class IRCClient(object):
 		elif chunks[1] == '251':
 			self.motd_fd.close()
 		'''
-
+	
 	def run(self, server, port, nick, channel, username='username', realname='realname'):
 		self.nick = nick
 		self.channel = channel
 		self.connect_attempts = 0
-		#set up encryption management variables
-		self.cp_pubkeys = {}
-		self.enc_boxes = {}
-		self.encrypting = {}
 		self.waiting = {}
 		self.built_privmsg = {}
 		self.give_up = False
