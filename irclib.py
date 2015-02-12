@@ -1,6 +1,8 @@
 
-import socket, threading, time
 from common import *
+from message_channel import MessageChannel
+
+import socket, threading, time
 import base64, os
 import enc_wrapper
 
@@ -44,7 +46,30 @@ class PingThread(threading.Thread):
 		debug('ended ping thread')
 
 #handle one channel at a time
-class IRCClient(object):
+class IRCMessageChannel(MessageChannel):
+	#def run(self): pass
+	#def shutdown(self): pass
+	def request_orderbook(self): pass
+	def fill_order(self, nick, oid, cj_amount, taker_pubkey): pass
+	def send_auth(self, nick, pubkey, sig): pass
+	def send_tx(self, nick, txhex): pass
+	def announce_orders(self, orderlist, nick=None): pass #nick=None means announce publicly
+	def cancel_orders(self, oid_list): pass
+	def send_error(self, nick, errormsg): pass
+	def send_pubkey(self, nick, pubkey): pass
+	def send_ioauth(self, nick, utxo_list, cj_pubkey, change_addr, sig): pass
+	def send_sigs(self, nick, sig_list): pass
+
+	'''
+	def register_channel_callbacks(self, on_welcome=None, on_set_topic=None,
+		on_connect=None, on_disconnect=None, on_nick_leave=None, on_nick_change=None):
+	def register_orderbookwatch_callbacks(self, on_orders_seen=None,
+		on_orders_cancel=None):
+	def register_taker_callbacks(self, on_error=None, on_pubkey=None, on_ioauth=None,
+		on_sigs=None):
+	def register_maker_callbacks(self, on_orderbook_requested=None, on_order_filled=None,
+		on_seen_auth=None, on_seen_tx=None):
+	'''
 
 	def on_privmsg(self, nick, message): pass
 	def on_pubmsg(self, nick, message): pass
@@ -77,7 +102,8 @@ class IRCClient(object):
 			return self.cjtx.crypto_boxes[nick][1]		
 		else:
 			raise Exception("Invalid command type: " + cmd)
-				
+	
+	#close implies it will attempt to reconnect			
 	def close(self):
 		try:
 			self.send_raw("QUIT")
@@ -206,10 +232,14 @@ class IRCClient(object):
 		elif chunks[1] == '251':
 			self.motd_fd.close()
 		'''
-	
-	def run(self, server, port, nick, channel, username='username', realname='realname'):
+
+	def __init__(self, server, port, nick, channel, username='username', realname='realname'):
+		self.serverport = (server, port)
 		self.nick = nick
 		self.channel = channel
+		self.userrealname = (username, realname)
+
+	def run(self):
 		self.connect_attempts = 0
 		self.waiting = {}
 		self.built_privmsg = {}
@@ -222,9 +252,9 @@ class IRCClient(object):
 			try:
 				debug('connecting')
 				self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-				self.sock.connect((server, port))
+				self.sock.connect(self.serverport)
 				self.fd = self.sock.makefile()
-				self.send_raw('USER %s b c :%s' % (username, realname))
+				self.send_raw('USER %s b c :%s' % userrealname)
 				self.send_raw('NICK ' + nick)
 				while 1:
 					try:
@@ -243,7 +273,8 @@ class IRCClient(object):
 			finally:
 				self.fd.close()
 				self.sock.close()
-			self.on_disconnect()
+			if self.on_disconnect != None:
+				self.on_disconnect()
 			print 'disconnected irc'
 			time.sleep(10)
 			self.connect_attempts += 1
