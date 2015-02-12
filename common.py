@@ -10,11 +10,13 @@ PORT = 6667
 
 #for the mainnet its #joinmarket-pit
 
-#TODO make this var all in caps
-command_prefix = '!'
+COMMAND_PREFIX = '!'
 MAX_PRIVMSG_LEN = 400
 
 ordername_list = ["absorder", "relorder"]
+encrypted_commands = ["auth", "ioauth", "tx", "sig"]
+plaintext_commands = ["fill", "error", "pubkey", "orderbook", "relorder",
+                      "absorder"]
 
 
 def debug(msg):
@@ -58,6 +60,39 @@ def debug_dump_object(obj, skip_fields=[]):
             pprint.pprint(v)
         else:
             print v
+
+
+def get_addr_from_utxo(txhash, index):
+    '''return the bitcoin address of the outpoint at 
+	the specified index for the transaction with specified hash.
+	Return None if no such index existed for that transaction.'''
+    data = get_blockchain_data('txinfo', csv_params=[txhash])
+    for a in data['vouts']:
+        if a['n'] == index:
+            return a['address']
+    return None
+
+
+def get_blockchain_data(body,
+                        source='blockr',
+                        csv_params=[],
+                        query_params=[],
+                        network='test',
+                        output_key='data'):
+    '''A first step towards encapsulating blockchain queries.'''
+    if source != 'blockr': raise Exception("source not yet implemented")
+    stem = 'http://btc.blockr.io/api/v1/'
+    if network == 'test': stem = stem[:7] + 't' + stem[7:]
+    elif network != 'main': raise Exception("unrecognised bitcoin network type")
+    bodies = {'addrtx': 'address/txs/',
+              'txinfo': 'tx/info/',
+              'addrunspent': 'address/unspent/',
+              'addrbalance': 'address/balance/'}
+    url = stem + bodies[body] + ','.join(csv_params)
+    if query_params:
+        url += '?' + ','.join(query_params)
+    res = btc.make_request(url)
+    return json.loads(res)[output_key]
 
 
 class Wallet(object):
@@ -119,7 +154,7 @@ class Wallet(object):
             removed_utxos[utxo] = self.unspent[utxo]
             del self.unspent[utxo]
         debug('removed utxos, wallet now is \n' + pprint.pformat(
-            self.get_mix_utxo_list()))
+            self.get_utxo_list_by_mixdepth()))
         return removed_utxos
 
     def add_new_utxos(self, tx, txid):
@@ -133,11 +168,10 @@ class Wallet(object):
             added_utxos[utxo] = addrdict
             self.unspent[utxo] = addrdict
         debug('added utxos, wallet now is \n' + pprint.pformat(
-            self.get_mix_utxo_list()))
+            self.get_utxo_list_by_mixdepth()))
         return added_utxos
 
-    #TODO change the name of this to get_utxo_list_by_mixdepth
-    def get_mix_utxo_list(self):
+    def get_utxo_list_by_mixdepth(self):
         '''
 		returns a list of utxos sorted by different mix levels
 		'''
@@ -150,7 +184,7 @@ class Wallet(object):
         return mix_utxo_list
 
     def get_balance_by_mixdepth(self):
-        mix_utxo_list = self.get_mix_utxo_list()
+        mix_utxo_list = self.get_utxo_list_by_mixdepth()
         mix_balance = {}
         for mixdepth, utxo_list in mix_utxo_list.iteritems():
             total_value = 0
@@ -160,7 +194,7 @@ class Wallet(object):
         return mix_balance
 
     def select_utxos(self, mixdepth, amount):
-        utxo_list = self.get_mix_utxo_list()[mixdepth]
+        utxo_list = self.get_utxo_list_by_mixdepth()[mixdepth]
         unspent = [{'utxo': utxo,
                     'value': self.unspent[utxo]['value']} for utxo in utxo_list]
         inputs = btc.select(unspent, amount)
@@ -191,12 +225,7 @@ class Wallet(object):
 
                     #TODO send a pull request to pybitcointools
                     # because this surely should be possible with a function from it
-                    if get_network() == 'testnet':
-                        blockr_url = 'http://tbtc.blockr.io/api/v1/address/txs/'
-                    elif network == 'btc':
-                        blockr_url = 'http://btc.blockr.io/api/v1/address/txs/'
-                    res = btc.make_request(blockr_url + ','.join(addrs))
-                    data = json.loads(res)['data']
+                    data = get_blockchain_data('addrtx', csv_params=addrs)
                     for dat in data:
                         if dat['nb_txs'] != 0:
                             last_used_addr = dat['address']
@@ -240,19 +269,18 @@ class Wallet(object):
             #TODO send a pull request to pybitcointools 
             # unspent() doesnt tell you which address, you get a bunch of utxos
             # but dont know which privkey to sign with
-            if get_network() == 'testnet':
-                blockr_url = 'http://tbtc.blockr.io/api/v1/address/unspent/'
-            elif network == 'btc':
-                blockr_url = 'http://btc.blockr.io/api/v1/address/unspent/'
-            res = btc.make_request(blockr_url + ','.join(req))
-            data = json.loads(res)['data']
+            data = get_blockchain_data('addrunspent',
+                                       csv_params=req,
+                                       query_params=['unconfirmed=1'])
             if 'unspent' in data:
                 data = [data]
             for dat in data:
                 for u in dat['unspent']:
-                    self.unspent[u['tx'] + ':' + str(u[
-                        'n'])] = {'address': dat['address'],
-                                  'value': int(u['amount'].replace('.', ''))}
+                    if u['confirmations'] != 0:
+                        self.unspent[u['tx'] + ':' + str(u[
+                            'n'])] = {'address': dat['address'],
+                                      'value':
+                                      int(u['amount'].replace('.', ''))}
 
     def print_debug_wallet_info(self):
         debug('printing debug wallet information')
@@ -296,13 +324,9 @@ def add_addr_notify(address,
                         unconfirmtimeoutfun()
                     debug('checking for unconfirmed tx timed out')
                     return
-                if get_network() == 'testnet':
-                    blockr_url = 'http://tbtc.blockr.io/api/v1/address/balance/'
-                else:
-                    blockr_url = 'http://btc.blockr.io/api/v1/address/balance/'
-                res = btc.make_request(blockr_url + self.address +
-                                       '?confirmations=0')
-                data = json.loads(res)['data']
+                data = get_blockchain_data('addrbalance',
+                                           csv_params=[self.address],
+                                           query_params=['confirmations=0'])
                 if data['balance'] > 0:
                     break
             self.unconfirmfun(data['balance'] * 1e8)
@@ -314,13 +338,9 @@ def add_addr_notify(address,
                         confirmtimeoutfun()
                     debug('checking for confirmed tx timed out')
                     return
-                if get_network() == 'testnet':
-                    blockr_url = 'http://tbtc.blockr.io/api/v1/address/txs/'
-                else:
-                    blockr_url = 'http://btc.blockr.io/api/v1/address/txs/'
-                res = btc.make_request(blockr_url + self.address +
-                                       '?confirmations=0')
-                data = json.loads(res)['data']
+                data = get_blockchain_data('addrtx',
+                                           csv_params=[self.address],
+                                           query_params=['confirmations=0'])
                 if data['nb_txs'] == 0:
                     continue
                 if data['txs'][0][

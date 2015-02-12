@@ -96,7 +96,7 @@ class PatientSendPayment(maker.Maker, taker.Taker):
             self.takerthread.finished = True
             print 'finished sending, exiting..'
             self.shutdown()
-        utxo_list = self.wallet.get_mix_utxo_list()[self.mixdepth]
+        utxo_list = self.wallet.get_utxo_list_by_mixdepth()[self.mixdepth]
         available_balance = 0
         for utxo in utxo_list:
             available_balance = self.wallet.unspent[utxo]['value']
@@ -191,7 +191,7 @@ def main():
     wallet = Wallet(seed, options.mixdepth + 1)
     wallet.sync_wallet()
 
-    utxo_list = wallet.get_mix_utxo_list()[options.mixdepth]
+    utxo_list = wallet.get_utxo_list_by_mixdepth()[options.mixdepth]
     available_balance = 0
     for utxo in utxo_list:
         available_balance += wallet.unspent[utxo]['value']
