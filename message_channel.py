@@ -27,14 +27,14 @@ class MessageChannel(object):
 
 	#taker commands
 	def register_taker_callbacks(self, on_error=None, on_pubkey=None, on_ioauth=None,
-		on_sigs=None):
+		on_sig=None):
 		self.on_error = on_error
 		self.on_pubkey = on_pubkey
 		self.on_ioauth = on_ioauth
-		self.on_sigs = on_sigs
-	def fill_order(self, nick, oid, cj_amount, taker_pubkey): pass
+		self.on_sig = on_sig
+	def fill_orders(self, nickoid_dict, cj_amount, taker_pubkey): pass
 	def send_auth(self, nick, pubkey, sig): pass
-	def send_tx(self, nick, txhex): pass
+	def send_tx(self, nick_list, txhex): pass
 
 	#maker commands
 	def register_maker_callbacks(self, on_orderbook_requested=None, on_order_filled=None,
