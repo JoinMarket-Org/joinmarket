@@ -60,7 +60,6 @@ class IRCMessageChannel(MessageChannel):
 	def send_ioauth(self, nick, utxo_list, cj_pubkey, change_addr, sig): pass
 	def send_sigs(self, nick, sig_list): pass
 
-	'''
 	def register_channel_callbacks(self, on_welcome=None, on_set_topic=None,
 		on_connect=None, on_disconnect=None, on_nick_leave=None, on_nick_change=None):
 	def register_orderbookwatch_callbacks(self, on_orders_seen=None,
@@ -69,7 +68,6 @@ class IRCMessageChannel(MessageChannel):
 		on_sigs=None):
 	def register_maker_callbacks(self, on_orderbook_requested=None, on_order_filled=None,
 		on_seen_auth=None, on_seen_tx=None):
-	'''
 
 	def on_privmsg(self, nick, message): pass
 	def on_pubmsg(self, nick, message): pass
@@ -197,14 +195,16 @@ class IRCMessageChannel(MessageChannel):
 			self.lockcond.notify()
 			self.lockcond.release()
 		elif chunks[1] == '376': #end of motd
-			self.on_connect()
+			if self.on_connect:
+				self.on_connect()
 			self.send_raw('JOIN ' + self.channel)
 		elif chunks[1] == '433': #nick in use
 			self.nick += '_'
 			self.send_raw('NICK ' + self.nick)
 		elif chunks[1] == '366': #end of names list
 			self.connect_attempts = 0
-			self.on_welcome()
+			if self.on_welcome:
+				self.on_welcome()
 		elif chunks[1] == '332' or chunks[1] == 'TOPIC': #channel topic
 			topic = get_irc_text(line)
 			self.on_set_topic(topic)
@@ -213,14 +213,17 @@ class IRCMessageChannel(MessageChannel):
 			if nick == self.nick:
 				raise IOError('we quit')
 			else:
-				self.on_leave(nick)
+				if self.on_nick_leave:
+					self.on_nick_leave(nick)
 		elif chunks[1] == 'KICK':
 			target = chunks[3]
 			nick = get_irc_nick(chunks[0])
-			self.on_leave(nick)
+			if self.on_nick_leave:
+				self.on_nick_leave(nick)
 		elif chunks[1] == 'PART':
 			nick = get_irc_nick(chunks[0])
-			self.on_leave(nick)
+			if self.on_nick_leave:
+				self.on_nick_leave(nick)
 		elif chunks[1] == 'JOIN':
 			channel = chunks[2][1:]
 			nick = get_irc_nick(chunks[0])
@@ -273,7 +276,7 @@ class IRCMessageChannel(MessageChannel):
 			finally:
 				self.fd.close()
 				self.sock.close()
-			if self.on_disconnect != None:
+			if self.on_disconnect:
 				self.on_disconnect()
 			print 'disconnected irc'
 			time.sleep(10)
