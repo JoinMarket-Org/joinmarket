@@ -49,7 +49,7 @@ class PingThread(threading.Thread):
 class IRCMessageChannel(MessageChannel):
 	#def run(self): pass
 	#def shutdown(self): pass
-	def request_orderbook(self): pass
+	#def request_orderbook(self): pass
 	def fill_order(self, nick, oid, cj_amount, taker_pubkey): pass
 	def send_auth(self, nick, pubkey, sig): pass
 	def send_tx(self, nick, txhex): pass
@@ -60,25 +60,117 @@ class IRCMessageChannel(MessageChannel):
 	def send_ioauth(self, nick, utxo_list, cj_pubkey, change_addr, sig): pass
 	def send_sigs(self, nick, sig_list): pass
 
-	def register_channel_callbacks(self, on_welcome=None, on_set_topic=None,
-		on_connect=None, on_disconnect=None, on_nick_leave=None, on_nick_change=None):
-	def register_orderbookwatch_callbacks(self, on_orders_seen=None,
-		on_orders_cancel=None):
+	#def register_channel_callbacks(self, on_welcome=None, on_set_topic=None,
+	#	on_connect=None, on_disconnect=None, on_nick_leave=None, on_nick_change=None):
+	#def register_orderbookwatch_callbacks(self, on_order_seen=None,
+	#	on_order_cancel=None):
+	'''
 	def register_taker_callbacks(self, on_error=None, on_pubkey=None, on_ioauth=None,
 		on_sigs=None):
 	def register_maker_callbacks(self, on_orderbook_requested=None, on_order_filled=None,
 		on_seen_auth=None, on_seen_tx=None):
+	'''
 
-	def on_privmsg(self, nick, message): pass
-	def on_pubmsg(self, nick, message): pass
+	#def on_privmsg(self, nick, message): pass
+	#def on_pubmsg(self, nick, message): pass
+	'''
 	def on_welcome(self): pass
 	def on_set_topic(self, newtopic): pass
 	def on_leave(self, nick): pass
 	def on_disconnect(self): pass
 	def on_connect(self): pass
 	#TODO implement on_nick_change
-	
-	def encrypting(self, cmd, nick, sending=False):
+	'''
+	#close implies it will attempt to reconnect			
+	def close(self):
+		try:
+			self.send_raw("QUIT")
+		except IOError as e:
+			debug('errored while trying to quit: ' + repr(e))
+
+	def shutdown(self):
+		self.close()
+		self.give_up = True
+
+	def request_orderbook(self):
+		self.pubmsg(COMMAND_PREFIX + 'orderbook')
+
+
+	def pubmsg(self, message):
+		debug('>>pubmsg ' + message)
+		self.send_raw("PRIVMSG " + self.channel + " :" + message)
+
+	def privmsg(self, nick, cmd, message):
+		debug('>>privmsg ' + 'nick=' + nick + ' cmd=' + cmd + ' msg=' + message)
+		#should we encrypt?
+		box = self.__encrypting(cmd, nick, sending=True)
+		#encrypt before chunking
+		if box:
+			message = enc_wrapper.encrypt_encode(message, box)
+		
+		if len(message) > 350:
+			message_chunks = chunks(message, 350)
+		else: 
+			message_chunks = [message]
+			
+		for m in message_chunks:
+			trailer = ' ~' if m==message_chunks[-1] else ' ;'
+			header = "PRIVMSG " + nick + " :"
+			if m==message_chunks[0]: header += '!'+cmd + ' '
+			self.send_raw(header + m + trailer)
+
+	def send_raw(self, line):
+		#if not line.startswith('PING LAG'):
+		#	debug('sendraw ' + line)
+		self.sock.sendall(line + '\r\n')
+
+	def check_for_orders(self, nick, chunks):
+		if chunks[0] in ordername_list:
+			try:
+				counterparty = nick
+				oid = chunks[1]
+				ordertype = chunks[0]
+				minsize = chunks[2]
+				maxsize = chunks[3]
+				txfee = chunks[4]
+				cjfee = chunks[5]
+				if self.on_order_seen:
+					self.on_order_seen(counterparty, oid,
+						ordertype, minsize, maxsize, txfee, cjfee)
+					return True
+			except IndexError as e:
+				debug('index error parsing chunks')
+				#TODO what now? just ignore iirc
+		return False
+
+	def __on_privmsg(self, nick, message):
+		'''handles the case when a private message is received'''
+		if message[0] != COMMAND_PREFIX:
+			return
+		for command in message[1:].split(COMMAND_PREFIX):
+			chunks = command.split(" ")
+			if self.check_for_orders(nick, chunks):
+				pass
+
+
+	def __on_pubmsg(self, nick, message):
+		if message[0] != COMMAND_PREFIX:
+			return
+		for command in message[1:].split(COMMAND_PREFIX):
+			chunks = command.split(" ")
+			if self.check_for_orders(nick, chunks):
+				pass
+			elif chunks[0] == 'cancel':
+				#!cancel [oid]
+				try:
+					oid = int(chunks[1])
+					if self.on_order_cancel:
+						self.on_order_cancel(nick, oid)
+				except ValueError as e:
+					debug("!cancel " + repr(e))
+					return
+
+	def __encrypting(self, cmd, nick, sending=False):
 		'''Establish whether the message is to be
 		encrypted/decrypted based on the command string.
 		If so, retrieve the appropriate crypto_box object
@@ -101,44 +193,6 @@ class IRCMessageChannel(MessageChannel):
 		else:
 			raise Exception("Invalid command type: " + cmd)
 	
-	#close implies it will attempt to reconnect			
-	def close(self):
-		try:
-			self.send_raw("QUIT")
-		except IOError as e:
-			debug('errored while trying to quit: ' + repr(e))
-
-	def shutdown(self):
-		self.close()
-		self.give_up = True
-
-	def pubmsg(self, message):
-		debug('>>pubmsg ' + message)
-		self.send_raw("PRIVMSG " + self.channel + " :" + message)
-
-	def privmsg(self, nick, cmd, message):
-		debug('>>privmsg ' + 'nick=' + nick + ' cmd=' + cmd + ' msg=' + message)
-		#should we encrypt?
-		box = self.encrypting(cmd, nick, sending=True)
-		#encrypt before chunking
-		if box:
-			message = enc_wrapper.encrypt_encode(message, box)
-		
-		if len(message) > 350:
-			message_chunks = chunks(message, 350)
-		else: 
-			message_chunks = [message]
-			
-		for m in message_chunks:
-			trailer = ' ~' if m==message_chunks[-1] else ' ;'
-			header = "PRIVMSG " + nick + " :"
-			if m==message_chunks[0]: header += '!'+cmd + ' '
-			self.send_raw(header + m + trailer)
-
-	def send_raw(self, line):
-		#if not line.startswith('PING LAG'):
-		#	debug('sendraw ' + line)
-		self.sock.sendall(line + '\r\n')
 
 	def __handle_privmsg(self, source, target, message):
 		nick = get_irc_nick(source)
@@ -157,7 +211,7 @@ class IRCMessageChannel(MessageChannel):
 				self.built_privmsg[nick] = [cmd_string, message[:-2]]
 			else:
 				self.built_privmsg[nick][1] += message[:-2]
-			box = self.encrypting(self.built_privmsg[nick][0], nick)						
+			box = self.__encrypting(self.built_privmsg[nick][0], nick)						
 			if message[-1]==';':
 				self.waiting[nick]=True		
 			elif message[-1]=='~':
@@ -172,12 +226,12 @@ class IRCMessageChannel(MessageChannel):
 				#wipe the message buffer waiting for the next one
 				del self.built_privmsg[nick]
 				debug("<<privmsg nick=%s message=%s" % (nick, parsed))
-				self.on_privmsg(nick, parsed)
+				self.__on_privmsg(nick, parsed)
 			else:
 				raise Exception("message formatting error")			
 		else:
 			debug("<<pubmsg nick=%s message=%s" % (nick, message))
-			self.on_pubmsg(nick, message)
+			self.__on_pubmsg(nick, message)
 		
 	def __handle_line(self, line):
 		line = line.rstrip()
@@ -236,9 +290,9 @@ class IRCMessageChannel(MessageChannel):
 			self.motd_fd.close()
 		'''
 
-	def __init__(self, server, port, nick, channel, username='username', realname='realname'):
-		self.serverport = (server, port)
+	def __init__(self, nick, server=HOST, port=PORT, channel=CHANNEL, username='username', realname='realname'):
 		self.nick = nick
+		self.serverport = (server, port)
 		self.channel = channel
 		self.userrealname = (username, realname)
 
@@ -257,8 +311,8 @@ class IRCMessageChannel(MessageChannel):
 				self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 				self.sock.connect(self.serverport)
 				self.fd = self.sock.makefile()
-				self.send_raw('USER %s b c :%s' % userrealname)
-				self.send_raw('NICK ' + nick)
+				self.send_raw('USER %s b c :%s' % self.userrealname)
+				self.send_raw('NICK ' + self.nick)
 				while 1:
 					try:
 						line = self.fd.readline()
