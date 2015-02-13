@@ -87,13 +87,13 @@ def get_blockchain_data(body, csv_params=[],
 	if query_params:
 		url += '?'+','.join(query_params)
 	if blockchain_source=='blockr':
-		res = get_blockr_data(url) 
+		res = json.loads(get_blockr_data(url))
 	elif blockchain_source=='regtest':
 		res = get_regtest_data(url)
 	else:
-		raise Exception("Unrecognised blockchain source"
-		                "")
-	return json.loads(res)[output_key]
+		raise Exception("Unrecognised blockchain source")
+	
+	return res[output_key]
 
 def get_blockr_data(req):
 	return btc.make_request(req)
@@ -116,7 +116,16 @@ def get_regtest_data(req):
 		txhash = req[2] #TODO currently only allowing one tx
 		return myBCI.get_tx_info(txhash)
 	elif req[0]=='addr' and req[1] == 'balance':
-		
+		addrs = req[2].split(',')
+		if 'unconfirmed' in addrs[-1]:
+			addrs = addrs[-1]
+		return myBCI.get_balance_at_addr(addrs)
+	elif req[0]=='address' and req[1] == 'unspent':
+		if '?' in req[2]: req[2] = req[2].split('?')[0]
+		addrs = req[2].split(',')
+		return myBCI.get_utxos_from_addr(addrs)
+	else:
+		raise Exception ("Unrecognized call to regtest blockchain interface")
 	
 	
 class Wallet(object):
@@ -286,13 +295,16 @@ class Wallet(object):
 			# but dont know which privkey to sign with
 			data = get_blockchain_data('addrunspent', csv_params=req, 
 			                          query_params=['unconfirmed=1'])
+			print 'got this addressunspent data: '
+			print data
 			if 'unspent' in data:
 				data = [data]
 			for dat in data:
 				for u in dat['unspent']:
 					if u['confirmations'] != 0:
+						u['amount'] = int(Decimal(1e8) * Decimal(u['amount']))
 						self.unspent[u['tx']+':'+str(u['n'])] = {'address':
-						dat['address'], 'value': int(u['amount'].replace('.', ''))}
+						dat['address'], 'value': u['amount']}
 
 	def print_debug_wallet_info(self):
 		debug('printing debug wallet information')
