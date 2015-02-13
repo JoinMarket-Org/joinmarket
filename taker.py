@@ -181,8 +181,11 @@ class OrderbookWatch(CoinJoinerPeer):
 
     def __init__(self, msgchan):
         self.msgchan = msgchan
-        self.msgchan.register_orderbookwatch_callbacks(on_orders_seen,
-                                                       on_orders_cancel)
+        self.msgchan.register_orderbookwatch_callbacks(self.on_order_seen,
+                                                       self.on_order_cancel)
+        self.msgchan.register_channel_callbacks(
+            self.on_welcome, self.on_set_topic, None, self.on_disconnect,
+            self.on_nick_leave, None)
 
         con = sqlite3.connect(":memory:", check_same_thread=False)
         con.row_factory = sqlite3.Row
@@ -191,60 +194,26 @@ class OrderbookWatch(CoinJoinerPeer):
             "CREATE TABLE orderbook(counterparty TEXT, oid INTEGER, ordertype TEXT, "
             + "minsize INTEGER, maxsize INTEGER, txfee INTEGER, cjfee TEXT);")
 
-    #accept a list
-    def on_orders_seen(self):
-        pass
-
-    def on_orders_cancel(self, nick, oid):
-        pass
-
-    def add_order(self, nick, chunks):
+    def on_order_seen(self, counterparty, oid, ordertype, minsize, maxsize,
+                      txfee, cjfee):
         self.db.execute("DELETE FROM orderbook WHERE counterparty=? AND oid=?;",
-                        (nick, chunks[1]))
-        self.db.execute('INSERT INTO orderbook VALUES(?, ?, ?, ?, ?, ?, ?);',
-                        (nick, chunks[1], chunks[0], chunks[2], chunks[3],
-                         chunks[4], chunks[5]))
+                        (counterparty, oid))
+        self.db.execute(
+            'INSERT INTO orderbook VALUES(?, ?, ?, ?, ?, ?, ?);',
+            (counterparty, oid, ordertype, minsize, maxsize, txfee, cjfee))
 
-    def on_privmsg(self, nick, message):
-        if message[0] != COMMAND_PREFIX:
-            return
-
-        for command in message[1:].split(COMMAND_PREFIX):
-            chunks = command.split(" ")
-            if chunks[0] in ordername_list:
-                self.add_order(nick, chunks)
-
-    #each order has an id for referencing to and looking up
-    # using the same id again overwrites it, they'll be plenty of times when an order
-    # has to be modified and its better to just have !order rather than !cancelorder then !order
-    def on_pubmsg(self, nick, message):
-        if message[0] != COMMAND_PREFIX:
-            return
-        for command in message[1:].split(COMMAND_PREFIX):
-            #commands starting with % are for testing and will be removed in the final version
-            chunks = command.split(" ")
-            if chunks[0] == 'cancel':
-                #!cancel [oid]
-                try:
-                    oid = int(chunks[1])
-                    self.db.execute(
-                        "DELETE FROM orderbook WHERE counterparty=? AND oid=?;",
-                        (nick, oid))
-                except ValueError as e:
-                    debug("!cancel " + repr(e))
-                    return
-            elif chunks[0] in ordername_list:
-                self.add_order(nick, chunks)
-            elif chunks[0] == '%showob':
-                print('printing orderbook')
-                for o in self.db.execute('SELECT * FROM orderbook;').fetchall():
-                    print '(%s %s %d %d-%d %d %s)' % (
-                        o['counterparty'], o['ordertype'], o['oid'],
-                        o['minsize'], o['maxsize'], o['txfee'], o['cjfee'])
-                print('done')
+    def on_order_cancel(self, counterparty, oid):
+        self.db.execute("DELETE FROM orderbook WHERE counterparty=? AND oid=?;",
+                        (counterparty, oid))
 
     def on_welcome(self):
-        self.pubmsg(COMMAND_PREFIX + 'orderbook')
+        self.msgchan.request_orderbook()
+
+    def on_nick_leave(self, nick):
+        self.db.execute('DELETE FROM orderbook WHERE counterparty=?;', (nick,))
+
+    def on_disconnect(self):
+        self.db.execute('DELETE FROM orderbook;')
 
     def on_set_topic(self, newtopic):
         chunks = newtopic.split('|')
@@ -253,12 +222,6 @@ class OrderbookWatch(CoinJoinerPeer):
             print 'MESSAGE FROM BELCHER!'
             print chunks[1].strip()
             print '=' * 60
-
-    def on_leave(self, nick):
-        self.db.execute('DELETE FROM orderbook WHERE counterparty=?;', (nick,))
-
-    def on_disconnect(self):
-        self.db.execute('DELETE FROM orderbook;')
 
 
 #assume this only has one open cj tx at a time

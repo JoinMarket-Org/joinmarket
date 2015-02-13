@@ -27,10 +27,10 @@ class MessageChannel(object):
 
     #orderbook watcher commands
     def register_orderbookwatch_callbacks(self,
-                                          on_orders_seen=None,
-                                          on_orders_cancel=None):
-        self.on_orders_seen = on_orders_seen
-        self.on_orders_cancel = on_orders_cancel
+                                          on_order_seen=None,
+                                          on_order_cancel=None):
+        self.on_order_seen = on_order_seen
+        self.on_order_cancel = on_order_cancel
 
     def request_orderbook(self):
         pass
