@@ -73,13 +73,26 @@ class RegTestImp(BlockChainInterface):
         print res
         return True
 
-    def get_utxos_from_addr(self, address):
-        res = json.loads(self.rpc(['listunspent', '1', '9999999', '[\"' +
-                                   address + '\"]']))
-        utxos = []
-        for r in res:
-            utxos.append(r['txid'] + ':' + str(r['vout']))
-        return utxos
+    def get_utxos_from_addr(self, addresses):
+        for address in addresses:
+            res = json.loads(self.rpc(['listunspent', '1', '9999999', '[\"' +
+                                       address + '\"]']))
+        #utxos = []
+        #for r in res:
+        #    utxos.append(r['txid']+':'+str(r['vout']))
+        #return utxos
+        r = []
+        for address in addresses:
+            utxos = [x for x in res if x['address'] == address]
+            unspents = []
+            for u in utxos:
+                unspents.append({'tx': u['txid'],
+                                 'n': u['vout'],
+                                 'amount': str(u['amount']),
+                                 'address': address,
+                                 'confirmations': u['confirmations']})
+            r.append({'address': address, 'unspent': unspents})
+        return {'data': r}
 
     def get_txs_from_addr(self, addresses):
         #use listtransactions and then filter
@@ -88,6 +101,9 @@ class RegTestImp(BlockChainInterface):
 
         res = json.loads(self.rpc(['listtransactions', 'watchonly', '1000', '0',
                                    'true']))
+        #print "Got this res: "
+        #print res
+
         result = []
         for address in addresses:
             nbtxs = 0
@@ -100,6 +116,8 @@ class RegTestImp(BlockChainInterface):
                             'tx': a['txid'],
                             'amount': a['amount']})
             result.append({'nb_txs': nbtxs, 'address': address, 'txs': txs})
+        #print "Returning this data: "
+        #print result
         return {'data': result}
 
     def get_tx_info(self, txhash):
@@ -116,7 +134,7 @@ class RegTestImp(BlockChainInterface):
 
         return {'data': {'vouts': vouts}}
 
-    def get_balance_at_addr(self, address):
+    def get_balance_at_addr(self, addresses):
         #NB This will NOT return coinbase coins (but wont matter in our use case).
         #In order to have the Bitcoin RPC read balances at addresses
         #it doesn't own, we must import the addresses as watch-only 
@@ -124,9 +142,13 @@ class RegTestImp(BlockChainInterface):
         #TODO : there can be a performance issue with rescanning here.
 
         #allow importaddress to fail in case the address is already in the wallet
-        self.rpc(['importaddress', address, 'watchonly'], [4])
-        return int(Decimal(1e8) *
-                   Decimal(self.rpc(['getreceivedbyaddress', address])))
+        res = []
+        for address in addresses:
+            self.rpc(['importaddress', address, 'watchonly'], [4])
+            res.append({'address': address,
+                        'balance': int(Decimal(1e8) * Decimal(self.rpc(
+                            ['getreceivedbyaddress', address])))})
+        return {'data': res}
 
     def tick_forward_chain(self, n):
         '''Special method for regtest only;
@@ -171,12 +193,12 @@ def main():
     btc_client = bitcointoolsdir + 'bitcoin-cli'
     myBCI = RegTestImp(btc_client)
     #myBCI.send_tx('stuff')
-    print myBCI.get_utxos_from_addr("n4EjHhGVS4Rod8ociyviR3FH442XYMWweD")
-    print myBCI.get_balance_at_addr("n4EjHhGVS4Rod8ociyviR3FH442XYMWweD")
-    txid = myBCI.grab_coins('mioPqzCoFWcMTiWcYKo2Py6kwEp5vPzL2X', 23)
+    print myBCI.get_utxos_from_addr(["n4EjHhGVS4Rod8ociyviR3FH442XYMWweD"])
+    print myBCI.get_balance_at_addr(["n4EjHhGVS4Rod8ociyviR3FH442XYMWweD"])
+    txid = myBCI.grab_coins('mtc6UaPPp2x1Fabugi8JG4BNouFo9rADNb', 23)
     print txid
-    print myBCI.get_balance_at_addr('mioPqzCoFWcMTiWcYKo2Py6kwEp5vPzL2X')
-    print myBCI.get_utxos_from_addr('mioPqzCoFWcMTiWcYKo2Py6kwEp5vPzL2X')
+    print myBCI.get_balance_at_addr(['mtc6UaPPp2x1Fabugi8JG4BNouFo9rADNb'])
+    print myBCI.get_utxos_from_addr(['mtc6UaPPp2x1Fabugi8JG4BNouFo9rADNb'])
 
 
 if __name__ == '__main__':
