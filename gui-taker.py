@@ -1,6 +1,6 @@
 
 import taker
-from irclib import IRCMessageChannel
+from irc import IRCMessageChannel
 from common import *
 
 import BaseHTTPServer, SimpleHTTPServer, threading
