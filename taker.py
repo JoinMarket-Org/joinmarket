@@ -2,7 +2,6 @@
 
 from common import *
 import enc_wrapper
-import irclib
 import bitcoin as btc
 
 import sqlite3, base64, threading, time, random
