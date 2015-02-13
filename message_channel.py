@@ -40,19 +40,19 @@ class MessageChannel(object):
                                  on_error=None,
                                  on_pubkey=None,
                                  on_ioauth=None,
-                                 on_sigs=None):
+                                 on_sig=None):
         self.on_error = on_error
         self.on_pubkey = on_pubkey
         self.on_ioauth = on_ioauth
-        self.on_sigs = on_sigs
+        self.on_sig = on_sig
 
-    def fill_order(self, nick, oid, cj_amount, taker_pubkey):
+    def fill_orders(self, nickoid_dict, cj_amount, taker_pubkey):
         pass
 
     def send_auth(self, nick, pubkey, sig):
         pass
 
-    def send_tx(self, nick, txhex):
+    def send_tx(self, nick_list, txhex):
         pass
 
     #maker commands

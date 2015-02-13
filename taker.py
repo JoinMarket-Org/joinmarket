@@ -8,8 +8,9 @@ import sqlite3, base64, threading, time, random
 
 
 class CoinJoinTX(object):
-
+    #soon the taker argument will be removed and just be replaced by wallet or some other interface
     def __init__(self,
+                 msgchan,
                  taker,
                  cj_amount,
                  orders,
@@ -25,12 +26,13 @@ class CoinJoinTX(object):
 		'''
         debug('starting cj to ' + my_cj_addr + ' with change at ' + str(
             my_change_addr))
+        self.msgchan = msgchan
         self.taker = taker
         self.cj_amount = cj_amount
         self.active_orders = dict(orders)
         self.nonrespondants = list(orders.keys())
         self.my_utxos = my_utxos
-        self.utxos = {taker.nick: my_utxos}
+        self.utxos = {None: my_utxos}  #None means they belong to me
         self.finishcallback = finishcallback
         self.my_txfee = my_txfee
         self.outputs = [{'address': my_cj_addr, 'value': self.cj_amount}]
@@ -44,10 +46,7 @@ class CoinJoinTX(object):
         self.signing_btc_add = taker.wallet.unspent[self.my_utxos[0]]['address']
         self.signing_btc_pub = btc.privtopub(taker.wallet.get_key_from_addr(
             self.signing_btc_add))
-        for c, oid in orders.iteritems():
-            cmd = 'fill'
-            omsg = str(oid) + ' ' + str(cj_amount) + ' ' + self.kp.hex_pk()
-            self.taker.privmsg(c, cmd, omsg)
+        self.msgchan.fill_orders(orders, cj_amount, self.kp.hex_pk())
 
     def start_encryption(self, nick, maker_pk):
         if nick not in self.active_orders.keys():
@@ -59,8 +58,7 @@ class CoinJoinTX(object):
                 self.taker.wallet.unspent[self.my_utxos[0]]['address'])
         my_btc_pub = btc.privtopub(my_btc_priv)
         my_btc_sig = btc.ecdsa_sign(self.kp.hex_pk(), my_btc_priv)
-        message = my_btc_pub + ' ' + my_btc_sig
-        self.taker.privmsg(nick, 'auth', message)
+        self.msgchan.send_auth(nick, my_btc_pub, my_btc_sig)
 
     def auth_counterparty(self, nick, btc_sig, cj_pub):
         '''Validate the counterpartys claim to own the btc
@@ -120,9 +118,7 @@ class CoinJoinTX(object):
         tx = btc.mktx(utxo_tx, self.outputs)
         import pprint
         debug('obtained tx\n' + pprint.pformat(btc.deserialize(tx)))
-        txb64 = base64.b64encode(tx.decode('hex'))
-        for nickk in self.active_orders.keys():
-            self.taker.privmsg(nickk, 'tx', txb64)
+        self.msgchan.send_tx(self.active_orders.keys(), tx)
 
         #now sign it ourselves here
         for index, ins in enumerate(btc.deserialize(tx)['ins']):
@@ -226,37 +222,31 @@ class OrderbookWatch(CoinJoinerPeer):
 #assume this only has one open cj tx at a time
 class Taker(OrderbookWatch):
 
-    def __init__(self):
-        OrderbookWatch.__init__(self)
+    def __init__(self, msgchan):
+        OrderbookWatch.__init__(self, msgchan)
+        msgchan.register_taker_callbacks(self.on_error, self.on_pubkey,
+                                         self.on_ioauth, self.on_sig)
         self.cjtx = None
         self.maker_pks = {}
         #TODO have a list of maker's nick we're coinjoining with, so
         # that some other guy doesnt send you confusing stuff
         #maybe a start_cj_tx() method is needed
 
-    def on_privmsg(self, nick, message):
-        OrderbookWatch.on_privmsg(self, nick, message)
-        #debug("privmsg nick=%s message=%s" % (nick, message))
-        if message[0] != COMMAND_PREFIX:
+    def on_error(self):
+        pass  #TODO implement
+
+    def on_pubkey(self, nick, maker_pubkey):
+        self.cjtx.start_encryption(nick, maker_pubkey)
+
+    def on_ioauth(self, nick, utxo_list, cj_pub, change_addr, btc_sig):
+        if not self.cjtx.auth_counterparty(nick, btc_sig, cj_pub):
+            print 'Authenticated encryption with counterparty: ' + nick + \
+            ' not established. TODO: send rejection message'
             return
-        for command in message[1:].split(COMMAND_PREFIX):
-            chunks = command.split(" ")
-            if chunks[0] == 'pubkey':
-                maker_pk = chunks[1]
-                self.cjtx.start_encryption(nick, maker_pk)
-            if chunks[0] == 'ioauth':
-                utxo_list = chunks[1].split(',')
-                cj_pub = chunks[2]
-                change_addr = chunks[3]
-                btc_sig = chunks[4]
-                if not self.cjtx.auth_counterparty(nick, btc_sig, cj_pub):
-                    print 'Authenticated encryption with counterparty: ' + nick + \
-                           ' not established. TODO: send rejection message'
-                    return
-                self.cjtx.recv_txio(nick, utxo_list, cj_pub, change_addr)
-            elif chunks[0] == 'sig':
-                sig = chunks[1]
-                self.cjtx.add_signature(sig)
+        self.cjtx.recv_txio(nick, utxo_list, cj_pub, change_addr)
+
+    def on_sig(self, nick, sig):
+        self.cjtx.add_signature(sig)
 
 
 my_tx_fee = 10000

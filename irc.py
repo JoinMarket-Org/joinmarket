@@ -60,15 +60,9 @@ class IRCMessageChannel(MessageChannel):
     #def run(self): pass
     #def shutdown(self): pass
     #def request_orderbook(self): pass
-    def fill_order(self, nick, oid, cj_amount, taker_pubkey):
-        pass
-
-    def send_auth(self, nick, pubkey, sig):
-        pass
-
-    def send_tx(self, nick, txhex):
-        pass
-
+    #def fill_orders(self, nickoid_dict, cj_amount, taker_pubkey): pass
+    #def send_auth(self, nick, pubkey, sig): pass
+    #def send_tx(self, nick_list, txhex): pass
     def announce_orders(self, orderlist, nick=None):
         pass  #nick=None means announce publicly
 
@@ -93,7 +87,7 @@ class IRCMessageChannel(MessageChannel):
     #	on_order_cancel=None):
     '''
 	def register_taker_callbacks(self, on_error=None, on_pubkey=None, on_ioauth=None,
-		on_sigs=None):
+		on_sig=None):
 	def register_maker_callbacks(self, on_orderbook_requested=None, on_order_filled=None,
 		on_seen_auth=None, on_seen_tx=None):
 	'''
@@ -120,14 +114,30 @@ class IRCMessageChannel(MessageChannel):
         self.close()
         self.give_up = True
 
+    #OrderbookWatch callback
     def request_orderbook(self):
-        self.pubmsg(COMMAND_PREFIX + 'orderbook')
+        self.__pubmsg(COMMAND_PREFIX + 'orderbook')
 
-    def pubmsg(self, message):
+    #Taker callbacks
+    def fill_orders(self, nickoid_dict, cj_amount, taker_pubkey):
+        for c, oid in nickoid_dict.iteritems():
+            msg = str(oid) + ' ' + str(cj_amount) + ' ' + taker_pubkey
+            self.__privmsg(c, 'fill', msg)
+
+    def send_auth(self, nick, pubkey, sig):
+        message = pubkey + ' ' + sig
+        self.__privmsg(nick, 'auth', message)
+
+    def send_tx(self, nick_list, txhex):
+        txb64 = base64.b64encode(txhex.decode('hex'))
+        for nick in nick_list:
+            self.__privmsg(nick, 'tx', txb64)
+
+    def __pubmsg(self, message):
         debug('>>pubmsg ' + message)
         self.send_raw("PRIVMSG " + self.channel + " :" + message)
 
-    def privmsg(self, nick, cmd, message):
+    def __privmsg(self, nick, cmd, message):
         debug('>>privmsg ' + 'nick=' + nick + ' cmd=' + cmd + ' msg=' + message)
         #should we encrypt?
         box = self.__encrypting(cmd, nick, sending=True)
@@ -164,10 +174,11 @@ class IRCMessageChannel(MessageChannel):
                 if self.on_order_seen:
                     self.on_order_seen(counterparty, oid, ordertype, minsize,
                                        maxsize, txfee, cjfee)
-                    return True
             except IndexError as e:
                 debug('index error parsing chunks')
                 #TODO what now? just ignore iirc
+            finally:
+                return True
         return False
 
     def __on_privmsg(self, nick, message):
@@ -176,8 +187,28 @@ class IRCMessageChannel(MessageChannel):
             return
         for command in message[1:].split(COMMAND_PREFIX):
             chunks = command.split(" ")
+
+            #orderbook watch commands
             if self.check_for_orders(nick, chunks):
                 pass
+
+            #taker commands
+            elif chunks[0] == 'pubkey':
+                maker_pk = chunks[1]
+                if self.on_pubkey:
+                    self.on_pubkey(nick, maker_pk)
+            elif chunks[0] == 'ioauth':
+                utxo_list = chunks[1].split(',')
+                cj_pub = chunks[2]
+                change_addr = chunks[3]
+                btc_sig = chunks[4]
+                if self.on_ioauth:
+                    self.on_ioauth(nick, utxo_list, cj_pub, change_addr,
+                                   btc_sig)
+            elif chunks[0] == 'sig':
+                sig = chunks[1]
+                if self.on_sig:
+                    self.on_sig(sig)
 
     def __on_pubmsg(self, nick, message):
         if message[0] != COMMAND_PREFIX:
