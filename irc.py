@@ -258,7 +258,7 @@ class IRCMessageChannel(MessageChannel):
                 if self.on_orderbook_requested:
                     self.on_orderbook_requested(nick)
             else:
-                if self.debug_on_pubmsg_cmd:
+                if hasattr(self, 'debug_on_pubmsg_cmd'):
                     self.debug_on_pubmsg_cmd(nick, chunks)
 
     def __encrypting(self, cmd, nick, sending=False):
