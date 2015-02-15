@@ -362,11 +362,12 @@ def create_combination(li, n):
 	For example, combination(['apple', 'orange', 'pear'], 2)
 		= [('apple', 'orange'), ('apple', 'pear'), ('orange', 'pear')]
 	'''
-	if n < 2:
-		raise ValueError('n must be >= 2')
 	result = []
-	if n == 2:
-		#creates a list oft
+	if n == 1:
+		result = [(l,) for l in li] #same thing but each order is a tuple
+	elif n == 2:
+		#this case could be removed and the function completely recurvsive
+		# but for n=2 this is slightly more efficent
 		for i, e1 in enumerate(li):
 			for e2 in li[i+1:]:
 				result.append((e1, e2))
