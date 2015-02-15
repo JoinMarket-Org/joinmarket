@@ -231,66 +231,61 @@ class Taker(OrderbookWatch):
 my_tx_fee = 10000
 		
 class TestTaker(Taker):
-	def __init__(self, wallet):
-		Taker.__init__(self)
-		self.wallet = wallet	
+	def __init__(self, msgchan, wallet):
+		Taker.__init__(self, msgchan)
+		self.wallet = wallet
+		self.msgchan.debug_on_pubmsg_cmd = self.debug_on_pubmsg_cmd
 	
 	def finish_callback(self):
 		removed_utxos = self.wallet.remove_old_utxos(self.cjtx.latest_tx)		
 		added_utxos = self.wallet.add_new_utxos(self.cjtx.latest_tx, btc.txhash(btc.serialize(self.cjtx.latest_tx)))
 		debug('tx published, added_utxos=\n' + pprint.pformat(added_utxos))
 		debug('removed_utxos=\n' + pprint.pformat(removed_utxos))
-		
-	def on_pubmsg(self, nick, message):
-		Taker.on_pubmsg(self, nick, message)
-		if message[0] != COMMAND_PREFIX:
-			return
-		for command in message[1:].split(COMMAND_PREFIX):
-			#commands starting with % are for testing and will be removed in the final version
-			chunks = command.split(" ")
-			if chunks[0] == '%go':
-				#!%go [counterparty] [oid] [amount]
-				cp = chunks[1]
-				oid = chunks[2]
-				amt = chunks[3]
-				#this testing command implements a very dumb algorithm.
-				#just take 1 utxo from anywhere and output it to a level 1
-				#change address.
-				utxo_dict = self.wallet.get_utxo_list_by_mixdepth()
-				utxo_list = [x for v in utxo_dict.itervalues() for x in v]
-				unspent = [{'utxo': utxo, 'value': self.wallet.unspent[utxo]['value']} \
-				           for utxo in utxo_list]
-				inputs = btc.select(unspent, amt)
-				utxos = [i['utxo'] for i in inputs]				
-				print 'making cjtx'
-				self.cjtx = CoinJoinTX(self, int(amt), {cp: oid},
-			                utxos, self.wallet.get_receive_addr(mixing_depth=1),
-			                self.wallet.get_change_addr(mixing_depth=0), my_tx_fee, self.finish_callback)								
-			elif chunks[0] == '%unspent':
-				from pprint import pprint
-				pprint(self.wallet.unspent)
-			elif chunks[0] == '%fill':
-				#!fill [counterparty] [oid] [amount] [utxo]
-				counterparty = chunks[1]
-				oid = int(chunks[2])
-				amount = chunks[3]
-				my_utxo = chunks[4]
-				print 'making cjtx'
-				self.cjtx = CoinJoinTX(self, int(amount), {counterparty: oid},
-					[my_utxo], self.wallet.get_receive_addr(mixing_depth=1),
-					self.wallet.get_change_addr(mixing_depth=0), my_tx_fee, self.finish_callback)
-			elif chunks[0] == '%2fill':
-				#!2fill [amount] [utxo] [counterparty1] [oid1] [counterparty2] [oid2]
-				amount = int(chunks[1])
-				my_utxo = chunks[2]
-				cp1 = chunks[3]
-				oid1 = int(chunks[4])
-				cp2 = chunks[5]
-				oid2 = int(chunks[6])
-				print 'creating cjtx'
-				self.cjtx = CoinJoinTX(self, amount, {cp1: oid1, cp2: oid2},
-					[my_utxo], self.wallet.get_receive_addr(mixing_depth=1),
-					self.wallet.get_change_addr(mixing_depth=0), my_tx_fee, self.finish_callback)
+
+	def debug_on_pubmsg_cmd(self, nick, chunks):
+		if chunks[0] == '%go':
+			#!%go [counterparty] [oid] [amount]
+			cp = chunks[1]
+			oid = chunks[2]
+			amt = chunks[3]
+			#this testing command implements a very dumb algorithm.
+			#just take 1 utxo from anywhere and output it to a level 1
+			#change address.
+			utxo_dict = self.wallet.get_utxo_list_by_mixdepth()
+			utxo_list = [x for v in utxo_dict.itervalues() for x in v]
+			unspent = [{'utxo': utxo, 'value': self.wallet.unspent[utxo]['value']} \
+				   for utxo in utxo_list]
+			inputs = btc.select(unspent, amt)
+			utxos = [i['utxo'] for i in inputs]				
+			print 'making cjtx'
+			self.cjtx = CoinJoinTX(self, int(amt), {cp: oid},
+				utxos, self.wallet.get_receive_addr(mixing_depth=1),
+				self.wallet.get_change_addr(mixing_depth=0), my_tx_fee, self.finish_callback)								
+		elif chunks[0] == '%unspent':
+			from pprint import pprint
+			pprint(self.wallet.unspent)
+		elif chunks[0] == '%fill':
+			#!fill [counterparty] [oid] [amount] [utxo]
+			counterparty = chunks[1]
+			oid = int(chunks[2])
+			amount = chunks[3]
+			my_utxo = chunks[4]
+			print 'making cjtx'
+			self.cjtx = CoinJoinTX(self.msgchan, self, int(amount), {counterparty: oid},
+				[my_utxo], self.wallet.get_receive_addr(mixing_depth=1),
+				self.wallet.get_change_addr(mixing_depth=0), my_tx_fee, self.finish_callback)
+		elif chunks[0] == '%2fill':
+			#!2fill [amount] [utxo] [counterparty1] [oid1] [counterparty2] [oid2]
+			amount = int(chunks[1])
+			my_utxo = chunks[2]
+			cp1 = chunks[3]
+			oid1 = int(chunks[4])
+			cp2 = chunks[5]
+			oid2 = int(chunks[6])
+			print 'creating cjtx'
+			self.cjtx = CoinJoinTX(self.msgchan, self, amount, {cp1: oid1, cp2: oid2},
+				[my_utxo], self.wallet.get_receive_addr(mixing_depth=1),
+				self.wallet.get_change_addr(mixing_depth=0), my_tx_fee, self.finish_callback)
 
 def main():
 	import sys
@@ -301,15 +296,19 @@ def main():
 	wallet = Wallet(seed, max_mix_depth=5)
 	wallet.sync_wallet()
 
-	print 'starting irc'
-	taker = TestTaker(wallet)
+	from irc import IRCMessageChannel
+	irc = IRCMessageChannel(nickname)
+	taker = TestTaker(irc, wallet)
 	try:
-		taker.run(HOST, PORT, nickname, CHANNEL)
-	finally:
+		print 'connecting to irc'
+		irc.run()
+	except:
 		debug('CRASHING, DUMPING EVERYTHING')
 		debug('wallet seed = ' + seed)
 		debug_dump_object(wallet, ['addr_cache'])
 		debug_dump_object(taker)
+		import traceback
+		traceback.print_exc()
 
 if __name__ == "__main__":
 	main()
