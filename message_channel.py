@@ -1,3 +1,7 @@
+class CJPeerError(StandardError):
+    pass
+
+
 class MessageChannel(object):
     '''
 	Abstract class which implements a way for bots to communicate
@@ -7,6 +11,9 @@ class MessageChannel(object):
         pass
 
     def shutdown(self):
+        pass
+
+    def send_error(self, nick, errormsg):
         pass
 
     #callbacks for everyone
@@ -58,11 +65,11 @@ class MessageChannel(object):
     #maker commands
     def register_maker_callbacks(self,
                                  on_orderbook_requested=None,
-                                 on_order_filled=None,
+                                 on_order_fill=None,
                                  on_seen_auth=None,
                                  on_seen_tx=None):
         self.on_orderbook_requested = on_orderbook_requested
-        self.on_order_filled = on_order_filled
+        self.on_order_fill = on_order_fill
         self.on_seen_auth = on_seen_auth
         self.on_seen_tx = on_seen_tx
 
@@ -70,9 +77,6 @@ class MessageChannel(object):
         pass  #nick=None means announce publicly
 
     def cancel_orders(self, oid_list):
-        pass
-
-    def send_error(self, nick, errormsg):
         pass
 
     def send_pubkey(self, nick, pubkey):
