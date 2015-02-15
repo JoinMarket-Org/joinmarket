@@ -187,7 +187,7 @@ class IRCMessageChannel(MessageChannel):
 			elif chunks[0] == 'sig':
 				sig = chunks[1]
 				if self.on_sig:
-					self.on_sig(sig)
+					self.on_sig(nick, sig)
 
 
 	def __on_pubmsg(self, nick, message):
@@ -219,7 +219,8 @@ class IRCMessageChannel(MessageChannel):
 			return None
 		elif cmd not in encrypted_commands:
 			raise Exception("Invalid command type: " + cmd)
-		
+		return self.cjpeer.get_crypto_box_from_nick(nick)
+		'''
 		maker_strings = ['tx','auth'] if not sending else ['ioauth','sig']
 		taker_strings = ['ioauth','sig'] if not sending else ['tx','auth']
 		
@@ -229,7 +230,7 @@ class IRCMessageChannel(MessageChannel):
 			return self.cjtx.crypto_boxes[nick][1]		
 		else:
 			raise Exception("Invalid command type: " + cmd)
-	
+		'''
 
 	def __handle_privmsg(self, source, target, message):
 		nick = get_irc_nick(source)
