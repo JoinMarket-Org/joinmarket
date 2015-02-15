@@ -1,6 +1,7 @@
 
 from common import *
 from message_channel import MessageChannel
+from message_channel import CJPeerError
 
 import socket, threading, time
 import base64, os
@@ -47,40 +48,7 @@ class PingThread(threading.Thread):
 
 #handle one channel at a time
 class IRCMessageChannel(MessageChannel):
-	#def run(self): pass
-	#def shutdown(self): pass
-	#def request_orderbook(self): pass
-	#def fill_orders(self, nickoid_dict, cj_amount, taker_pubkey): pass
-	#def send_auth(self, nick, pubkey, sig): pass
-	#def send_tx(self, nick_list, txhex): pass
-	def announce_orders(self, orderlist, nick=None): pass #nick=None means announce publicly
-	def cancel_orders(self, oid_list): pass
-	def send_error(self, nick, errormsg): pass
-	def send_pubkey(self, nick, pubkey): pass
-	def send_ioauth(self, nick, utxo_list, cj_pubkey, change_addr, sig): pass
-	def send_sigs(self, nick, sig_list): pass
 
-	#def register_channel_callbacks(self, on_welcome=None, on_set_topic=None,
-	#	on_connect=None, on_disconnect=None, on_nick_leave=None, on_nick_change=None):
-	#def register_orderbookwatch_callbacks(self, on_order_seen=None,
-	#	on_order_cancel=None):
-	'''
-	def register_taker_callbacks(self, on_error=None, on_pubkey=None, on_ioauth=None,
-		on_sig=None):
-	def register_maker_callbacks(self, on_orderbook_requested=None, on_order_filled=None,
-		on_seen_auth=None, on_seen_tx=None):
-	'''
-
-	#def on_privmsg(self, nick, message): pass
-	#def on_pubmsg(self, nick, message): pass
-	'''
-	def on_welcome(self): pass
-	def on_set_topic(self, newtopic): pass
-	def on_leave(self, nick): pass
-	def on_disconnect(self): pass
-	def on_connect(self): pass
-	#TODO implement on_nick_change
-	'''
 	#close implies it will attempt to reconnect			
 	def close(self):
 		try:
@@ -91,6 +59,11 @@ class IRCMessageChannel(MessageChannel):
 	def shutdown(self):
 		self.close()
 		self.give_up = True
+
+	def send_error(self, nick, errormsg):
+		debug('error<%s> : %s' % (nick, errormsg))
+		self.__privmsg(nick, 'error', errormsg)
+		raise CJPeerError()
 
 	#OrderbookWatch callback
 	def request_orderbook(self):
@@ -111,7 +84,35 @@ class IRCMessageChannel(MessageChannel):
 		for nick in nick_list:
 			self.__privmsg(nick, 'tx', txb64)
 
+	#Maker callbacks
+	def announce_orders(self, orderlist, nick=None):
+		#nick=None means announce publicly
+		order_keys = ['oid', 'minsize', 'maxsize', 'txfee', 'cjfee']
+		orderline = ''
+		for order in orderlist:
+			#TODO send all the orders on one line
+			elem_list = [str(order[k]) for k in order_keys]
+			if nick:
+				self.__privmsg(nick, order['ordertype'], ' '.join(elem_list))
+			else:
+				self.__pubmsg(COMMAND_PREFIX + order['ordertype'] + ' ' + ' '.join(elem_list))
 
+	def cancel_orders(self, oid_list):
+		clines = [COMMAND_PREFIX + 'cancel ' + str(oid) for oid in oid_list]
+		self.pubmsg(''.join(clines))
+
+	def send_pubkey(self, nick, pubkey):
+		self.__privmsg(nick, 'pubkey', pubkey)
+
+	def send_ioauth(self, nick, utxo_list, cj_pubkey, change_addr, sig):
+		authmsg = (','.join(utxo_list) + ' ' + 
+	                cj_pubkey + ' ' + change_addr + ' ' + sig)
+		self.__privmsg(nick, 'ioauth', authmsg)
+
+	def send_sigs(self, nick, sig_list):
+		#TODO make it send the sigs on one line if there's space
+		for s in sigs_list:
+			self.__privmsg(nick, 'sig', s)
 
 	def __pubmsg(self, message):
 		debug('>>pubmsg ' + message)
@@ -124,6 +125,7 @@ class IRCMessageChannel(MessageChannel):
 		#encrypt before chunking
 		if box:
 			message = enc_wrapper.encrypt_encode(message, box)
+			print 'emsg=' + message
 		
 		if len(message) > 350:
 			message_chunks = chunks(message, 350)
@@ -134,6 +136,7 @@ class IRCMessageChannel(MessageChannel):
 			trailer = ' ~' if m==message_chunks[-1] else ' ;'
 			header = "PRIVMSG " + nick + " :"
 			if m==message_chunks[0]: header += '!'+cmd + ' '
+			print 'sendraw ' + header + m + trailer
 			self.send_raw(header + m + trailer)
 
 	def send_raw(self, line):
@@ -167,28 +170,61 @@ class IRCMessageChannel(MessageChannel):
 			return
 		for command in message[1:].split(COMMAND_PREFIX):
 			chunks = command.split(" ")
-			
-			#orderbook watch commands
-			if self.check_for_orders(nick, chunks):
-				pass
+			#looks like a very similar pattern for all of these
+			# check for a command name, parse arguments, call a function
+			# maybe we need some eval() trickery to do it better
 
-			#taker commands
-			elif chunks[0] == 'pubkey':
-				maker_pk = chunks[1]
-				if self.on_pubkey:
-					self.on_pubkey(nick, maker_pk)
-			elif chunks[0] == 'ioauth':
-				utxo_list = chunks[1].split(',')
-				cj_pub = chunks[2]
-				change_addr = chunks[3]
-				btc_sig = chunks[4]
-				if self.on_ioauth:
-					self.on_ioauth(nick, utxo_list, cj_pub, change_addr, btc_sig)
-			elif chunks[0] == 'sig':
-				sig = chunks[1]
-				if self.on_sig:
-					self.on_sig(nick, sig)
+			try:
+				#orderbook watch commands
+				if self.check_for_orders(nick, chunks):
+					pass
 
+				#taker commands
+				elif chunks[0] == 'pubkey':
+					maker_pk = chunks[1]
+					if self.on_pubkey:
+						self.on_pubkey(nick, maker_pk)
+				elif chunks[0] == 'ioauth':
+					utxo_list = chunks[1].split(',')
+					cj_pub = chunks[2]
+					change_addr = chunks[3]
+					btc_sig = chunks[4]
+					if self.on_ioauth:
+						self.on_ioauth(nick, utxo_list, cj_pub, change_addr, btc_sig)
+				elif chunks[0] == 'sig':
+					sig = chunks[1]
+					if self.on_sig:
+						self.on_sig(nick, sig)
+
+				#maker commands
+				if chunks[0] == 'fill':
+					try:
+						oid = int(chunks[1])
+						amount = int(chunks[2])
+						taker_pk = chunks[3]
+						if self.on_order_fill:
+							self.on_order_fill(nick, oid, amount, taker_pk)
+					except (ValueError, IndexError) as e:
+						self.send_error(nick, str(e))
+				elif chunks[0] == 'auth':
+					try:
+						i_utxo_pubkey = chunks[1]
+						btc_sig = chunks[2]
+						if self.on_seen_auth:
+							self.on_seen_auth(nick, i_utxo_pubkey, btc_sig)
+					except (ValueError, IndexError) as e:
+						self.send_error(nick, str(e))
+				elif chunks[0] == 'tx':
+					b64tx = chunks[1]
+					try:
+						txhex = base64.b64decode(b64tx).encode('hex')
+						if self.on_seen_tx:
+							self.on_seen_tx(nick, txhex)
+					except TypeError as e:
+						self.send_error(nick, 'bad base64 tx. ' + repr(e))
+			except CJPeerError:
+				#TODO proper error handling
+				continue
 
 	def __on_pubmsg(self, nick, message):
 		if message[0] != COMMAND_PREFIX:
@@ -206,6 +242,9 @@ class IRCMessageChannel(MessageChannel):
 				except ValueError as e:
 					debug("!cancel " + repr(e))
 					return
+			elif chunks[0] == 'orderbook':
+				if self.on_orderbook_requested:
+					self.on_orderbook_requested(nick)
 
 	def __encrypting(self, cmd, nick, sending=False):
 		'''Establish whether the message is to be
@@ -219,6 +258,7 @@ class IRCMessageChannel(MessageChannel):
 			return None
 		elif cmd not in encrypted_commands:
 			raise Exception("Invalid command type: " + cmd)
+		
 		return self.cjpeer.get_crypto_box_from_nick(nick)
 		'''
 		maker_strings = ['tx','auth'] if not sending else ['ioauth','sig']
@@ -231,6 +271,7 @@ class IRCMessageChannel(MessageChannel):
 		else:
 			raise Exception("Invalid command type: " + cmd)
 		'''
+	
 
 	def __handle_privmsg(self, source, target, message):
 		nick = get_irc_nick(source)
@@ -249,7 +290,9 @@ class IRCMessageChannel(MessageChannel):
 				self.built_privmsg[nick] = [cmd_string, message[:-2]]
 			else:
 				self.built_privmsg[nick][1] += message[:-2]
-			box = self.__encrypting(self.built_privmsg[nick][0], nick)						
+			box = self.__encrypting(self.built_privmsg[nick][0], nick)
+			print 'cmd=' + self.built_privmsg[nick][0] + ' nick=' + nick + ' box=' + str(box)
+			print 'msg=' + message
 			if message[-1]==';':
 				self.waiting[nick]=True		
 			elif message[-1]=='~':
@@ -329,6 +372,7 @@ class IRCMessageChannel(MessageChannel):
 		'''
 
 	def __init__(self, nick, server=HOST, port=PORT, channel=CHANNEL, username='username', realname='realname'):
+		self.cjpeer = None #subclasses have to set this to self
 		self.nick = nick
 		self.serverport = (server, port)
 		self.channel = channel
@@ -341,7 +385,7 @@ class IRCMessageChannel(MessageChannel):
 		self.give_up = False
 		self.ping_reply = True
 		self.lockcond = threading.Condition()
-		PingThread(self).start()
+		#PingThread(self).start()
 
 		while self.connect_attempts < 10 and not self.give_up:
 			try:
