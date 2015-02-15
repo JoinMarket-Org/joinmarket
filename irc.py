@@ -257,6 +257,9 @@ class IRCMessageChannel(MessageChannel):
             elif chunks[0] == 'orderbook':
                 if self.on_orderbook_requested:
                     self.on_orderbook_requested(nick)
+            else:
+                if self.debug_on_pubmsg_cmd:
+                    self.debug_on_pubmsg_cmd(nick, chunks)
 
     def __encrypting(self, cmd, nick, sending=False):
         '''Establish whether the message is to be

@@ -344,15 +344,19 @@ def main():
     wallet = Wallet(seed, max_mix_depth=5)
     wallet.sync_wallet()
 
-    maker = Maker(wallet)
-    print 'connecting to irc'
+    from irc import IRCMessageChannel
+    irc = IRCMessageChannel(nickname)
+    maker = Maker(irc, wallet)
     try:
-        maker.run(HOST, PORT, nickname, CHANNEL)
-    finally:
+        print 'connecting to irc'
+        irc.run()
+    except:
         debug('CRASHING, DUMPING EVERYTHING')
         debug('wallet seed = ' + seed)
         debug_dump_object(wallet, ['addr_cache'])
         debug_dump_object(maker)
+        import traceback
+        traceback.print_exc()
 
 
 if __name__ == "__main__":
