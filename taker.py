@@ -162,20 +162,25 @@ class CoinJoinTX(object):
         debug('the entire tx is signed, ready to pushtx()')
 
         print btc.serialize(self.latest_tx)
-        ret = btc.blockr_pushtx(btc.serialize(self.latest_tx), get_network())
-        debug('pushed tx ' + str(ret))
+        #ret = btc.blockr_pushtx(btc.serialize(self.latest_tx), get_network())
+        #debug('pushed tx ' + str(ret))
         if self.finishcallback != None:
             self.finishcallback()
 
 
 class CoinJoinerPeer(object):
-    pass
+
+    def __init__(self, msgchan):
+        self.msgchan = msgchan
+
+    def get_crypto_box_from_nick(self, nick):
+        raise Exception()
 
 
 class OrderbookWatch(CoinJoinerPeer):
 
     def __init__(self, msgchan):
-        self.msgchan = msgchan
+        CoinJoinerPeer.__init__(self, msgchan)
         self.msgchan.register_orderbookwatch_callbacks(self.on_order_seen,
                                                        self.on_order_cancel)
         self.msgchan.register_channel_callbacks(
@@ -226,11 +231,15 @@ class Taker(OrderbookWatch):
         OrderbookWatch.__init__(self, msgchan)
         msgchan.register_taker_callbacks(self.on_error, self.on_pubkey,
                                          self.on_ioauth, self.on_sig)
+        msgchan.cjpeer = self
         self.cjtx = None
         self.maker_pks = {}
         #TODO have a list of maker's nick we're coinjoining with, so
         # that some other guy doesnt send you confusing stuff
         #maybe a start_cj_tx() method is needed
+
+    def get_crypto_box_from_nick(self, nick):
+        return self.cjtx.crypto_boxes[nick][1]
 
     def on_error(self):
         pass  #TODO implement
