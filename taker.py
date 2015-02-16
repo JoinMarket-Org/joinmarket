@@ -234,6 +234,7 @@ class TestTaker(Taker):
 	def __init__(self, msgchan, wallet):
 		Taker.__init__(self, msgchan)
 		self.wallet = wallet
+		#TODO this is for testing/debugging, should be removed
 		self.msgchan.debug_on_pubmsg_cmd = self.debug_on_pubmsg_cmd
 	
 	def finish_callback(self):
