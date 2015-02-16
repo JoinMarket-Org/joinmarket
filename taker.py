@@ -162,8 +162,8 @@ class CoinJoinTX(object):
         debug('the entire tx is signed, ready to pushtx()')
 
         print btc.serialize(self.latest_tx)
-        #ret = btc.blockr_pushtx(btc.serialize(self.latest_tx), get_network())
-        #debug('pushed tx ' + str(ret))
+        ret = btc.blockr_pushtx(btc.serialize(self.latest_tx), get_network())
+        debug('pushed tx ' + str(ret))
         if self.finishcallback != None:
             self.finishcallback()
 

@@ -93,6 +93,7 @@ class IRCMessageChannel(MessageChannel):
         txb64 = base64.b64encode(txhex.decode('hex'))
         for nick in nick_list:
             self.__privmsg(nick, 'tx', txb64)
+            time.sleep(1)
 
     #Maker callbacks
     def announce_orders(self, orderlist, nick=None):
@@ -116,13 +117,13 @@ class IRCMessageChannel(MessageChannel):
         self.__privmsg(nick, 'pubkey', pubkey)
 
     def send_ioauth(self, nick, utxo_list, cj_pubkey, change_addr, sig):
-        authmsg = (','.join(utxo_list) + ' ' + cj_pubkey + ' ' + change_addr +
-                   ' ' + sig)
+        authmsg = (str(','.join(utxo_list)) + ' ' + cj_pubkey + ' ' +
+                   change_addr + ' ' + sig)
         self.__privmsg(nick, 'ioauth', authmsg)
 
     def send_sigs(self, nick, sig_list):
         #TODO make it send the sigs on one line if there's space
-        for s in sigs_list:
+        for s in sig_list:
             self.__privmsg(nick, 'sig', s)
 
     def __pubmsg(self, message):
@@ -136,7 +137,6 @@ class IRCMessageChannel(MessageChannel):
         #encrypt before chunking
         if box:
             message = enc_wrapper.encrypt_encode(message, box)
-            print 'emsg=' + message
 
         if len(message) > 350:
             message_chunks = chunks(message, 350)
@@ -147,7 +147,6 @@ class IRCMessageChannel(MessageChannel):
             trailer = ' ~' if m == message_chunks[-1] else ' ;'
             header = "PRIVMSG " + nick + " :"
             if m == message_chunks[0]: header += '!' + cmd + ' '
-            print 'sendraw ' + header + m + trailer
             self.send_raw(header + m + trailer)
 
     def send_raw(self, line):
@@ -305,9 +304,6 @@ class IRCMessageChannel(MessageChannel):
             else:
                 self.built_privmsg[nick][1] += message[:-2]
             box = self.__encrypting(self.built_privmsg[nick][0], nick)
-            print 'cmd=' + self.built_privmsg[nick][
-                0] + ' nick=' + nick + ' box=' + str(box)
-            print 'msg=' + message
             if message[-1] == ';':
                 self.waiting[nick] = True
             elif message[-1] == '~':
