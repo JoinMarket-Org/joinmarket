@@ -35,7 +35,7 @@ class YieldGenerator(Maker):
 
 	def on_connect(self):
 		if len(nickserv_password) > 0:
-			self.send_raw('PRIVMSG NickServ :identify ' + nickserv_password)
+			self.msgchan.send_raw('PRIVMSG NickServ :identify ' + nickserv_password)
 
 	def create_my_orders(self):
 		mix_balance = self.wallet.get_balance_by_mixdepth()
