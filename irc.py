@@ -257,6 +257,7 @@ class IRCMessageChannel(MessageChannel):
                 if self.on_orderbook_requested:
                     self.on_orderbook_requested(nick)
             else:
+                #TODO this is for testing/debugging, should be removed, see taker.py
                 if hasattr(self, 'debug_on_pubmsg_cmd'):
                     self.debug_on_pubmsg_cmd(nick, chunks)
 
@@ -391,6 +392,7 @@ class IRCMessageChannel(MessageChannel):
                  channel=CHANNEL,
                  username='username',
                  realname='realname'):
+        MessageChannel.__init__(self)
         self.cjpeer = None  #subclasses have to set this to self
         self.nick = nick
         self.serverport = (server, port)

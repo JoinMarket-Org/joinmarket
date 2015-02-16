@@ -7,6 +7,28 @@ class MessageChannel(object):
 	Abstract class which implements a way for bots to communicate
 	'''
 
+    def __init__(self):
+        #all
+        self.on_welcome = None
+        self.on_set_topic = None
+        self.on_connect = None
+        self.on_disconnect = None
+        self.on_nick_leave = None
+        self.on_nick_change = None
+        #orderbook watch functions
+        self.on_order_seen = None
+        self.on_order_cancel = None
+        #taker functions
+        self.on_error = None
+        self.on_pubkey = None
+        self.on_ioauth = None
+        self.on_sig = None
+        #maker functions
+        self.on_orderbook_requested = None
+        self.on_order_fill = None
+        self.on_seen_auth = None
+        self.on_seen_tx = None
+
     def run(self):
         pass
 
