@@ -35,7 +35,7 @@ class BlockChainInterface(object):
 
     def get_addr_from_utxo(self, txhash, index):
         '''Given utxo in form txhash, index, return the address
-        owning the utxo and the amount in satoshis in form (addr,amt)'''
+        owning the utxo and the amount in satoshis in form (addr, amt)'''
         pass
 
 
@@ -69,23 +69,17 @@ class RegTestImp(BlockChainInterface):
 
     def send_tx(self, tx_hex):
         res = self.rpc(['sendrawtransaction', tx_hex])
+        self.tick_forward_chain(1)
         #TODO parse return string
-        print res
-        return True
+        return {'data': res}
 
     def get_utxos_from_addr(self, addresses):
+        r = []
         for address in addresses:
             res = json.loads(self.rpc(['listunspent', '1', '9999999', '[\"' +
                                        address + '\"]']))
-        #utxos = []
-        #for r in res:
-        #    utxos.append(r['txid']+':'+str(r['vout']))
-        #return utxos
-        r = []
-        for address in addresses:
-            utxos = [x for x in res if x['address'] == address]
             unspents = []
-            for u in utxos:
+            for u in res:
                 unspents.append({'tx': u['txid'],
                                  'n': u['vout'],
                                  'amount': str(u['amount']),
@@ -120,8 +114,10 @@ class RegTestImp(BlockChainInterface):
         #print result
         return {'data': result}
 
-    def get_tx_info(self, txhash):
+    def get_tx_info(self, txhash, raw=False):
         res = json.loads(self.rpc(['gettransaction', txhash, 'true']))
+        if raw:
+            return {'data': {'tx': {'hex': res['hex']}}}
         tx = btc.deserialize(res['hex'])
         #build vout list
         vouts = []
@@ -129,7 +125,7 @@ class RegTestImp(BlockChainInterface):
         for o in tx['outs']:
             vouts.append({'n': n,
                           'amount': o['value'],
-                          'address': btc.script_to_address(o['script'])})
+                          'address': btc.script_to_address(o['script'], 0x6f)})
             n += 1
 
         return {'data': {'vouts': vouts}}
@@ -195,10 +191,10 @@ def main():
     #myBCI.send_tx('stuff')
     print myBCI.get_utxos_from_addr(["n4EjHhGVS4Rod8ociyviR3FH442XYMWweD"])
     print myBCI.get_balance_at_addr(["n4EjHhGVS4Rod8ociyviR3FH442XYMWweD"])
-    txid = myBCI.grab_coins('mtc6UaPPp2x1Fabugi8JG4BNouFo9rADNb', 23)
+    txid = myBCI.grab_coins('mygp9fsgEJ5U7jkPpDjX9nxRj8b5nC3Hnd', 23)
     print txid
-    print myBCI.get_balance_at_addr(['mtc6UaPPp2x1Fabugi8JG4BNouFo9rADNb'])
-    print myBCI.get_utxos_from_addr(['mtc6UaPPp2x1Fabugi8JG4BNouFo9rADNb'])
+    print myBCI.get_balance_at_addr(['mygp9fsgEJ5U7jkPpDjX9nxRj8b5nC3Hnd'])
+    print myBCI.get_utxos_from_addr(['mygp9fsgEJ5U7jkPpDjX9nxRj8b5nC3Hnd'])
 
 
 if __name__ == '__main__':
