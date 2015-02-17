@@ -17,7 +17,7 @@ class BlockChainInterface(object):
         '''Given an address, return a list of utxos
         in format txid:vout'''
         pass
-    def get_balance_at_addr(self,address):
+    def get_balance_at_addr(self, address):
         '''Given an address, return a balance in satoshis'''
         pass
 
@@ -30,7 +30,7 @@ class BlockChainInterface(object):
         pass        
     def get_addr_from_utxo(self, txhash, index):
         '''Given utxo in form txhash, index, return the address
-        owning the utxo and the amount in satoshis in form (addr,amt)'''
+        owning the utxo and the amount in satoshis in form (addr, amt)'''
         pass
 
 
@@ -51,7 +51,7 @@ class RegTestImp(BlockChainInterface):
         except Exception as e:
             print e
 
-    def rpc(self,args,accept_failure=[]):
+    def rpc(self, args, accept_failure=[]):
         try:
             res = subprocess.check_output(self.command_params+args)
         except subprocess.CalledProcessError, e:
@@ -61,23 +61,17 @@ class RegTestImp(BlockChainInterface):
         return res
 
     def send_tx(self, tx_hex):
-        res = self.rpc(['sendrawtransaction',tx_hex])
+        res = self.rpc(['sendrawtransaction', tx_hex])
+        self.tick_forward_chain(1)
         #TODO parse return string
-        print res
-        return True
+        return {'data':res}
 
-    def get_utxos_from_addr(self,addresses):
-        for address in addresses:
-            res = json.loads(self.rpc(['listunspent','1','9999999','[\"'+address+'\"]']))
-        #utxos = []
-        #for r in res:
-        #    utxos.append(r['txid']+':'+str(r['vout']))
-        #return utxos
+    def get_utxos_from_addr(self, addresses):
         r = []
         for address in addresses:
-            utxos = [x for x in res if x['address']==address]
+            res = json.loads(self.rpc(['listunspent','1','9999999','[\"'+address+'\"]']))
             unspents=[]
-            for u in utxos:
+            for u in res:
                 unspents.append({'tx':u['txid'],'n':u['vout'],'amount':str(u['amount']),'address':address,'confirmations':u['confirmations']})
             r.append({'address':address,'unspent':unspents})
         return {'data':r}
@@ -105,19 +99,20 @@ class RegTestImp(BlockChainInterface):
         #print result
         return {'data':result} 
     
-    def get_tx_info(self, txhash):
-        res = json.loads(self.rpc(['gettransaction',txhash,'true']))
+    def get_tx_info(self, txhash, raw=False):
+        res = json.loads(self.rpc(['gettransaction', txhash,'true']))
+        if raw:
+            return {'data':{'tx':{'hex':res['hex']}}}
         tx = btc.deserialize(res['hex'])
         #build vout list
         vouts = []
         n=0
         for o in tx['outs']:
-            vouts.append({'n':n,'amount':o['value'],'address':btc.script_to_address(o['script'])})
+            vouts.append({'n':n,'amount':o['value'],'address':btc.script_to_address(o['script'],0x6f)})
             n+=1
         
         return {'data':{'vouts':vouts}}
-        
-    
+   
     def get_balance_at_addr(self, addresses):
         #NB This will NOT return coinbase coins (but wont matter in our use case).
         #In order to have the Bitcoin RPC read balances at addresses
@@ -128,16 +123,16 @@ class RegTestImp(BlockChainInterface):
         #allow importaddress to fail in case the address is already in the wallet
         res = []
         for address in addresses:
-            self.rpc(['importaddress',address,'watchonly'],[4])
+            self.rpc(['importaddress', address,'watchonly'],[4])
             res.append({'address':address,'balance':int(Decimal(1e8) * Decimal(self.rpc(['getreceivedbyaddress',address])))})
         return {'data':res}
 
     def tick_forward_chain(self, n):
         '''Special method for regtest only;
         instruct to mine n blocks.'''
-        self.rpc(['setgenerate','true',str(n)])
+        self.rpc(['setgenerate','true', str(n)])
 
-    def grab_coins(self,receiving_addr,amt=50):
+    def grab_coins(self, receiving_addr, amt=50):
         '''
         NOTE! amt is passed in Coins, not Satoshis!
         Special method for regtest only:
@@ -151,10 +146,10 @@ class RegTestImp(BlockChainInterface):
             #mine enough to get to the reqd amt
             reqd = int(amt - self.current_balance)
             reqd_blocks = str(int(reqd/50) +1)
-            if self.rpc(['setgenerate','true',reqd_blocks]):
+            if self.rpc(['setgenerate','true', reqd_blocks]):
                 raise Exception("Something went wrong")
         #now we do a custom create transaction and push to the receiver
-        txid = self.rpc(['sendtoaddress',receiving_addr,str(amt)])
+        txid = self.rpc(['sendtoaddress', receiving_addr, str(amt)])
         if not txid:
             raise Exception("Failed to broadcast transaction")
         #confirm
@@ -163,10 +158,10 @@ class RegTestImp(BlockChainInterface):
 
     def get_addr_from_utxo(self, txhash, index):
         #get the transaction details
-        res = json.loads(self.rpc(['gettxout',txhash, str(index)]))
+        res = json.loads(self.rpc(['gettxout', txhash, str(index)]))
         amt = int(Decimal(1e8)*Decimal(res['value']))
         address = res('addresses')[0]
-        return (address,amt)
+        return (address, amt)
 
 def main():
     bitcointoolsdir = '/home/adam/DevRepos/bitcoin/src/'
@@ -175,10 +170,10 @@ def main():
     #myBCI.send_tx('stuff')
     print myBCI.get_utxos_from_addr(["n4EjHhGVS4Rod8ociyviR3FH442XYMWweD"])
     print myBCI.get_balance_at_addr(["n4EjHhGVS4Rod8ociyviR3FH442XYMWweD"])
-    txid = myBCI.grab_coins('mtc6UaPPp2x1Fabugi8JG4BNouFo9rADNb',23)
+    txid = myBCI.grab_coins('mygp9fsgEJ5U7jkPpDjX9nxRj8b5nC3Hnd',23)
     print txid
-    print myBCI.get_balance_at_addr(['mtc6UaPPp2x1Fabugi8JG4BNouFo9rADNb'])
-    print myBCI.get_utxos_from_addr(['mtc6UaPPp2x1Fabugi8JG4BNouFo9rADNb'])
+    print myBCI.get_balance_at_addr(['mygp9fsgEJ5U7jkPpDjX9nxRj8b5nC3Hnd'])
+    print myBCI.get_utxos_from_addr(['mygp9fsgEJ5U7jkPpDjX9nxRj8b5nC3Hnd'])
 
 if __name__ == '__main__':
     main()

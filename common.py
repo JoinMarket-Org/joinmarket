@@ -7,7 +7,7 @@ import threading
 import blockchaininterface
 
 HOST = 'irc.freenode.net'
-CHANNEL = '#joinmarket-pit-test'
+CHANNEL = '#joinmarket-pit-test2'
 PORT = 6667
 
 #for the mainnet its #joinmarket-pit
@@ -82,7 +82,7 @@ def get_blockchain_data(body, csv_params=[],
 		raise Exception("Unrecognised blockchain source")
 	
 	bodies = {'addrtx':'address/txs/','txinfo':'tx/info/','addrunspent':'address/unspent/',
-	          'addrbalance':'address/balance/'}
+	          'addrbalance':'address/balance/','txraw':'tx/raw/','txpush':'tx/push/'}
 	url = stem + bodies[body] + ','.join(csv_params) 
 	if query_params:
 		url += '?'+','.join(query_params)
@@ -115,17 +115,24 @@ def get_regtest_data(req):
 	elif req[0]=='tx' and req[1]=='info':
 		txhash = req[2] #TODO currently only allowing one tx
 		return myBCI.get_tx_info(txhash)
-	elif req[0]=='addr' and req[1] == 'balance':
+	elif req[0]=='address' and req[1] == 'balance':
 		addrs = req[2].split(',')
-		if 'unconfirmed' in addrs[-1]:
-			addrs = addrs[-1]
+		if '?' in addrs[-1]:
+			#TODO simulate dealing with unconfirmed
+			addrs[-1] = addrs[-1].split('?')[0]
 		return myBCI.get_balance_at_addr(addrs)
 	elif req[0]=='address' and req[1] == 'unspent':
 		if '?' in req[2]: req[2] = req[2].split('?')[0]
 		addrs = req[2].split(',')
 		return myBCI.get_utxos_from_addr(addrs)
+	elif req[0]=='tx' and req[1] == 'raw':
+		txhex = req[2]
+		return myBCI.get_tx_info(txhex, raw=True)
+	elif req[0]=='tx' and req[1] == 'push':
+		txraw = req[2]
+		return myBCI.send_tx(txraw)
 	else:
-		raise Exception ("Unrecognized call to regtest blockchain interface")
+		raise Exception ("Unrecognized call to regtest blockchain interface: " + '/'.join(req))
 	
 	
 class Wallet(object):
@@ -344,6 +351,8 @@ def add_addr_notify(address, unconfirmfun, confirmfun, unconfirmtimeout=5,
 					return
 				data = get_blockchain_data('addrbalance', csv_params=[self.address],
 				                           query_params=['confirmations=0'])
+				if type(data) == list:
+					data = data[0] #needed because blockr's json structure is inconsistent
 				if data['balance'] > 0:
 					break
 			self.unconfirmfun(data['balance']*1e8)
@@ -381,7 +390,8 @@ def calc_cj_fee(ordertype, cjfee, cj_amount):
 def calc_total_input_value(utxos):
 	input_sum = 0
 	for utxo in utxos:
-		tx = btc.blockr_fetchtx(utxo[:64], get_network())
+		tx = get_blockchain_data('txraw',csv_params=[utxo[:64]])['tx']['hex']
+		#tx = btc.blockr_fetchtx(utxo[:64], get_network())
 		input_sum += int(btc.deserialize(tx)['outs'][int(utxo[65:])]['value'])
 	return input_sum
 
