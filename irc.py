@@ -93,7 +93,8 @@ class IRCMessageChannel(MessageChannel):
         txb64 = base64.b64encode(txhex.decode('hex'))
         for nick in nick_list:
             self.__privmsg(nick, 'tx', txb64)
-            time.sleep(1)
+            time.sleep(
+                1)  #HACK! really there should be rate limiting, see issue#31
 
     #Maker callbacks
     def announce_orders(self, orderlist, nick=None):
