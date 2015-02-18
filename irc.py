@@ -100,7 +100,7 @@ class IRCMessageChannel(MessageChannel):
 
 	def cancel_orders(self, oid_list):
 		clines = [COMMAND_PREFIX + 'cancel ' + str(oid) for oid in oid_list]
-		self.pubmsg(''.join(clines))
+		self.__pubmsg(''.join(clines))
 
 	def send_pubkey(self, nick, pubkey):
 		self.__privmsg(nick, 'pubkey', pubkey)
