@@ -20,6 +20,8 @@ class TakerThread(threading.Thread):
 		self.tmaker.msgchan.shutdown()
 
 	def run(self):
+		#TODO this thread doesnt wake up for what could be hours
+		# need a loop that periodically checks self.finished
 		time.sleep(self.tmaker.waittime)
 		if self.finished:
 			return
@@ -51,6 +53,7 @@ class PatientSendPayment(maker.Maker, taker.Taker):
 		taker.Taker.__init__(self, msgchan)
 
 	def get_crypto_box_from_nick(self, nick):
+		debug('getting cryptobox for patient, len(active_orders)=' + str(len(self.active_orders)))
 		if len(self.active_orders) == 0:
 			return taker.Taker.get_crypto_box_from_nick(self, nick)
 		else:
@@ -82,7 +85,8 @@ class PatientSendPayment(maker.Maker, taker.Taker):
 		if self.amount == 0:
 			self.takerthread.finished = True
 			print 'finished sending, exiting..'
-			self.shutdown()
+			self.msgchan.shutdown()
+			return ([], [])
 		utxo_list = self.wallet.get_utxo_list_by_mixdepth()[self.mixdepth]
 		available_balance = 0
 		for utxo in utxo_list:
