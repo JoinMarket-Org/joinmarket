@@ -122,7 +122,7 @@ class IRCMessageChannel(MessageChannel):
 	def __privmsg(self, nick, cmd, message):
 		debug('>>privmsg ' + 'nick=' + nick + ' cmd=' + cmd + ' msg=' + message)
 		#should we encrypt?
-		box = self.__encrypting(cmd, nick, sending=True)
+		box = self.__get_encryption_box(cmd, nick)
 		#encrypt before chunking
 		if box:
 			message = enc_wrapper.encrypt_encode(message, box)
@@ -249,7 +249,7 @@ class IRCMessageChannel(MessageChannel):
 				if hasattr(self, 'debug_on_pubmsg_cmd'):
 					self.debug_on_pubmsg_cmd(nick, chunks)
 
-	def __encrypting(self, cmd, nick, sending=False):
+	def __get_encryption_box(self, cmd, nick):
 		'''Establish whether the message is to be
 		encrypted/decrypted based on the command string.
 		If so, retrieve the appropriate crypto_box object
@@ -293,7 +293,7 @@ class IRCMessageChannel(MessageChannel):
 				self.built_privmsg[nick] = [cmd_string, message[:-2]]
 			else:
 				self.built_privmsg[nick][1] += message[:-2]
-			box = self.__encrypting(self.built_privmsg[nick][0], nick)
+			box = self.__get_encryption_box(self.built_privmsg[nick][0], nick)
 			if message[-1]==';':
 				self.waiting[nick]=True		
 			elif message[-1]=='~':
