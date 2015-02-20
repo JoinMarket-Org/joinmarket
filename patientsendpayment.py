@@ -23,6 +23,9 @@ class TakerThread(threading.Thread):
     def run(self):
         #TODO this thread doesnt wake up for what could be hours
         # need a loop that periodically checks self.finished
+        #TODO another issue is, what if the bot has run out of utxos and
+        # needs to wait for some tx to confirm before it can trade
+        # presumably it needs to wait here until the tx confirms
         time.sleep(self.tmaker.waittime)
         if self.finished:
             return
@@ -60,9 +63,7 @@ class PatientSendPayment(maker.Maker, taker.Taker):
         taker.Taker.__init__(self, msgchan)
 
     def get_crypto_box_from_nick(self, nick):
-        debug('getting cryptobox for patient, len(active_orders)=' + str(len(
-            self.active_orders)))
-        if len(self.active_orders) == 0:
+        if self.cjtx:
             return taker.Taker.get_crypto_box_from_nick(self, nick)
         else:
             return maker.Maker.get_crypto_box_from_nick(self, nick)
@@ -102,7 +103,7 @@ class PatientSendPayment(maker.Maker, taker.Taker):
         utxo_list = self.wallet.get_utxo_list_by_mixdepth()[self.mixdepth]
         available_balance = 0
         for utxo in utxo_list:
-            available_balance = self.wallet.unspent[utxo]['value']
+            available_balance += self.wallet.unspent[utxo]['value']
         if available_balance > self.amount:
             order = {'oid': 0,
                      'ordertype': 'absorder',
