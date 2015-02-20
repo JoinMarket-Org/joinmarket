@@ -15,14 +15,18 @@ PORT = 6667
 command_prefix = '!'
 MAX_PRIVMSG_LEN = 400
 blockchain_source = 'regtest'
+btc_cli_loc = ''
 ordername_list = ["absorder", "relorder"]
 encrypted_commands = ["auth", "ioauth", "tx", "sig"]
 plaintext_commands = ["fill", "error", "pubkey", "orderbook", "relorder",
                       "absorder"]
 
 
-def debug(msg):
+def debug(msg, fname=None):
     print datetime.datetime.now().strftime("[%Y/%m/%d %H:%M:%S] ") + msg
+    if fname:  #TODO: this is an awfully ugly way to write a log...
+        with open(fname, 'ab') as f:
+            f.write(outmsg)
 
 
 def chunks(d, n):
@@ -49,12 +53,12 @@ def get_signed_tx(wallet, ins, outs):
     return tx
 
 
-def debug_dump_object(obj, skip_fields=[]):
-    print 'Class debug dump, name:' + obj.__class__.__name__
+def debug_dump_object(obj, skip_fields=[], fname=None):
+    debug('Class debug dump, name:' + obj.__class__.__name__, fname)
     for k, v in obj.__dict__.iteritems():
         if k in skip_fields:
             continue
-        print 'key=' + k
+        debug('key=' + k, fname)
         if isinstance(v, str):
             print 'string: len:' + str(len(v))
             print v
@@ -116,14 +120,15 @@ def get_blockr_data(req):
 
 
 def get_regtest_data(req):
-    bitcointoolsdir = '/home/adam/DevRepos/bitcoin/src/'
-    btc_client = bitcointoolsdir + 'bitcoin-cli'
-    myBCI = blockchaininterface.RegTestImp(btc_client)
+    myBCI = blockchaininterface.RegTestImp(btc_cli_loc)
     if not req.startswith('regtest'):
         raise Exception("Invalid request to regtest")
     req = ''.join(req.split(':')[1:]).split('/')
     if req[0] == 'address' and req[1] == 'txs':
         addrs = req[2].split(',')
+        if '?' in addrs[-1]:
+            #TODO simulate dealing with unconfirmed
+            addrs[-1] = addrs[-1].split('?')[0]
         #NB: we don't allow unconfirmeds in regtest
         #for now; TODO
         if 'unconfirmed' in addrs[-1]:
@@ -331,8 +336,6 @@ class Wallet(object):
             data = get_blockchain_data('addrunspent',
                                        csv_params=req,
                                        query_params=['unconfirmed=1'])
-            print 'got this addressunspent data: '
-            print data
             if 'unspent' in data:
                 data = [data]
             for dat in data:

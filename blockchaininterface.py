@@ -27,7 +27,6 @@ class BlockChainInterface(object):
     @abc.abstractmethod
     def send_tx(self, tx_hex):
         '''Given raw txhex, push to network and return result in form: TODO'''
-        print 'got herer'
         pass
 
     def get_net_info(self):
@@ -46,7 +45,7 @@ class BlockChainInterface(object):
 class RegTestImp(BlockChainInterface):
 
     def __init__(self, client_location):
-        self.command_params = [client_location, '-regtest']
+        self.command_params = [client_location + 'bitcoin-cli', '-regtest']
         #quick check that it's up else quit
         res = self.rpc(['getbalance'])
         try:
@@ -92,11 +91,12 @@ class RegTestImp(BlockChainInterface):
         #use listtransactions and then filter
         #e.g.: -regtest listtransactions 'watchonly' 1000 0 true
         #to get the last 1000 transactions TODO 1000 is arbitrary
-
-        res = json.loads(self.rpc(['listtransactions', 'watchonly', '1000', '0',
+        acct_addrlist = self.rpc(['getaddressesbyaccount', 'watchonly'])
+        for address in addresses:
+            if address not in acct_addrlist:
+                self.rpc(['importaddress', address, 'watchonly'], [4])
+        res = json.loads(self.rpc(['listtransactions', 'watchonly', '2', '0',
                                    'true']))
-        #print "Got this res: "
-        #print res
 
         result = []
         for address in addresses:
@@ -110,8 +110,6 @@ class RegTestImp(BlockChainInterface):
                             'tx': a['txid'],
                             'amount': a['amount']})
             result.append({'nb_txs': nbtxs, 'address': address, 'txs': txs})
-        #print "Returning this data: "
-        #print result
         return {'data': result}
 
     def get_tx_info(self, txhash, raw=False):
@@ -160,8 +158,7 @@ class RegTestImp(BlockChainInterface):
         Return the txid.
         '''
         if amt > 500:
-            raise Exception(
-                "Either you forgot to pass the amount in Bitcoins, or you\'re too greedy")
+            raise Exception("too greedy")
         if amt > self.current_balance:
             #mine enough to get to the reqd amt
             reqd = int(amt - self.current_balance)
@@ -185,9 +182,7 @@ class RegTestImp(BlockChainInterface):
 
 
 def main():
-    bitcointoolsdir = '/home/adam/DevRepos/bitcoin/src/'
-    btc_client = bitcointoolsdir + 'bitcoin-cli'
-    myBCI = RegTestImp(btc_client)
+    myBCI = RegTestImp(btc_cli_loc)
     #myBCI.send_tx('stuff')
     print myBCI.get_utxos_from_addr(["n4EjHhGVS4Rod8ociyviR3FH442XYMWweD"])
     print myBCI.get_balance_at_addr(["n4EjHhGVS4Rod8ociyviR3FH442XYMWweD"])

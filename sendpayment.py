@@ -134,6 +134,8 @@ def main():
                         options.txfee, options.waittime, options.mixdepth)
     try:
         taker.run(HOST, PORT, nickname, CHANNEL)
+    except:
+        debug('We got an exception', fname='send.out')
     finally:
         debug('CRASHING, DUMPING EVERYTHING')
         debug('wallet seed = ' + seed)
