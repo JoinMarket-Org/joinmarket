@@ -11,7 +11,8 @@ class CoinJoinTX(object):
     #soon the taker argument will be removed and just be replaced by wallet or some other interface
     def __init__(self,
                  msgchan,
-                 taker,
+                 wallet,
+                 db,
                  cj_amount,
                  orders,
                  my_utxos,
@@ -27,7 +28,8 @@ class CoinJoinTX(object):
         debug('starting cj to ' + my_cj_addr + ' with change at ' + str(
             my_change_addr))
         self.msgchan = msgchan
-        self.taker = taker
+        self.wallet = wallet
+        self.db = db
         self.cj_amount = cj_amount
         self.active_orders = dict(orders)
         self.nonrespondants = list(orders.keys())
@@ -43,8 +45,8 @@ class CoinJoinTX(object):
         self.kp = enc_wrapper.init_keypair()
         self.crypto_boxes = {}
         #find the btc pubkey of the first utxo being used
-        self.signing_btc_add = taker.wallet.unspent[self.my_utxos[0]]['address']
-        self.signing_btc_pub = btc.privtopub(taker.wallet.get_key_from_addr(
+        self.signing_btc_add = wallet.unspent[self.my_utxos[0]]['address']
+        self.signing_btc_pub = btc.privtopub(wallet.get_key_from_addr(
             self.signing_btc_add))
         self.msgchan.fill_orders(orders, cj_amount, self.kp.hex_pk())
 
@@ -54,8 +56,8 @@ class CoinJoinTX(object):
         self.crypto_boxes[nick] = [maker_pk, enc_wrapper.as_init_encryption(\
                                 self.kp, enc_wrapper.init_pubkey(maker_pk))]
         #send authorisation request
-        my_btc_priv = self.taker.wallet.get_key_from_addr(\
-                self.taker.wallet.unspent[self.my_utxos[0]]['address'])
+        my_btc_priv = self.wallet.get_key_from_addr(\
+                self.wallet.unspent[self.my_utxos[0]]['address'])
         my_btc_pub = btc.privtopub(my_btc_priv)
         my_btc_sig = btc.ecdsa_sign(self.kp.hex_pk(), my_btc_priv)
         self.msgchan.send_auth(nick, my_btc_pub, my_btc_sig)
@@ -77,10 +79,9 @@ class CoinJoinTX(object):
             return
         self.utxos[nick] = utxo_list
         self.nonrespondants.remove(nick)
-        order = self.taker.db.execute(
-            'SELECT ordertype, txfee, cjfee FROM '
-            'orderbook WHERE oid=? AND counterparty=?',
-            (self.active_orders[nick], nick)).fetchone()
+        order = self.db.execute('SELECT ordertype, txfee, cjfee FROM '
+                                'orderbook WHERE oid=? AND counterparty=?',
+                                (self.active_orders[nick], nick)).fetchone()
         total_input = calc_total_input_value(self.utxos[nick])
         real_cjfee = calc_cj_fee(order['ordertype'], order['cjfee'],
                                  self.cj_amount)
@@ -98,7 +99,7 @@ class CoinJoinTX(object):
 
         my_total_in = 0
         for u in self.my_utxos:
-            usvals = self.taker.wallet.unspent[u]
+            usvals = self.wallet.unspent[u]
             my_total_in += int(usvals['value'])
 
         my_change_value = my_total_in - self.cj_amount - self.cjfee_total - self.my_txfee
@@ -125,10 +126,10 @@ class CoinJoinTX(object):
             utxo = ins['outpoint']['hash'] + ':' + str(ins['outpoint']['index'])
             if utxo not in self.my_utxos:
                 continue
-            if utxo not in self.taker.wallet.unspent:
+            if utxo not in self.wallet.unspent:
                 continue
-            addr = self.taker.wallet.unspent[utxo]['address']
-            tx = btc.sign(tx, index, self.taker.wallet.get_key_from_addr(addr))
+            addr = self.wallet.unspent[utxo]['address']
+            tx = btc.sign(tx, index, self.wallet.get_key_from_addr(addr))
         self.latest_tx = btc.deserialize(tx)
 
     def add_signature(self, sigb64):
@@ -311,7 +312,8 @@ class TestTaker(Taker):
             my_utxo = chunks[4]
             print 'making cjtx'
             self.cjtx = CoinJoinTX(self.msgchan,
-                                   self,
+                                   self.wallet,
+                                   self.db,
                                    int(amount),
                                    {counterparty: oid},
                                    [my_utxo],
@@ -329,7 +331,8 @@ class TestTaker(Taker):
             oid2 = int(chunks[6])
             print 'creating cjtx'
             self.cjtx = CoinJoinTX(self.msgchan,
-                                   self,
+                                   self.wallet,
+                                   self.db,
                                    amount,
                                    {cp1: oid1,
                                     cp2: oid2},
