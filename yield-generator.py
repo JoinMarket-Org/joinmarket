@@ -88,7 +88,7 @@ def main():
 	try:
 		maker.run(HOST, PORT, nickname, CHANNEL)
 	finally:
-		debug('CRASHING, DUMPING EVERYTHING')
+		debug('CRASHING, DUMPING EVERYTHING',fname='yield.out')
 		debug('wallet seed = ' + seed)
 		debug_dump_object(wallet, ['addr_cache'])
 		debug_dump_object(maker)
