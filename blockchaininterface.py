@@ -44,8 +44,8 @@ class BlockChainInterface(object):
 #with > 100 blocks.
 class RegTestImp(BlockChainInterface):
 
-    def __init__(self, client_location):
-        self.command_params = [client_location + 'bitcoin-cli', '-regtest']
+    def __init__(self):
+        self.command_params = ['bitcoin-cli', '-regtest']
         #quick check that it's up else quit
         res = self.rpc(['getbalance'])
         try:
@@ -139,9 +139,8 @@ class RegTestImp(BlockChainInterface):
         res = []
         for address in addresses:
             self.rpc(['importaddress', address, 'watchonly'], [4])
-            res.append({'address': address,
-                        'balance': int(Decimal(1e8) * Decimal(self.rpc(
-                            ['getreceivedbyaddress', address])))})
+            res.append({'address':address,'balance':\
+                        int(Decimal(1e8) * Decimal(self.rpc(['getreceivedbyaddress', address])))})
         return {'data': res}
 
     def tick_forward_chain(self, n):
@@ -182,7 +181,7 @@ class RegTestImp(BlockChainInterface):
 
 
 def main():
-    myBCI = RegTestImp(btc_cli_loc)
+    myBCI = RegTestImp()
     #myBCI.send_tx('stuff')
     print myBCI.get_utxos_from_addr(["n4EjHhGVS4Rod8ociyviR3FH442XYMWweD"])
     print myBCI.get_balance_at_addr(["n4EjHhGVS4Rod8ociyviR3FH442XYMWweD"])

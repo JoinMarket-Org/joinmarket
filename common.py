@@ -23,7 +23,8 @@ plaintext_commands = ["fill", "error", "pubkey", "orderbook", "relorder",
 
 
 def debug(msg, fname=None):
-    print datetime.datetime.now().strftime("[%Y/%m/%d %H:%M:%S] ") + msg
+    outmsg = datetime.datetime.now().strftime("[%Y/%m/%d %H:%M:%S] ") + msg
+    print outmsg
     if fname:  #TODO: this is an awfully ugly way to write a log...
         with open(fname, 'ab') as f:
             f.write(outmsg)
@@ -120,7 +121,7 @@ def get_blockr_data(req):
 
 
 def get_regtest_data(req):
-    myBCI = blockchaininterface.RegTestImp(btc_cli_loc)
+    myBCI = blockchaininterface.RegTestImp()
     if not req.startswith('regtest'):
         raise Exception("Invalid request to regtest")
     req = ''.join(req.split(':')[1:]).split('/')
