@@ -13,7 +13,7 @@ PORT = 6667
 
 COMMAND_PREFIX = '!'
 MAX_PRIVMSG_LEN = 400
-blockchain_source = 'regtest'
+blockchain_source = 'blockr'
 btc_cli_loc = ''
 ordername_list = ["absorder", "relorder"]
 encrypted_commands = ["auth", "ioauth", "tx", "sig"]
@@ -116,6 +116,8 @@ def get_blockchain_data(body,
 
 
 def get_blockr_data(req):
+    if 'tx/push' in req:  #manually parse this; special case because POST not GET?
+        return btc.blockr_pushtx(req.split('/')[-1], get_network())
     return btc.make_request(req)
 
 
