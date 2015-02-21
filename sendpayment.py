@@ -2,6 +2,7 @@
 
 from common import *
 import taker as takermodule
+from irc import IRCMessageChannel
 import bitcoin as btc
 
 from optparse import OptionParser
@@ -18,7 +19,7 @@ class PaymentThread(threading.Thread):
         self.taker = taker
 
     def finishcallback(self):
-        self.taker.shutdown()
+        self.taker.msgchan.shutdown()
 
     def run(self):
         print 'waiting for all orders to certainly arrive'
@@ -29,12 +30,12 @@ class PaymentThread(threading.Thread):
         counterparty_count = crow['COUNT(DISTINCT counterparty)']
         if counterparty_count < self.taker.makercount:
             print 'not enough counterparties to fill order, ending'
-            self.taker.shutdown()
+            self.taker.msgchan.shutdown()
             return
 
         if self.taker.amount == 0:
             total_value = 0
-            utxo_list = self.taker.wallet.get_mix_utxo_list()[
+            utxo_list = self.taker.wallet.get_utxo_list_by_mixdepth()[
                 self.taker.mixdepth]
             for utxo in utxo_list:
                 total_value += self.taker.wallet.unspent[utxo]['value']
@@ -42,8 +43,9 @@ class PaymentThread(threading.Thread):
                                                   self.taker.txfee,
                                                   self.taker.makercount)
             self.taker.cjtx = takermodule.CoinJoinTX(
-                self.taker, cjamount, orders, utxo_list, self.taker.destaddr,
-                None, self.taker.txfee, self.finishcallback)
+                self.taker.msgchan, self.taker.wallet, self.taker.db, cjamount,
+                orders, utxo_list, self.taker.destaddr, None, self.taker.txfee,
+                self.finishcallback)
         else:
             orders, total_cj_fee = choose_order(
                 self.taker.db, self.taker.amount, self.taker.makercount)
@@ -55,17 +57,17 @@ class PaymentThread(threading.Thread):
             utxos = self.taker.wallet.select_utxos(self.taker.mixdepth,
                                                    total_amount)
             self.taker.cjtx = takermodule.CoinJoinTX(
-                self.taker, self.taker.amount, orders, utxos,
-                self.taker.destaddr,
+                self.taker.msgchan, self.taker.wallet, self.taker.db,
+                self.taker.amount, orders, utxos, self.taker.destaddr,
                 self.taker.wallet.get_change_addr(self.taker.mixdepth),
                 self.taker.txfee, self.finishcallback)
 
 
 class SendPayment(takermodule.Taker):
 
-    def __init__(self, wallet, destaddr, amount, makercount, txfee, waittime,
-                 mixdepth):
-        takermodule.Taker.__init__(self)
+    def __init__(self, msgchan, wallet, destaddr, amount, makercount, txfee,
+                 waittime, mixdepth):
+        takermodule.Taker.__init__(self, msgchan)
         self.wallet = wallet
         self.destaddr = destaddr
         self.amount = amount
@@ -129,18 +131,19 @@ def main():
     wallet = Wallet(seed, options.mixdepth + 1)
     wallet.sync_wallet()
 
-    print 'starting irc'
-    taker = SendPayment(wallet, destaddr, amount, options.makercount,
+    irc = IRCMessageChannel(nickname)
+    taker = SendPayment(irc, wallet, destaddr, amount, options.makercount,
                         options.txfee, options.waittime, options.mixdepth)
     try:
-        taker.run(HOST, PORT, nickname, CHANNEL)
+        print 'starting irc'
+        irc.run()
     except:
-        debug('We got an exception', fname=seed + '_send.out')
-    finally:
-        debug('CRASHING, DUMPING EVERYTHING')
+        debug('CRASHING, DUMPING EVERYTHING', fname=seed + '_send.out')
         debug('wallet seed = ' + seed)
         debug_dump_object(wallet, ['addr_cache'])
         debug_dump_object(taker)
+        import traceback
+        traceback.print_exc()
 
 
 if __name__ == "__main__":

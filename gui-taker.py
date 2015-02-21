@@ -1,4 +1,5 @@
 import taker
+from irc import IRCMessageChannel
 from common import *
 
 import BaseHTTPServer, SimpleHTTPServer, threading
@@ -147,7 +148,7 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
 
     def do_POST(self):
         if self.path == '/shutdown':
-            self.taker.shutdown()
+            self.taker.msgchan.shutdown()
             self.send_response(200)
             self.send_header('Content-Type', 'text/html')
             self.send_header('Content-Length', len(shutdownpage))
@@ -183,11 +184,10 @@ def main():
     import bitcoin as btc
     nickname = 'guitaker-' + btc.sha256(gethostname())[:6]
 
+    irc = IRCMessageChannel(nickname)
+    taker = GUITaker(irc)
     print 'starting irc'
-    taker = GUITaker()
-    taker.run(HOST, PORT, nickname, CHANNEL)
-
-    #create_depth_graph()
+    irc.run()
 
 
 if __name__ == "__main__":

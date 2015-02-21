@@ -76,6 +76,31 @@ if method == 'display':
                         balance += addrvalue['value']
                 balance_depth += balance
                 used = ('used' if k < wallet.index[m][forchange] else ' new')
+                if balance > 0 or used == ' new':
+                    print '  m/0/%d/%d/%02d %s %s %.8fbtc' % (
+                        m, forchange, k, addr, used, balance / 1e8)
+        print 'for mixdepth=%d balance=%.8fbtc' % (m, balance_depth / 1e8)
+        total_balance += balance_depth
+    print 'total balance = %.8fbtc' % (total_balance / 1e8)
+
+if method == 'displayall':
+    total_balance = 0
+    for m in range(wallet.max_mix_depth):
+        print 'mixing depth %d m/0/%d/' % (m, m)
+        balance_depth = 0
+        for forchange in [0, 1]:
+            print(' ' +
+                  ('receive'
+                   if forchange == 0 else 'change') + ' addresses m/0/%d/%d/' %
+                  (m, forchange))
+            for k in range(wallet.index[m][forchange] + options.gaplimit):
+                addr = wallet.get_addr(m, forchange, k)
+                balance = 0.0
+                for addrvalue in wallet.unspent.values():
+                    if addr == addrvalue['address']:
+                        balance += addrvalue['value']
+                balance_depth += balance
+                used = ('used' if k < wallet.index[m][forchange] else ' new')
                 print '  m/0/%d/%d/%02d %s %s %.8fbtc' % (m, forchange, k, addr,
                                                           used, balance / 1e8)
         print 'for mixdepth=%d balance=%.8fbtc' % (m, balance_depth / 1e8)

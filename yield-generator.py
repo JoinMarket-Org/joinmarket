@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 
 from maker import *
+from irc import IRCMessageChannel
 import bitcoin as btc
 import time
 import os, binascii
@@ -30,12 +31,16 @@ minsize = int(
 # so try to keep coins concentrated in one mixing depth
 class YieldGenerator(Maker):
 
-    def __init__(self, wallet):
-        Maker.__init__(self, wallet)
+    def __init__(self, msgchan, wallet):
+        Maker.__init__(self, msgchan, wallet)
+        self.msgchan.register_channel_callbacks(
+            self.on_welcome, self.on_set_topic, self.on_connect, None,
+            self.on_nick_leave, None)
 
     def on_connect(self):
         if len(nickserv_password) > 0:
-            self.send_raw('PRIVMSG NickServ :identify ' + nickserv_password)
+            self.msgchan.send_raw('PRIVMSG NickServ :identify ' +
+                                  nickserv_password)
 
     def create_my_orders(self):
         mix_balance = self.wallet.get_balance_by_mixdepth()
@@ -95,15 +100,18 @@ def main():
 
     wallet = Wallet(seed, max_mix_depth=mix_levels)
     wallet.sync_wallet()
-    maker = YieldGenerator(wallet)
-    print 'connecting to irc'
+    irc = IRCMessageChannel(nickname)
+    maker = YieldGenerator(irc, wallet)
     try:
-        maker.run(HOST, PORT, nickname, CHANNEL)
-    finally:
+        print 'connecting to irc'
+        irc.run()
+    except:
         debug('CRASHING, DUMPING EVERYTHING', fname=seed + '_yieldgen.out')
         debug('wallet seed = ' + seed)
         debug_dump_object(wallet, ['addr_cache'])
         debug_dump_object(maker)
+        import traceback
+        traceback.print_exc()
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 from common import *
-import irclib
+from taker import CoinJoinerPeer
 import bitcoin as btc
 import base64, pprint, threading
 import enc_wrapper
@@ -36,7 +36,7 @@ class CoinJoinOrder(object):
         #always a new address even if the order ends up never being
         # furfilled, you dont want someone pretending to fill all your
         # orders to find out which addresses you use
-        self.maker.privmsg(nick, 'pubkey', self.kp.hex_pk())
+        self.maker.msgchan.send_pubkey(nick, self.kp.hex_pk())
 
     def auth_counterparty(self, nick, i_utxo_pubkey, btc_sig):
         self.i_utxo_pubkey = i_utxo_pubkey
@@ -51,16 +51,11 @@ class CoinJoinOrder(object):
         btc_key = self.maker.wallet.get_key_from_addr(self.cj_addr)
         btc_pub = btc.privtopub(btc_key)
         btc_sig = btc.ecdsa_sign(self.kp.hex_pk(), btc_key)
-        authmsg = str(','.join(self.utxos)) + ' ' + \
-                       btc_pub + ' ' + self.change_addr + ' ' + btc_sig
-        self.maker.privmsg(nick, 'ioauth', authmsg)
+        self.maker.msgchan.send_ioauth(nick, self.utxos, btc_pub,
+                                       self.change_addr, btc_sig)
         return True
 
-    def recv_tx(self, nick, b64tx):
-        try:
-            txhex = base64.b64decode(b64tx).encode('hex')
-        except TypeError as e:
-            self.maker.send_error(nick, 'bad base64 tx. ' + repr(e))
+    def recv_tx(self, nick, txhex):
         try:
             self.tx = btc.deserialize(txhex)
         except IndexError as e:
@@ -87,8 +82,7 @@ class CoinJoinOrder(object):
         add_addr_notify(self.change_addr, self.unconfirm_callback,
                         self.confirm_callback)
         debug('sending sigs ' + str(sigs))
-        for s in sigs:
-            self.maker.privmsg(nick, 'sig', s)
+        self.maker.msgchan.send_sigs(nick, sigs)
         self.maker.active_orders[nick] = None
 
     def unconfirm_callback(self, balance):
@@ -161,97 +155,60 @@ class CJMakerOrderError(StandardError):
     pass
 
 
-class Maker(irclib.IRCClient):
+class Maker(CoinJoinerPeer):
 
-    def __init__(self, wallet):
+    def __init__(self, msgchan, wallet):
+        CoinJoinerPeer.__init__(self, msgchan)
+        self.msgchan.register_channel_callbacks(self.on_welcome,
+                                                self.on_set_topic, None, None,
+                                                self.on_nick_leave, None)
+        msgchan.register_maker_callbacks(self.on_orderbook_requested,
+                                         self.on_order_fill, self.on_seen_auth,
+                                         self.on_seen_tx)
+        msgchan.cjpeer = self
+
         self.active_orders = {}
         self.wallet = wallet
         self.nextoid = -1
         self.orderlist = self.create_my_orders()
         self.wallet_unspent_lock = threading.Lock()
 
-    def privmsg_all_orders(self, target, orderlist=None):
-        if orderlist == None:
-            orderlist = self.orderlist
-        order_keys = ['oid', 'minsize', 'maxsize', 'txfee', 'cjfee']
-        orderline = ''
-        for order in orderlist:
-            elem_list = [str(order[k]) for k in order_keys]
-            self.privmsg(target, order['ordertype'], ' '.join(elem_list))
+    def get_crypto_box_from_nick(self, nick):
+        return self.active_orders[nick].crypto_box
 
-    def send_error(self, nick, errmsg):
-        debug('error<%s> : %s' % (nick, errmsg))
-        self.privmsg(nick, 'error', errmsg)
-        raise CJMakerOrderError()
+    def on_orderbook_requested(self, nick):
+        self.msgchan.announce_orders(self.orderlist, nick)
+
+    def on_order_fill(self, nick, oid, amount, taker_pubkey):
+        if nick in self.active_orders and self.active_orders[nick] != None:
+            self.active_orders[nick] = None
+            debug('had a partially filled order but starting over now')
+        self.wallet_unspent_lock.acquire()
+        try:
+            self.active_orders[nick] = CoinJoinOrder(self, nick, oid, amount,
+                                                     taker_pubkey)
+        finally:
+            self.wallet_unspent_lock.release()
+
+    def on_seen_auth(self, nick, pubkey, sig):
+        if nick not in self.active_orders or self.active_orders[nick] == None:
+            self.send_error(nick, 'No open order from this nick')
+        self.active_orders[nick].auth_counterparty(nick, pubkey, sig)
+        #TODO if auth_counterparty returns false, remove this order from active_orders
+        # and send an error
+
+    def on_seen_tx(self, nick, txhex):
+        if nick not in self.active_orders or self.active_orders[nick] == None:
+            self.send_error(nick, 'No open order from this nick')
+        self.wallet_unspent_lock.acquire()
+        try:
+            self.active_orders[nick].recv_tx(nick, txhex)
+        finally:
+            self.wallet_unspent_lock.release()
 
     def on_welcome(self):
-        self.privmsg_all_orders(CHANNEL)
-
-    def on_privmsg(self, nick, message):
-        if message[0] != command_prefix:
-            return
-        command_lines = message.split(command_prefix)
-        for command_line in command_lines:
-            if len(command_line) == 0:
-                continue
-            chunks = command_line.split(" ")
-            try:
-                if len(chunks) < 2:
-                    self.send_error(nick, 'Not enough arguments')
-
-                if chunks[0] == 'fill':
-                    if nick in self.active_orders and self.active_orders[
-                            nick] != None:
-                        self.active_orders[nick] = None
-                        debug(
-                            'had a partially filled order but starting over now')
-                    try:
-                        oid = int(chunks[1])
-                        amount = int(chunks[2])
-                        taker_pk = chunks[3]
-                    except (ValueError, IndexError) as e:
-                        self.send_error(nick, str(e))
-                    self.wallet_unspent_lock.acquire()
-                    try:
-                        self.active_orders[nick] = CoinJoinOrder(
-                            self, nick, oid, amount, taker_pk)
-                    finally:
-                        self.wallet_unspent_lock.release()
-                elif chunks[0] == 'auth':
-                    if nick not in self.active_orders or self.active_orders[
-                            nick] == None:
-                        self.send_error(nick, 'No open order from this nick')
-                    cjorder = self.active_orders[nick]
-                    try:
-                        i_utxo_pubkey = chunks[1]
-                        btc_sig = chunks[2]
-                    except (ValueError, IndexError) as e:
-                        self.send_error(nick, str(e))
-                    self.active_orders[nick].auth_counterparty(
-                        nick, i_utxo_pubkey, btc_sig)
-
-                elif chunks[0] == 'tx':
-                    if nick not in self.active_orders or self.active_orders[
-                            nick] == None:
-                        self.send_error(nick, 'No open order from this nick')
-                    b64tx = chunks[1]
-                    self.wallet_unspent_lock.acquire()
-                    try:
-                        self.active_orders[nick].recv_tx(nick, b64tx)
-                    finally:
-                        self.wallet_unspent_lock.release()
-            except CJMakerOrderError:
-                self.active_orders[nick] = None
-                continue
-
-    #each order has an id for referencing to and looking up
-    # using the same id again overwrites it, they'll be plenty of times when an order
-    # has to be modified and its better to just have !order rather than !cancelorder then !order
-    def on_pubmsg(self, nick, message):
-        if message[0] == command_prefix:
-            chunks = message[1:].split(" ")
-            if chunks[0] == 'orderbook':
-                self.privmsg_all_orders(nick)
+        self.msgchan.announce_orders(self.orderlist)
+        self.active_orders = {}
 
     def on_set_topic(self, newtopic):
         chunks = newtopic.split('|')
@@ -261,7 +218,7 @@ class Maker(irclib.IRCClient):
             print chunks[1].strip()
             print '=' * 60
 
-    def on_leave(self, nick):
+    def on_nick_leave(self, nick):
         self.active_orders[nick] = None
 
     def modify_orders(self, to_cancel, to_announce):
@@ -271,11 +228,9 @@ class Maker(irclib.IRCClient):
             order = [o for o in self.orderlist if o['oid'] == oid][0]
             self.orderlist.remove(order)
         if len(to_cancel) > 0:
-            clines = [command_prefix + 'cancel ' + str(oid)
-                      for oid in to_cancel]
-            self.pubmsg(''.join(clines))
+            self.msgchan.cancel_orders(to_cancel)
         if len(to_announce) > 0:
-            self.privmsg_all_orders(CHANNEL, to_announce)
+            self.msgchan.announce_orders(to_announce)
             for ann in to_announce:
                 oldorder_s = [order
                               for order in self.orderlist
@@ -389,15 +344,19 @@ def main():
     wallet = Wallet(seed, max_mix_depth=5)
     wallet.sync_wallet()
 
-    maker = Maker(wallet)
-    print 'connecting to irc'
+    from irc import IRCMessageChannel
+    irc = IRCMessageChannel(nickname)
+    maker = Maker(irc, wallet)
     try:
-        maker.run(HOST, PORT, nickname, CHANNEL)
-    finally:
+        print 'connecting to irc'
+        irc.run()
+    except:
         debug('CRASHING, DUMPING EVERYTHING')
         debug('wallet seed = ' + seed)
         debug_dump_object(wallet, ['addr_cache'])
         debug_dump_object(maker)
+        import traceback
+        traceback.print_exc()
 
 
 if __name__ == "__main__":
