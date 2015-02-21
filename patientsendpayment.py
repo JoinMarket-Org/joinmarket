@@ -2,8 +2,8 @@
 from common import *
 import taker
 import maker
+from irc import IRCMessageChannel
 import bitcoin as btc
-import sendpayment
 
 from optparse import OptionParser
 from datetime import timedelta
@@ -17,9 +17,14 @@ class TakerThread(threading.Thread):
 		self.finished = False
 
 	def finishcallback(self):
-		self.tmaker.shutdown()
+		self.tmaker.msgchan.shutdown()
 
 	def run(self):
+		#TODO this thread doesnt wake up for what could be hours
+		# need a loop that periodically checks self.finished
+		#TODO another issue is, what if the bot has run out of utxos and
+		# needs to wait for some tx to confirm before it can trade
+		# presumably it needs to wait here until the tx confirms
 		time.sleep(self.tmaker.waittime)
 		if self.finished:
 			return
@@ -31,14 +36,14 @@ class TakerThread(threading.Thread):
 		total_amount = self.tmaker.amount + total_cj_fee + self.tmaker.txfee
 		print 'total amount spent = ' + str(total_amount)
 
-		utxos = self.taker.wallet.select_utxos(self.tmaker.mixdepth, total_amount)
-		self.tmaker.cjtx = taker.CoinJoinTX(self.tmaker, self.tmaker.amount,
-			orders, utxos, self.tmaker.destaddr,
+		utxos = self.tmaker.wallet.select_utxos(self.tmaker.mixdepth, total_amount)
+		self.tmaker.cjtx = taker.CoinJoinTX(self.tmaker.msgchan, self.tmaker.wallet,
+			self.tmaker.db, self.tmaker.amount, orders, utxos, self.tmaker.destaddr,
 			self.tmaker.wallet.get_change_addr(self.tmaker.mixdepth),
 			self.tmaker.txfee, self.finishcallback)
 
 class PatientSendPayment(maker.Maker, taker.Taker):
-	def __init__(self, wallet, destaddr, amount, makercount, txfee, cjfee,
+	def __init__(self, msgchan, wallet, destaddr, amount, makercount, txfee, cjfee,
 			waittime, mixdepth):
 		self.destaddr = destaddr
 		self.amount = amount
@@ -47,22 +52,20 @@ class PatientSendPayment(maker.Maker, taker.Taker):
 		self.cjfee = cjfee
 		self.waittime = waittime
 		self.mixdepth = mixdepth
-		maker.Maker.__init__(self, wallet)
-		taker.Taker.__init__(self)
+		maker.Maker.__init__(self, msgchan, wallet)
+		taker.Taker.__init__(self, msgchan)
 
-	def on_privmsg(self, nick, message):
-		maker.Maker.on_privmsg(self, nick, message)
-		taker.Taker.on_privmsg(self, nick, message)
+	def get_crypto_box_from_nick(self, nick):
+		if self.cjtx:
+			return taker.Taker.get_crypto_box_from_nick(self, nick)
+		else:
+			return maker.Maker.get_crypto_box_from_nick(self, nick)
 
 	def on_welcome(self):
 		maker.Maker.on_welcome(self)
 		taker.Taker.on_welcome(self)
 		self.takerthread = TakerThread(self)
 		self.takerthread.start()
-
-	def on_pubmsg(self, nick, message):
-		maker.Maker.on_pubmsg(self, nick, message)
-		taker.Taker.on_pubmsg(self, nick, message)
 
 	def create_my_orders(self):
 		#choose an absolute fee order to discourage people from
@@ -84,11 +87,12 @@ class PatientSendPayment(maker.Maker, taker.Taker):
 		if self.amount == 0:
 			self.takerthread.finished = True
 			print 'finished sending, exiting..'
-			self.shutdown()
-		utxo_list = self.wallet.get_mix_utxo_list()[self.mixdepth]
+			self.msgchan.shutdown()
+			return ([], [])
+		utxo_list = self.wallet.get_utxo_list_by_mixdepth()[self.mixdepth]
 		available_balance = 0
 		for utxo in utxo_list:
-			available_balance = self.wallet.unspent[utxo]['value']
+			available_balance += self.wallet.unspent[utxo]['value']
 		if available_balance > self.amount:
 			order = {'oid': 0, 'ordertype': 'absorder', 'minsize': 0,
 				'maxsize': self.amount, 'txfee': self.txfee, 'cjfee': self.cjfee}
@@ -139,7 +143,7 @@ def main():
 	wallet = Wallet(seed, options.mixdepth + 1)
 	wallet.sync_wallet()
 
-	utxo_list = wallet.get_mix_utxo_list()[options.mixdepth]
+	utxo_list = wallet.get_utxo_list_by_mixdepth()[options.mixdepth]
 	available_balance = 0
 	for utxo in utxo_list:
 		available_balance += wallet.unspent[utxo]['value']
@@ -150,16 +154,18 @@ def main():
 	from socket import gethostname
 	nickname = 'ppayer-' + btc.sha256(gethostname())[:6]
 
-	print 'starting irc'
-	bot = PatientSendPayment(wallet, destaddr, amount, options.makercount,
+	irc = IRCMessageChannel(nickname)
+	bot = PatientSendPayment(irc, wallet, destaddr, amount, options.makercount,
 		options.txfee, options.cjfee, waittime, options.mixdepth)
 	try:
-		bot.run(HOST, PORT, nickname, CHANNEL)
-	finally:
+		irc.run()
+	except:
 		debug('CRASHING, DUMPING EVERYTHING')
 		debug('wallet seed = ' + seed)
 		debug_dump_object(wallet, ['addr_cache'])
-		debug_dump_object(bot)
+		debug_dump_object(taker)
+		import traceback
+		traceback.print_exc()
 
 if __name__ == "__main__":
 	main()
