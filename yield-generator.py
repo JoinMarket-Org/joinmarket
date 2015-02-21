@@ -3,7 +3,7 @@
 from maker import *
 import bitcoin as btc
 import time
-
+import os, binascii
 import pprint
 
 from socket import gethostname
@@ -11,7 +11,8 @@ from socket import gethostname
 txfee = 1000
 cjfee = '0.01' # 1% fee
 mix_levels = 5
-nickname = 'yigen-' + btc.sha256(gethostname())[:6]
+#nickname = 'yigen-' + btc.sha256(gethostname())[:6]
+nickname = 'yigen-'+binascii.hexlify(os.urandom(4))
 nickserv_password = ''
 minsize = int(2 * txfee / float(cjfee)) #minimum size is such that you always net profit at least the miners fee
 
@@ -88,7 +89,7 @@ def main():
 	try:
 		maker.run(HOST, PORT, nickname, CHANNEL)
 	finally:
-		debug('CRASHING, DUMPING EVERYTHING',fname='yield.out')
+		debug('CRASHING, DUMPING EVERYTHING', fname=seed+'_yieldgen.out')
 		debug('wallet seed = ' + seed)
 		debug_dump_object(wallet, ['addr_cache'])
 		debug_dump_object(maker)

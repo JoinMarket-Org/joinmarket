@@ -22,7 +22,8 @@ encrypted_commands = ["auth", "ioauth", "tx", "sig"]
 plaintext_commands = ["fill", "error", "pubkey", "orderbook", "relorder", "absorder"]
 
 def debug(msg, fname = None):
-	print datetime.datetime.now().strftime("[%Y/%m/%d %H:%M:%S] ") + msg
+	outmsg = datetime.datetime.now().strftime("[%Y/%m/%d %H:%M:%S] ") + msg
+	print outmsg
 	if fname: #TODO: this is an awfully ugly way to write a log...
 		with open(fname,'ab') as f:
 			f.write(outmsg)
@@ -103,7 +104,7 @@ def get_blockr_data(req):
 	return btc.make_request(req)
 
 def get_regtest_data(req):
-	myBCI = blockchaininterface.RegTestImp(btc_cli_loc)
+	myBCI = blockchaininterface.RegTestImp()
 	if not req.startswith('regtest'):
 		raise Exception("Invalid request to regtest")
 	req = ''.join(req.split(':')[1:]).split('/')
@@ -393,7 +394,7 @@ def calc_cj_fee(ordertype, cjfee, cj_amount):
 def calc_total_input_value(utxos):
 	input_sum = 0
 	for utxo in utxos:
-		tx = get_blockchain_data('txraw',csv_params=[utxo[:64]])['tx']['hex']
+		tx = get_blockchain_data('txraw', csv_params=[utxo[:64]])['tx']['hex']
 		#tx = btc.blockr_fetchtx(utxo[:64], get_network())
 		input_sum += int(btc.deserialize(tx)['outs'][int(utxo[65:])]['value'])
 	return input_sum
