@@ -144,7 +144,7 @@ def main():
         debug_dump_object(wallet, ['addr_cache'])
         debug_dump_object(taker)
         import traceback
-        debug(traceback.print_exc())
+        debug(traceback.format_exc())
 
 
 if __name__ == "__main__":

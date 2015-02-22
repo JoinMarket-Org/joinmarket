@@ -67,7 +67,7 @@ def debug_dump_object(obj, skip_fields=[]):
         elif isinstance(v, dict) or isinstance(v, list):
             debug(pprint.pformat(v))
         else:
-            debug(v)
+            debug(str(v))
 
 
 def get_addr_from_utxo(txhash, index):
