@@ -6,14 +6,13 @@ import bitcoin as btc
 import time
 import os, binascii
 import pprint
+import common
 
 from socket import gethostname
 
 txfee = 1000
 cjfee = '0.01'  # 1% fee
 mix_levels = 5
-#nickname = 'yigen-' + btc.sha256(gethostname())[:6]
-nickname = 'yigen-' + binascii.hexlify(os.urandom(4))
 nickserv_password = ''
 minsize = int(
     2 * txfee / float(cjfee)
@@ -100,18 +99,19 @@ def main():
 
     wallet = Wallet(seed, max_mix_depth=mix_levels)
     wallet.sync_wallet()
-    irc = IRCMessageChannel(nickname)
+    common.nickname = 'yigen-' + binascii.hexlify(os.urandom(4))
+    irc = IRCMessageChannel(common.nickname)
     maker = YieldGenerator(irc, wallet)
     try:
-        print 'connecting to irc'
+        debug('connecting to irc')
         irc.run()
     except:
-        debug('CRASHING, DUMPING EVERYTHING', fname=seed + '_yieldgen.out')
+        debug('CRASHING, DUMPING EVERYTHING')
         debug('wallet seed = ' + seed)
         debug_dump_object(wallet, ['addr_cache'])
         debug_dump_object(maker)
         import traceback
-        traceback.print_exc()
+        debug(traceback.print_exc())
 
 
 if __name__ == "__main__":

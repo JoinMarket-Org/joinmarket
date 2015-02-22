@@ -34,22 +34,16 @@ def local_command(command, bg=False, redirect=''):
             print "OS not recognised, quitting."
     elif redirect:
         command.extend(['>', redirect])
-    if OS == 'Windows':
-        if bg:
-            return subprocess.Popen(command, stdout=subprocess.PIPE,\
-                                    stderr=subprocess.PIPE, stdin=subprocess.PIPE)
-        else:
-            return subprocess.check_output(command)
-    elif OS == 'Linux':
-        if bg:
-            return subprocess.Popen(command, stdout=subprocess.PIPE,\
-                                    stderr=subprocess.PIPE, stdin=subprocess.PIPE)
-        else:
-            #in case of foreground execution, we can use the output; if not
-            #it doesn't matter
-            return subprocess.check_output(command)
+
+    if bg:
+        return subprocess.Popen(command,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE,
+                                stdin=subprocess.PIPE)
     else:
-        print "OS not recognised, quitting."
+        #in case of foreground execution, we can use the output; if not
+        #it doesn't matter
+        return subprocess.check_output(command)
 
 
 class Join2PTests(unittest.TestCase):
@@ -76,8 +70,9 @@ class Join2PTests(unittest.TestCase):
 
     def run_simple_send(self, n):
         #start yield generator with wallet1
-        yigen_proc = local_command(['python','yield-generator.py', str(self.wallets[1]['seed'])],\
-                                   bg=True)
+        yigen_proc = local_command(
+            ['python', 'yield-generator.py', str(self.wallets[1]['seed'])],
+            bg=True)
 
         #A significant delay is needed to wait for the yield generator to sync its wallet
         time.sleep(30)
@@ -91,19 +86,18 @@ class Join2PTests(unittest.TestCase):
                                                       str(amt), dest_address])
         except subprocess.CalledProcessError, e:
             if yigen_proc:
-                yigen_proc.kill()
+                yigen_proc.terminate()
             print e.returncode
             print e.message
             raise
 
         if yigen_proc:
-            yigen_proc.kill()
+            yigen_proc.terminate()
 
-        for cf in [self.wallets[1]['seed'] + '_yieldgen.out',
-                   self.wallets[2]['seed'] + '_send.out']:
-            if os.path.isfile(cf):
-                with open(cf, 'rb') as f:
-                    if 'CRASHING' in f.read(): return False
+        #for cf in [self.wallets[1]['seed']+'_yieldgen.out', self.wallets[2]['seed']+'_send.out']:
+        #    if os.path.isfile(cf):
+        #	with open(cf, 'rb') as f:
+        #	    if 'CRASHING' in f.read(): return False
 
         myBCI = blockchaininterface.RegTestImp()
         received = myBCI.get_balance_at_addr([dest_address])['data'][0][

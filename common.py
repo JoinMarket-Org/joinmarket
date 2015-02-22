@@ -10,23 +10,25 @@ CHANNEL = '#joinmarket-pit-test'
 PORT = 6667
 
 #for the mainnet its #joinmarket-pit
-
+nickname = ''
 COMMAND_PREFIX = '!'
 MAX_PRIVMSG_LEN = 400
 blockchain_source = 'blockr'
-btc_cli_loc = ''
 ordername_list = ["absorder", "relorder"]
 encrypted_commands = ["auth", "ioauth", "tx", "sig"]
 plaintext_commands = ["fill", "error", "pubkey", "orderbook", "relorder",
                       "absorder"]
+debug_file_handle = None
 
 
-def debug(msg, fname=None):
+def debug(msg):
+    global debug_file_handle
+    if nickname and not debug_file_handle:
+        debug_file_handle = open(nickname + '.log', 'ab')
     outmsg = datetime.datetime.now().strftime("[%Y/%m/%d %H:%M:%S] ") + msg
     print outmsg
-    if fname:  #TODO: this is an awfully ugly way to write a log...
-        with open(fname, 'ab') as f:
-            f.write(outmsg)
+    if nickname:  #debugs before creating bot nick won't be handled like this
+        debug_file_handle.write(outmsg + '\n')
 
 
 def chunks(d, n):
@@ -53,19 +55,19 @@ def get_signed_tx(wallet, ins, outs):
     return tx
 
 
-def debug_dump_object(obj, skip_fields=[], fname=None):
-    debug('Class debug dump, name:' + obj.__class__.__name__, fname)
+def debug_dump_object(obj, skip_fields=[]):
+    debug('Class debug dump, name:' + obj.__class__.__name__)
     for k, v in obj.__dict__.iteritems():
         if k in skip_fields:
             continue
-        debug('key=' + k, fname)
+        debug('key=' + k)
         if isinstance(v, str):
-            print 'string: len:' + str(len(v))
-            print v
+            debug('string: len:' + str(len(v)))
+            debug(v)
         elif isinstance(v, dict) or isinstance(v, list):
-            pprint.pprint(v)
+            debug(pprint.pformat(v))
         else:
-            print v
+            debug(v)
 
 
 def get_addr_from_utxo(txhash, index):
@@ -265,7 +267,7 @@ class Wallet(object):
         inputs = btc.select(unspent, amount)
         debug('for mixdepth=' + str(mixdepth) + ' amount=' + str(amount) +
               ' selected:')
-        pprint.pprint(inputs)
+        debug(pprint.pformat(inputs))
         return [i['utxo'] for i in inputs]
 
     def sync_wallet(self, gaplimit=6):
@@ -321,7 +323,7 @@ class Wallet(object):
                 for n in range(self.index[m][forchange]):
                     addrs[self.get_addr(m, forchange, n)] = m
         if len(addrs) == 0:
-            print 'no tx used'
+            debug('no tx used')
             return
 
         i = 0
@@ -349,10 +351,10 @@ class Wallet(object):
 
     def print_debug_wallet_info(self):
         debug('printing debug wallet information')
-        print 'utxos'
-        pprint.pprint(self.unspent)
-        print 'wallet.index'
-        pprint.pprint(self.index)
+        debug('utxos')
+        debug(pprint.pformat(self.unspent))
+        debug('wallet.index')
+        debug(pprint.pformat(self.index))
 
 
 #awful way of doing this, but works for now
@@ -548,7 +550,7 @@ def choose_sweep_order(db, my_total_input, my_tx_fee, n):
     dbgprint = [([(o['counterparty'], o['oid']) for o in oc[0]], oc[1])
                 for oc in ordercombos]
     debug('considered order combinations')
-    pprint.pprint(dbgprint)
+    debug(pprint.pformat(dbgprint))
     ordercombo = ordercombos[-1]  #choose the cheapest, i.e. highest cj_amount
     orders = dict([(o['counterparty'], o['oid']) for o in ordercombo[0]])
     cjamount = ordercombo[1]
