@@ -203,10 +203,10 @@ def main():
         print 'not enough money at mixdepth=%d, exiting' % (options.mixdepth)
         return
 
-    from socket import gethostname
-    nickname = 'ppayer-' + btc.sha256(gethostname())[:6]
+    import common, binascii, os
+    common.nickname = 'ppayer-' + binascii.hexlify(os.urandom(4))
 
-    irc = IRCMessageChannel(nickname)
+    irc = IRCMessageChannel(common.nickname)
     bot = PatientSendPayment(irc, wallet, destaddr, amount, options.makercount,
                              options.txfee, options.cjfee, waittime,
                              options.mixdepth)
