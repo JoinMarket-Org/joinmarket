@@ -5,20 +5,53 @@ from math import factorial
 import sys, datetime, json, time, pprint
 import threading
 import blockchaininterface
-
-HOST = 'irc.freenode.net'
-CHANNEL = '#joinmarket-pit-test'
-PORT = 6667
+from ConfigParser import SafeConfigParser
+import os
 
 #for the mainnet its #joinmarket-pit
 nickname = ''
 COMMAND_PREFIX = '!'
 MAX_PRIVMSG_LEN = 400
-blockchain_source = 'blockr'
+bc_interface = None
 ordername_list = ["absorder", "relorder"]
 encrypted_commands = ["auth", "ioauth", "tx", "sig"]
 plaintext_commands = ["fill", "error", "pubkey", "orderbook", "relorder", "absorder"]
 debug_file_handle = None
+
+config = SafeConfigParser()
+config_location = os.path.join(os.path.dirname(os.path.realpath(__file__)),'joinmarket.cfg')
+required_options = {'BLOCKCHAIN':['blockchain_source','port','rpcport','network'],
+                    'MESSAGING':['host','channel','port']}
+
+def load_program_config():
+	loadedFiles = config.read([config_location])
+	#detailed sanity checking :
+	#did the file exist?
+	if len(loadedFiles) != 1:
+		raise Exception("Could not find config file: "+config_location)
+	#check for sections
+	for s in required_options:
+		if s not in config.sections():
+			raise Exception("Config file does not contain the required section: "+s)
+	#then check for specific options
+	for k,v in required_options.iteritems():
+		for o in v:
+			if o not in config.options(k):
+				raise Exception("Config file does not contain the required option: "+o)
+			
+	#configure the interface to the blockchain on startup
+	global bc_interface
+	source = config.get("BLOCKCHAIN","blockchain_source")
+	port = config.get("BLOCKCHAIN","port")
+	rpcport = config.get("BLOCKCHAIN","rpcport")
+	if source == 'testnet':
+		bc_interface = blockchaininterface.TestNetImp(rpcport=rpcport,port=port)
+	elif source == 'regtest':
+		bc_interface = blockchaininterface.RegTestImp(rpcport=rpcport,port=port)
+	elif source == 'blockr':
+		bc_interface = blockchaininterface.BlockrImp()
+	else:
+		raise ValueError("Invalid blockchain source")	
 
 def debug(msg):
 	global debug_file_handle
@@ -33,7 +66,11 @@ def chunks(d, n):
 	return [d[x: x+n] for x in xrange(0, len(d), n)]
 
 def get_network():
-	return 'testnet'
+	'''Returns network name as required by pybitcointools'''
+	if config.get("BLOCKCHAIN","network") == 'testnet':
+		return 'testnet'
+	else:
+		raise Exception("Only testnet is currently implemented")
 
 #TODO change this name into get_addr_ver() or something
 def get_addr_vbyte():
@@ -67,7 +104,7 @@ def get_addr_from_utxo(txhash, index):
 	'''return the bitcoin address of the outpoint at 
 	the specified index for the transaction with specified hash.
 	Return None if no such index existed for that transaction.'''
-	data = get_blockchain_data('txinfo', csv_params=[txhash])
+	data = get_blockchain_data('txinfo', csv_params=[txhash], query_params=[True])
 	for a in data['vouts']:
 		if a['n']==index:
 			return a['address']
@@ -75,74 +112,11 @@ def get_addr_from_utxo(txhash, index):
 	
 def get_blockchain_data(body, csv_params=[],
                         query_params=[], network='test', output_key='data'):
-	'''A first step towards encapsulating blockchain queries.'''
-	if blockchain_source=='regtest':
-		stem = 'regtest:'
-	elif blockchain_source=='blockr':
-		stem = 'http://btc.blockr.io/api/v1/'
-		if network=='test': 
-			stem = stem[:7]+'t'+stem[7:]
-		elif network != 'main': 
-			raise Exception("unrecognised bitcoin network type")	
-	else:
-		raise Exception("Unrecognised blockchain source")
-	
-	bodies = {'addrtx':'address/txs/','txinfo':'tx/info/','addrunspent':'address/unspent/',
-	          'addrbalance':'address/balance/','txraw':'tx/raw/','txpush':'tx/push/'}
-	url = stem + bodies[body] + ','.join(csv_params) 
-	if query_params:
-		url += '?'+','.join(query_params)
-	if blockchain_source=='blockr':
-		res = json.loads(get_blockr_data(url))
-	elif blockchain_source=='regtest':
-		res = get_regtest_data(url)
-	else:
-		raise Exception("Unrecognised blockchain source")
-	
+	#TODO: do we still need the 'network' parameter? Almost certainly not.
+	res = bc_interface.parse_request(body, csv_params, query_params)
+	if type(bc_interface) == blockchaininterface.BlockrImp:
+		res = json.loads(res)
 	return res[output_key]
-
-def get_blockr_data(req):
-	if 'tx/push' in req: #manually parse this; special case because POST not GET?
-		return btc.blockr_pushtx(req.split('/')[-1], get_network())
-	return btc.make_request(req)
-
-def get_regtest_data(req):
-	myBCI = blockchaininterface.RegTestImp()
-	if not req.startswith('regtest'):
-		raise Exception("Invalid request to regtest")
-	req = ''.join(req.split(':')[1:]).split('/')
-	if req[0]=='address' and req[1]=='txs':
-		addrs = req[2].split(',')
-		if '?' in addrs[-1]:
-			#TODO simulate dealing with unconfirmed
-			addrs[-1] = addrs[-1].split('?')[0]		
-		#NB: we don't allow unconfirmeds in regtest
-		#for now; TODO
-		if 'unconfirmed' in addrs[-1]:
-			addrs = addrs[:-1]
-		return myBCI.get_txs_from_addr(addrs)
-	elif req[0]=='tx' and req[1]=='info':
-		txhash = req[2] #TODO currently only allowing one tx
-		return myBCI.get_tx_info(txhash)
-	elif req[0]=='address' and req[1] == 'balance':
-		addrs = req[2].split(',')
-		if '?' in addrs[-1]:
-			#TODO simulate dealing with unconfirmed
-			addrs[-1] = addrs[-1].split('?')[0]
-		return myBCI.get_balance_at_addr(addrs)
-	elif req[0]=='address' and req[1] == 'unspent':
-		if '?' in req[2]: req[2] = req[2].split('?')[0]
-		addrs = req[2].split(',')
-		return myBCI.get_utxos_from_addr(addrs)
-	elif req[0]=='tx' and req[1] == 'raw':
-		txhex = req[2]
-		return myBCI.get_tx_info(txhex, raw=True)
-	elif req[0]=='tx' and req[1] == 'push':
-		txraw = req[2]
-		return myBCI.send_tx(txraw)
-	else:
-		raise Exception ("Unrecognized call to regtest blockchain interface: " + '/'.join(req))
-	
 	
 class Wallet(object):
 	def __init__(self, seed, max_mix_depth=2):
@@ -286,7 +260,8 @@ class Wallet(object):
 		'''
 
 		addr_req_count = 20
-
+		#print 'working with index: '
+		#print self.index
 		#TODO handle the case where there are so many addresses it cant
 		# fit into one api call (>50 or so)
 		addrs = {}
@@ -308,8 +283,13 @@ class Wallet(object):
 			#TODO send a pull request to pybitcointools 
 			# unspent() doesnt tell you which address, you get a bunch of utxos
 			# but dont know which privkey to sign with
+			#print 'testing with addresses: '
+			#print req
 			data = get_blockchain_data('addrunspent', csv_params=req, 
 			                          query_params=['unconfirmed=1'])
+			#print 'got data: '
+			#print data
+			
 			if 'unspent' in data:
 				data = [data]
 			for dat in data:
@@ -396,7 +376,7 @@ def calc_cj_fee(ordertype, cjfee, cj_amount):
 def calc_total_input_value(utxos):
 	input_sum = 0
 	for utxo in utxos:
-		tx = get_blockchain_data('txraw', csv_params=[utxo[:64]])['tx']['hex']
+		tx = get_blockchain_data('txraw', csv_params=[utxo[:64]],query_params=[False])['tx']['hex']
 		#tx = btc.blockr_fetchtx(utxo[:64], get_network())
 		input_sum += int(btc.deserialize(tx)['outs'][int(utxo[65:])]['value'])
 	return input_sum

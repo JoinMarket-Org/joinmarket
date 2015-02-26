@@ -87,7 +87,9 @@ def main():
 	seed = args[0]
 	amount = int(args[1])
 	destaddr = args[2]
-
+	
+	common.load_program_config()
+	
 	import binascii, os
 	common.nickname = 'payer-' +binascii.hexlify(os.urandom(4))
 

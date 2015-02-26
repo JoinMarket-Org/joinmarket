@@ -81,6 +81,7 @@ class YieldGenerator(Maker):
 		return self.on_tx_unconfirmed(None, None, None)
 
 def main():
+	common.load_program_config()
 	import sys
 	seed = sys.argv[1] #btc.sha256('dont use brainwallets except for holding testnet coins')
 
