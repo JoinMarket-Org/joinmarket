@@ -124,7 +124,7 @@ def main():
     seed = args[0]
     amount = int(args[1])
     destaddr = args[2]
-
+    load_program_config()
     from socket import gethostname
     nickname = 'payer-' + btc.sha256(gethostname())[:6]
 
