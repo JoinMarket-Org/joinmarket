@@ -1,5 +1,5 @@
 import bitcoin as btc
-from common import Wallet, get_signed_tx
+from common import Wallet, get_signed_tx, load_program_config
 
 import sys
 from optparse import OptionParser
@@ -46,6 +46,8 @@ if len(args) < 1:
     parser.error('Needs a seed')
     sys.exit(0)
 seed = args[0]
+
+load_program_config()
 
 method = ('display' if len(args) == 1 else args[1].lower())
 

@@ -92,6 +92,7 @@ class YieldGenerator(Maker):
 
 
 def main():
+    common.load_program_config()
     import sys
     seed = sys.argv[
         1
