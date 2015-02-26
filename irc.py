@@ -410,13 +410,13 @@ class IRCMessageChannel(MessageChannel):
 						break
 					self.__handle_line(line)
 			except IOError as e:
-				print repr(e)
+				debug(repr(e))
 			finally:
 				self.fd.close()
 				self.sock.close()
 			if self.on_disconnect:
 				self.on_disconnect()
-			print 'disconnected irc'
+			debug('disconnected irc')
 			time.sleep(10)
 			self.connect_attempts += 1
 		debug('ending irc')

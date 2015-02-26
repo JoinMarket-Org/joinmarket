@@ -4,22 +4,30 @@ from decimal import Decimal
 from math import factorial
 import sys, datetime, json, time, pprint
 import threading
+import blockchaininterface
 
 HOST = 'irc.freenode.net'
 CHANNEL = '#joinmarket-pit-test'
 PORT = 6667
 
 #for the mainnet its #joinmarket-pit
-
+nickname = ''
 COMMAND_PREFIX = '!'
 MAX_PRIVMSG_LEN = 400
-
+blockchain_source = 'blockr'
 ordername_list = ["absorder", "relorder"]
 encrypted_commands = ["auth", "ioauth", "tx", "sig"]
 plaintext_commands = ["fill", "error", "pubkey", "orderbook", "relorder", "absorder"]
+debug_file_handle = None
 
 def debug(msg):
-	print datetime.datetime.now().strftime("[%Y/%m/%d %H:%M:%S] ") + msg
+	global debug_file_handle
+	if nickname and not debug_file_handle: 
+		debug_file_handle = open(nickname+'.log','ab')
+	outmsg = datetime.datetime.now().strftime("[%Y/%m/%d %H:%M:%S] ") + msg
+	print outmsg
+	if nickname: #debugs before creating bot nick won't be handled like this
+		debug_file_handle.write(outmsg + '\n')
 
 def chunks(d, n):
 	return [d[x: x+n] for x in xrange(0, len(d), n)]
@@ -42,18 +50,18 @@ def get_signed_tx(wallet, ins, outs):
 	return tx
 	
 def debug_dump_object(obj, skip_fields=[]):
-	print 'Class debug dump, name:' + obj.__class__.__name__
+	debug('Class debug dump, name:' + obj.__class__.__name__)
 	for k, v in obj.__dict__.iteritems():
 		if k in skip_fields:
 			continue
-		print 'key=' + k
+		debug('key=' + k)
 		if isinstance(v, str):
-			print 'string: len:' + str(len(v))
-			print v
+			debug('string: len:' + str(len(v)))
+			debug(v)
 		elif isinstance(v, dict) or isinstance(v, list):
-			pprint.pprint(v)
+			debug(pprint.pformat(v))
 		else:
-			print v
+			debug(str(v))
 
 def get_addr_from_utxo(txhash, index):
 	'''return the bitcoin address of the outpoint at 
@@ -65,20 +73,76 @@ def get_addr_from_utxo(txhash, index):
 			return a['address']
 	return None
 	
-def get_blockchain_data(body, source='blockr', csv_params=[],
+def get_blockchain_data(body, csv_params=[],
                         query_params=[], network='test', output_key='data'):
 	'''A first step towards encapsulating blockchain queries.'''
-	if source != 'blockr': raise Exception ("source not yet implemented")
-	stem = 'http://btc.blockr.io/api/v1/'
-	if network=='test': stem = stem[:7]+'t'+stem[7:]
-	elif network != 'main': raise Exception("unrecognised bitcoin network type")
+	if blockchain_source=='regtest':
+		stem = 'regtest:'
+	elif blockchain_source=='blockr':
+		stem = 'http://btc.blockr.io/api/v1/'
+		if network=='test': 
+			stem = stem[:7]+'t'+stem[7:]
+		elif network != 'main': 
+			raise Exception("unrecognised bitcoin network type")	
+	else:
+		raise Exception("Unrecognised blockchain source")
+	
 	bodies = {'addrtx':'address/txs/','txinfo':'tx/info/','addrunspent':'address/unspent/',
-	          'addrbalance':'address/balance/'}
+	          'addrbalance':'address/balance/','txraw':'tx/raw/','txpush':'tx/push/'}
 	url = stem + bodies[body] + ','.join(csv_params) 
 	if query_params:
 		url += '?'+','.join(query_params)
-	res = btc.make_request(url)
-	return json.loads(res)[output_key]
+	if blockchain_source=='blockr':
+		res = json.loads(get_blockr_data(url))
+	elif blockchain_source=='regtest':
+		res = get_regtest_data(url)
+	else:
+		raise Exception("Unrecognised blockchain source")
+	
+	return res[output_key]
+
+def get_blockr_data(req):
+	if 'tx/push' in req: #manually parse this; special case because POST not GET?
+		return btc.blockr_pushtx(req.split('/')[-1], get_network())
+	return btc.make_request(req)
+
+def get_regtest_data(req):
+	myBCI = blockchaininterface.RegTestImp()
+	if not req.startswith('regtest'):
+		raise Exception("Invalid request to regtest")
+	req = ''.join(req.split(':')[1:]).split('/')
+	if req[0]=='address' and req[1]=='txs':
+		addrs = req[2].split(',')
+		if '?' in addrs[-1]:
+			#TODO simulate dealing with unconfirmed
+			addrs[-1] = addrs[-1].split('?')[0]		
+		#NB: we don't allow unconfirmeds in regtest
+		#for now; TODO
+		if 'unconfirmed' in addrs[-1]:
+			addrs = addrs[:-1]
+		return myBCI.get_txs_from_addr(addrs)
+	elif req[0]=='tx' and req[1]=='info':
+		txhash = req[2] #TODO currently only allowing one tx
+		return myBCI.get_tx_info(txhash)
+	elif req[0]=='address' and req[1] == 'balance':
+		addrs = req[2].split(',')
+		if '?' in addrs[-1]:
+			#TODO simulate dealing with unconfirmed
+			addrs[-1] = addrs[-1].split('?')[0]
+		return myBCI.get_balance_at_addr(addrs)
+	elif req[0]=='address' and req[1] == 'unspent':
+		if '?' in req[2]: req[2] = req[2].split('?')[0]
+		addrs = req[2].split(',')
+		return myBCI.get_utxos_from_addr(addrs)
+	elif req[0]=='tx' and req[1] == 'raw':
+		txhex = req[2]
+		return myBCI.get_tx_info(txhex, raw=True)
+	elif req[0]=='tx' and req[1] == 'push':
+		txraw = req[2]
+		return myBCI.send_tx(txraw)
+	else:
+		raise Exception ("Unrecognized call to regtest blockchain interface: " + '/'.join(req))
+	
 	
 class Wallet(object):
 	def __init__(self, seed, max_mix_depth=2):
@@ -177,7 +241,7 @@ class Wallet(object):
 			for utxo in utxo_list]
 		inputs = btc.select(unspent, amount)
 		debug('for mixdepth=' + str(mixdepth) + ' amount=' + str(amount) + ' selected:')
-		pprint.pprint(inputs)
+		debug(pprint.pformat(inputs))
 		return [i['utxo'] for i in inputs]
 
 	def sync_wallet(self, gaplimit=6):
@@ -231,7 +295,7 @@ class Wallet(object):
 				for n in range(self.index[m][forchange]):
 					addrs[self.get_addr(m, forchange, n)] = m
 		if len(addrs) == 0:
-			print 'no tx used'
+			debug('no tx used')
 			return
 
 		i = 0
@@ -251,15 +315,16 @@ class Wallet(object):
 			for dat in data:
 				for u in dat['unspent']:
 					if u['confirmations'] != 0:
+						u['amount'] = int(Decimal(1e8) * Decimal(u['amount']))
 						self.unspent[u['tx']+':'+str(u['n'])] = {'address':
-						dat['address'], 'value': int(u['amount'].replace('.', ''))}
+						dat['address'], 'value': u['amount']}
 
 	def print_debug_wallet_info(self):
 		debug('printing debug wallet information')
-		print 'utxos'
-		pprint.pprint(self.unspent)
-		print 'wallet.index'
-		pprint.pprint(self.index)
+		debug('utxos')
+		debug(pprint.pformat(self.unspent))
+		debug('wallet.index')
+		debug(pprint.pformat(self.index))
 
 
 #awful way of doing this, but works for now
@@ -292,6 +357,8 @@ def add_addr_notify(address, unconfirmfun, confirmfun, unconfirmtimeout=5,
 					return
 				data = get_blockchain_data('addrbalance', csv_params=[self.address],
 				                           query_params=['confirmations=0'])
+				if type(data) == list:
+					data = data[0] #needed because blockr's json structure is inconsistent
 				if data['balance'] > 0:
 					break
 			self.unconfirmfun(data['balance']*1e8)
@@ -329,7 +396,8 @@ def calc_cj_fee(ordertype, cjfee, cj_amount):
 def calc_total_input_value(utxos):
 	input_sum = 0
 	for utxo in utxos:
-		tx = btc.blockr_fetchtx(utxo[:64], get_network())
+		tx = get_blockchain_data('txraw', csv_params=[utxo[:64]])['tx']['hex']
+		#tx = btc.blockr_fetchtx(utxo[:64], get_network())
 		input_sum += int(btc.deserialize(tx)['outs'][int(utxo[65:])]['value'])
 	return input_sum
 
@@ -426,7 +494,7 @@ def choose_sweep_order(db, my_total_input, my_tx_fee, n):
 	ordercombos = sorted(ordercombos, key=lambda k: k[1])
 	dbgprint = [([(o['counterparty'], o['oid']) for o in oc[0]], oc[1]) for oc in ordercombos]
 	debug('considered order combinations')
-	pprint.pprint(dbgprint)
+	debug(pprint.pformat(dbgprint))
 	ordercombo = ordercombos[-1] #choose the cheapest, i.e. highest cj_amount
 	orders = dict([(o['counterparty'], o['oid']) for o in ordercombo[0]])
 	cjamount = ordercombo[1]
