@@ -1,6 +1,6 @@
 
 import bitcoin as btc
-from common import Wallet, get_signed_tx
+from common import Wallet, get_signed_tx, load_program_config
 
 import sys
 from optparse import OptionParser
@@ -37,6 +37,8 @@ if len(args) < 1:
 seed = args[0]
 
 method = ('display' if len(args) == 1 else args[1].lower())
+
+load_program_config()
 
 #seed = '256 bits of randomness'
 

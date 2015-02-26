@@ -4,7 +4,7 @@ from maker import *
 from irc import IRCMessageChannel
 import bitcoin as btc
 import time
-
+from common import *
 import pprint
 
 from socket import gethostname
@@ -83,7 +83,7 @@ class YieldGenerator(Maker):
 def main():
 	import sys
 	seed = sys.argv[1] #btc.sha256('dont use brainwallets except for holding testnet coins')
-
+	load_program_config()
 	wallet = Wallet(seed, max_mix_depth = mix_levels)
 	wallet.sync_wallet()
 	irc = IRCMessageChannel(nickname)

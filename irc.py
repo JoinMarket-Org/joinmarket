@@ -372,12 +372,12 @@ class IRCMessageChannel(MessageChannel):
 			self.motd_fd.close()
 		'''
 
-	def __init__(self, nick, server=HOST, port=PORT, channel=CHANNEL, username='username', realname='realname'):
+	def __init__(self, nick, username='username', realname='realname'):
 		MessageChannel.__init__(self)
 		self.cjpeer = None #subclasses have to set this to self
 		self.nick = nick
-		self.serverport = (server, port)
-		self.channel = channel
+		self.serverport = (config.get("MESSAGING","host"), int(config.get("MESSAGING","port")))
+		self.channel = '#'+config.get("MESSAGING","channel")
 		self.userrealname = (username, realname)
 
 	def run(self):

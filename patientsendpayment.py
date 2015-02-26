@@ -134,7 +134,9 @@ def main():
 	seed = args[0]
 	amount = int(args[1])
 	destaddr = args[2]
-
+	
+	load_program_config()
+	
 	waittime = timedelta(hours=options.waittime).total_seconds()
 	print 'Running patient sender of a payment'
 	print 'txfee=%d cjfee=%d waittime=%s makercount=%d' % (options.txfee, options.cjfee,
