@@ -53,6 +53,7 @@ def load_program_config():
         bc_interface = blockchaininterface.TestNetImp(rpcport=rpcport,
                                                       port=port)
     elif source == 'regtest':
+        print 'setting it'
         bc_interface = blockchaininterface.RegTestImp(rpcport=rpcport,
                                                       port=port)
     elif source == 'blockr':

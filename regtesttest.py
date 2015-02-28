@@ -1,8 +1,8 @@
 import sys
-import os
+import os, time
 import subprocess
 import unittest
-from common import *
+import common
 from blockchaininterface import *
 import bitcoin as btc
 import binascii
@@ -55,18 +55,17 @@ class Join2PTests(unittest.TestCase):
         seed1, seed2 = [binascii.hexlify(x)
                         for x in [os.urandom(15), os.urandom(15)]]
         self.wallets = {}
-        wallet1 = Wallet(seed1)
-        wallet2 = Wallet(seed2)
+        wallet1 = common.Wallet(seed1)
+        wallet2 = common.Wallet(seed2)
         self.wallets[1] = {'seed': seed1, 'wallet': wallet1}
         self.wallets[2] = {'seed': seed2, 'wallet': wallet2}
-        bci = RegTestImp()
         #get first address in each wallet
         addr1 = wallet1.get_receive_addr(0)
-        debug("address for wallet1: " + addr1)
+        common.debug("address for wallet1: " + addr1)
         addr2 = wallet2.get_receive_addr(0)
-        debug("address for wallet2: " + addr2)
-        bci.grab_coins(addr1, 10)
-        bci.grab_coins(addr2, 10)
+        common.debug("address for wallet2: " + addr2)
+        common.bc_interface.grab_coins(addr1, 10)
+        common.bc_interface.grab_coins(addr2, 10)
 
     def run_simple_send(self, n):
         #start yield generator with wallet1
@@ -79,7 +78,8 @@ class Join2PTests(unittest.TestCase):
 
         #run a single sendpayment call with wallet2
         amt = 100000000  #in satoshis
-        dest_address = btc.privkey_to_address(os.urandom(32), get_addr_vbyte())
+        dest_address = btc.privkey_to_address(
+            os.urandom(32), common.get_addr_vbyte())
         try:
             for i in range(n):
                 sp_proc = local_command(['python','sendpayment.py','-N','1', self.wallets[2]['seed'],\
@@ -99,9 +99,8 @@ class Join2PTests(unittest.TestCase):
         #	with open(cf, 'rb') as f:
         #	    if 'CRASHING' in f.read(): return False
 
-        myBCI = blockchaininterface.RegTestImp()
-        received = myBCI.get_balance_at_addr([dest_address])['data'][0][
-            'balance']
+        received = common.bc_interface.get_balance_at_addr(
+            [dest_address], None)['data'][0]['balance']
         if received != amt:
             return False
         return True
@@ -122,13 +121,13 @@ class JoinNPTests(unittest.TestCase):
         seeds = [binascii.hexlify(''.join(x)) for x in seeds]
         self.wallets = {}
         for i, seed in enumerate(seeds):
-            self.wallets[i] = {'seed': seed, 'wallet': Wallet(seed)}
+            self.wallets[i] = {'seed': seed, 'wallet': common.Wallet(seed)}
 
-        bci = RegTestImp()
-        #get first address in each wallet
+    #get first address in each wallet
         for i in self.wallets.keys():
-            bci.grab_coins(self.wallets[i]['wallet'].get_receive_addr(0),
-                           amt=10)
+            common.bc_interface.grab_coins(
+                self.wallets[i]['wallet'].get_receive_addr(0),
+                amt=10)
 
             #the sender is wallet (n+1), i.e. index wallets[n]
 
@@ -148,7 +147,8 @@ class JoinNPTests(unittest.TestCase):
 
         #run a single sendpayment call
         amt = 100000000  #in satoshis
-        dest_address = btc.privkey_to_address(os.urandom(32), get_addr_vbyte())
+        dest_address = btc.privkey_to_address(
+            os.urandom(32), common.get_addr_vbyte())
         try:
             sp_proc = local_command(['python','sendpayment.py','-N', str(self.n),\
                                      self.wallets[self.n]['seed'], str(amt), dest_address])
@@ -171,15 +171,18 @@ class JoinNPTests(unittest.TestCase):
         #with open(cf, 'rb') as f:
         #    if 'CRASHING' in f.read(): return False
 
-        myBCI = blockchaininterface.RegTestImp()
-        received = myBCI.get_balance_at_addr([dest_address])['data'][0][
-            'balance']
+        received = common.bc_interface.get_balance_at_addr(
+            [dest_address], None)['data'][0]['balance']
         if received != amt:
             return False
         return True
 
 
 def main():
+    common.load_program_config()
+    if not common.bc_interface:
+        print 'not there'
+        exit()
     unittest.main()
 
 
