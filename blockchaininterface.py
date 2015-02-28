@@ -203,6 +203,7 @@ class TestNetImp(BlockChainInterface):
 #with > 100 blocks.
 class RegTestImp(TestNetImp):
     def __init__(self, port=8331, rpcport=18331):
+	super(TestNetImp,self).__init__() #note: call to *grandparent* init for fptrs
         self.command_params = ['bitcoin-cli', '-port='+str(port), '-rpcport='+str(rpcport),'-regtest']
         #quick check that it's up else quit
         try:
@@ -215,8 +216,8 @@ class RegTestImp(TestNetImp):
             print e        
 
     
-    def send_tx(self, tx_hex):
-        super(RegTestImp, self).send_tx(tx_hex)
+    def send_tx(self, tx_hex, query_params):
+        super(RegTestImp, self).send_tx(tx_hex, query_params)
         self.tick_forward_chain(1)
         
     def tick_forward_chain(self, n):
