@@ -4,12 +4,8 @@ from decimal import Decimal
 from math import factorial
 import sys, datetime, json, time, pprint
 import threading
-
-HOST = 'irc.freenode.net'
-CHANNEL = '#joinmarket-pit-test'
-PORT = 6667
-
-#for the mainnet its #joinmarket-pit
+from ConfigParser import SafeConfigParser
+import os
 
 COMMAND_PREFIX = '!'
 MAX_PRIVMSG_LEN = 400
@@ -18,6 +14,27 @@ ordername_list = ["absorder", "relorder"]
 encrypted_commands = ["auth", "ioauth", "tx", "sig"]
 plaintext_commands = ["fill", "error", "pubkey", "orderbook", "relorder", "absorder"]
 
+config = SafeConfigParser()
+config_location = os.path.join(os.path.dirname(os.path.realpath(__file__)),'joinmarket.cfg')
+required_options = {'BLOCKCHAIN':['blockchain_source','port','rpcport','network'],
+                    'MESSAGING':['host','channel','port']}
+
+def load_program_config():
+	loadedFiles = config.read([config_location])
+	#detailed sanity checking :
+	#did the file exist?
+	if len(loadedFiles) != 1:
+		raise Exception("Could not find config file: "+config_location)
+	#check for sections
+	for s in required_options:
+		if s not in config.sections():
+			raise Exception("Config file does not contain the required section: "+s)
+	#then check for specific options
+	for k,v in required_options.iteritems():
+		for o in v:
+			if o not in config.options(k):
+				raise Exception("Config file does not contain the required option: "+o)
+			
 def debug(msg):
 	print datetime.datetime.now().strftime("[%Y/%m/%d %H:%M:%S] ") + msg
 
