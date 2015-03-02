@@ -2,6 +2,7 @@ from optparse import OptionParser
 import datetime
 import numpy as np
 from pprint import pprint
+import common
 
 
 def lower_bounded_int(thelist, lowerbound):
@@ -141,6 +142,8 @@ def main():
         sys.exit(0)
     seed = args[0]
     destaddrs = args[1:]
+
+    common.load_program_config()
 
     if len(destaddrs) + options.addrask <= 1:
         print '=' * 50
