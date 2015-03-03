@@ -3,8 +3,9 @@ from optparse import OptionParser
 import datetime
 import numpy as np
 from pprint import pprint
+import common
 
-def int_lower_bounded(thelist, lowerbound):
+def lower_bounded_int(thelist, lowerbound):
 	return [int(l) if int(l) >= lowerbound else lowerbound for l in thelist]
 
 def generate_tumbler_tx(destaddrs, options):
@@ -18,18 +19,17 @@ def generate_tumbler_tx(destaddrs, options):
 	# follows a normal distribution
 	txcounts = np.random.normal(options.txcountparams[0],
 		options.txcountparams[1], options.mixdepthcount)
-	txcounts = int_lower_bounded(txcounts, 1)
-
+	txcounts = lower_bounded_int(txcounts, 1)
 	tx_list = []
 	for m, txcount in enumerate(txcounts):
 		#assume that the sizes of outputs will follow a power law
-		amount_ratios = np.random.power(options.amountpower, txcount)
+		amount_ratios = 1.0 - np.random.power(options.amountpower, txcount)
 		amount_ratios /= sum(amount_ratios)
 		#transaction times are uncorrelated and therefore follow poisson
 		blockheight_waits = np.random.poisson(options.timelambda, txcount)
 		#number of makers to use follows a normal distribution
 		makercounts = np.random.normal(options.makercountrange[0], options.makercountrange[1], txcount)
-		makercounts = int_lower_bounded(makercounts, 2)
+		makercounts = lower_bounded_int(makercounts, 2)
 		for amount_ratio, blockheight_wait, makercount in zip(amount_ratios, blockheight_waits, makercounts):
 			tx = {'amount_ratio': amount_ratio, 'blockheight_wait': blockheight_wait,
 				'srcmixdepth': m + options.mixdepthsrc, 'makercount': makercount}
@@ -57,7 +57,8 @@ def main():
 	parser.add_option('-f', '--txfee', type='int', dest='txfee',
 		default=10000, help='miner fee contribution, in satoshis, default=10000')
 	parser.add_option('-a', '--addrask', type='int', dest='addrask',
-		default=2, help='How many more addresses to ask for in the terminal, default=2')
+		default=2, help='How many more addresses to ask for in the terminal. Should '
+			'be similar to --txcountparams. default=2')
 	parser.add_option('-N', '--makercountrange', type='float', nargs=2, action='store',
 		dest='makercountrange',
 		help='Input the range of makers to use. e.g. 3-5 will random use between '
@@ -66,10 +67,10 @@ def main():
 		help='how many mixing depths to mix through', default=3)
 	parser.add_option('-c', '--txcountparams', type='float', nargs=2, dest='txcountparams', default=(5, 1),
 		help='The number of transactions to take coins from one mixing depth to the next, it is'
-		' randomly chosen following a normal distribution. This option controlled the parameters'
-		' of that normal curve. (mean, standard deviation). default=(5, 1)')
-	parser.add_option('--amountpower', type='float', dest='amountpower', default=3.0,
-		help='the output amounts follow a power law distribution, this is the power, default=3.0')
+		' randomly chosen following a normal distribution. Should be similar to --addrask. '
+		'This option controlled the parameters of that normal curve. (mean, standard deviation). default=(3, 1)')
+	parser.add_option('--amountpower', type='float', dest='amountpower', default=100.0,
+		help='the output amounts follow a power law distribution, this is the power, default=100.0')
 	parser.add_option('-l', '--timelambda', type='float', dest='timelambda', default=2,
 		help='the number of blocks to wait between transactions is randomly chosen '
 		' following a poisson distribution. This parameter is the lambda of that '
@@ -84,7 +85,9 @@ def main():
 		sys.exit(0)
 	seed = args[0]
 	destaddrs = args[1:]
-
+	
+	common.load_program_config()
+	
 	if len(destaddrs) + options.addrask <= 1:
 		print '='*50
 		print 'WARNING: You are only using one destination address'
@@ -98,10 +101,10 @@ def main():
 
 	#a couple of overarching modes
 	#im-running-from-the-nsa, takes about 80 hours, costs a lot
-	#python tumbler.py -N 10 5 -c 10 5 -l 5 -M 10 seed 1
+	#python tumbler.py -a 10 -N 10 5 -c 10 5 -l 5 -M 10 seed 1xxx
 	#
 	#quick and cheap, takes about 90 minutes
-	#python tumbler.py -N 2 1 -c 3 0.001 -l 2 -M 2 seed 1
+	#python tumbler.py -N 2 1 -c 3 0.001 -l 2 -M 2 seed 1xxx 1yyy
 	#
 	#default, good enough for most, takes about 5 hours
 	#python tumbler.py seed 1
