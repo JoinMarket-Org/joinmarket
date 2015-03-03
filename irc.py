@@ -377,7 +377,7 @@ class IRCMessageChannel(MessageChannel):
 		self.cjpeer = None #subclasses have to set this to self
 		self.nick = nick
 		self.serverport = (config.get("MESSAGING","host"), int(config.get("MESSAGING","port")))
-		self.channel = '#'+config.get("MESSAGING","channel")
+		self.channel = '#'+ config.get("MESSAGING","channel")
 		self.userrealname = (username, realname)
 
 	def run(self):
@@ -410,13 +410,13 @@ class IRCMessageChannel(MessageChannel):
 						break
 					self.__handle_line(line)
 			except IOError as e:
-				print repr(e)
+				debug(repr(e))
 			finally:
 				self.fd.close()
 				self.sock.close()
 			if self.on_disconnect:
 				self.on_disconnect()
-			print 'disconnected irc'
+			debug('disconnected irc')
 			time.sleep(10)
 			self.connect_attempts += 1
 		debug('ending irc')

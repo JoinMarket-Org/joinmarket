@@ -121,7 +121,7 @@ class CoinJoinTX(object):
 		for index, ins in enumerate(self.latest_tx['ins']):
 			if ins['script'] != '':
 				continue
-			ftx = btc.blockr_fetchtx(ins['outpoint']['hash'], get_network())
+			ftx = get_blockchain_data('txraw', csv_params=[ins['outpoint']['hash']], query_params=[False])['tx']['hex']
 			src_val = btc.deserialize(ftx)['outs'][ ins['outpoint']['index'] ]
 			sig_good = btc.verify_tx_input(tx, index, src_val['script'], *btc.deserialize_script(sig))
 			if sig_good:
@@ -144,7 +144,7 @@ class CoinJoinTX(object):
 		debug('the entire tx is signed, ready to pushtx()')
 
 		print btc.serialize(self.latest_tx)
-		ret = btc.blockr_pushtx(btc.serialize(self.latest_tx), get_network())
+		ret = get_blockchain_data('txpush', csv_params=[btc.serialize(self.latest_tx)])
 		debug('pushed tx ' + str(ret))
 		if self.finishcallback != None:
 			self.finishcallback()
