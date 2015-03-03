@@ -69,9 +69,11 @@ class BlockrImp(BlockChainInterface):
         self.query_stem = 'http://tbtc.blockr.io/api/v1/' if testnet else 'http://tbtc.blockr.io/api/v1/'
     
     def parse_request(self, body, csv_params, query_params=None):
-	if body=='pushtx':
+	if body=='txpush':
 	    return super(BlockrImp, self).parse_request(body, csv_params, query_params)
 	else:
+	    if body == 'txinfo' or body == 'txraw':
+		query_params = query_params[1:]
 	    req = self.query_stem + self.bodies[body] + '/' + ','.join(csv_params) + '?' + ','.join(query_params)
 	    return btc.make_request(req)
     
@@ -158,7 +160,7 @@ class TestNetImp(BlockChainInterface):
         return {'data':result} 
     
     def get_tx_info(self, txhashes, query_params):
-	'''Returns a list of vouts if raw is False, else returns tx hex'''
+	'''Returns a list of vouts if first entry in query params is False, else returns tx hex'''
 	#TODO: handle more than one tx hash
         res = json.loads(self.rpc(['getrawtransaction', txhashes[0], '1']))
         if not query_params[0]:
