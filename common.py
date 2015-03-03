@@ -6,8 +6,6 @@ import threading
 import blockchaininterface
 from ConfigParser import SafeConfigParser
 import os
-
-#for the mainnet its #joinmarket-pit
 nickname = ''
 COMMAND_PREFIX = '!'
 MAX_PRIVMSG_LEN = 400
