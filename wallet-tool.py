@@ -47,6 +47,8 @@ if len(args) < 1:
     sys.exit(0)
 seed = args[0]
 
+load_program_config()
+
 method = ('display' if len(args) == 1 else args[1].lower())
 
 load_program_config()

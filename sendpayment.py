@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 
 from common import *
+import common
 import taker as takermodule
 from irc import IRCMessageChannel
 import bitcoin as btc
@@ -124,18 +125,20 @@ def main():
     seed = args[0]
     amount = int(args[1])
     destaddr = args[2]
-    load_program_config()
-    from socket import gethostname
-    nickname = 'payer-' + btc.sha256(gethostname())[:6]
+
+    common.load_program_config()
+
+    import binascii, os
+    common.nickname = 'payer-' + binascii.hexlify(os.urandom(4))
 
     wallet = Wallet(seed, options.mixdepth + 1)
     wallet.sync_wallet()
 
-    irc = IRCMessageChannel(nickname)
+    irc = IRCMessageChannel(common.nickname)
     taker = SendPayment(irc, wallet, destaddr, amount, options.makercount,
                         options.txfee, options.waittime, options.mixdepth)
     try:
-        print 'starting irc'
+        debug('starting irc')
         irc.run()
     except:
         debug('CRASHING, DUMPING EVERYTHING')
@@ -143,7 +146,7 @@ def main():
         debug_dump_object(wallet, ['addr_cache'])
         debug_dump_object(taker)
         import traceback
-        traceback.print_exc()
+        debug(traceback.format_exc())
 
 
 if __name__ == "__main__":

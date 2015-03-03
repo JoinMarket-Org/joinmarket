@@ -180,11 +180,12 @@ class GUITaker(taker.OrderbookWatch):
 
 
 def main():
-    from socket import gethostname
     import bitcoin as btc
-    nickname = 'guitaker-' + btc.sha256(gethostname())[:6]
+    import common
+    import binascii, os
+    common.nickname = 'guitaker-' + binascii.hexlify(os.urandom(4))
 
-    irc = IRCMessageChannel(nickname)
+    irc = IRCMessageChannel(common.nickname)
     taker = GUITaker(irc)
     print 'starting irc'
     irc.run()

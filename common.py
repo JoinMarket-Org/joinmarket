@@ -3,16 +3,18 @@ from decimal import Decimal
 from math import factorial
 import sys, datetime, json, time, pprint
 import threading
+import blockchaininterface
 from ConfigParser import SafeConfigParser
 import os
-
+nickname = ''
 COMMAND_PREFIX = '!'
 MAX_PRIVMSG_LEN = 400
-
+bc_interface = None
 ordername_list = ["absorder", "relorder"]
 encrypted_commands = ["auth", "ioauth", "tx", "sig"]
 plaintext_commands = ["fill", "error", "pubkey", "orderbook", "relorder",
                       "absorder"]
+debug_file_handle = None
 
 config = SafeConfigParser()
 config_location = os.path.join(
@@ -40,9 +42,32 @@ def load_program_config():
                 raise Exception(
                     "Config file does not contain the required option: " + o)
 
+            #configure the interface to the blockchain on startup
+    global bc_interface
+    source = config.get("BLOCKCHAIN", "blockchain_source")
+    port = config.get("BLOCKCHAIN", "port")
+    rpcport = config.get("BLOCKCHAIN", "rpcport")
+    if source == 'testnet':
+        bc_interface = blockchaininterface.TestNetImp(rpcport=rpcport,
+                                                      port=port)
+    elif source == 'regtest':
+        print 'setting it'
+        bc_interface = blockchaininterface.RegTestImp(rpcport=rpcport,
+                                                      port=port)
+    elif source == 'blockr':
+        bc_interface = blockchaininterface.BlockrImp()
+    else:
+        raise ValueError("Invalid blockchain source")
+
 
 def debug(msg):
-    print datetime.datetime.now().strftime("[%Y/%m/%d %H:%M:%S] ") + msg
+    global debug_file_handle
+    if nickname and not debug_file_handle:
+        debug_file_handle = open(nickname + '.log', 'ab')
+    outmsg = datetime.datetime.now().strftime("[%Y/%m/%d %H:%M:%S] ") + msg
+    print outmsg
+    if nickname:  #debugs before creating bot nick won't be handled like this
+        debug_file_handle.write(outmsg + '\n')
 
 
 def chunks(d, n):
@@ -50,7 +75,11 @@ def chunks(d, n):
 
 
 def get_network():
-    return 'testnet'
+    '''Returns network name as required by pybitcointools'''
+    if config.get("BLOCKCHAIN", "network") == 'testnet':
+        return 'testnet'
+    else:
+        raise Exception("Only testnet is currently implemented")
 
 
 #TODO change this name into get_addr_ver() or something
@@ -70,25 +99,27 @@ def get_signed_tx(wallet, ins, outs):
 
 
 def debug_dump_object(obj, skip_fields=[]):
-    print 'Class debug dump, name:' + obj.__class__.__name__
+    debug('Class debug dump, name:' + obj.__class__.__name__)
     for k, v in obj.__dict__.iteritems():
         if k in skip_fields:
             continue
-        print 'key=' + k
+        debug('key=' + k)
         if isinstance(v, str):
-            print 'string: len:' + str(len(v))
-            print v
+            debug('string: len:' + str(len(v)))
+            debug(v)
         elif isinstance(v, dict) or isinstance(v, list):
-            pprint.pprint(v)
+            debug(pprint.pformat(v))
         else:
-            print v
+            debug(str(v))
 
 
 def get_addr_from_utxo(txhash, index):
     '''return the bitcoin address of the outpoint at 
 	the specified index for the transaction with specified hash.
 	Return None if no such index existed for that transaction.'''
-    data = get_blockchain_data('txinfo', csv_params=[txhash])
+    data = get_blockchain_data('txinfo',
+                               csv_params=[txhash],
+                               query_params=[True])
     for a in data['vouts']:
         if a['n'] == index:
             return a['address']
@@ -96,25 +127,15 @@ def get_addr_from_utxo(txhash, index):
 
 
 def get_blockchain_data(body,
-                        source='blockr',
                         csv_params=[],
                         query_params=[],
                         network='test',
                         output_key='data'):
-    '''A first step towards encapsulating blockchain queries.'''
-    if source != 'blockr': raise Exception("source not yet implemented")
-    stem = 'http://btc.blockr.io/api/v1/'
-    if network == 'test': stem = stem[:7] + 't' + stem[7:]
-    elif network != 'main': raise Exception("unrecognised bitcoin network type")
-    bodies = {'addrtx': 'address/txs/',
-              'txinfo': 'tx/info/',
-              'addrunspent': 'address/unspent/',
-              'addrbalance': 'address/balance/'}
-    url = stem + bodies[body] + ','.join(csv_params)
-    if query_params:
-        url += '?' + ','.join(query_params)
-    res = btc.make_request(url)
-    return json.loads(res)[output_key]
+    #TODO: do we still need the 'network' parameter? Almost certainly not.
+    res = bc_interface.parse_request(body, csv_params, query_params)
+    if type(bc_interface) == blockchaininterface.BlockrImp:
+        res = json.loads(res)
+    return res[output_key]
 
 
 class Wallet(object):
@@ -222,7 +243,7 @@ class Wallet(object):
         inputs = btc.select(unspent, amount)
         debug('for mixdepth=' + str(mixdepth) + ' amount=' + str(amount) +
               ' selected:')
-        pprint.pprint(inputs)
+        debug(pprint.pformat(inputs))
         return [i['utxo'] for i in inputs]
 
     def sync_wallet(self, gaplimit=6):
@@ -269,7 +290,8 @@ class Wallet(object):
 		'''
 
         addr_req_count = 20
-
+        #print 'working with index: '
+        #print self.index
         #TODO handle the case where there are so many addresses it cant
         # fit into one api call (>50 or so)
         addrs = {}
@@ -278,7 +300,7 @@ class Wallet(object):
                 for n in range(self.index[m][forchange]):
                     addrs[self.get_addr(m, forchange, n)] = m
         if len(addrs) == 0:
-            print 'no tx used'
+            debug('no tx used')
             return
 
         i = 0
@@ -291,25 +313,30 @@ class Wallet(object):
             #TODO send a pull request to pybitcointools 
             # unspent() doesnt tell you which address, you get a bunch of utxos
             # but dont know which privkey to sign with
+            #print 'testing with addresses: '
+            #print req
             data = get_blockchain_data('addrunspent',
                                        csv_params=req,
                                        query_params=['unconfirmed=1'])
+            #print 'got data: '
+            #print data
+
             if 'unspent' in data:
                 data = [data]
             for dat in data:
                 for u in dat['unspent']:
                     if u['confirmations'] != 0:
+                        u['amount'] = int(Decimal(1e8) * Decimal(u['amount']))
                         self.unspent[u['tx'] + ':' + str(u[
                             'n'])] = {'address': dat['address'],
-                                      'value':
-                                      int(u['amount'].replace('.', ''))}
+                                      'value': u['amount']}
 
     def print_debug_wallet_info(self):
         debug('printing debug wallet information')
-        print 'utxos'
-        pprint.pprint(self.unspent)
-        print 'wallet.index'
-        pprint.pprint(self.index)
+        debug('utxos')
+        debug(pprint.pformat(self.unspent))
+        debug('wallet.index')
+        debug(pprint.pformat(self.index))
 
 
 #awful way of doing this, but works for now
@@ -349,6 +376,10 @@ def add_addr_notify(address,
                 data = get_blockchain_data('addrbalance',
                                            csv_params=[self.address],
                                            query_params=['confirmations=0'])
+                if type(data) == list:
+                    data = data[
+                        0
+                    ]  #needed because blockr's json structure is inconsistent
                 if data['balance'] > 0:
                     break
             self.unconfirmfun(data['balance'] * 1e8)
@@ -391,7 +422,10 @@ def calc_cj_fee(ordertype, cjfee, cj_amount):
 def calc_total_input_value(utxos):
     input_sum = 0
     for utxo in utxos:
-        tx = btc.blockr_fetchtx(utxo[:64], get_network())
+        tx = get_blockchain_data('txraw',
+                                 csv_params=[utxo[:64]],
+                                 query_params=[False])['tx']['hex']
+        #tx = btc.blockr_fetchtx(utxo[:64], get_network())
         input_sum += int(btc.deserialize(tx)['outs'][int(utxo[65:])]['value'])
     return input_sum
 
@@ -500,7 +534,7 @@ def choose_sweep_order(db, my_total_input, my_tx_fee, n):
     dbgprint = [([(o['counterparty'], o['oid']) for o in oc[0]], oc[1])
                 for oc in ordercombos]
     debug('considered order combinations')
-    pprint.pprint(dbgprint)
+    debug(pprint.pformat(dbgprint))
     ordercombo = ordercombos[-1]  #choose the cheapest, i.e. highest cj_amount
     orders = dict([(o['counterparty'], o['oid']) for o in ordercombo[0]])
     cjamount = ordercombo[1]
