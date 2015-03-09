@@ -6,6 +6,22 @@ import abc
 from decimal import Decimal
 import bitcoin as btc
 
+import common
+
+def get_blockchain_interface_instance(config):
+	source = config.get("BLOCKCHAIN", "blockchain_source")
+	bitcoin_cli_cmd = config.get("BLOCKCHAIN", "bitcoin_cli_cmd").split(' ')
+	testnet = common.get_network()=='testnet'
+	if source == 'json-rpc':
+		bc_interface = BitcoinCoreInterface(bitcoin_cli_cmd, testnet)
+	elif source == 'regtest':
+		bc_interface = RegtestBitcoinCoreInterface(bitcoin_cli_cmd)
+	elif source == 'blockr':
+		bc_interface = BlockrInterface(testnet)
+	else:
+		raise ValueError("Invalid blockchain source")	
+	return bc_interface
+
 
 class BlockChainInterface(object):
     __metaclass__ = abc.ABCMeta
@@ -60,9 +76,9 @@ class BlockChainInterface(object):
         pass
     '''
 
-class BlockrImp(BlockChainInterface):
-    def __init__(self, testnet = True):
-        super(BlockrImp, self).__init__()
+class BlockrInterface(BlockChainInterface):
+    def __init__(self, testnet = False):
+        super(BlockrInterface, self).__init__()
 	self.bodies = {'addrtx':'address/txs/','txinfo':'tx/info/','addrunspent':'address/unspent/',
 		                  'addrbalance':'address/balance/','txraw':'tx/raw/','txpush':'tx/push/'}	
 	self.testnet = 'testnet' if testnet else 'btc' #see bci.py in bitcoin module
@@ -70,7 +86,7 @@ class BlockrImp(BlockChainInterface):
     
     def parse_request(self, body, csv_params, query_params=None):
 	if body=='txpush':
-	    return super(BlockrImp, self).parse_request(body, csv_params, query_params)
+	    return super(BlockrInterface, self).parse_request(body, csv_params, query_params)
 	else:
 	    if body == 'txinfo' or body == 'txraw':
 		query_params = query_params[1:]
@@ -96,10 +112,13 @@ class BlockrImp(BlockChainInterface):
     def get_balance_at_addr(self, addresses, query_params):
         pass
 
-class TestNetImp(BlockChainInterface):
-    def __init__(self, rpcport = 18332, port = 8332):
-	super(TestNetImp, self).__init__()
-        self.command_params = ['bitcoin-cli', '-port='+str(port), '-rpcport='+str(rpcport),'-testnet']
+class BitcoinCoreInterface(BlockChainInterface):
+    def __init__(self, bitcoin_cli_cmd, testnet=False):
+	super(BitcoinCoreInterface, self).__init__()
+        #self.command_params = ['bitcoin-cli', '-port='+str(port), '-rpcport='+str(rpcport),'-testnet']
+        self.command_params = bitcoin_cli_cmd
+	if testnet:
+		self.command_params += ['-testnet']
         #quick check that it's up else quit
         try:
             res = self.rpc(['getbalance'])
@@ -112,7 +131,7 @@ class TestNetImp(BlockChainInterface):
     def rpc(self, args, accept_failure=[]):
         try:
             #print 'making an rpc call with these parameters: '
-            #print self.command_params+args
+            common.debug(str(self.command_params+args))
             res = subprocess.check_output(self.command_params+args)
         except subprocess.CalledProcessError, e:
             if e.returncode in accept_failure:
@@ -144,7 +163,7 @@ class TestNetImp(BlockChainInterface):
         acct_addrlist = self.rpc(['getaddressesbyaccount', 'watchonly'])
         for address in addresses:
             if address not in acct_addrlist:
-                self.rpc(['importaddress', address,'watchonly'],[4])            
+                self.rpc(['importaddress', address, 'watchonly'],[4])            
         res = json.loads(self.rpc(['listtransactions','watchonly','2000','0','true']))
         
         result=[]
@@ -203,23 +222,19 @@ class TestNetImp(BlockChainInterface):
 #running on local daemon. Only 
 #to be instantiated after network is up
 #with > 100 blocks.
-class RegTestImp(TestNetImp):
-    def __init__(self, port=8331, rpcport=18331):
-	super(TestNetImp,self).__init__() #note: call to *grandparent* init for fptrs
-        self.command_params = ['bitcoin-cli', '-port='+str(port), '-rpcport='+str(rpcport),'-regtest']
+class RegtestBitcoinCoreInterface(BitcoinCoreInterface):
+    def __init__(self, bitcoin_cli_cmd):
+	super(BitcoinCoreInterface, self).__init__()
+        #self.command_params = ['bitcoin-cli', '-port='+str(port), '-rpcport='+str(rpcport),'-testnet']
+        self.command_params = bitcoin_cli_cmd + ['-regtest']
         #quick check that it's up else quit
         try:
             res = self.rpc(['getbalance'])
-            self.current_balance = int(Decimal(res))
-            print "Instantiated interface to regtest, wallet balance is: "+str(self.current_balance) +" bitcoins."
-            if not self.current_balance > 0:
-                raise Exception("Regtest network not properly initialised.")            
         except Exception as e:
-            print e        
-
+            print e
     
     def send_tx(self, tx_hex, query_params):
-        super(RegTestImp, self).send_tx(tx_hex, query_params)
+        super(RegtestBitcoinCoreInterface, self).send_tx(tx_hex, query_params)
         self.tick_forward_chain(1)
         
     def tick_forward_chain(self, n):
@@ -237,12 +252,14 @@ class RegTestImp(TestNetImp):
         '''
         if amt > 500:
             raise Exception("too greedy")
+	'''
         if amt > self.current_balance:
             #mine enough to get to the reqd amt
             reqd = int(amt - self.current_balance)
             reqd_blocks = str(int(reqd/50) +1)
             if self.rpc(['setgenerate','true', reqd_blocks]):
                 raise Exception("Something went wrong")
+	'''
         #now we do a custom create transaction and push to the receiver
         txid = self.rpc(['sendtoaddress', receiving_addr, str(amt)])
         if not txid:
@@ -252,7 +269,7 @@ class RegTestImp(TestNetImp):
         return txid        
 
 def main():
-    myBCI = RegTestImp()
+    myBCI = RegtestBitcoinCoreInterface()
     #myBCI.send_tx('stuff')
     print myBCI.get_utxos_from_addr(["n4EjHhGVS4Rod8ociyviR3FH442XYMWweD"])
     print myBCI.get_balance_at_addr(["n4EjHhGVS4Rod8ociyviR3FH442XYMWweD"])
