@@ -20,7 +20,7 @@ config = SafeConfigParser()
 config_location = os.path.join(
     os.path.dirname(os.path.realpath(__file__)), 'joinmarket.cfg')
 required_options = {'BLOCKCHAIN':
-                    ['blockchain_source', 'port', 'rpcport', 'network'],
+                    ['blockchain_source', 'network', 'bitcoin_cli_cmd'],
                     'MESSAGING': ['host', 'channel', 'port']}
 
 
@@ -44,20 +44,7 @@ def load_program_config():
 
             #configure the interface to the blockchain on startup
     global bc_interface
-    source = config.get("BLOCKCHAIN", "blockchain_source")
-    port = config.get("BLOCKCHAIN", "port")
-    rpcport = config.get("BLOCKCHAIN", "rpcport")
-    if source == 'testnet':
-        bc_interface = blockchaininterface.TestNetImp(rpcport=rpcport,
-                                                      port=port)
-    elif source == 'regtest':
-        print 'setting it'
-        bc_interface = blockchaininterface.RegTestImp(rpcport=rpcport,
-                                                      port=port)
-    elif source == 'blockr':
-        bc_interface = blockchaininterface.BlockrImp()
-    else:
-        raise ValueError("Invalid blockchain source")
+    bc_interface = blockchaininterface.get_blockchain_interface_instance(config)
 
 
 def debug(msg):
@@ -133,7 +120,7 @@ def get_blockchain_data(body,
                         output_key='data'):
     #TODO: do we still need the 'network' parameter? Almost certainly not.
     res = bc_interface.parse_request(body, csv_params, query_params)
-    if type(bc_interface) == blockchaininterface.BlockrImp:
+    if type(bc_interface) == blockchaininterface.BlockrInterface:
         res = json.loads(res)
     return res[output_key]
 
