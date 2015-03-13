@@ -1,8 +1,7 @@
 #from joinmarket import *
 import subprocess
 import unittest
-import json
-import abc
+import json, threading, abc, pprint, time, random
 from decimal import Decimal
 import bitcoin as btc
 
@@ -24,107 +23,228 @@ def get_blockchain_interface_instance(config):
     return bc_interface
 
 
-class BlockChainInterface(object):
+#download_wallet_history() find_unspent_addresses() #finding where to put index and my utxos
+#add address notify()
+#fetchtx() needs to accept a list of addresses too
+#pushtx()
+class BlockchainInterface(object):
     __metaclass__ = abc.ABCMeta
 
     def __init__(self):
-        #TODO: pass in network type (main/test)
-        self.fptrs = {'addrtx': self.get_txs_from_addr,
-                      'txinfo': self.get_tx_info,
-                      'addrunspent': self.get_utxos_from_addr,
-                      'addrbalance': self.get_balance_at_addr,
-                      'txraw': self.get_tx_info,
-                      'txpush': self.send_tx}
-
-    def parse_request(self, body, csv_params, query_params=None):
-        return self.fptrs[body](csv_params, query_params)
-
-    @abc.abstractmethod
-    def get_txs_from_addr(self, addresses, query_params):
-        '''Given a list of addresses, list all transactions'''
         pass
 
     @abc.abstractmethod
-    def get_tx_info(self, txhash, query_params):
-        '''Given a txhash and query params indicating raw,
-	return the tx hex. If indicating non-raw, return a list of vouts.
-	May need some more structure in query_params to handle unconfirmed. TODO'''
+    def sync_wallet(self, wallet, gaplimit=6):
+        '''Finds used addresses and utxos, puts in wallet.index and wallet.unspent'''
         pass
 
     @abc.abstractmethod
-    def get_utxos_from_addr(self, addresses, query_params):
-        '''Given an address, return a list of utxos
-        in format txid:vout'''
+    def add_tx_notify(self, tx, unconfirmfun, confirmfun):
+        '''Invokes unconfirmfun and confirmfun when tx is seen on the network'''
         pass
 
     @abc.abstractmethod
-    def get_balance_at_addr(self, addresses, query_params):
-        '''Given an address, return a balance in satoshis'''
+    def fetchtx(self, txid):
+        '''Returns a txhash of a given txid, or list of txids'''
         pass
 
     @abc.abstractmethod
-    def send_tx(self, tx_hexs, query_params):
-        '''Given raw txhex, push to network and return result in form: TODO'''
+    def pushtx(self, txhash):
+        '''pushes tx to the network, returns txhash'''
         pass
 
-    @abc.abstractmethod
-    def get_net_info(self):
-        pass
 
-    ''' 
-    @abc.abstractmethod
-    def get_addr_from_utxo(self, txhash, index):
-        Given utxo in form txhash, index, return the address
-        owning the utxo and the amount in satoshis in form (addr, amt)
-        pass
-    '''
-
-
-class BlockrInterface(BlockChainInterface):
+class BlockrInterface(BlockchainInterface):
 
     def __init__(self, testnet=False):
         super(BlockrInterface, self).__init__()
-        self.bodies = {'addrtx': 'address/txs/',
-                       'txinfo': 'tx/info/',
-                       'addrunspent': 'address/unspent/',
-                       'addrbalance': 'address/balance/',
-                       'txraw': 'tx/raw/',
-                       'txpush': 'tx/push/'}
-        self.testnet = 'testnet' if testnet else 'btc'  #see bci.py in bitcoin module
-        self.query_stem = 'http://tbtc.blockr.io/api/v1/' if testnet else 'http://tbtc.blockr.io/api/v1/'
+        self.network = 'testnet' if testnet else 'btc'  #see bci.py in bitcoin module
+        self.blockr_domain = 'tbtc' if testnet else 'btc'
 
-    def parse_request(self, body, csv_params, query_params=None):
-        if body == 'txpush':
-            return super(BlockrInterface, self).parse_request(body, csv_params,
-                                                              query_params)
-        else:
-            if body == 'txinfo' or body == 'txraw':
-                query_params = query_params[1:]
-            req = self.query_stem + self.bodies[body] + '/' + ','.join(
-                csv_params) + '?' + ','.join(query_params)
-            return btc.make_request(req)
+    def sync_wallet(self, wallet, gaplimit=6):
+        common.debug('downloading wallet history')
+        #sets Wallet internal indexes to be at the next unused address
+        addr_req_count = 20
+        for mix_depth in range(wallet.max_mix_depth):
+            for forchange in [0, 1]:
+                unused_addr_count = 0
+                last_used_addr = ''
+                while unused_addr_count < gaplimit:
+                    addrs = [wallet.get_new_addr(mix_depth, forchange)
+                             for i in range(addr_req_count)]
 
-    def send_tx(self, tx_hexs, query_params):
-        #TODO: handle multiple txs?
-        return btc.blockr_pushtx(tx_hexs[0], self.testnet)
+                    #TODO send a pull request to pybitcointools
+                    # because this surely should be possible with a function from it
+                    blockr_url = 'http://' + self.blockr_domain + '.blockr.io/api/v1/address/txs/'
+                    res = btc.make_request(blockr_url + ','.join(addrs))
+                    data = json.loads(res)['data']
+                    for dat in data:
+                        if dat['nb_txs'] != 0:
+                            last_used_addr = dat['address']
+                        else:
+                            unused_addr_count += 1
+                            if unused_addr_count >= gaplimit:
+                                break
+                if last_used_addr == '':
+                    wallet.index[mix_depth][forchange] = 0
+                else:
+                    wallet.index[mix_depth][forchange] = wallet.addr_cache[
+                        last_used_addr][2] + 1
 
-    def get_net_info(self):
-        print 'not yet done'
+        #finds utxos in the wallet
 
-    def get_txs_from_addr(self, addresses, query_params):
-        pass
+        addrs = {}
+        for m in range(wallet.max_mix_depth):
+            for forchange in [0, 1]:
+                for n in range(wallet.index[m][forchange]):
+                    addrs[wallet.get_addr(m, forchange, n)] = m
+        if len(addrs) == 0:
+            common.debug('no tx used')
+            return
 
-    def get_tx_info(self, txhash, query_params):
-        pass
+        #TODO handle the case where there are so many addresses it cant
+        # fit into one api call (>50 or so)
+        i = 0
+        addrkeys = addrs.keys()
+        while i < len(addrkeys):
+            inc = min(len(addrkeys) - i, addr_req_count)
+            req = addrkeys[i:i + inc]
+            i += inc
 
-    def get_utxos_from_addr(self, addresses, query_params):
-        pass
+            #TODO send a pull request to pybitcointools 
+            # unspent() doesnt tell you which address, you get a bunch of utxos
+            # but dont know which privkey to sign with
 
-    def get_balance_at_addr(self, addresses, query_params):
-        pass
+            blockr_url = 'http://' + self.blockr_domain + '.blockr.io/api/v1/address/unspent/'
+            res = btc.make_request(blockr_url + ','.join(req))
+            data = json.loads(res)['data']
+            if 'unspent' in data:
+                data = [data]
+            for dat in data:
+                for u in dat['unspent']:
+                    wallet.unspent[u['tx'] + ':' + str(u[
+                        'n'])] = {'address': dat['address'],
+                                  'value': int(u['amount'].replace('.', ''))}
+
+    def add_tx_notify(self, txd, unconfirmfun, confirmfun):
+        unconfirm_timeout = 5 * 60  #seconds
+        unconfirm_poll_period = 5
+        confirm_timeout = 120 * 60
+        confirm_poll_period = 5 * 60
+
+        class NotifyThread(threading.Thread):
+
+            def __init__(self, blockr_domain, txd, unconfirmfun, confirmfun):
+                threading.Thread.__init__(self)
+                self.daemon = True
+                self.blockr_domain = blockr_domain
+                self.unconfirmfun = unconfirmfun
+                self.confirmfun = confirmfun
+                self.tx_output_set = set([(sv['script'], sv['value'])
+                                          for sv in txd['outs']])
+                self.output_addresses = [btc.script_to_address(
+                    scrval[0], common.get_addr_vbyte())
+                                         for scrval in self.tx_output_set]
+                common.debug('txoutset=' + pprint.pformat(self.tx_output_set))
+                common.debug('outaddrs=' + ','.join(self.output_addresses))
+
+            def run(self):
+                st = int(time.time())
+                unconfirmed_txid = None
+                unconfirmed_txhex = None
+                while not unconfirmed_txid:
+                    time.sleep(unconfirm_poll_period)
+                    if int(time.time()) - st > unconfirm_timeout:
+                        debug('checking for unconfirmed tx timed out')
+                        return
+                    blockr_url = 'http://' + self.blockr_domain + '.blockr.io/api/v1/address/unspent/'
+                    random.shuffle(self.output_addresses
+                                  )  #seriously weird bug with blockr.io
+                    data = json.loads(btc.make_request(blockr_url + ','.join(
+                        self.output_addresses) + '?unconfirmed=1'))['data']
+                    shared_txid = None
+                    for unspent_list in data:
+                        txs = set([str(txdata['tx'])
+                                   for txdata in unspent_list['unspent']])
+                        if not shared_txid:
+                            shared_txid = txs
+                        else:
+                            shared_txid = shared_txid.intersection(txs)
+                    common.debug('sharedtxid = ' + str(shared_txid))
+                    if len(shared_txid) == 0:
+                        continue
+                    blockr_url = 'http://' + self.blockr_domain + '.blockr.io/api/v1/tx/raw/'
+                    data = json.loads(btc.make_request(blockr_url + ','.join(
+                        shared_txid)))['data']
+                    if not isinstance(data, list):
+                        data = [data]
+                    for txinfo in data:
+                        outs = set([(sv['script'], sv['value'])
+                                    for sv in btc.deserialize(txinfo['tx'][
+                                        'hex'])['outs']])
+                        print 'outs = ' + str(outs)
+                        if outs == self.tx_output_set:
+                            unconfirmed_txid = txinfo['tx']['txid']
+                            unconfirmed_txhex = txinfo['tx']['hex']
+                            break
+
+                self.unconfirmfun(
+                    btc.deserialize(unconfirmed_txhex), unconfirmed_txid)
+
+                st = int(time.time())
+                confirmed_txid = None
+                confirmed_txhex = None
+                while not confirmed_txid:
+                    time.sleep(confirm_poll_period)
+                    if int(time.time()) - st > confirm_timeout:
+                        debug('checking for confirmed tx timed out')
+                        return
+                    blockr_url = 'http://' + self.blockr_domain + '.blockr.io/api/v1/address/txs/'
+                    data = json.loads(btc.make_request(blockr_url + ','.join(
+                        self.output_addresses)))['data']
+                    shared_txid = None
+                    for addrtxs in data:
+                        txs = set([str(txdata['tx']) for txdata in addrtxs[
+                            'txs']])
+                        if not shared_txid:
+                            shared_txid = txs
+                        else:
+                            shared_txid = shared_txid.intersection(txs)
+                    common.debug('sharedtxid = ' + str(shared_txid))
+                    if len(shared_txid) == 0:
+                        continue
+                    blockr_url = 'http://' + self.blockr_domain + '.blockr.io/api/v1/tx/raw/'
+                    data = json.loads(btc.make_request(blockr_url + ','.join(
+                        shared_txid)))['data']
+                    if not isinstance(data, list):
+                        data = [data]
+                    for txinfo in data:
+                        outs = set([(sv['script'], sv['value'])
+                                    for sv in btc.deserialize(txinfo['tx'][
+                                        'hex'])['outs']])
+                        print 'outs = ' + str(outs)
+                        if outs == self.tx_output_set:
+                            confirmed_txid = txinfo['tx']['txid']
+                            confirmed_txhex = txinfo['tx']['hex']
+                            break
+                self.confirmfun(
+                    btc.deserialize(confirmed_txhex), confirmed_txid, 1)
+
+        NotifyThread(self.blockr_domain, txd, unconfirmfun, confirmfun).start()
+
+    def fetchtx(self, txid):
+        return btc.blockr_fetchtx(txid, self.network)
+
+    def pushtx(self, txhex):
+        data = json.loads(btc.blockr_pushtx(txhex, self.network))
+        if data['status'] != 'success':
+            #error message generally useless so there might not be a point returning
+            debug(data)
+            return None
+        return data['data']
 
 
-class BitcoinCoreInterface(BlockChainInterface):
+class BitcoinCoreInterface(BlockchainInterface):
 
     def __init__(self, bitcoin_cli_cmd, testnet=False):
         super(BitcoinCoreInterface, self).__init__()

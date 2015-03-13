@@ -74,7 +74,7 @@ class YieldGenerator(Maker):
         change_addr = self.wallet.get_change_addr(mixdepth)
         return utxos, cj_addr, change_addr
 
-    def on_tx_unconfirmed(self, cjorder, balance, removed_utxos):
+    def on_tx_unconfirmed(self, cjorder, txid, removed_utxos):
         #if the balance of the highest-balance mixing depth change then reannounce it
         oldorder = self.orderlist[0] if len(self.orderlist) > 0 else None
         neworders = self.create_my_orders()
@@ -86,8 +86,7 @@ class YieldGenerator(Maker):
         #announce new order, replacing the old order
         return ([], [neworders[0]])
 
-    def on_tx_confirmed(self, cjorder, confirmations, txid, balance,
-                        added_utxos):
+    def on_tx_confirmed(self, cjorder, confirmations, txid, added_utxos):
         return self.on_tx_unconfirmed(None, None, None)
 
 
@@ -99,7 +98,9 @@ def main():
     ]  #btc.sha256('dont use brainwallets except for holding testnet coins')
     load_program_config()
     wallet = Wallet(seed, max_mix_depth=mix_levels)
-    wallet.sync_wallet()
+    common.bc_interface.sync_wallet(wallet)
+    wallet.print_debug_wallet_info()
+
     common.nickname = 'yigen-' + binascii.hexlify(os.urandom(4))
     irc = IRCMessageChannel(common.nickname)
     maker = YieldGenerator(irc, wallet)

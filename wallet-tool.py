@@ -1,5 +1,6 @@
 import bitcoin as btc
 from common import Wallet, get_signed_tx, load_program_config
+import common
 
 import sys
 from optparse import OptionParser
@@ -58,9 +59,7 @@ load_program_config()
 print_privkey = options.showprivkey
 
 wallet = Wallet(seed, options.maxmixdepth)
-print 'downloading wallet history'
-wallet.download_wallet_history(options.gaplimit)
-wallet.find_unspent_addresses()
+common.bc_interface.sync_wallet(wallet, options.gaplimit)
 
 if method == 'display':
     total_balance = 0

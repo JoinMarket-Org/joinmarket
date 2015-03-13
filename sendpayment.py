@@ -132,7 +132,8 @@ def main():
     common.nickname = 'payer-' + binascii.hexlify(os.urandom(4))
 
     wallet = Wallet(seed, options.mixdepth + 1)
-    wallet.sync_wallet()
+    common.bc_interface.sync_wallet(wallet)
+    wallet.print_debug_wallet_info()
 
     irc = IRCMessageChannel(common.nickname)
     taker = SendPayment(irc, wallet, destaddr, amount, options.makercount,
