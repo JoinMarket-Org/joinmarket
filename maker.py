@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 
 from common import *
+import common
 from taker import CoinJoinerPeer
 import bitcoin as btc
 import base64, pprint, threading
@@ -73,22 +74,22 @@ class CoinJoinOrder(object):
 			sigs.append(base64.b64encode(btc.deserialize(txs)['ins'][index]['script'].decode('hex')))
 		#len(sigs) > 0 guarenteed since i did verify_unsigned_tx()
 
-		add_addr_notify(self.change_addr, self.unconfirm_callback, self.confirm_callback)
+		common.bc_interface.add_tx_notify(self.tx, self.unconfirm_callback, self.confirm_callback)
 		debug('sending sigs ' + str(sigs))
 		self.maker.msgchan.send_sigs(nick, sigs)
 		self.maker.active_orders[nick] = None
 
-	def unconfirm_callback(self, balance):
+	def unconfirm_callback(self, txd, txid):
 		self.maker.wallet_unspent_lock.acquire()
 		try:
 			removed_utxos = self.maker.wallet.remove_old_utxos(self.tx)
 		finally:
 			self.maker.wallet_unspent_lock.release()
 		debug('saw tx on network, removed_utxos=\n' + pprint.pformat(removed_utxos))
-		to_cancel, to_announce = self.maker.on_tx_unconfirmed(self, balance, removed_utxos)
+		to_cancel, to_announce = self.maker.on_tx_unconfirmed(self, txid, removed_utxos)
 		self.maker.modify_orders(to_cancel, to_announce)
 
-	def confirm_callback(self, confirmations, txid, balance):
+	def confirm_callback(self, txd, txid, confirmations):
 		self.maker.wallet_unspent_lock.acquire()
 		try:
 			added_utxos = self.maker.wallet.add_new_utxos(self.tx, txid)
@@ -96,7 +97,7 @@ class CoinJoinOrder(object):
 			self.maker.wallet_unspent_lock.release()
 		debug('tx in a block, added_utxos=\n' + pprint.pformat(added_utxos))
 		to_cancel, to_announce = self.maker.on_tx_confirmed(self,
-			confirmations, txid, balance, added_utxos)
+			confirmations, txid, added_utxos)
 		self.maker.modify_orders(to_cancel, to_announce)
 
 	def verify_unsigned_tx(self, txd):
@@ -277,14 +278,14 @@ class Maker(CoinJoinerPeer):
 
 	#gets called when the tx is seen on the network
 	#must return which orders to cancel or recreate
-	def on_tx_unconfirmed(self, cjorder, balance, removed_utxos):
+	def on_tx_unconfirmed(self, cjorder, txid, removed_utxos):
 		return ([cjorder.oid], [])
 
 	#gets called when the tx is included in a block
 	#must return which orders to cancel or recreate
 	# and i have to think about how that will work for both
 	# the blockchain explorer api method and the bitcoid walletnotify
-	def on_tx_confirmed(self, cjorder, confirmations, txid, balance, added_utxos):
+	def on_tx_confirmed(self, cjorder, confirmations, txid, added_utxos):
 		to_announce = []
 		for i, out in enumerate(cjorder.tx['outs']):
 			addr = btc.script_to_address(out['script'], get_addr_vbyte())

@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 
 from common import *
+import common
 import enc_wrapper
 import bitcoin as btc
 
@@ -121,7 +122,7 @@ class CoinJoinTX(object):
 		for index, ins in enumerate(self.latest_tx['ins']):
 			if ins['script'] != '':
 				continue
-			ftx = get_blockchain_data('txraw', csv_params=[ins['outpoint']['hash']], query_params=[False])['tx']['hex']
+			ftx = common.bc_interface.fetchtx(ins['outpoint']['hash'])
 			src_val = btc.deserialize(ftx)['outs'][ ins['outpoint']['index'] ]
 			sig_good = btc.verify_tx_input(tx, index, src_val['script'], *btc.deserialize_script(sig))
 			if sig_good:
@@ -143,9 +144,9 @@ class CoinJoinTX(object):
 			return
 		debug('the entire tx is signed, ready to pushtx()')
 
-		print btc.serialize(self.latest_tx)
-		ret = get_blockchain_data('txpush', csv_params=[btc.serialize(self.latest_tx)])
-		debug('pushed tx ' + str(ret))
+		debug('\n' + btc.serialize(self.latest_tx))
+		txid = common.bc_interface.pushtx(btc.serialize(self.latest_tx))
+		debug('pushed tx ' + str(txid))
 		if self.finishcallback != None:
 			self.finishcallback()
 
