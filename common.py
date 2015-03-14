@@ -217,6 +217,13 @@ class Wallet(object):
         debug(pprint.pformat(inputs))
         return [i['utxo'] for i in inputs]
 
+    def print_debug_wallet_info(self):
+        debug('printing debug wallet information')
+        debug('utxos')
+        debug(pprint.pformat(self.unspent))
+        debug('wallet.index')
+        debug(pprint.pformat(self.index))
+
 
 def calc_cj_fee(ordertype, cjfee, cj_amount):
     real_cjfee = None
