@@ -1,7 +1,7 @@
 #from joinmarket import *
 import subprocess
 import unittest
-import json, threading, abc, pprint, time, random
+import json, threading, abc, pprint, time, random, sys
 from decimal import Decimal
 import bitcoin as btc
 
@@ -47,7 +47,7 @@ class BlockchainInterface(object):
 		pass
 
 	@abc.abstractmethod
-	def pushtx(self, txhash):
+	def pushtx(self, txhex):
 		'''pushes tx to the network, returns txhash'''
 		pass
 
@@ -221,39 +221,107 @@ class BlockrInterface(BlockchainInterface):
 		
 
 class BitcoinCoreInterface(BlockchainInterface):
-    def __init__(self, bitcoin_cli_cmd, testnet=False):
-	super(BitcoinCoreInterface, self).__init__()
-        #self.command_params = ['bitcoin-cli', '-port='+str(port), '-rpcport='+str(rpcport),'-testnet']
-        self.command_params = bitcoin_cli_cmd
-	if testnet:
-		self.command_params += ['-testnet']
-        #quick check that it's up else quit
-        try:
-            res = self.rpc(['getbalance'])
-        except Exception as e:
-            print e
-    
-    def get_net_info(self):
-        print 'not yet done'
-        
-    def rpc(self, args, accept_failure=[]):
-        try:
-            #print 'making an rpc call with these parameters: '
-            common.debug(str(self.command_params+args))
-            res = subprocess.check_output(self.command_params+args)
-        except subprocess.CalledProcessError, e:
-            if e.returncode in accept_failure:
-                return ''
-            raise
-        return res
+	def __init__(self, bitcoin_cli_cmd, testnet = False):
+		super(BitcoinCoreInterface, self).__init__()
+		#self.command_params = ['bitcoin-cli', '-port='+str(port), '-rpcport='+str(rpcport),'-testnet']
+		self.command_params = bitcoin_cli_cmd
+		if testnet:
+			self.command_params += ['-testnet']
+		#quick check that it's up else quit
+		try:
+			res = self.rpc(['getbalance'])
+		except Exception as e:
+			print e
 
-    def send_tx(self, tx_hexs, query_params):
-	'''csv params contains only tx hex'''
-	for txhex in tx_hexs:
-	    res = self.rpc(['sendrawtransaction', txhex])
-        #TODO only handles a single push; handle multiple
-        return {'data':res}
+	def rpc(self, args, accept_failure=[]):
+		try:
+			if args[0] != 'importaddress':
+				common.debug('rpc: ' + str(self.command_params+args))
+			res = subprocess.check_output(self.command_params+args)
+		except subprocess.CalledProcessError, e:
+			if e.returncode in accept_failure:
+				return ''
+			raise
+		return res
 
+	def add_watchonly_addresses(self, addr_list, wallet_name):
+		debug('importing ' + str(len(addr_list)) + ' into account ' + wallet_name)
+		for addr in addr_list:
+			self.rpc(['importaddress', addr, wallet_name, 'false'])
+		print 'now restart bitcoind with -rescan'
+		sys.exit(0)
+
+	def sync_wallet(self, wallet, gaplimit=6):
+		wallet_name = 'joinmarket-wallet-' + btc.dbl_sha256(wallet.keys[0][0])[:6]
+		addr_req_count = 50
+		wallet_addr_list = []
+		for mix_depth in range(wallet.max_mix_depth):
+			for forchange in [0, 1]:
+				wallet_addr_list += [wallet.get_new_addr(mix_depth, forchange) for i in range(addr_req_count)]
+				wallet.index[mix_depth][forchange] = 0
+		imported_addr_list = json.loads(self.rpc(['getaddressesbyaccount', wallet_name]))
+		if not set(wallet_addr_list).issubset(set(imported_addr_list)):
+			self.add_watchonly_addresses(wallet_addr_list, wallet_name)
+			return
+
+		#TODO get all the transactions above 200, by looping until len(result) < 200
+		ret = self.rpc(['listtransactions', wallet_name, '200', '0', 'true'])
+		txs = json.loads(ret)
+		used_addr_list = [tx['address'] for tx in txs]
+		too_few_addr_mix_change = []
+		for mix_depth in range(wallet.max_mix_depth):
+			for forchange in [0, 1]:
+				unused_addr_count = 0
+				last_used_addr = ''
+				breakloop = False
+				while not breakloop:
+					if unused_addr_count >= gaplimit:
+						break
+					mix_change_addrs = [wallet.get_new_addr(mix_depth, forchange) for i in range(addr_req_count)]
+					for mc_addr in mix_change_addrs:
+						if mc_addr not in imported_addr_list:
+							print 'too few addresses for ' + str(mix_depth) + ', ' + str(forchange)
+							too_few_addr_mix_change.append((mix_depth, forchange))
+							breakloop = True
+							break
+						if mc_addr in used_addr_list:
+							last_used_addr = mc_addr
+						else:
+							unused_addr_count += 1
+							if unused_addr_count >= gaplimit:
+								breakloop = True
+								break
+
+				if last_used_addr == '':
+					wallet.index[mix_depth][forchange] = 0
+				else:
+					wallet.index[mix_depth][forchange] = wallet.addr_cache[last_used_addr][2] + 1
+
+		wallet_addr_list = []
+		if len(too_few_addr_mix_change) > 0:
+			debug('too few addresses in ' + str(too_few_addr_mix_change))
+			for mix_depth, forchange in too_few_addr_mix_change:
+				wallet_addr_list += [wallet.get_new_addr(mix_depth, forchange) for i in range(addr_req_count)]
+			self.add_watchonly_addresses(wallet_addr_list, wallet_name)
+			return
+
+		unspent_list = json.loads(self.rpc(['listunspent']))
+		for u in unspent_list:
+			if u['account'] != wallet_name:
+				continue
+			wallet.unspent[u['txid'] + ':' + str(u['vout'])] = {'address': u['address'],
+				'value': u['amount']*1e8}
+
+	def add_tx_notify(self, tx, unconfirmfun, confirmfun):
+		pass
+
+	def fetchtx(self, txid):
+		pass
+
+	def pushtx(self, txhex):
+		txid = self.rpc(['sendrawtransaction', txhex])
+		return txid
+'''
     def get_utxos_from_addr(self, addresses, query_params):
         r = []
         for address in addresses:
@@ -287,7 +355,6 @@ class BitcoinCoreInterface(BlockchainInterface):
         return {'data':result} 
     
     def get_tx_info(self, txhashes, query_params):
-	'''Returns a list of vouts if first entry in query params is False, else returns tx hex'''
 	#TODO: handle more than one tx hash
         res = json.loads(self.rpc(['getrawtransaction', txhashes[0], '1']))
         if not query_params[0]:
@@ -316,16 +383,8 @@ class BitcoinCoreInterface(BlockchainInterface):
             res.append({'address':address,'balance':\
                         int(Decimal(1e8) * Decimal(self.rpc(['getreceivedbyaddress', address])))})
         return {'data':res}
+'''
 
-    #Not used; I think, not needed
-    '''def get_addr_from_utxo(self, txhash, index):
-        #get the transaction details
-        res = json.loads(self.rpc(['gettxout', txhash, str(index)]))
-        amt = int(Decimal(1e8)*Decimal(res['value']))
-        address = res('addresses')[0]
-        return (address, amt)
-        '''
-    
 #class for regtest chain access
 #running on local daemon. Only 
 #to be instantiated after network is up
