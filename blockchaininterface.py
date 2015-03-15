@@ -307,7 +307,7 @@ class BitcoinCoreNotifyThread(threading.Thread):
         httpd.serve_forever()
 
 #must run bitcoind with -txindex=1 -server
-#-walletnotify="wget -spider -q http://localhost:62602/walletnotify?%s"
+#-walletnotify="wget --spider -q http://localhost:62602/walletnotify?%s"
 #and make sure wget is installed
 
 
