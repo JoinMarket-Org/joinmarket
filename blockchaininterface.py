@@ -306,7 +306,13 @@ class BitcoinCoreNotifyThread(threading.Thread):
         httpd.btcinterface = self.btcinterface
         httpd.serve_forever()
 
+#must run bitcoind with -txindex=1 -server
+#-walletnotify="wget -spider -q http://localhost:62602/walletnotify?%s"
+#and make sure wget is installed
 
+
+#TODO must add the tx addresses as watchonly if case we ever broadcast a tx
+# with addresses not belonging to us
 class BitcoinCoreInterface(BlockchainInterface):
 
     def __init__(self, bitcoin_cli_cmd, testnet=False):
