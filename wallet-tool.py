@@ -52,8 +52,6 @@ load_program_config()
 
 method = ('display' if len(args) == 1 else args[1].lower())
 
-load_program_config()
-
 #seed = '256 bits of randomness'
 
 print_privkey = options.showprivkey

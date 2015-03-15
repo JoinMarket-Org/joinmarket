@@ -96,7 +96,6 @@ def main():
     seed = sys.argv[
         1
     ]  #btc.sha256('dont use brainwallets except for holding testnet coins')
-    load_program_config()
     wallet = Wallet(seed, max_mix_depth=mix_levels)
     common.bc_interface.sync_wallet(wallet)
     wallet.print_debug_wallet_info()
