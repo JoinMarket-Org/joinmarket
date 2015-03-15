@@ -92,19 +92,7 @@ def get_addr_from_utxo(txhash, index):
 	'''return the bitcoin address of the outpoint at 
 	the specified index for the transaction with specified hash.
 	Return None if no such index existed for that transaction.'''
-	data = get_blockchain_data('txinfo', csv_params=[txhash], query_params=[True])
-	for a in data['vouts']:
-		if a['n']==index:
-			return a['address']
-	return None
-	
-def get_blockchain_data(body, csv_params=[],
-                        query_params=[], network='test', output_key='data'):
-	#TODO: do we still need the 'network' parameter? Almost certainly not.
-	res = bc_interface.parse_request(body, csv_params, query_params)
-	if type(bc_interface) == blockchaininterface.BlockrInterface:
-		res = json.loads(res)
-	return res[output_key]
+	return btc.script_to_address(btc.deserialize(bc_interface.fetchtx(txhash))['outs'][index]['script'], get_addr_vbyte())
 	
 class Wallet(object):
 	def __init__(self, seed, max_mix_depth=2):
@@ -206,150 +194,12 @@ class Wallet(object):
 		debug(pprint.pformat(inputs))
 		return [i['utxo'] for i in inputs]
 
-	def sync_wallet(self, gaplimit=6):
-		debug('synchronizing wallet')
-		self.download_wallet_history(gaplimit)
-		self.find_unspent_addresses()
-		self.print_debug_wallet_info()
-
-	def download_wallet_history(self, gaplimit=6):
-		'''
-		sets Wallet internal indexes to be at the next unused address
-		'''
-		addr_req_count = 20
-
-		for mix_depth in range(self.max_mix_depth):
-			for forchange in [0, 1]:
-				unused_addr_count = 0
-				last_used_addr = ''
-				while unused_addr_count < gaplimit:
-					addrs = [self.get_new_addr(mix_depth, forchange) for i in range(addr_req_count)]
-
-					#TODO send a pull request to pybitcointools
-					# because this surely should be possible with a function from it
-					data = get_blockchain_data('addrtx', csv_params=addrs)
-					for dat in data:
-						if dat['nb_txs'] != 0:
-							last_used_addr = dat['address']
-						else:
-							unused_addr_count += 1
-							if unused_addr_count >= gaplimit:
-								break
-				if last_used_addr == '':
-					self.index[mix_depth][forchange] = 0
-				else:
-					self.index[mix_depth][forchange] = self.addr_cache[last_used_addr][2] + 1
-
-	def find_unspent_addresses(self):
-		'''
-		finds utxos in the wallet
-		assumes you've already called download_wallet_history() so
-		you know which addresses have been used
-		'''
-
-		addr_req_count = 20
-		#print 'working with index: '
-		#print self.index
-		#TODO handle the case where there are so many addresses it cant
-		# fit into one api call (>50 or so)
-		addrs = {}
-		for m in range(self.max_mix_depth):
-			for forchange in [0, 1]:
-				for n in range(self.index[m][forchange]):
-					addrs[self.get_addr(m, forchange, n)] = m
-		if len(addrs) == 0:
-			debug('no tx used')
-			return
-
-		i = 0
-		addrkeys = addrs.keys()
-		while i < len(addrkeys):
-			inc = min(len(addrkeys) - i, addr_req_count)
-			req = addrkeys[i:i + inc]
-			i += inc
-
-			#TODO send a pull request to pybitcointools 
-			# unspent() doesnt tell you which address, you get a bunch of utxos
-			# but dont know which privkey to sign with
-			#print 'testing with addresses: '
-			#print req
-			data = get_blockchain_data('addrunspent', csv_params=req, 
-			                          query_params=['unconfirmed=1'])
-			#print 'got data: '
-			#print data
-			
-			if 'unspent' in data:
-				data = [data]
-			for dat in data:
-				for u in dat['unspent']:
-					if u['confirmations'] != 0:
-						u['amount'] = int(Decimal(1e8) * Decimal(u['amount']))
-						self.unspent[u['tx']+':'+str(u['n'])] = {'address':
-						dat['address'], 'value': u['amount']}
-
 	def print_debug_wallet_info(self):
 		debug('printing debug wallet information')
 		debug('utxos')
 		debug(pprint.pformat(self.unspent))
 		debug('wallet.index')
 		debug(pprint.pformat(self.index))
-
-
-#awful way of doing this, but works for now
-# and -walletnotify for people who do
-#timeouts in minutes
-def add_addr_notify(address, unconfirmfun, confirmfun, unconfirmtimeout=5,
-	unconfirmtimeoutfun=None, confirmtimeout=120, confirmtimeoutfun=None):
-
-	class NotifyThread(threading.Thread):
-		def __init__(self, address, unconfirmfun, confirmfun, unconfirmtimeout,
-				unconfirmtimeoutfun, confirmtimeout, confirmtimeoutfun):
-			threading.Thread.__init__(self)
-			self.daemon = True
-			self.address = address
-			self.unconfirmfun = unconfirmfun
-			self.confirmfun = confirmfun
-			self.unconfirmtimeout = unconfirmtimeout*60
-			self.unconfirmtimeoutfun = unconfirmtimeoutfun
-			self.confirmtimeout = confirmtimeout*60
-			self.confirmtimeoutfun = confirmtimeoutfun
-
-		def run(self):
-			st = int(time.time())
-			while True:
-				time.sleep(5)
-				if int(time.time()) - st > self.unconfirmtimeout:
-					if unconfirmtimeoutfun != None:
-						unconfirmtimeoutfun()
-					debug('checking for unconfirmed tx timed out')
-					return
-				data = get_blockchain_data('addrbalance', csv_params=[self.address],
-				                           query_params=['confirmations=0'])
-				if type(data) == list:
-					data = data[0] #needed because blockr's json structure is inconsistent
-				if data['balance'] > 0:
-					break
-			self.unconfirmfun(data['balance']*1e8)
-			st = int(time.time())
-			while True:
-				time.sleep(5 * 60)
-				if int(time.time()) - st > self.confirmtimeout:
-					if confirmtimeoutfun != None:
-						confirmtimeoutfun()
-					debug('checking for confirmed tx timed out')
-					return
-				data = get_blockchain_data('addrtx', csv_params=[self.address],
-				                           query_params=['confirmations=0'])
-				if data['nb_txs'] == 0:
-					continue
-				if data['txs'][0]['confirmations'] >= 1: #confirmation threshold
-					break
-			self.confirmfun(data['txs'][0]['confirmations'],
-				data['txs'][0]['tx'], data['txs'][0]['amount']*1e8)
-
-	NotifyThread(address, unconfirmfun, confirmfun, unconfirmtimeout,
-		unconfirmtimeoutfun, confirmtimeout, confirmtimeoutfun).start()
-
 
 def calc_cj_fee(ordertype, cjfee, cj_amount):
 	real_cjfee = None
@@ -361,11 +211,12 @@ def calc_cj_fee(ordertype, cjfee, cj_amount):
 		raise RuntimeError('unknown order type: ' + str(ordertype))
 	return real_cjfee
 
+#TODO this function is used once, it has no point existing
 def calc_total_input_value(utxos):
 	input_sum = 0
 	for utxo in utxos:
-		tx = get_blockchain_data('txraw', csv_params=[utxo[:64]],query_params=[False])['tx']['hex']
 		#tx = btc.blockr_fetchtx(utxo[:64], get_network())
+		tx = bc_interface.fetchtx(utxo[:64])
 		input_sum += int(btc.deserialize(tx)['outs'][int(utxo[65:])]['value'])
 	return input_sum
 

@@ -201,26 +201,26 @@ class IRCMessageChannel(MessageChannel):
 						oid = int(chunks[1])
 						amount = int(chunks[2])
 						taker_pk = chunks[3]
-						if self.on_order_fill:
-							self.on_order_fill(nick, oid, amount, taker_pk)
 					except (ValueError, IndexError) as e:
 						self.send_error(nick, str(e))
+					if self.on_order_fill:
+						self.on_order_fill(nick, oid, amount, taker_pk)
 				elif chunks[0] == 'auth':
 					try:
 						i_utxo_pubkey = chunks[1]
 						btc_sig = chunks[2]
-						if self.on_seen_auth:
-							self.on_seen_auth(nick, i_utxo_pubkey, btc_sig)
 					except (ValueError, IndexError) as e:
 						self.send_error(nick, str(e))
+					if self.on_seen_auth:
+						self.on_seen_auth(nick, i_utxo_pubkey, btc_sig)
 				elif chunks[0] == 'tx':
 					b64tx = chunks[1]
 					try:
 						txhex = base64.b64decode(b64tx).encode('hex')
-						if self.on_seen_tx:
-							self.on_seen_tx(nick, txhex)
 					except TypeError as e:
 						self.send_error(nick, 'bad base64 tx. ' + repr(e))
+					if self.on_seen_tx:
+						self.on_seen_tx(nick, txhex)
 			except CJPeerError:
 				#TODO proper error handling
 				continue
