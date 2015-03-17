@@ -9,8 +9,9 @@ import enc_wrapper
 COMMAND_PREFIX = '!'
 PING_INTERVAL = 40
 PING_TIMEOUT = 10
-joinmarket_irc_commands = ["auth", "ioauth", "tx", "sig", "fill", "error",
-                           "pubkey", "orderbook", "relorder", "absorder"]
+encrypted_commands = ["auth", "ioauth", "tx", "sig"]
+plaintext_commands = ["fill", "error", "pubkey", "orderbook", "relorder",
+                      "absorder"]
 
 
 def get_irc_text(line):
@@ -272,8 +273,10 @@ class IRCMessageChannel(MessageChannel):
 		and return. Sending/receiving flag enables us
 		to check which command strings correspond to which
 		type of object (maker/taker).''' #old doc, dont trust
-
-        return self.cjpeer.get_crypto_box_from_nick(nick)
+        if cmd in plaintext_commands:
+            return None
+        else:
+            return self.cjpeer.get_crypto_box_from_nick(nick)
 
     def __handle_privmsg(self, source, target, message):
         nick = get_irc_nick(source)
@@ -291,7 +294,8 @@ class IRCMessageChannel(MessageChannel):
                     return
                 #new message starting
                 cmd_string = message[1:].split(' ')[0]
-                if self.built_privmsg not in joinmarket_irc_commands:
+                if cmd_string not in plaintext_commands + encrypted_commands:
+                    debug('cmd not in cmd_list, line="' + message + '"')
                     return
                 self.built_privmsg[nick] = [cmd_string, message[:-2]]
             else:
@@ -315,7 +319,8 @@ class IRCMessageChannel(MessageChannel):
                 debug("<<privmsg nick=%s message=%s" % (nick, parsed))
                 self.__on_privmsg(nick, parsed)
             else:
-                raise Exception("message formatting error")
+                #drop the bad nick
+                del self.built_privmsg[nick]
         else:
             debug("<<pubmsg nick=%s message=%s" % (nick, message))
             self.__on_pubmsg(nick, message)
