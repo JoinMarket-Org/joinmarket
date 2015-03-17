@@ -167,6 +167,7 @@ class Wallet(object):
 		'''
 		returns a list of utxos sorted by different mix levels
 		'''
+		pprint.pprint(self.unspent)
 		mix_utxo_list = {}
 		for utxo, addrvalue in self.unspent.iteritems():
 			mixdepth = self.addr_cache[addrvalue['address']][0]

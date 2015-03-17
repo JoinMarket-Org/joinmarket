@@ -16,7 +16,7 @@ class TakerThread(threading.Thread):
 		self.tmaker = tmaker
 		self.finished = False
 
-	def finishcallback(self):
+	def finishcallback(self, coinjointx):
 		self.tmaker.msgchan.shutdown()
 
 	def run(self):

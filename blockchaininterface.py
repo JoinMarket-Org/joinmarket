@@ -299,15 +299,16 @@ class BitcoinCoreInterface(BlockchainInterface):
 			raise #something here
 
 	def add_watchonly_addresses(self, addr_list, wallet_name):
-		common.debug('importing ' + str(len(addr_list)) + ' into account ' + wallet_name)
+		common.debug('importing ' + str(len(addr_list)) + ' addresses into account ' + wallet_name)
 		for addr in addr_list:
 			self.rpc(['importaddress', addr, wallet_name, 'false'])
 		print 'now restart bitcoind with -rescan'
 		sys.exit(0)
 
 	def sync_wallet(self, wallet, gaplimit=6):
+		common.debug('requesting wallet history')
 		wallet_name = 'joinmarket-wallet-' + btc.dbl_sha256(wallet.keys[0][0])[:6]
-		addr_req_count = 50
+		addr_req_count = 20
 		wallet_addr_list = []
 		for mix_depth in range(wallet.max_mix_depth):
 			for forchange in [0, 1]:
@@ -356,13 +357,15 @@ class BitcoinCoreInterface(BlockchainInterface):
 		if len(too_few_addr_mix_change) > 0:
 			common.debug('too few addresses in ' + str(too_few_addr_mix_change))
 			for mix_depth, forchange in too_few_addr_mix_change:
-				wallet_addr_list += [wallet.get_new_addr(mix_depth, forchange) for i in range(addr_req_count)]
+				wallet_addr_list += [wallet.get_new_addr(mix_depth, forchange) for i in range(addr_req_count*3)]
 			self.add_watchonly_addresses(wallet_addr_list, wallet_name)
 			return
 
 		unspent_list = json.loads(self.rpc(['listunspent']))
 		for u in unspent_list:
 			if u['account'] != wallet_name:
+				continue
+			if u['address'] not in wallet.addr_cache:
 				continue
 			wallet.unspent[u['txid'] + ':' + str(u['vout'])] = {'address': u['address'],
 				'value': int(u['amount']*1e8)}

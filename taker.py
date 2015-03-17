@@ -148,7 +148,7 @@ class CoinJoinTX(object):
 		txid = common.bc_interface.pushtx(btc.serialize(self.latest_tx))
 		debug('pushed tx ' + str(txid))
 		if self.finishcallback != None:
-			self.finishcallback()
+			self.finishcallback(self)
 
 class CoinJoinerPeer(object):
 	def __init__(self, msgchan):
