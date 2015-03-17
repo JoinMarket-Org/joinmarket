@@ -19,7 +19,7 @@ class PaymentThread(threading.Thread):
         self.daemon = True
         self.taker = taker
 
-    def finishcallback(self):
+    def finishcallback(self, coinjointx):
         self.taker.msgchan.shutdown()
 
     def run(self):
@@ -126,7 +126,7 @@ def main():
     amount = int(args[1])
     destaddr = args[2]
 
-    common.load_program_config()
+    load_program_config()
 
     import binascii, os
     common.nickname = 'payer-' + binascii.hexlify(os.urandom(4))
