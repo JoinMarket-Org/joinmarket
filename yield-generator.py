@@ -109,8 +109,9 @@ def main():
     except:
         debug('CRASHING, DUMPING EVERYTHING')
         debug('wallet seed = ' + seed)
-        debug_dump_object(wallet, ['addr_cache'])
+        debug_dump_object(wallet, ['addr_cache', 'keys'])
         debug_dump_object(maker)
+        debug_dump_object(irc)
         import traceback
         debug(traceback.format_exc())
 

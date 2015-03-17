@@ -7,13 +7,9 @@ import blockchaininterface
 from ConfigParser import SafeConfigParser
 import os
 nickname = ''
-COMMAND_PREFIX = '!'
 MAX_PRIVMSG_LEN = 400
 bc_interface = None
 ordername_list = ["absorder", "relorder"]
-encrypted_commands = ["auth", "ioauth", "tx", "sig"]
-plaintext_commands = ["fill", "error", "pubkey", "orderbook", "relorder",
-                      "absorder"]
 debug_file_handle = None
 
 config = SafeConfigParser()
