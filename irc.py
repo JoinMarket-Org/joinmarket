@@ -7,8 +7,10 @@ import socket, threading, time
 import base64, os
 import enc_wrapper
 
+COMMAND_PREFIX = '!'
 PING_INTERVAL = 40
 PING_TIMEOUT = 10
+joinmarket_irc_commands = ["auth", "ioauth", "tx", "sig", "fill", "error", "pubkey", "orderbook", "relorder", "absorder"]
 
 def get_irc_text(line):
 	return line[line[1:].find(':') + 2:]
@@ -135,7 +137,7 @@ class IRCMessageChannel(MessageChannel):
 		for m in message_chunks:
 			trailer = ' ~' if m==message_chunks[-1] else ' ;'
 			header = "PRIVMSG " + nick + " :"
-			if m==message_chunks[0]: header += '!'+cmd + ' '
+			if m==message_chunks[0]: header += COMMAND_PREFIX + cmd + ' '
 			self.send_raw(header + m + trailer)
 
 	def send_raw(self, line):
@@ -255,26 +257,9 @@ class IRCMessageChannel(MessageChannel):
 		If so, retrieve the appropriate crypto_box object
 		and return. Sending/receiving flag enables us
 		to check which command strings correspond to which
-		type of object (maker/taker).'''
-
-		if cmd in plaintext_commands:
-			return None
-		elif cmd not in encrypted_commands:
-			raise Exception("Invalid command type: " + cmd)
+		type of object (maker/taker).''' #old doc, dont trust
 		
 		return self.cjpeer.get_crypto_box_from_nick(nick)
-		'''
-		maker_strings = ['tx','auth'] if not sending else ['ioauth','sig']
-		taker_strings = ['ioauth','sig'] if not sending else ['tx','auth']
-		
-		if cmd in maker_strings:
-			return self.active_orders[nick].crypto_box
-		elif cmd in taker_strings:
-			return self.cjtx.crypto_boxes[nick][1]		
-		else:
-			raise Exception("Invalid command type: " + cmd)
-		'''
-	
 
 	def __handle_privmsg(self, source, target, message):
 		nick = get_irc_nick(source)
@@ -288,14 +273,18 @@ class IRCMessageChannel(MessageChannel):
 		
 		if target == self.nick:
 			if nick not in self.built_privmsg:
+				if message[0] != COMMAND_PREFIX:
+					return
 				#new message starting
-				cmd_string = ''.join(message.split(' ')[0][1:])
+				cmd_string = message[1:].split(' ')[0]
+				if self.built_privmsg not in joinmarket_irc_commands:
+					return
 				self.built_privmsg[nick] = [cmd_string, message[:-2]]
 			else:
 				self.built_privmsg[nick][1] += message[:-2]
 			box = self.__get_encryption_box(self.built_privmsg[nick][0], nick)
 			if message[-1]==';':
-				self.waiting[nick]=True		
+				self.waiting[nick]=True
 			elif message[-1]=='~':
 				self.waiting[nick]=False
 				if box:
