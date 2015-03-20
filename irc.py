@@ -287,7 +287,7 @@ class IRCMessageChannel(MessageChannel):
             ctcp = message[1:endindex + 1]
             #self.send_raw('PRIVMSG ' + nick + ' :\x01VERSION 
             #TODO ctcp version here, since some servers dont let you get on without
-
+        debug('target="' + target + '" self.nick="' + self.nick + '"')
         if target == self.nick:
             if nick not in self.built_privmsg:
                 if message[0] != COMMAND_PREFIX:
