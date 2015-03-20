@@ -11,8 +11,9 @@ import common
 from socket import gethostname
 
 txfee = 1000
-cjfee = '0.01' # 1% fee
+cjfee = '0.002' # 1% fee
 mix_levels = 5
+nickname = 'yigen-'+binascii.hexlify(os.urandom(4))
 nickserv_password = ''
 minsize = int(2 * txfee / float(cjfee)) #minimum size is such that you always net profit at least the miners fee
 
@@ -88,7 +89,7 @@ def main():
 	common.bc_interface.sync_wallet(wallet)
 	wallet.print_debug_wallet_info()
 
-	common.nickname = 'yigen-'+binascii.hexlify(os.urandom(4))
+	common.nickname = nickname
 	irc = IRCMessageChannel(common.nickname)
 	maker = YieldGenerator(irc, wallet)
 	try:

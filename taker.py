@@ -79,6 +79,7 @@ class CoinJoinTX(object):
 		self.outputs.append({'address': cj_addr, 'value': self.cj_amount})
 		self.cjfee_total += real_cjfee
 		if len(self.nonrespondants) > 0:
+			debug('nonrespondants = ' + str(self.nonrespondants))
 			return
 		debug('got all parts, enough to build a tx cjfeetotal=' + str(self.cjfee_total))
 
