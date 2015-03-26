@@ -108,7 +108,7 @@ class CoinJoinTX(object):
         print 'fee breakdown for me totalin=%d txfee=%d cjfee_total=%d => changevalue=%d' % (
             my_total_in, self.my_txfee, self.cjfee_total, my_change_value)
         if self.my_change_addr == None:
-            if my_change_value != 0 or abs(my_change_value) != 1:
+            if my_change_value != 0 and abs(my_change_value) != 1:
                 #seems you wont always get exactly zero because of integer rounding
                 # so 1 satoshi extra or fewer being spent as miner fees is acceptable
                 print 'WARNING CHANGE NOT BEING USED\nCHANGEVALUE = ' + str(
