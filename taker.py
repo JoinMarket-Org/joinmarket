@@ -213,7 +213,12 @@ class Taker(OrderbookWatch):
 		#maybe a start_cj_tx() method is needed
 
 	def get_crypto_box_from_nick(self, nick):
-		return self.cjtx.crypto_boxes[nick][1]		
+		return self.cjtx.crypto_boxes[nick][1]
+
+	def start_cj(self, wallet, cj_amount, orders, my_utxos, my_cj_addr, my_change_addr,
+			my_txfee, finishcallback=None):
+		self.cjtx = CoinJoinTX(self.msgchan, wallet, self.db, cj_amount, orders,
+			my_utxos, my_cj_addr, my_change_addr, my_txfee, finishcallback)
 
 	def on_error(self):
 		pass #TODO implement

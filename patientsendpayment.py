@@ -37,9 +37,8 @@ class TakerThread(threading.Thread):
 		print 'total amount spent = ' + str(total_amount)
 
 		utxos = self.tmaker.wallet.select_utxos(self.tmaker.mixdepth, total_amount)
-		self.tmaker.cjtx = taker.CoinJoinTX(self.tmaker.msgchan, self.tmaker.wallet,
-			self.tmaker.db, self.tmaker.amount, orders, utxos, self.tmaker.destaddr,
-			self.tmaker.wallet.get_change_addr(self.tmaker.mixdepth),
+		self.tmaker.start_cj(self.tmaker.wallet, self.tmaker.amount, orders, utxos,
+			self.tmaker.destaddr, self.tmaker.wallet.get_change_addr(self.tmaker.mixdepth),
 			self.tmaker.txfee, self.finishcallback)
 
 class PatientSendPayment(maker.Maker, taker.Taker):
