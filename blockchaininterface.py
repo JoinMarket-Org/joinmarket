@@ -34,9 +34,18 @@ class BlockchainInterface(object):
     def __init__(self):
         pass
 
-    @abc.abstractmethod
     def sync_wallet(self, wallet, gaplimit=6):
-        '''Finds used addresses and utxos, puts in wallet.index and wallet.unspent'''
+        self.sync_addresses(wallet, gaplimit)
+        self.sync_unspent(wallet)
+
+    @abc.abstractmethod
+    def sync_addresses(self, wallet, gaplimit=6):
+        '''Finds which addresses have been used and sets wallet.index appropriately'''
+        pass
+
+    @abc.abstractmethod
+    def sync_unspent(self, wallet):
+        '''Finds the unspent transaction outputs belonging to this wallet, sets wallet.unspent'''
         pass
 
     @abc.abstractmethod
@@ -62,7 +71,7 @@ class BlockrInterface(BlockchainInterface):
         self.network = 'testnet' if testnet else 'btc'  #see bci.py in bitcoin module
         self.blockr_domain = 'tbtc' if testnet else 'btc'
 
-    def sync_wallet(self, wallet, gaplimit=6):
+    def sync_addresses(self, wallet, gaplimit=6):
         common.debug('downloading wallet history')
         #sets Wallet internal indexes to be at the next unused address
         addr_req_count = 20
@@ -92,7 +101,10 @@ class BlockrInterface(BlockchainInterface):
                     wallet.index[mix_depth][forchange] = wallet.addr_cache[
                         last_used_addr][2] + 1
 
+    def sync_unspent(self, wallet):
+        wallet.unspent = {}
         #finds utxos in the wallet
+        addr_req_count = 20
 
         addrs = {}
         for m in range(wallet.max_mix_depth):
@@ -103,8 +115,6 @@ class BlockrInterface(BlockchainInterface):
             common.debug('no tx used')
             return
 
-        #TODO handle the case where there are so many addresses it cant
-        # fit into one api call (>50 or so)
         i = 0
         addrkeys = addrs.keys()
         while i < len(addrkeys):
@@ -340,7 +350,7 @@ class BitcoinCoreInterface(BlockchainInterface):
         print 'now restart bitcoind with -rescan'
         sys.exit(0)
 
-    def sync_wallet(self, wallet, gaplimit=6):
+    def sync_addresses(self, wallet, gaplimit=6):
         common.debug('requesting wallet history')
         wallet_name = 'joinmarket-wallet-' + btc.dbl_sha256(wallet.keys[0][
             0])[:6]
@@ -404,6 +414,10 @@ class BitcoinCoreInterface(BlockchainInterface):
             self.add_watchonly_addresses(wallet_addr_list, wallet_name)
             return
 
+    def sync_unspent(self, wallet):
+        wallet_name = 'joinmarket-wallet-' + btc.dbl_sha256(wallet.keys[0][
+            0])[:6]
+        wallet.unspent = {}
         unspent_list = json.loads(self.rpc(['listunspent']))
         for u in unspent_list:
             if u['account'] != wallet_name:
