@@ -41,9 +41,9 @@ class TakerThread(threading.Thread):
 
         utxos = self.tmaker.wallet.select_utxos(self.tmaker.mixdepth,
                                                 total_amount)
-        self.tmaker.cjtx = taker.CoinJoinTX(
-            self.tmaker.msgchan, self.tmaker.wallet, self.tmaker.db,
-            self.tmaker.amount, orders, utxos, self.tmaker.destaddr,
+        self.tmaker.start_cj(
+            self.tmaker.wallet, self.tmaker.amount, orders, utxos,
+            self.tmaker.destaddr,
             self.tmaker.wallet.get_change_addr(self.tmaker.mixdepth),
             self.tmaker.txfee, self.finishcallback)
 

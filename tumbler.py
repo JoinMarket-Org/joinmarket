@@ -119,10 +119,9 @@ class TumblerThread(threading.Thread):
 
             orders, cjamount = choose_sweep_order(
                 self.taker.db, total_value, self.taker.txfee, tx['makercount'])
-            self.taker.cjtx = takermodule.CoinJoinTX(
-                self.taker.msgchan, self.taker.wallet, self.taker.db, cjamount,
-                orders, all_utxos, destaddr, None, self.taker.txfee,
-                self.finishcallback)
+            self.taker.start_cj(self.taker.wallet, cjamount, orders, all_utxos,
+                                destaddr, None, self.taker.txfee,
+                                self.finishcallback)
         else:
             amount = int(tx['amount_ratio'] * total_value)
             print 'coinjoining ' + str(amount)
@@ -135,10 +134,9 @@ class TumblerThread(threading.Thread):
 
             utxos = self.taker.wallet.select_utxos(tx['srcmixdepth'],
                                                    total_amount)
-            self.taker.cjtx = takermodule.CoinJoinTX(
-                self.taker.msgchan, self.taker.wallet, self.taker.db, amount,
-                orders, utxos, destaddr, changeaddr, self.taker.txfee,
-                self.finishcallback)
+            self.taker.start_cj(self.taker.wallet, amount, orders, utxos,
+                                destaddr, changeaddr, self.taker.txfee,
+                                self.finishcallback)
 
         print 'that was %d tx out of %d' % (i, l)
         self.lockcond.acquire()

@@ -43,10 +43,9 @@ class PaymentThread(threading.Thread):
             orders, cjamount = choose_sweep_order(self.taker.db, total_value,
                                                   self.taker.txfee,
                                                   self.taker.makercount)
-            self.taker.cjtx = takermodule.CoinJoinTX(
-                self.taker.msgchan, self.taker.wallet, self.taker.db, cjamount,
-                orders, utxo_list, self.taker.destaddr, None, self.taker.txfee,
-                self.finishcallback)
+            self.taker.start_cj(self.taker.wallet, cjamount, orders, utxo_list,
+                                self.taker.destaddr, None, self.taker.txfee,
+                                self.finishcallback)
         else:
             orders, total_cj_fee = choose_order(
                 self.taker.db, self.taker.amount, self.taker.makercount)
@@ -57,9 +56,9 @@ class PaymentThread(threading.Thread):
 
             utxos = self.taker.wallet.select_utxos(self.taker.mixdepth,
                                                    total_amount)
-            self.taker.cjtx = takermodule.CoinJoinTX(
-                self.taker.msgchan, self.taker.wallet, self.taker.db,
-                self.taker.amount, orders, utxos, self.taker.destaddr,
+            self.taker.start_cjd(
+                self.taker.wallet, self.taker.amount, orders, utxos,
+                self.taker.destaddr,
                 self.taker.wallet.get_change_addr(self.taker.mixdepth),
                 self.taker.txfee, self.finishcallback)
 
