@@ -87,11 +87,6 @@ class TumblerThread(threading.Thread):
 		self.taker.wallet.remove_old_utxos(coinjointx.latest_tx)
 
 	def send_tx(self, tx, sweep, i, l):
-		total_value = 0
-		all_utxos = self.taker.wallet.get_utxo_list_by_mixdepth()[tx['srcmixdepth']]
-		for utxo in all_utxos:
-			total_value += self.taker.wallet.unspent[utxo]['value']
-
 		destaddr = None
 		changeaddr = None
 		if tx['dest'] == 'internal':
@@ -104,6 +99,7 @@ class TumblerThread(threading.Thread):
 			destaddr = tx['dest']
 			changeaddr = self.taker.wallet.get_change_addr(tx['srcmixdepth'])
 
+		total_value = self.wallet.get_balance_by_mixdepth()[tx['srcmixdepth']]
 		if sweep:
 			
 			orders, cjamount = choose_sweep_order(self.taker.db, total_value, self.taker.txfee, tx['makercount'])
@@ -111,6 +107,7 @@ class TumblerThread(threading.Thread):
 				None, self.taker.txfee, self.finishcallback)
 		else:
 			amount = int(tx['amount_ratio'] * total_value)
+			#ERROR TODO this is wrong, should be the ratio times initial amount, not running total amount
 			print 'coinjoining ' + str(amount)
 			orders, total_cj_fee = choose_order(self.taker.db, amount, tx['makercount'])
 			print 'chosen orders to fill ' + str(orders) + ' totalcjfee=' + str(total_cj_fee)

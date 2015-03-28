@@ -9,7 +9,7 @@ import sqlite3, base64, threading, time, random
 
 class CoinJoinTX(object):
 	#soon the taker argument will be removed and just be replaced by wallet or some other interface
-	def __init__(self, msgchan, wallet, db, cj_amount, orders, my_utxos, my_cj_addr,
+	def __init__(self, msgchan, wallet, db, cj_amount, orders, input_utxos, my_cj_addr,
 		my_change_addr, my_txfee, finishcallback=None):
 		'''
 		if my_change is None then there wont be a change address
@@ -23,8 +23,8 @@ class CoinJoinTX(object):
 		self.cj_amount = cj_amount
 		self.active_orders = dict(orders)
 		self.nonrespondants = list(orders.keys())
-		self.my_utxos =  my_utxos
-		self.utxos = {None: my_utxos} #None means they belong to me
+		self.input_utxos = input_utxos
+		self.utxos = {None: input_utxos.keys()} #None means they belong to me
 		self.finishcallback = finishcallback
 		self.my_txfee = my_txfee
 		self.outputs = [{'address': my_cj_addr, 'value': self.cj_amount}]
@@ -35,7 +35,7 @@ class CoinJoinTX(object):
 		self.kp = enc_wrapper.init_keypair()
 		self.crypto_boxes = {}
 		#find the btc pubkey of the first utxo being used
-		self.signing_btc_add = wallet.unspent[self.my_utxos[0]]['address']
+		self.signing_btc_add = self.input_utxos.itervalues().next()['address']
 		self.signing_btc_pub = btc.privtopub(wallet.get_key_from_addr(self.signing_btc_add))
 		self.msgchan.fill_orders(orders, cj_amount, self.kp.hex_pk())
 
@@ -45,8 +45,8 @@ class CoinJoinTX(object):
 		self.crypto_boxes[nick] = [maker_pk, enc_wrapper.as_init_encryption(\
 		                        self.kp, enc_wrapper.init_pubkey(maker_pk))]
 		#send authorisation request
-		my_btc_priv = self.wallet.get_key_from_addr(\
-		        self.wallet.unspent[self.my_utxos[0]]['address'])
+		my_btc_addr = self.input_utxos.itervalues().next()['address']
+		my_btc_priv = self.wallet.get_key_from_addr(my_btc_addr)
 		my_btc_pub = btc.privtopub(my_btc_priv)
 		my_btc_sig = btc.ecdsa_sign(self.kp.hex_pk(), my_btc_priv)
 		self.msgchan.send_auth(nick, my_btc_pub, my_btc_sig)
@@ -84,9 +84,9 @@ class CoinJoinTX(object):
 		debug('got all parts, enough to build a tx cjfeetotal=' + str(self.cjfee_total))
 
 		my_total_in = 0
-		for u in self.my_utxos:
-			usvals = self.wallet.unspent[u]
-			my_total_in += int(usvals['value'])
+		for u, va in self.input_utxos.iteritems():
+			my_total_in += va['value']
+		#my_total_in = sum([va['value'] for u, va in self.input_utxos.iteritems()])
 
 		my_change_value = my_total_in - self.cj_amount - self.cjfee_total - self.my_txfee
 		print 'fee breakdown for me totalin=%d txfee=%d cjfee_total=%d => changevalue=%d' % (my_total_in, 
@@ -108,11 +108,9 @@ class CoinJoinTX(object):
 		#now sign it ourselves here
 		for index, ins in enumerate(btc.deserialize(tx)['ins']):
 			utxo = ins['outpoint']['hash'] + ':' + str(ins['outpoint']['index'])
-			if utxo not in self.my_utxos:
+			if utxo not in self.input_utxos.keys():
 				continue
-			if utxo not in self.wallet.unspent:
-				continue
-			addr = self.wallet.unspent[utxo]['address']
+			addr = self.input_utxos[utxo]['address']
 			tx = btc.sign(tx, index, self.wallet.get_key_from_addr(addr))
 		self.latest_tx = btc.deserialize(tx)
 
@@ -215,10 +213,10 @@ class Taker(OrderbookWatch):
 	def get_crypto_box_from_nick(self, nick):
 		return self.cjtx.crypto_boxes[nick][1]
 
-	def start_cj(self, wallet, cj_amount, orders, my_utxos, my_cj_addr, my_change_addr,
+	def start_cj(self, wallet, cj_amount, orders, input_utxos, my_cj_addr, my_change_addr,
 			my_txfee, finishcallback=None):
 		self.cjtx = CoinJoinTX(self.msgchan, wallet, self.db, cj_amount, orders,
-			my_utxos, my_cj_addr, my_change_addr, my_txfee, finishcallback)
+			input_utxos, my_cj_addr, my_change_addr, my_txfee, finishcallback)
 
 	def on_error(self):
 		pass #TODO implement

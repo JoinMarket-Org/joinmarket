@@ -7,7 +7,7 @@ from irc import IRCMessageChannel
 import bitcoin as btc
 
 from optparse import OptionParser
-import threading
+import threading, pprint
 
 #thread which does the buy-side algorithm
 # chooses which coinjoins to initiate and when
@@ -32,10 +32,7 @@ class PaymentThread(threading.Thread):
 			return
 
 		if self.taker.amount == 0:
-			total_value = 0
-			utxo_list = self.taker.wallet.get_utxo_list_by_mixdepth()[self.taker.mixdepth]
-			for utxo in utxo_list:
-				total_value += self.taker.wallet.unspent[utxo]['value']
+			total_value = self.wallet.get_balance_by_mixdepth()[self.taker.mixdepth]
 			orders, cjamount = choose_sweep_order(self.taker.db, total_value, self.taker.txfee, self.taker.makercount)
 			self.taker.start_cj(self.taker.wallet, cjamount, orders, utxo_list,
 				self.taker.destaddr, None, self.taker.txfee, self.finishcallback)
@@ -46,7 +43,7 @@ class PaymentThread(threading.Thread):
 			print 'total amount spent = ' + str(total_amount)
 
 			utxos = self.taker.wallet.select_utxos(self.taker.mixdepth, total_amount)
-			self.taker.start_cjd(self.taker.wallet, self.taker.amount, orders, utxos, self.taker.destaddr,
+			self.taker.start_cj(self.taker.wallet, self.taker.amount, orders, utxos, self.taker.destaddr,
 				self.taker.wallet.get_change_addr(self.taker.mixdepth), self.taker.txfee,
 				self.finishcallback)
 
