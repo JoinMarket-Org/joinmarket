@@ -1,4 +1,5 @@
 from common import *
+import common
 import taker
 import maker
 from irc import IRCMessageChannel
@@ -6,7 +7,7 @@ import bitcoin as btc
 
 from optparse import OptionParser
 from datetime import timedelta
-import threading, time
+import threading, time, binascii, os
 
 
 class TakerThread(threading.Thread):
@@ -100,10 +101,7 @@ class PatientSendPayment(maker.Maker, taker.Taker):
             print 'finished sending, exiting..'
             self.msgchan.shutdown()
             return ([], [])
-        utxo_list = self.wallet.get_utxo_list_by_mixdepth()[self.mixdepth]
-        available_balance = 0
-        for utxo in utxo_list:
-            available_balance += self.wallet.unspent[utxo]['value']
+        available_balance = self.wallet.get_balance_by_mixdepth()[self.mixdepth]
         if available_balance > self.amount:
             order = {'oid': 0,
                      'ordertype': 'absorder',
@@ -195,17 +193,13 @@ def main():
         options.makercount)
 
     wallet = Wallet(seed, options.mixdepth + 1)
-    wallet.sync_wallet()
+    common.bc_interface.sync_wallet(wallet)
 
-    utxo_list = wallet.get_utxo_list_by_mixdepth()[options.mixdepth]
-    available_balance = 0
-    for utxo in utxo_list:
-        available_balance += wallet.unspent[utxo]['value']
+    available_balance = wallet.get_balance_by_mixdepth()[options.mixdepth]
     if available_balance < amount:
         print 'not enough money at mixdepth=%d, exiting' % (options.mixdepth)
         return
 
-    import common, binascii, os
     common.nickname = 'ppayer-' + binascii.hexlify(os.urandom(4))
 
     irc = IRCMessageChannel(common.nickname)

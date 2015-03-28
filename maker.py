@@ -226,8 +226,10 @@ class Maker(CoinJoinerPeer):
         debug('modifying orders. to_cancel=' + str(to_cancel) + '\nto_announce='
               + str(to_announce))
         for oid in to_cancel:
-            order = [o for o in self.orderlist if o['oid'] == oid][0]
-            self.orderlist.remove(order)
+            order = [o for o in self.orderlist if o['oid'] == oid]
+            if len(order) == 0:
+                debug('didnt cancel order which doesnt exist, oid=' + str(oid))
+            self.orderlist.remove(order[0])
         if len(to_cancel) > 0:
             self.msgchan.cancel_orders(to_cancel)
         if len(to_announce) > 0:
