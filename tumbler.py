@@ -96,30 +96,26 @@ class TumblerThread(threading.Thread):
                                           self.confirm_callback)
         self.taker.wallet.remove_old_utxos(coinjointx.latest_tx)
 
-    def send_tx(self, tx, sweep, i, l):
+    def send_tx(self, tx, balance, sweep, i, l):
         destaddr = None
-        changeaddr = None
         if tx['dest'] == 'internal':
             destaddr = self.taker.wallet.get_receive_addr(tx['srcmixdepth'] + 1)
-            changeaddr = self.taker.wallet.get_change_addr(tx['srcmixdepth'])
         elif tx['dest'] == 'addrask':
             destaddr = raw_input('insert new address: ')
-            changeaddr = self.taker.wallet.get_change_addr(tx['srcmixdepth'])
         else:
             destaddr = tx['dest']
-            changeaddr = self.taker.wallet.get_change_addr(tx['srcmixdepth'])
 
-        total_value = self.wallet.get_balance_by_mixdepth()[tx['srcmixdepth']]
         if sweep:
-
+            total_value = self.wallet.get_balance_by_mixdepth()[tx[
+                'srcmixdepth']]
             orders, cjamount = choose_sweep_order(
                 self.taker.db, total_value, self.taker.txfee, tx['makercount'])
             self.taker.start_cj(self.taker.wallet, cjamount, orders, all_utxos,
                                 destaddr, None, self.taker.txfee,
                                 self.finishcallback)
         else:
-            amount = int(tx['amount_ratio'] * total_value)
-            #ERROR TODO this is wrong, should be the ratio times initial amount, not running total amount
+            amount = int(tx['amount_ratio'] * balance)
+            changeaddr = self.taker.wallet.get_change_addr(tx['srcmixdepth'])
             print 'coinjoining ' + str(amount)
             orders, total_cj_fee = choose_order(self.taker.db, amount,
                                                 tx['makercount'])
@@ -128,8 +124,7 @@ class TumblerThread(threading.Thread):
             total_amount = amount + total_cj_fee + self.taker.txfee
             print 'total amount spent = ' + str(total_amount)
 
-            utxos = self.taker.wallet.select_utxos(tx['srcmixdepth'],
-                                                   total_amount)
+            utxos = self.taker.wallet.select_utxos(tx['srcmixdepth'], amount)
             self.taker.start_cj(self.taker.wallet, amount, orders, utxos,
                                 destaddr, changeaddr, self.taker.txfee,
                                 self.finishcallback)
@@ -155,12 +150,18 @@ class TumblerThread(threading.Thread):
 
         self.lockcond = threading.Condition()
 
+        self.balance_by_mixdepth = {}
         for i, tx in enumerate(self.taker.tx_list):
+            if tx['srcmixdepth'] not in self.balance_by_mixdepth:
+                self.balance_by_mixdepth[tx[
+                    'srcmixdepth']] = self.wallet.get_balance_by_mixdepth()[tx[
+                        'srcmixdepth']]
             sweep = True
             for later_tx in self.taker.tx_list[i + 1:]:
                 if later_tx['srcmixdepth'] == tx['srcmixdepth']:
                     sweep = False
-            self.send_tx(tx, sweep, i, len(self.taker.tx_list))
+            self.send_tx(tx, sweep, self.balance_by_mixdepth[tx['srcmixdepth']],
+                         i, len(self.taker.tx_list))
 
         print 'total finished'
         self.taker.msgchan.shutdown()
