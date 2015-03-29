@@ -45,11 +45,6 @@ class CoinJoinTX(object):
         #create DH keypair on the fly for this Tx object
         self.kp = enc_wrapper.init_keypair()
         self.crypto_boxes = {}
-        #find the btc pubkey of the first utxo being used
-        self.signing_btc_add = self.input_utxos.itervalues().next()['address']
-        self.signing_btc_pub = btc.privtopub(wallet.get_key_from_addr(
-            self.signing_btc_add))
-        self.msgchan.fill_orders(orders, cj_amount, self.kp.hex_pk())
 
     def start_encryption(self, nick, maker_pk):
         if nick not in self.active_orders.keys():
