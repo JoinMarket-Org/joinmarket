@@ -66,6 +66,7 @@ class BlockrInterface(BlockchainInterface):
 		super(BlockrInterface, self).__init__()
 		self.network = 'testnet' if testnet else 'btc' #see bci.py in bitcoin module
 		self.blockr_domain = 'tbtc' if testnet else 'btc'
+		self.last_sync_unspent = 0
 
 	def sync_addresses(self, wallet, gaplimit=6):
 		common.debug('downloading wallet history')
@@ -96,6 +97,11 @@ class BlockrInterface(BlockchainInterface):
 					wallet.index[mix_depth][forchange] = wallet.addr_cache[last_used_addr][2] + 1
 
 	def sync_unspent(self, wallet):
+		st = time.time()
+		rate_limit_time = 10*60 #dont refresh unspent dict more often than 10 minutes
+		if st - self.last_sync_unspent < rate_limit_time:
+			common.debug('blockr sync_unspent() happened too recently (%dsec), skipping' % (st - self.last_sync_unspent))
+			return
 		wallet.unspent = {}
 		#finds utxos in the wallet
 		addr_req_count = 20
@@ -108,7 +114,6 @@ class BlockrInterface(BlockchainInterface):
 		if len(addrs) == 0:
 			common.debug('no tx used')
 			return
-
 		i = 0
 		addrkeys = addrs.keys()
 		while i < len(addrkeys):
@@ -129,6 +134,8 @@ class BlockrInterface(BlockchainInterface):
 				for u in dat['unspent']:
 					wallet.unspent[u['tx']+':'+str(u['n'])] = {'address':
 						dat['address'], 'value': int(u['amount'].replace('.', ''))}
+		self.last_sync_unspent = time.time()
+		common.debug('blockr sync_unspent took ' + str((self.last_sync_unspent - st)) + 'sec')
 
 	def add_tx_notify(self, txd, unconfirmfun, confirmfun):
 		unconfirm_timeout = 5*60 #seconds
@@ -372,6 +379,7 @@ class BitcoinCoreInterface(BlockchainInterface):
 			return
 
 	def sync_unspent(self, wallet):
+		st = time.time()
 		wallet_name = 'joinmarket-wallet-' + btc.dbl_sha256(wallet.keys[0][0])[:6]
 		wallet.unspent = {}
 		unspent_list = json.loads(self.rpc(['listunspent']))
@@ -382,6 +390,8 @@ class BitcoinCoreInterface(BlockchainInterface):
 				continue
 			wallet.unspent[u['txid'] + ':' + str(u['vout'])] = {'address': u['address'],
 				'value': int(u['amount']*1e8)}
+		et = time.time()
+		common.debug('bitcoind sync_unspent took ' + str((et - st)) + 'sec')
 
 	def add_tx_notify(self, txd, unconfirmfun, confirmfun):
 		if not self.notifythread:
