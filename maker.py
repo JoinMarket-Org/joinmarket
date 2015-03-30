@@ -52,7 +52,7 @@ class CoinJoinOrder(object):
         btc_key = self.maker.wallet.get_key_from_addr(self.cj_addr)
         btc_pub = btc.privtopub(btc_key)
         btc_sig = btc.ecdsa_sign(self.kp.hex_pk(), btc_key)
-        self.maker.msgchan.send_ioauth(nick, self.utxos, btc_pub,
+        self.maker.msgchan.send_ioauth(nick, self.utxos.keys(), btc_pub,
                                        self.change_addr, btc_sig)
         return True
 
@@ -71,9 +71,9 @@ class CoinJoinOrder(object):
         sigs = []
         for index, ins in enumerate(self.tx['ins']):
             utxo = ins['outpoint']['hash'] + ':' + str(ins['outpoint']['index'])
-            if utxo not in self.maker.wallet.unspent:
+            if utxo not in self.utxos:
                 continue
-            addr = self.maker.wallet.unspent[utxo]['address']
+            addr = self.utxos[utxo]['address']
             txs = btc.sign(txhex, index,
                            self.maker.wallet.get_key_from_addr(addr))
             sigs.append(base64.b64encode(btc.deserialize(txs)['ins'][index][
@@ -117,17 +117,14 @@ class CoinJoinOrder(object):
            in [get_addr_from_utxo(i['outpoint']['hash'], i['outpoint']['index']) \
            for i in txd['ins']]:
             return False, "authenticating bitcoin address is not contained"
-        my_utxo_set = set(self.utxos)
+        my_utxo_set = set(self.utxos.keys())
         wallet_utxos = set(self.maker.wallet.unspent)
         if not tx_utxo_set.issuperset(my_utxo_set):
             return False, 'my utxos are not contained'
         if not wallet_utxos.issuperset(my_utxo_set):
             return False, 'my utxos already spent'
-        my_total_in = 0
-        for u in self.utxos:
-            usvals = self.maker.wallet.unspent[u]
-            my_total_in += usvals['value']
 
+        my_total_in = sum([va['value'] for va in self.utxos.values()])
         real_cjfee = calc_cj_fee(self.ordertype, self.cjfee, self.cj_amount)
         expected_change_value = (
             my_total_in - self.cj_amount - self.txfee + real_cjfee)
