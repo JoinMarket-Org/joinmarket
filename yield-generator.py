@@ -102,7 +102,9 @@ def main():
     wallet.print_debug_wallet_info()
 
     common.nickname = nickname
-    irc = IRCMessageChannel(common.nickname)
+    irc = IRCMessageChannel(common.nickname,
+                            realname='btcint=' + common.config.get(
+                                "BLOCKCHAIN", "blockchain_source"))
     maker = YieldGenerator(irc, wallet)
     try:
         debug('connecting to irc')
