@@ -148,9 +148,9 @@ class BlockrInterface(BlockchainInterface):
                                                         st)) + 'sec')
 
     def add_tx_notify(self, txd, unconfirmfun, confirmfun):
-        unconfirm_timeout = 5 * 60  #seconds
+        unconfirm_timeout = 10 * 60  #seconds
         unconfirm_poll_period = 5
-        confirm_timeout = 120 * 60
+        confirm_timeout = 2 * 60 * 60
         confirm_poll_period = 5 * 60
 
         class NotifyThread(threading.Thread):
@@ -203,7 +203,7 @@ class BlockrInterface(BlockchainInterface):
                         outs = set([(sv['script'], sv['value'])
                                     for sv in btc.deserialize(txinfo['tx'][
                                         'hex'])['outs']])
-                        print 'outs = ' + str(outs)
+                        common.debug('unconfirm query outs = ' + str(outs))
                         if outs == self.tx_output_set:
                             unconfirmed_txid = txinfo['tx']['txid']
                             unconfirmed_txhex = txinfo['tx']['hex']
@@ -243,7 +243,7 @@ class BlockrInterface(BlockchainInterface):
                         outs = set([(sv['script'], sv['value'])
                                     for sv in btc.deserialize(txinfo['tx'][
                                         'hex'])['outs']])
-                        print 'outs = ' + str(outs)
+                        common.debug('confirm query outs = ' + str(outs))
                         if outs == self.tx_output_set:
                             confirmed_txid = txinfo['tx']['txid']
                             confirmed_txhex = txinfo['tx']['hex']
@@ -274,7 +274,6 @@ class NotifyRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
             self, request, client_address, base_server)
 
     def do_HEAD(self):
-        print 'httpd received HEAD ' + self.path + ' request'
         pages = ('/walletnotify?', '/alertnotify?')
         if not self.path.startswith(pages):
             return
@@ -283,7 +282,6 @@ class NotifyRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
             txd = btc.deserialize(self.btcinterface.fetchtx(txid))
             tx_output_set = set([(sv['script'], sv['value']) for sv in txd[
                 'outs']])
-            print 'outs = ' + str(tx_output_set)
 
             unconfirmfun, confirmfun = None, None
             for tx_out, ucfun, cfun in self.btcinterface.txnotify_fun:
@@ -304,9 +302,8 @@ class NotifyRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
                                                        confirmfun))
 
         elif self.path.startswith('/alertnotify?'):
-            message = self.path[len(pages[1]):]
-            print 'got an alert, shit, shutting down. message=' + message
-            sys.exit(0)
+            common.alert_message = self.path[len(pages[1]):]
+            common.debug('Got an alert!\nMessage=' + common.alert_message)
         self.send_response(200)
         #self.send_header('Connection', 'close')
         self.end_headers()

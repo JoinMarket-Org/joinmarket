@@ -87,7 +87,7 @@ class YieldGenerator(Maker):
         #announce new order, replacing the old order
         return ([], [neworders[0]])
 
-    def on_tx_confirmed(self, cjorder, confirmations, txid, added_utxos):
+    def on_tx_confirmed(self, cjorder, confirmations, txid):
         return self.on_tx_unconfirmed(None, None, None)
 
 

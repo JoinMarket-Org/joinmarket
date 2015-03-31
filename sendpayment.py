@@ -35,8 +35,9 @@ class PaymentThread(threading.Thread):
             return
 
         if self.taker.amount == 0:
-            total_value = self.wallet.get_balance_by_mixdepth()[
+            utxo_list = self.taker.wallet.get_utxos_by_mixdepth()[
                 self.taker.mixdepth]
+            total_value = sum([va['value'] for va in utxo_list.values()])
             orders, cjamount = choose_sweep_order(self.taker.db, total_value,
                                                   self.taker.txfee,
                                                   self.taker.makercount)

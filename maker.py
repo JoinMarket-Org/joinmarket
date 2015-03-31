@@ -101,12 +101,12 @@ class CoinJoinOrder(object):
     def confirm_callback(self, txd, txid, confirmations):
         self.maker.wallet_unspent_lock.acquire()
         try:
-            added_utxos = self.maker.wallet.add_new_utxos(self.tx, txid)
+            common.bc_interface.sync_unspent(self.maker.wallet)
         finally:
             self.maker.wallet_unspent_lock.release()
-        debug('tx in a block, added_utxos=\n' + pprint.pformat(added_utxos))
+        debug('tx in a block')
         to_cancel, to_announce = self.maker.on_tx_confirmed(self, confirmations,
-                                                            txid, added_utxos)
+                                                            txid)
         self.maker.modify_orders(to_cancel, to_announce)
 
     def verify_unsigned_tx(self, txd):
@@ -307,7 +307,7 @@ class Maker(CoinJoinerPeer):
     #must return which orders to cancel or recreate
     # and i have to think about how that will work for both
     # the blockchain explorer api method and the bitcoid walletnotify
-    def on_tx_confirmed(self, cjorder, confirmations, txid, added_utxos):
+    def on_tx_confirmed(self, cjorder, confirmations, txid):
         to_announce = []
         for i, out in enumerate(cjorder.tx['outs']):
             addr = btc.script_to_address(out['script'], get_addr_vbyte())

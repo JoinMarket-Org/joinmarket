@@ -11,6 +11,7 @@ MAX_PRIVMSG_LEN = 400
 bc_interface = None
 ordername_list = ["absorder", "relorder"]
 debug_file_handle = None
+alert_message = None
 
 config = SafeConfigParser()
 config_location = os.path.join(
@@ -48,6 +49,8 @@ def debug(msg):
     if nickname and not debug_file_handle:
         debug_file_handle = open(nickname + '.log', 'ab')
     outmsg = datetime.datetime.now().strftime("[%Y/%m/%d %H:%M:%S] ") + msg
+    if alert_message:
+        print 'Alert Message: ' + alert_message
     print outmsg
     if nickname:  #debugs before creating bot nick won't be handled like this
         debug_file_handle.write(outmsg + '\n')
