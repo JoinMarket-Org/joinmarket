@@ -6,7 +6,7 @@ import BaseHTTPServer, SimpleHTTPServer, threading
 from decimal import Decimal
 
 import io
-import base64
+import base64, time
 
 tableheading = '''
 <table>
@@ -22,8 +22,9 @@ tableheading = '''
 '''
 
 shutdownform = '<form action="shutdown" method="post"><input type="submit" value="Shutdown" /></form>'
-
 shutdownpage = '<html><body><center><h1>Successfully Shut down</h1></center></body></html>'
+
+refresh_orderbook_form = '<form action="refreshorderbook" method="post"><input type="submit" value="Refresh Orderbook" /></form>'
 
 
 def calc_depth_data(db, value):
@@ -32,6 +33,28 @@ def calc_depth_data(db, value):
 
 def calc_order_size_data(db):
     return ordersizes
+
+
+def create_depth_chart(db, cj_amount):
+    try:
+        import matplotlib.pyplot as plt
+    except ImportError:
+        return 'Install matplotlib to see graphs'
+    sqlorders = db.execute('SELECT * FROM orderbook;').fetchall()
+    orderfees = [calc_cj_fee(o['ordertype'], o['cjfee'], cj_amount) / 1e8
+                 for o in sqlorders
+                 if cj_amount >= o['minsize'] and cj_amount <= o['maxsize']]
+
+    if len(orderfees) == 0:
+        return 'No orders at amount ' + str(cj_amount / 1e8)
+    fig = plt.figure()
+    plt.hist(orderfees, 30, histtype='bar', rwidth=0.8)
+    plt.grid()
+    plt.title('CoinJoin Orderbook Depth Chart for amount=' + str(cj_amount /
+                                                                 1e8) + 'btc')
+    plt.xlabel('CoinJoin Fee / btc')
+    plt.ylabel('Frequency')
+    return get_graph_html(fig)
 
 
 def create_size_histogram(db):
@@ -113,7 +136,7 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
     def do_GET(self):
         #SimpleHTTPServer.SimpleHTTPRequestHandler.do_GET(self)
         #print 'httpd received ' + self.path + ' request'
-        pages = ['/', '/ordersize']
+        pages = ['/', '/ordersize', '/depth']
         if self.path not in pages:
             return
         fd = open('orderbook.html', 'r')
@@ -122,20 +145,32 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
         if self.path == '/':
             ordercount, ordertable = self.create_orderbook_table()
             replacements = {
-                'PAGETITLE': 'Joinmarket Browser Interface',
-                'MAINHEADING': 'Joinmarket Orderbook',
+                'PAGETITLE': 'JoinMarket Browser Interface',
+                'MAINHEADING': 'JoinMarket Orderbook',
                 'SECONDHEADING': (
                     str(ordercount) + ' orders found by ' +
                     self.get_counterparty_count() + ' counterparties'),
-                'MAINBODY':
-                shutdownform + tableheading + ordertable + '</table>\n'
+                'MAINBODY': refresh_orderbook_form + shutdownform + tableheading
+                + ordertable + '</table>\n'
             }
         elif self.path == '/ordersize':
             replacements = {
-                'PAGETITLE': 'Joinmarket Browser Interface',
+                'PAGETITLE': 'JoinMarket Browser Interface',
                 'MAINHEADING': 'Order Sizes',
                 'SECONDHEADING': 'Order Size Histogram',
                 'MAINBODY': create_size_histogram(self.taker.db)
+            }
+        elif self.path.startswith('/depth'):
+            #if self.path[6] == '?':
+            #	quantity =
+            cj_amounts = [10**cja for cja in range(4, 10, 1)]
+            mainbody = [create_depth_chart(self.taker.db, cja)
+                        for cja in cj_amounts]
+            replacements = {
+                'PAGETITLE': 'JoinMarket Browser Interface',
+                'MAINHEADING': 'Depth Chart',
+                'SECONDHEADING': 'Orderbook Depth',
+                'MAINBODY': '<br />'.join(mainbody)
             }
         orderbook_page = orderbook_fmt
         for key, rep in replacements.iteritems():
@@ -147,6 +182,9 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
         self.wfile.write(orderbook_page)
 
     def do_POST(self):
+        pages = ['/shutdown', '/refreshorderbook']
+        if self.path not in pages:
+            return
         if self.path == '/shutdown':
             self.taker.msgchan.shutdown()
             self.send_response(200)
@@ -155,6 +193,11 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(shutdownpage)
             self.base_server.__shutdown_request = True
+        elif self.path == '/refreshorderbook':
+            self.taker.msgchan.request_orderbook()
+            time.sleep(5)
+            self.path = '/'
+            self.do_GET()
 
 
 class HTTPDThread(threading.Thread):

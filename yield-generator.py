@@ -16,8 +16,8 @@ mix_levels = 5
 nickname = 'yigen-' + binascii.hexlify(os.urandom(4))
 nickserv_password = ''
 minsize = int(
-    2 * txfee / float(cjfee)
-)  #minimum size is such that you always net profit at least the miners fee
+    1.2 * txfee / float(cjfee)
+)  #minimum size is such that you always net profit at least 20% of the miner fee
 
 
 #is a maker for the purposes of generating a yield from held

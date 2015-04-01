@@ -363,8 +363,14 @@ class IRCMessageChannel(MessageChannel):
         elif chunks[1] == 'KICK':
             target = chunks[3]
             nick = get_irc_nick(chunks[0])
-            if self.on_nick_leave:
-                self.on_nick_leave(nick)
+            if target == self.nick:
+                self.give_up = True
+                raise IOError(get_irc_nick(chunks[
+                    0]) + ' has kicked us from the irc channel! Reason=' +
+                              get_irc_text(line))
+            else:
+                if self.on_nick_leave:
+                    self.on_nick_leave(target)
         elif chunks[1] == 'PART':
             nick = get_irc_nick(chunks[0])
             if self.on_nick_leave:
