@@ -15,7 +15,7 @@ cjfee = '0.002' # 1% fee
 mix_levels = 5
 nickname = 'yigen-'+binascii.hexlify(os.urandom(4))
 nickserv_password = ''
-minsize = int(2 * txfee / float(cjfee)) #minimum size is such that you always net profit at least the miners fee
+minsize = int(1.2 * txfee / float(cjfee)) #minimum size is such that you always net profit at least 20% of the miner fee
 
 
 
