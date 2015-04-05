@@ -97,28 +97,23 @@ class BlockrInterface(BlockchainInterface):
 					wallet.index[mix_depth][forchange] = wallet.addr_cache[last_used_addr][2] + 1
 
 	def sync_unspent(self, wallet):
+		#finds utxos in the wallet
 		st = time.time()
 		rate_limit_time = 10*60 #dont refresh unspent dict more often than 10 minutes
 		if st - self.last_sync_unspent < rate_limit_time:
 			common.debug('blockr sync_unspent() happened too recently (%dsec), skipping' % (st - self.last_sync_unspent))
 			return
 		wallet.unspent = {}
-		#finds utxos in the wallet
 		addr_req_count = 20
 
-		addrs = {}
-		for m in range(wallet.max_mix_depth):
-			for forchange in [0, 1]:
-				for n in range(wallet.index[m][forchange]):
-					addrs[wallet.get_addr(m, forchange, n)] = m
+		addrs = wallet.addr_cache.keys()
 		if len(addrs) == 0:
 			common.debug('no tx used')
 			return
 		i = 0
-		addrkeys = addrs.keys()
-		while i < len(addrkeys):
-			inc = min(len(addrkeys) - i, addr_req_count)
-			req = addrkeys[i:i + inc]
+		while i < len(addrs):
+			inc = min(len(addrs) - i, addr_req_count)
+			req = addrs[i:i + inc]
 			i += inc
 
 			#TODO send a pull request to pybitcointools 
