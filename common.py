@@ -251,6 +251,19 @@ def calc_total_input_value(utxos):
 
 
 def weighted_order_choose(orders, n, feekey):
+    '''
+	Algorithm for choosing the weighting function
+	it is an exponential
+	P(f) = exp(-(f - fmin) / phi)
+	P(f) - probability of order being chosen
+	f - order fee
+	fmin - minimum fee in the order book
+	phi - scaling parameter, 63% of the distribution is within
+
+	define number M, related to the number of counterparties in this coinjoin
+	phi has a value such that it contains up to the Mth order
+	unless M < orderbook size, then phi goes up to the last order
+	'''
     minfee = feekey(orders[0])
     M = 2 * n
     if len(orders) > M:
