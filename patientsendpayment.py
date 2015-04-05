@@ -1,13 +1,15 @@
+from optparse import OptionParser
+from datetime import timedelta
+import threading, time, binascii, os, sys
+data_dir = os.path.dirname(os.path.realpath(__file__))
+sys.path.insert(0, os.path.join(data_dir, 'lib'))
+
 from common import *
 import common
 import taker
 import maker
 from irc import IRCMessageChannel
 import bitcoin as btc
-
-from optparse import OptionParser
-from datetime import timedelta
-import threading, time, binascii, os
 
 
 class TakerThread(threading.Thread):

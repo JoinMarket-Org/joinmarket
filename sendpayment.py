@@ -1,13 +1,15 @@
 #! /usr/bin/env python
 
+from optparse import OptionParser
+import threading, pprint, sys, os
+data_dir = os.path.dirname(os.path.realpath(__file__))
+sys.path.insert(0, os.path.join(data_dir, 'lib'))
+
 from common import *
 import common
 import taker as takermodule
 from irc import IRCMessageChannel
 import bitcoin as btc
-
-from optparse import OptionParser
-import threading, pprint
 
 
 #thread which does the buy-side algorithm

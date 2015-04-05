@@ -1,12 +1,12 @@
+import BaseHTTPServer, SimpleHTTPServer, threading
+from decimal import Decimal
+import io, base64, time, sys, os
+data_dir = os.path.dirname(os.path.realpath(__file__))
+sys.path.insert(0, os.path.join(data_dir, 'lib'))
+
 import taker
 from irc import IRCMessageChannel
 from common import *
-
-import BaseHTTPServer, SimpleHTTPServer, threading
-from decimal import Decimal
-
-import io
-import base64, time
 
 tableheading = '''
 <table>
