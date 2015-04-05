@@ -30,6 +30,17 @@ class CoinJoinOrder(object):
             self.maker.send_error(nick, 'amount out of range')
         self.utxos, self.cj_addr, self.change_addr = maker.oid_to_order(oid,
                                                                         amount)
+        #check nothing has messed up with the wallet code, remove this code after a while
+        import pprint
+        pprint.pprint(self.utxos)
+        for utxo, va in self.utxos.iteritems():
+            txd = btc.deserialize(common.bc_interface.fetchtx(utxo[:64]))
+            value = txd['outs'][int(utxo[65:])]['value']
+            if value != va['value']:
+                debug('wrongly labeled utxo, expected value ' + str(va['value'])
+                      + ' got ' + str(value))
+                sys.exit(0)
+
         self.ordertype = order['ordertype']
         self.txfee = order['txfee']
         self.cjfee = order['cjfee']
