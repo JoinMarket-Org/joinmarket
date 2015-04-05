@@ -69,7 +69,6 @@ class CoinJoinTX(object):
         return True
 
     def recv_txio(self, nick, utxo_list, cj_pub, change_addr):
-        cj_addr = btc.pubtoaddr(cj_pub, get_addr_vbyte())
         if nick not in self.nonrespondants:
             debug('nick(' + nick + ') not in nonrespondants ' + str(
                 self.nonrespondants))
@@ -79,6 +78,10 @@ class CoinJoinTX(object):
         order = self.db.execute('SELECT ordertype, txfee, cjfee FROM '
                                 'orderbook WHERE oid=? AND counterparty=?',
                                 (self.active_orders[nick], nick)).fetchone()
+        goodoutputs, errmsg = common.bc_interface.is_output_suitable(utxo_list)
+        if not goodoutputs:
+            common.debug('bad outputs: ' + errmsg)
+            return
         total_input = calc_total_input_value(self.utxos[nick])
         real_cjfee = calc_cj_fee(order['ordertype'], order['cjfee'],
                                  self.cj_amount)
@@ -87,6 +90,7 @@ class CoinJoinTX(object):
                                  'txfee'] + real_cjfee})
         print 'fee breakdown for %s totalin=%d cjamount=%d txfee=%d realcjfee=%d' % (
             nick, total_input, self.cj_amount, order['txfee'], real_cjfee)
+        cj_addr = btc.pubtoaddr(cj_pub, get_addr_vbyte())
         self.outputs.append({'address': cj_addr, 'value': self.cj_amount})
         self.cjfee_total += real_cjfee
         if len(self.nonrespondants) > 0:
