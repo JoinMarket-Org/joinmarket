@@ -61,6 +61,15 @@ class BlockchainInterface(object):
 		'''pushes tx to the network, returns txhash'''
 		pass
 
+	@abc.abstractmethod
+	def is_output_suitable(self, txout):
+		'''
+		checks whether the txid:vout output is suitable to be used,
+		must be already mined into a block, and unspent
+		accepts list of txid:vout too
+		'''
+		pass
+
 class BlockrInterface(BlockchainInterface):
 	def __init__(self, testnet = False):
 		super(BlockrInterface, self).__init__()
@@ -231,6 +240,32 @@ class BlockrInterface(BlockchainInterface):
 			common.debug(data) 
 			return None
 		return data['data']
+
+	def is_output_suitable(self, txout):
+		if not isinstance(txout, list):
+			txout = [txout]
+		txids = [h[:64] for h in txout]
+		blockr_url = 'http://' + self.blockr_domain + '.blockr.io/api/v1/tx/info/'
+		data = json.loads(btc.make_request(blockr_url + ','.join(txids)))['data']
+		if not isinstance(data, list):
+			data = [data]
+		addrs = []
+		for tx in data:
+			if tx['is_unconfirmed']:
+				return False, 'tx ' + tx['tx'] + ' unconfirmed'
+			for outs in tx['vouts']:
+				addrs.append(outs['address'])
+		common.debug('addrs ' + pprint.pformat(addrs))
+		utxos = btc.blockr_unspent(addrs, self.network)
+		utxos = [u['output'] for u in utxos]
+		common.debug('unspents = ' + pprint.pformat(utxos))
+		common.debug('txouts   = ' + pprint.pformat(txout))
+		txoutset = set(txout)
+		utxoset = set(utxos)
+		if not utxoset.issuperset(txoutset):
+			return False, 'some utxos already spent'
+		return True, 'success'
+
 		
 class NotifyRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
 	def __init__(self, request, client_address, base_server):
@@ -381,7 +416,7 @@ class BitcoinCoreInterface(BlockchainInterface):
 			if u['address'] not in wallet.addr_cache:
 				continue
 			wallet.unspent[u['txid'] + ':' + str(u['vout'])] = {'address': u['address'],
-				'value': int(u['amount']*1e8)}
+				'value': int(Decimal(str(u['amount'])) * Decimal('1e8'))}
 		et = time.time()
 		common.debug('bitcoind sync_unspent took ' + str((et - st)) + 'sec')
 
@@ -397,6 +432,16 @@ class BitcoinCoreInterface(BlockchainInterface):
 
 	def pushtx(self, txhex):
 		return self.rpc(['sendrawtransaction', txhex]).strip()
+
+	def is_output_suitable(self, txout):
+		if not isinstance(txout, list):
+			txout = [txout]
+
+		for txo in txout:
+			ret = self.rpc(['gettxout', txo[:64], txo[65:], 'false'])
+			if ret == '':
+				return False, 'tx ' + txo + ' not found'
+		return True, 'success'
 
 #class for regtest chain access
 #running on local daemon. Only 
