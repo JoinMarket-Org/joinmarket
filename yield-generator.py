@@ -1,11 +1,13 @@
 #! /usr/bin/env python
 
+import time, os, binascii, sys
+import pprint
+data_dir = os.path.dirname(os.path.realpath(__file__))
+sys.path.insert(0, os.path.join(data_dir, 'lib'))
+
 from maker import *
 from irc import IRCMessageChannel
 import bitcoin as btc
-import time
-import os, binascii
-import pprint
 import common
 
 from socket import gethostname

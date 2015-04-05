@@ -15,7 +15,7 @@ debug_file_handle = None
 alert_message = None
 
 config = SafeConfigParser()
-config_location = os.path.join(os.path.dirname(os.path.realpath(__file__)),'joinmarket.cfg')
+config_location = 'joinmarket.cfg'
 required_options = {'BLOCKCHAIN':['blockchain_source', 'network', 'bitcoin_cli_cmd'],
                     'MESSAGING':['host','channel','port']}
 
