@@ -2,8 +2,8 @@
 import bitcoin as btc
 from decimal import Decimal
 from math import factorial
-import sys, datetime, json, time, pprint
-import threading
+import sys, datetime, json, time, pprint, threading
+import numpy as np
 import blockchaininterface
 from ConfigParser import SafeConfigParser
 import os
@@ -222,6 +222,19 @@ def calc_total_input_value(utxos):
 		input_sum += int(btc.deserialize(tx)['outs'][int(utxo[65:])]['value'])
 	return input_sum
 
+def weighted_order_choose(orders, n, feekey):
+	minfee = feekey(orders[0])
+	M = 2*n
+	if len(orders) > M:
+		phi = feekey(orders[M]) - minfee
+	else:
+		phi = feekey(orders[-1]) - minfee
+	fee = np.array([feekey(o) for o in orders])
+	weight = np.exp(-(1.0*fee - minfee) / phi)
+	weight /= sum(weight)
+	chosen_order_index = np.random.choice(len(orders), p=weight)
+	return orders[chosen_order_index]
+
 def choose_order(db, cj_amount, n):
 	
 	sqlorders = db.execute('SELECT * FROM orderbook;').fetchall()
@@ -232,10 +245,11 @@ def choose_order(db, cj_amount, n):
 	total_cj_fee = 0
 	chosen_orders = []
 	for i in range(n):
-		chosen_order = orders[0] #choose the cheapest, later this will be chosen differently
+		chosen_order = weighted_order_choose(orders, n, lambda k: k[2])
 		orders = [o for o in orders if o[0] != chosen_order[0]] #remove all orders from that same counterparty
 		chosen_orders.append(chosen_order)
 		total_cj_fee += chosen_order[2]
+	debug('chosen orders = ' + str(chosen_orders))
 	chosen_orders = [o[:2] for o in chosen_orders]
 	return dict(chosen_orders), total_cj_fee
 
@@ -296,7 +310,7 @@ def choose_sweep_order(db, my_total_input, my_tx_fee, n):
 				raise RuntimeError('unknown order type: ' + str(ordertype))
 		cjamount = (my_total_input - my_tx_fee - sumabsfee) / (1 + sumrelfee)
 		cjamount = int(cjamount.quantize(Decimal(1)))
-		return cjamount
+		return cjamount, int(sumabsfee + sumrelfee*cjamount)
 
 	def is_amount_in_range(ordercombo, cjamount):
 		for order in ordercombo:
@@ -311,14 +325,15 @@ def choose_sweep_order(db, my_total_input, my_tx_fee, n):
 	ordercombos = create_combination(orderlist, n)
 
 	ordercombos = [(c, calc_zero_change_cj_amount(c)) for c in ordercombos]
-	ordercombos = [oc for oc in ordercombos if is_amount_in_range(oc[0], oc[1])]
-	ordercombos = sorted(ordercombos, key=lambda k: k[1])
+	ordercombos = [oc for oc in ordercombos if is_amount_in_range(oc[0], oc[1][0])]
+	ordercombos = sorted(ordercombos, key=lambda k: k[1][0], reverse=True)
 	dbgprint = [([(o['counterparty'], o['oid']) for o in oc[0]], oc[1]) for oc in ordercombos]
 	debug('considered order combinations')
 	debug(pprint.pformat(dbgprint))
-	ordercombo = ordercombos[-1] #choose the cheapest, i.e. highest cj_amount
+
+	ordercombo = weighted_order_choose(ordercombos, n, lambda k: k[1][1])
 	orders = dict([(o['counterparty'], o['oid']) for o in ordercombo[0]])
-	cjamount = ordercombo[1]
+	cjamount =  ordercombo[1][0]
 	debug('chosen orders = ' + str(orders))
 	debug('cj amount = ' + str(cjamount))
 	return orders, cjamount
