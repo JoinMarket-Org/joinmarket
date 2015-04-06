@@ -2,7 +2,7 @@
 import bitcoin as btc
 from decimal import Decimal
 from math import factorial
-import sys, datetime, json, time, pprint, threading
+import sys, datetime, json, time, pprint, threading, aes, getpass
 import numpy as np
 import blockchaininterface
 from ConfigParser import SafeConfigParser
@@ -95,9 +95,10 @@ def get_addr_from_utxo(txhash, index):
 	return btc.script_to_address(btc.deserialize(bc_interface.fetchtx(txhash))['outs'][index]['script'], get_addr_vbyte())
 	
 class Wallet(object):
-	def __init__(self, seed, max_mix_depth=2):
+	def __init__(self, seedarg, max_mix_depth=2):
 		self.max_mix_depth = max_mix_depth
-		master = btc.bip32_master_key(seed)
+		self.seed = self.get_seed(seedarg)
+		master = btc.bip32_master_key(self.seed)
 		m_0 = btc.bip32_ckd(master, 0)
 		mixing_depth_keys = [btc.bip32_ckd(m_0, c) for c in range(max_mix_depth)]
 		self.keys = [(btc.bip32_ckd(m, 0), btc.bip32_ckd(m, 1)) for m in mixing_depth_keys]
@@ -113,6 +114,22 @@ class Wallet(object):
 
 		self.addr_cache = {}
 		self.unspent = {}
+
+	def get_seed(self, seedarg):
+		path = os.path.join('wallets', seedarg)
+		if not os.path.isfile(path):
+			debug('seedarg interpreted as seed')
+			return seedarg
+		debug('seedarg interpreted as wallet file name')
+		fd = open(path, 'r')
+		walletfile = fd.read()
+		fd.close()
+		walletdata = json.loads(walletfile)
+		password = getpass.getpass('Enter wallet decryption passphrase: ')
+		password_key = btc.bin_dbl_sha256(password)
+		decrypted_seed = aes.decryptData(password_key, walletdata['encrypted_seed']
+			.decode('hex')).encode('hex')
+		return decrypted_seed
 
 	def get_key(self, mixing_depth, forchange, i):
 		return btc.bip32_extract_key(btc.bip32_ckd(self.keys[mixing_depth][forchange], i))
