@@ -43,9 +43,17 @@ try:
 except ImportError:
     pass
 
+import sys
+
+is_python2 = sys.version_info.major == 2
 #block_size = 1
 digest_size = 20
 digestsize = 20
+
+try:
+    range = xrange
+except:
+    pass
 
 
 class RIPEMD160:
@@ -78,7 +86,10 @@ class RIPEMD160:
         dig = self.digest()
         hex_digest = ''
         for d in dig:
-            hex_digest += '%02x' % ord(d)
+            if (is_python2):
+                hex_digest += '%02x' % ord(d)
+            else:
+                hex_digest += '%02x' % d
         return hex_digest
 
     def copy(self):
@@ -166,7 +177,10 @@ import struct
 def RMD160Transform(state, block):  #uint32 state[5], uchar block[64]
     x = [0] * 16
     if sys.byteorder == 'little':
-        x = struct.unpack('<16L', ''.join([chr(x) for x in block[0:64]]))
+        if is_python2:
+            x = struct.unpack('<16L', ''.join([chr(x) for x in block[0:64]]))
+        else:
+            x = struct.unpack('<16L', bytes(block[0:64]))
     else:
         raise "Error!!"
     a = state[0]
@@ -378,13 +392,14 @@ def RMD160Update(ctx, inp, inplen):
     if type(inp) == str:
         inp = [ord(i) & 0xff for i in inp]
 
-    have = (ctx.count / 8) % 64
+    have = int((ctx.count // 8) % 64)
+    inplen = int(inplen)
     need = 64 - have
     ctx.count += 8 * inplen
     off = 0
     if inplen >= need:
         if have:
-            for i in xrange(need):
+            for i in range(need):
                 ctx.buffer[have + i] = inp[i]
             RMD160Transform(ctx.state, ctx.buffer)
             off = need
@@ -394,13 +409,13 @@ def RMD160Update(ctx, inp, inplen):
             off += 64
     if off < inplen:
         # memcpy(ctx->buffer + have, input+off, len-off);
-        for i in xrange(inplen - off):
+        for i in range(inplen - off):
             ctx.buffer[have + i] = inp[off + i]
 
 
 def RMD160Final(ctx):
     size = struct.pack("<Q", ctx.count)
-    padlen = 64 - ((ctx.count / 8) % 64)
+    padlen = 64 - ((ctx.count // 8) % 64)
     if padlen < 1 + 8:
         padlen += 64
     RMD160Update(ctx, PADDING, padlen - 8)

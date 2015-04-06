@@ -1,5 +1,5 @@
-import main
-import transaction as tx
+import bitcoin.main as main
+import bitcoin.transaction as tx
 
 # Shared secrets and uncovering pay keys
 
@@ -34,9 +34,10 @@ def uncover_pay_privkey(scan_privkey, spend_privkey, ephem_pubkey):
 
 # Address encoding
 
-
 # Functions for basic stealth addresses,
 # i.e. one scan key, one spend key, no prefix
+
+
 def pubkeys_to_basic_stealth_address(scan_pubkey, spend_pubkey, magic_byte=42):
     # magic_byte = 42 for mainnet, 43 for testnet.
     hex_scankey = main.encode_pubkey(scan_pubkey, 'hex_compressed')
@@ -108,5 +109,4 @@ def mk_stealth_tx_outputs(stealth_addr,
 def ephem_pubkey_from_tx_script(stealth_tx_script):
     if len(stealth_tx_script) != 80:
         raise Exception('Wrong format for stealth tx output')
-
     return stealth_tx_script[14:]
