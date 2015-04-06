@@ -231,7 +231,7 @@ class BlockrInterface(BlockchainInterface):
 		NotifyThread(self.blockr_domain, txd, unconfirmfun, confirmfun).start()
 
 	def fetchtx(self, txid):
-		return btc.blockr_fetchtx(txid, self.network)
+		return str(btc.blockr_fetchtx(txid, self.network))
 
 	def pushtx(self, txhex):
 		data = json.loads(btc.blockr_pushtx(txhex, self.network))
