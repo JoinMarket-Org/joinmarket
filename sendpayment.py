@@ -83,7 +83,7 @@ class SendPayment(takermodule.Taker):
 
 def main():
     parser = OptionParser(
-        usage='usage: %prog [options] [seed] [amount] [destaddr]',
+        usage='usage: %prog [options] [wallet file / seed] [amount] [destaddr]',
         description='Sends a single payment from the zero mixing depth of your '
         + 'wallet to an given address using coinjoin and then switches off. ' +
         'Setting amount to zero will do a sweep, where the entire mix depth is emptied')

@@ -131,7 +131,7 @@ class PatientSendPayment(maker.Maker, taker.Taker):
 
 def main():
     parser = OptionParser(
-        usage='usage: %prog [options] [seed] [amount] [destaddr]',
+        usage='usage: %prog [options] [wallet file / seed] [amount] [destaddr]',
         description='Sends a payment from your wallet to an given address' +
         ' using coinjoin. First acts as a maker, announcing an order and ' +
         'waiting for someone to fill it. After a set period of time, gives' +
