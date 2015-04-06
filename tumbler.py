@@ -1,10 +1,13 @@
+import datetime, threading, binascii, sys, os, copy
+data_dir = os.path.dirname(os.path.realpath(__file__))
+sys.path.insert(0, os.path.join(data_dir, 'lib'))
+
 import taker as takermodule
 import common
 from common import *
 from irc import IRCMessageChannel
 
 from optparse import OptionParser
-import datetime, threading, binascii
 import numpy as np
 from pprint import pprint
 
@@ -106,8 +109,11 @@ class TumblerThread(threading.Thread):
             destaddr = tx['dest']
 
         if sweep:
-            total_value = self.wallet.get_balance_by_mixdepth()[tx[
+            print 'sweeping'
+            all_utxos = self.taker.wallet.get_utxos_by_mixdepth()[tx[
                 'srcmixdepth']]
+            total_value = sum([addrval['value'] for addrval in all_utxos.values(
+            )])
             orders, cjamount = choose_sweep_order(
                 self.taker.db, total_value, self.taker.txfee, tx['makercount'])
             self.taker.start_cj(self.taker.wallet, cjamount, orders, all_utxos,
@@ -117,8 +123,15 @@ class TumblerThread(threading.Thread):
             amount = int(tx['amount_ratio'] * balance)
             changeaddr = self.taker.wallet.get_change_addr(tx['srcmixdepth'])
             print 'coinjoining ' + str(amount)
-            orders, total_cj_fee = choose_order(self.taker.db, amount,
-                                                tx['makercount'])
+            while True:
+                orders, total_cj_fee = choose_order(self.taker.db, amount,
+                                                    tx['makercount'])
+                cj_fee = 1.0 * total_cj_fee / tx['makercount'] / amount
+                if cj_fee < self.taker.maxcjfee:
+                    break
+                print 'cj fee too high at ' + str(
+                    cj_fee) + ', waiting 10 seconds'
+                time.sleep(10)
             print 'chosen orders to fill ' + str(orders) + ' totalcjfee=' + str(
                 total_cj_fee)
             total_amount = amount + total_cj_fee + self.taker.txfee
@@ -141,26 +154,33 @@ class TumblerThread(threading.Thread):
         print 'waiting for all orders to certainly arrive'
         time.sleep(orderwaittime)
 
+        sqlorders = self.taker.db.execute(
+            'SELECT cjfee, ordertype FROM orderbook;').fetchall()
+        orders = [o['cjfee'] for o in sqlorders if o['ordertype'] == 'relorder']
+        orders = sorted(orders)
+        relorder_fee = float(orders[0])
+        print 'relorder fee = ' + str(relorder_fee)
         maker_count = sum([tx['makercount'] for tx in self.taker.tx_list])
-        relorder_fee = 0.01
         print('uses ' + str(maker_count) + ' makers, at ' + str(
             relorder_fee * 100) + '% per maker, estimated total cost ' +
               str(round(
                   (1 - (1 - relorder_fee)**maker_count) * 100, 3)) + '%')
 
+        time.sleep(orderwaittime)
+        print 'starting'
         self.lockcond = threading.Condition()
 
         self.balance_by_mixdepth = {}
         for i, tx in enumerate(self.taker.tx_list):
             if tx['srcmixdepth'] not in self.balance_by_mixdepth:
                 self.balance_by_mixdepth[tx[
-                    'srcmixdepth']] = self.wallet.get_balance_by_mixdepth()[tx[
-                        'srcmixdepth']]
+                    'srcmixdepth']] = self.taker.wallet.get_balance_by_mixdepth(
+                    )[tx['srcmixdepth']]
             sweep = True
             for later_tx in self.taker.tx_list[i + 1:]:
                 if later_tx['srcmixdepth'] == tx['srcmixdepth']:
                     sweep = False
-            self.send_tx(tx, sweep, self.balance_by_mixdepth[tx['srcmixdepth']],
+            self.send_tx(tx, self.balance_by_mixdepth[tx['srcmixdepth']], sweep,
                          i, len(self.taker.tx_list))
 
         print 'total finished'
@@ -191,7 +211,7 @@ class Tumbler(takermodule.Taker):
 
 def main():
     parser = OptionParser(
-        usage='usage: %prog [options] [seed] [tumble-file / destaddr...]',
+        usage='usage: %prog [options] [seed] [destaddr...]',
         description=
         'Sends bitcoins to many different addresses using coinjoin in'
         ' an attempt to break the link between them. Sending to multiple '
@@ -216,9 +236,9 @@ def main():
         '--maxcjfee',
         type='float',
         dest='maxcjfee',
-        default=0.02,
+        default=0.03,
         help=
-        'maximum coinjoin fee the tumbler is willing to pay for a single coinjoin. default=0.02 (2%)')
+        'maximum coinjoin fee the tumbler is willing to pay to a single market maker. default=0.03 (3%)')
     parser.add_option(
         '-a',
         '--addrask',
@@ -302,7 +322,19 @@ def main():
     print str(options)
     tx_list = generate_tumbler_tx(destaddrs, options)
 
-    pprint(tx_list)
+    tx_list2 = copy.deepcopy(tx_list)
+    tx_dict = {}
+    for tx in tx_list2:
+        srcmixdepth = tx['srcmixdepth']
+        tx.pop('srcmixdepth')
+        if srcmixdepth not in tx_dict:
+            tx_dict[srcmixdepth] = []
+        tx_dict[srcmixdepth].append(tx)
+    dbg_tx_list = []
+    for srcmixdepth, txlist in tx_dict.iteritems():
+        dbg_tx_list.append({'srcmixdepth': srcmixdepth, 'tx': txlist})
+    pprint(dbg_tx_list)
+
     total_wait = sum([tx['wait'] for tx in tx_list])
     print 'waits in total for ' + str(len(tx_list)) + ' blocks and ' + str(
         total_wait) + ' minutes'
