@@ -143,7 +143,7 @@ def main():
     except:
         debug('CRASHING, DUMPING EVERYTHING')
         debug('wallet seed = ' + seed)
-        debug_dump_object(wallet, ['addr_cache'])
+        debug_dump_object(wallet, ['addr_cache', 'keys', 'seed'])
         debug_dump_object(taker)
         import traceback
         debug(traceback.format_exc())
