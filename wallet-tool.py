@@ -1,4 +1,5 @@
 import sys, os
+import getpass, aes, json, datetime
 from optparse import OptionParser
 data_dir = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(data_dir, 'lib'))
@@ -6,6 +7,7 @@ sys.path.insert(0, os.path.join(data_dir, 'lib'))
 import bitcoin as btc
 from common import Wallet, get_signed_tx, load_program_config, get_addr_vbyte
 import common
+import old_mnemonic
 
 #structure for cj market wallet
 # m/0/ root key
@@ -17,14 +19,14 @@ import common
 # m/0/n/1/k kth change address, for mixing depth n
 
 parser = OptionParser(
-    usage='usage: %prog [options] [seed] [method]',
-    description='Does useful little lasts involving your bip32 wallet. The' +
-    ' method is one of the following: display- shows all addresses and balances.'
-    + ' summary- shows a summary of mixing depth balances.' +
-    ' combine- combines all utxos into one output for each mixing level. Used for'
-    + ' testing and is detrimental to privacy.' +
-    ' reset - send all utxos back to first receiving address at zeroth mixing level.'
-    + ' Also only for testing and destroys privacy.')
+    usage='usage: %prog [options] [seed / wallet file] [method]',
+    description='Does useful little tasks involving your bip32 wallet. The' +
+    ' method is one of the following: display- shows addresses and balances.' +
+    ' displayall - shows ALL addresses and balances.' +
+    ' summary - shows a summary of mixing depth balances.' +
+    ' generate - generates a new wallet.' +
+    ' recover - recovers a wallet from the 12 word recovery seed.' +
+    ' showseed - shows the wallet recovery seed and hex seed.')
 parser.add_option('-p',
                   '--privkey',
                   action='store_true',
@@ -35,8 +37,8 @@ parser.add_option('-m',
                   action='store',
                   type='int',
                   dest='maxmixdepth',
-                  default=2,
-                  help='maximum mixing depth to look for, default=2')
+                  default=5,
+                  help='maximum mixing depth to look for, default=5')
 parser.add_option('-g',
                   '--gap-limit',
                   action='store',
@@ -45,19 +47,22 @@ parser.add_option('-g',
                   default=6)
 (options, args) = parser.parse_args()
 
+noseed_methods = ['generate', 'recover']
+methods = ['display', 'displayall', 'summary'] + noseed_methods
+
 if len(args) < 1:
-    parser.error('Needs a seed')
+    parser.error('Needs a seed, wallet file or method')
     sys.exit(0)
-seed = args[0]
 
 load_program_config()
-
-method = ('display' if len(args) == 1 else args[1].lower())
-
-#seed = '256 bits of randomness'
-
-wallet = Wallet(seed, options.maxmixdepth)
-common.bc_interface.sync_wallet(wallet, options.gaplimit)
+if args[0] in noseed_methods:
+    method = args[0]
+else:
+    seed = args[0]
+    method = ('display' if len(args) == 1 else args[1].lower())
+    wallet = Wallet(seed, options.maxmixdepth)
+    if method != 'showseed':
+        common.bc_interface.sync_wallet(wallet, options.gaplimit)
 
 if method == 'display' or method == 'displayall':
     total_balance = 0
@@ -99,34 +104,36 @@ elif method == 'summary':
         print 'for mixdepth=%d balance=%.8fbtc' % (m, balance_depth / 1e8)
         total_balance += balance_depth
     print 'total balance = %.8fbtc' % (total_balance / 1e8)
-
-elif method == 'combine':
-    ins = []
-    outs = []
-    for m in range(wallet.max_mix_depth):
-        for forchange in [0, 1]:
-            balance = 0
-            for k in range(wallet.index[m][forchange]):
-                addr = wallet.get_addr(m, forchange, k)
-                for utxo, addrvalue in wallet.unspent.iteritems():
-                    if addr != addrvalue['address']:
-                        continue
-                    ins.append({'output': utxo})
-                    balance += addrvalue['value']
-
-            if balance > 0:
-                destaddr = wallet.get_addr(m, forchange,
-                                           wallet.index[m][forchange])
-                outs.append({'address': destaddr, 'value': balance})
-    print get_signed_tx(wallet, ins, outs)
-
-elif method == 'reset':
-    ins = []
-    outs = []
-    balance = 0
-    for utxo, addrvalue in wallet.unspent.iteritems():
-        ins.append({'output': utxo})
-        balance += addrvalue['value']
-    destaddr = wallet.get_addr(0, 0, 0)
-    outs.append({'address': destaddr, 'value': balance})
-    print get_signed_tx(wallet, ins, outs)
+elif method == 'generate' or method == 'recover':
+    if method == 'generate':
+        seed = btc.sha256(os.urandom(64))[:32]
+        words = old_mnemonic.mn_encode(seed)
+        print 'Write down this wallet recovery seed\n' + ' '.join(words) + '\n'
+    elif method == 'recover':
+        words = raw_input('Input 12 word recovery seed: ')
+        words = words.split(' ')
+        seed = old_mnemonic.mn_decode(words)
+        print seed
+    password = getpass.getpass('Enter wallet encryption passphrase: ')
+    password2 = getpass.getpass('Reenter wallet encryption passphrase: ')
+    if password != password2:
+        print 'ERROR. Passwords did not match'
+        sys.exit(0)
+    password_key = btc.bin_dbl_sha256(password)
+    encrypted_seed = aes.encryptData(password_key, seed.decode('hex'))
+    timestamp = datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+    walletfile = json.dumps({'creator': 'joinmarket project',
+                             'creation_time': timestamp,
+                             'encrypted_seed': encrypted_seed.encode('hex')})
+    walletname = raw_input('Input wallet file name (default: wallet.json): ')
+    if len(walletname) == 0:
+        walletname = 'wallet.json'
+    fd = open(os.path.join('wallets', walletname), 'w')
+    fd.write(walletfile)
+    fd.close()
+    print 'saved to ' + walletname
+elif method == 'showseed':
+    hexseed = wallet.seed
+    print 'hexseed = ' + hexseed
+    words = old_mnemonic.mn_encode(hexseed)
+    print 'Wallet recovery seed\n' + ' '.join(words) + '\n'
