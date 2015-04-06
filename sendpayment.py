@@ -126,6 +126,10 @@ def main():
     destaddr = args[2]
 
     load_program_config()
+    addr_valid, errormsg = validate_address(destaddr)
+    if not addr_valid:
+        print 'ERROR: Address invalid. ' + errormsg
+        return
 
     import binascii, os
     common.nickname = 'payer-' + binascii.hexlify(os.urandom(4))

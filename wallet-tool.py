@@ -5,7 +5,7 @@ data_dir = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(data_dir, 'lib'))
 
 import bitcoin as btc
-from common import Wallet, get_signed_tx, load_program_config, get_addr_vbyte
+from common import Wallet, load_program_config, get_addr_vbyte
 import common
 import old_mnemonic
 
