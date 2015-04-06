@@ -186,7 +186,7 @@ class Tumbler(takermodule.Taker):
 		TumblerThread(self).start()
 
 def main():
-	parser = OptionParser(usage='usage: %prog [options] [seed] [destaddr...]',
+	parser = OptionParser(usage='usage: %prog [options] [wallet file / seed] [destaddr...]',
 		description='Sends bitcoins to many different addresses using coinjoin in'
 			' an attempt to break the link between them. Sending to multiple '
 			' addresses is highly recommended for privacy. This tumbler can'

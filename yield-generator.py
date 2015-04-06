@@ -99,7 +99,6 @@ def main():
 		irc.run()
 	except:
 		debug('CRASHING, DUMPING EVERYTHING')
-		debug('wallet seed = ' + seed)
 		debug_dump_object(wallet, ['addr_cache', 'keys', 'seed'])
 		debug_dump_object(maker)
 		debug_dump_object(irc)
