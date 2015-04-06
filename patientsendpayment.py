@@ -135,6 +135,10 @@ def main():
 	destaddr = args[2]
 	
 	load_program_config()
+	addr_valid, errormsg = validate_address(destaddr)
+	if not addr_valid:
+		print 'ERROR: Address invalid. ' + errormsg
+		return
 	
 	waittime = timedelta(hours=options.waittime).total_seconds()
 	print 'Running patient sender of a payment'

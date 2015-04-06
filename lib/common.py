@@ -60,20 +60,21 @@ def get_network():
 	else:
 		raise Exception("Only testnet is currently implemented")
 
-#TODO change this name into get_addr_ver() or something
 def get_addr_vbyte():
 	if get_network() == 'testnet':
 		return 0x6f
 	else:
 		return 0x00
 
-def get_signed_tx(wallet, ins, outs):
-	tx = btc.mktx(ins, outs)
-	for index, utxo in enumerate(ins):
-		addr = wallet.unspent[utxo['output']]['address']
-		tx = btc.sign(tx, index, wallet.get_key_from_addr(addr))
-	return tx
-	
+def validate_address(addr):
+	try:
+		ver = btc.get_version_byte(addr)
+	except AssertionError:
+		return False, 'Checksum wrong. Typo in address?'
+	if ver != get_addr_vbyte():
+		return False, 'Wrong address version. Testnet/mainnet confused?'
+	return True, 'address validated'
+
 def debug_dump_object(obj, skip_fields=[]):
 	debug('Class debug dump, name:' + obj.__class__.__name__)
 	for k, v in obj.__dict__.iteritems():

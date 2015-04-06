@@ -230,6 +230,11 @@ def main():
 	destaddrs = args[1:]
 	
 	common.load_program_config()
+	for addr in destaddrs:
+		addr_valid, errormsg = validate_address(addr)
+		if not addr_valid:
+			print 'ERROR: Address ' + addr + ' invalid. ' + errormsg
+			return
 	
 	if len(destaddrs) + options.addrask <= 1:
 		print '='*50
