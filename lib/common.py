@@ -296,12 +296,15 @@ def weighted_order_choose(orders, n, feekey):
 
 
 def choose_order(db, cj_amount, n):
-
     sqlorders = db.execute('SELECT * FROM orderbook;').fetchall()
     orders = [(o['counterparty'], o['oid'], calc_cj_fee(o['ordertype'],
                                                         o['cjfee'], cj_amount))
               for o in sqlorders
               if cj_amount >= o['minsize'] and cj_amount <= o['maxsize']]
+    counterparties = set([o[0] for o in orders])
+    if n > len(counterparties):
+        debug('ERROR not enough liquidity in the orderbook')
+        return None, 0  #TODO handle not enough liquidity better, maybe an Exception
     orders = sorted(orders, key=lambda k: k[2])
     debug('considered orders = ' + str(orders))
     total_cj_fee = 0

@@ -198,19 +198,20 @@ class BlockrInterface(BlockchainInterface):
                     common.debug('sharedtxid = ' + str(shared_txid))
                     if len(shared_txid) == 0:
                         continue
+                    time.sleep(2)
                     blockr_url = 'http://' + self.blockr_domain + '.blockr.io/api/v1/tx/raw/'
                     data = json.loads(btc.make_request(blockr_url + ','.join(
                         shared_txid)))['data']
                     if not isinstance(data, list):
                         data = [data]
                     for txinfo in data:
+                        txhex = str(txinfo['tx']['hex'])
                         outs = set([(sv['script'], sv['value'])
-                                    for sv in btc.deserialize(txinfo['tx'][
-                                        'hex'])['outs']])
+                                    for sv in btc.deserialize(txhex)['outs']])
                         common.debug('unconfirm query outs = ' + str(outs))
                         if outs == self.tx_output_set:
                             unconfirmed_txid = txinfo['tx']['txid']
-                            unconfirmed_txhex = txinfo['tx']['hex']
+                            unconfirmed_txhex = str(txinfo['tx']['hex'])
                             break
 
                 self.unconfirmfun(
@@ -244,13 +245,13 @@ class BlockrInterface(BlockchainInterface):
                     if not isinstance(data, list):
                         data = [data]
                     for txinfo in data:
+                        txhex = str(txinfo['tx']['hex'])
                         outs = set([(sv['script'], sv['value'])
-                                    for sv in btc.deserialize(txinfo['tx'][
-                                        'hex'])['outs']])
+                                    for sv in btc.deserialize(txhex)['outs']])
                         common.debug('confirm query outs = ' + str(outs))
                         if outs == self.tx_output_set:
                             confirmed_txid = txinfo['tx']['txid']
-                            confirmed_txhex = txinfo['tx']['hex']
+                            confirmed_txhex = str(txinfo['tx']['hex'])
                             break
                 self.confirmfun(
                     btc.deserialize(confirmed_txhex), confirmed_txid, 1)
@@ -305,8 +306,7 @@ class NotifyRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
 
     def do_HEAD(self):
         pages = ('/walletnotify?', '/alertnotify?')
-        if not self.path.startswith(pages):
-            return
+
         if self.path.startswith('/walletnotify?'):
             txid = self.path[len(pages[0]):]
             txd = btc.deserialize(self.btcinterface.fetchtx(txid))
@@ -319,21 +319,22 @@ class NotifyRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
                     unconfirmfun = ucfun
                     confirmfun = cfun
                     break
-            if not unconfirmfun:
+            if unconfirmfun == None:
                 common.debug('txid=' + txid + ' not being listened for')
-                return
-            txdata = json.loads(self.btcinterface.rpc(['gettxout', txid, '0',
-                                                       'true']))
-            if txdata['confirmations'] == 0:
-                unconfirmfun(txd, txid)
             else:
-                confirmfun(txd, txid, txdata['confirmations'])
-                self.btcinterface.txnotify_fun.remove((tx_out, unconfirmfun,
-                                                       confirmfun))
+                txdata = json.loads(self.btcinterface.rpc(['gettxout', txid,
+                                                           '0', 'true']))
+                if txdata['confirmations'] == 0:
+                    unconfirmfun(txd, txid)
+                else:
+                    confirmfun(txd, txid, txdata['confirmations'])
+                    self.btcinterface.txnotify_fun.remove((tx_out, unconfirmfun,
+                                                           confirmfun))
 
         elif self.path.startswith('/alertnotify?'):
             common.alert_message = self.path[len(pages[1]):]
             common.debug('Got an alert!\nMessage=' + common.alert_message)
+
         self.send_response(200)
         #self.send_header('Connection', 'close')
         self.end_headers()
