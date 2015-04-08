@@ -181,7 +181,7 @@ class BlockrInterface(BlockchainInterface):
 					common.debug('sharedtxid = ' + str(shared_txid))
 					if len(shared_txid) == 0:
 						continue
-					time.sleep(2)
+					time.sleep(2) #here for some race condition bullshit with blockr.io
 					blockr_url = 'http://' + self.blockr_domain + '.blockr.io/api/v1/tx/raw/'
 					data = json.loads(btc.make_request(blockr_url + ','.join(shared_txid)))['data']
 					if not isinstance(data, list):
@@ -296,9 +296,11 @@ class NotifyRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
 				txdata = json.loads(self.btcinterface.rpc(['gettxout', txid, '0', 'true']))
 				if txdata['confirmations'] == 0:
 					unconfirmfun(txd, txid)
+					common.debug('ran unconfirmfun')
 				else:
 					confirmfun(txd, txid, txdata['confirmations'])
 					self.btcinterface.txnotify_fun.remove((tx_out, unconfirmfun, confirmfun))
+					common.debug('ran confirmfun')
 
 		elif self.path.startswith('/alertnotify?'):
 			common.alert_message = self.path[len(pages[1]):]
@@ -443,7 +445,7 @@ class BitcoinCoreInterface(BlockchainInterface):
 		for txo in txout:
 			ret = self.rpc(['gettxout', txo[:64], txo[65:], 'false'])
 			if ret == '':
-				return False, 'tx ' + txo + ' not found'
+				return False, 'tx ' + txo + ' not found. Unconfirmed or already spent.'
 		return True, 'success'
 
 #class for regtest chain access
