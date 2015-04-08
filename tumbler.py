@@ -104,7 +104,12 @@ class TumblerThread(threading.Thread):
         if tx['dest'] == 'internal':
             destaddr = self.taker.wallet.get_receive_addr(tx['srcmixdepth'] + 1)
         elif tx['dest'] == 'addrask':
-            destaddr = raw_input('insert new address: ')
+            while True:
+                destaddr = raw_input('insert new address: ')
+                addr_valid, errormsg = validate_address(destaddr)
+                if addr_valid:
+                    break
+                print 'Address ' + addr + ' invalid. ' + errormsg + ' try again'
         else:
             destaddr = tx['dest']
 
@@ -121,6 +126,9 @@ class TumblerThread(threading.Thread):
                                 self.finishcallback)
         else:
             amount = int(tx['amount_ratio'] * balance)
+            if amount < self.taker.mincjamount:
+                print 'cj amount too low, bringing up'
+                amount = self.taker.mincjamount
             changeaddr = self.taker.wallet.get_change_addr(tx['srcmixdepth'])
             print 'coinjoining ' + str(amount)
             while True:
@@ -197,12 +205,13 @@ class TumblerThread(threading.Thread):
 
 class Tumbler(takermodule.Taker):
 
-    def __init__(self, msgchan, wallet, tx_list, txfee, maxcjfee):
+    def __init__(self, msgchan, wallet, tx_list, txfee, maxcjfee, mincjamount):
         takermodule.Taker.__init__(self, msgchan)
         self.wallet = wallet
         self.tx_list = tx_list
         self.maxcjfee = maxcjfee
         self.txfee = txfee
+        self.mincjamount = mincjamount
 
     def on_welcome(self):
         takermodule.Taker.on_welcome(self)
@@ -292,7 +301,6 @@ def main():
         'Average the number of minutes to wait between transactions. Randomly chosen '
         ' following an exponential distribution, which describes the time between uncorrelated'
         ' events. default=5')
-
     parser.add_option(
         '-w',
         '--wait-time',
@@ -301,7 +309,14 @@ def main():
         dest='waittime',
         help='wait time in seconds to allow orders to arrive, default=5',
         default=5)
+    parser.add_option('-s',
+                      '--mincjamount',
+                      type='float',
+                      dest='mincjamount',
+                      default=0.0001,
+                      help='minimum coinjoin amount in transaction')
     (options, args) = parser.parse_args()
+    #TODO somehow implement a lower limit
 
     if len(args) < 2:
         parser.error('Needs a seed and destination addresses')
@@ -326,6 +341,8 @@ def main():
     print 'destaddrs=' + str(destaddrs)
     print str(options)
     tx_list = generate_tumbler_tx(destaddrs, options)
+    if not tx_list:
+        return
 
     tx_list2 = copy.deepcopy(tx_list)
     tx_dict = {}
@@ -370,13 +387,13 @@ def main():
 
     common.nickname = 'tumbler-' + binascii.hexlify(os.urandom(4))
     irc = IRCMessageChannel(common.nickname)
-    tumbler = Tumbler(irc, wallet, tx_list, options.txfee, options.maxcjfee)
+    tumbler = Tumbler(irc, wallet, tx_list, options.txfee, options.maxcjfee,
+                      options.mincjamount)
     try:
         debug('connecting to irc')
         irc.run()
     except:
         debug('CRASHING, DUMPING EVERYTHING')
-        debug('wallet seed = ' + seed)
         debug_dump_object(wallet, ['addr_cache', 'keys', 'seed'])
         debug_dump_object(tumbler)
         import traceback

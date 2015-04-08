@@ -24,10 +24,10 @@ class CoinJoinOrder(object):
 
         order_s = [o for o in maker.orderlist if o['oid'] == oid]
         if len(order_s) == 0:
-            self.maker.send_error(nick, 'oid not found')
+            self.maker.msgchan.send_error(nick, 'oid not found')
         order = order_s[0]
         if amount < order['minsize'] or amount > order['maxsize']:
-            self.maker.send_error(nick, 'amount out of range')
+            self.maker.msgchan.send_error(nick, 'amount out of range')
         self.utxos, self.cj_addr, self.change_addr = maker.oid_to_order(oid,
                                                                         amount)
         #check nothing has messed up with the wallet code, remove this code after a while
@@ -71,12 +71,12 @@ class CoinJoinOrder(object):
         try:
             self.tx = btc.deserialize(txhex)
         except IndexError as e:
-            self.maker.send_error(nick, 'malformed txhex. ' + repr(e))
+            self.maker.msgchan.send_error(nick, 'malformed txhex. ' + repr(e))
         debug('obtained tx\n' + pprint.pformat(self.tx))
         goodtx, errmsg = self.verify_unsigned_tx(self.tx)
         if not goodtx:
             debug('not a good tx, reason=' + errmsg)
-            self.maker.send_error(nick, errmsg)
+            self.maker.msgchan.send_error(nick, errmsg)
         #TODO: the above 3 errors should be encrypted, but it's a bit messy.
         debug('goodtx')
         sigs = []
@@ -156,7 +156,9 @@ class CoinJoinOrder(object):
                     return False, 'wrong change, i expect ' + str(
                         expected_change_value)
         if times_seen_cj_addr != 1 or times_seen_change_addr != 1:
-            return False, 'cj or change addr not in tx outputs exactly once'
+            return False, ('cj or change addr not in tx outputs once, #cjaddr='
+                           + str(times_seen_cj_addr) + ', #chaddr=' +
+                           str(times_seen_change_addr))
         return True, None
 
 
@@ -201,14 +203,14 @@ class Maker(CoinJoinerPeer):
 
     def on_seen_auth(self, nick, pubkey, sig):
         if nick not in self.active_orders or self.active_orders[nick] == None:
-            self.send_error(nick, 'No open order from this nick')
+            self.msgchan.send_error(nick, 'No open order from this nick')
         self.active_orders[nick].auth_counterparty(nick, pubkey, sig)
         #TODO if auth_counterparty returns false, remove this order from active_orders
         # and send an error
 
     def on_seen_tx(self, nick, txhex):
         if nick not in self.active_orders or self.active_orders[nick] == None:
-            self.send_error(nick, 'No open order from this nick')
+            self.msgchan.send_error(nick, 'No open order from this nick')
         self.wallet_unspent_lock.acquire()
         try:
             self.active_orders[nick].recv_tx(nick, txhex)

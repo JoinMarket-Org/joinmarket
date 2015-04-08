@@ -74,14 +74,14 @@ class CoinJoinTX(object):
                 self.nonrespondants))
             return
         self.utxos[nick] = utxo_list
-        self.nonrespondants.remove(nick)
         order = self.db.execute('SELECT ordertype, txfee, cjfee FROM '
                                 'orderbook WHERE oid=? AND counterparty=?',
                                 (self.active_orders[nick], nick)).fetchone()
         goodoutputs, errmsg = common.bc_interface.is_output_suitable(utxo_list)
         if not goodoutputs:
-            common.debug('bad outputs: ' + errmsg)
-            return
+            common.debug('ERROR bad outputs: ' + errmsg)
+            raise RuntimeError('killing taker, TODO handle this error')
+        self.nonrespondants.remove(nick)
         total_input = calc_total_input_value(self.utxos[nick])
         real_cjfee = calc_cj_fee(order['ordertype'], order['cjfee'],
                                  self.cj_amount)
