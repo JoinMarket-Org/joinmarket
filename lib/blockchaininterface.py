@@ -106,6 +106,7 @@ class BlockrInterface(BlockchainInterface):
 					wallet.index[mix_depth][forchange] = wallet.addr_cache[last_used_addr][2] + 1
 
 	def sync_unspent(self, wallet):
+		time.sleep(10)
 		#finds utxos in the wallet
 		st = time.time()
 		rate_limit_time = 10*60 #dont refresh unspent dict more often than 10 minutes

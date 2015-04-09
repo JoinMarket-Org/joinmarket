@@ -47,24 +47,27 @@ def generate_tumbler_tx(destaddrs, options):
 
 	total_dest_addr = len(destaddrs) + options.addrask
 	external_dest_addrs = destaddrs + ['addrask']*options.addrask
-	if total_dest_addr >= options.mixdepthcount:
+	if total_dest_addr > options.mixdepthcount:
 		print 'not enough mixing depths to pay to all destination addresses'
 		return None
-	for i, srcmix in enumerate(range(options.mixdepthcount - total_dest_addr, options.mixdepthcount)):
+	for mix_offset in range(total_dest_addr):
+		srcmix = options.mixdepthsrc + options.mixdepthcount - mix_offset - 1
 		for tx in reversed(tx_list):
 			if tx['srcmixdepth'] == srcmix:
-				tx['dest'] = external_dest_addrs[i]
+				tx['dest'] = external_dest_addrs[mix_offset]
 				break
-		if total_dest_addr - i != 1:
-			continue
-		tx_list_remove = []
-		for tx in tx_list:
-			if tx['srcmixdepth'] == srcmix:
-				if tx['dest'] == 'internal':
-					tx_list_remove.append(tx)
-				else:
-					tx['amount_ratio'] = 1.0
-		[tx_list.remove(t) for t in tx_list_remove]
+		if mix_offset == 0:
+			#setting last mixdepth to send all to dest
+			tx_list_remove = []
+			for tx in tx_list:
+				if tx['srcmixdepth'] == srcmix:
+					if tx['dest'] == 'internal':
+						print 'removing tx = ' + str(tx)
+						tx_list_remove.append(tx)
+					else:
+						print 'setting amount to 1'
+						tx['amount_ratio'] = 1.0
+			[tx_list.remove(t) for t in tx_list_remove]
 	return tx_list
 
 #thread which does the buy-side algorithm
@@ -76,7 +79,7 @@ class TumblerThread(threading.Thread):
 		self.taker = taker
 
 	def unconfirm_callback(self, txd, txid):
-		pass
+		print 'that was %d tx out of %d' % (self.current_tx+1, len(self.taker.tx_list))
 
 	def confirm_callback(self, txd, txid, confirmations):
 		self.taker.wallet.add_new_utxos(txd, txid)
@@ -89,7 +92,7 @@ class TumblerThread(threading.Thread):
 			self.unconfirm_callback, self.confirm_callback)
 		self.taker.wallet.remove_old_utxos(coinjointx.latest_tx)
 
-	def send_tx(self, tx, balance, sweep, i, l):
+	def send_tx(self, tx, balance, sweep):
 		destaddr = None
 		if tx['dest'] == 'internal':
 			destaddr = self.taker.wallet.get_receive_addr(tx['srcmixdepth'] + 1)
@@ -108,6 +111,20 @@ class TumblerThread(threading.Thread):
 			all_utxos = self.taker.wallet.get_utxos_by_mixdepth()[tx['srcmixdepth']]
 			total_value = sum([addrval['value'] for addrval in all_utxos.values()])
 			orders, cjamount = choose_sweep_order(self.taker.db, total_value, self.taker.txfee, tx['makercount'])
+			while True:
+				#orders, total_cj_fee = choose_order(self.taker.db, amount, tx['makercount'])
+				orders, cjamount = choose_sweep_order(self.taker.db, total_value, self.taker.txfee, tx['makercount'])
+				cj_fee = 1.0*(cjamount - total_value) / tx['makercount'] / cjamount
+				print 'average fee = ' + str(cj_fee)
+				if cj_fee > self.taker.maxcjfee:
+					print 'cj fee too high at ' + str(cj_fee) + ', waiting 10 seconds'
+					time.sleep(10)
+					continue
+				if orders == None:
+					print 'waiting for liquidity'
+					time.sleep(10)
+					continue
+				break
 			self.taker.start_cj(self.taker.wallet, cjamount, orders, all_utxos, destaddr,
 				None, self.taker.txfee, self.finishcallback)
 		else:
@@ -120,10 +137,16 @@ class TumblerThread(threading.Thread):
 			while True:
 				orders, total_cj_fee = choose_order(self.taker.db, amount, tx['makercount'])
 				cj_fee = 1.0*total_cj_fee / tx['makercount'] / amount
-				if cj_fee < self.taker.maxcjfee:
-					break
-				print 'cj fee too high at ' + str(cj_fee) + ', waiting 10 seconds'
-				time.sleep(10)
+				print 'average fee = ' + str(cj_fee)
+				if cj_fee > self.taker.maxcjfee:
+					print 'cj fee too high at ' + str(cj_fee) + ', waiting 10 seconds'
+					time.sleep(10)
+					continue
+				if orders == None:
+					print 'waiting for liquidity'
+					time.sleep(10)
+					continue
+				break
 			print 'chosen orders to fill ' + str(orders) + ' totalcjfee=' + str(total_cj_fee)
 			total_amount = amount + total_cj_fee + self.taker.txfee
 			print 'total amount spent = ' + str(total_amount)
@@ -132,7 +155,6 @@ class TumblerThread(threading.Thread):
 			self.taker.start_cj(self.taker.wallet, amount, orders, utxos, destaddr,
 				changeaddr, self.taker.txfee, self.finishcallback)
 
-		print 'that was %d tx out of %d' % (i, l)
 		self.lockcond.acquire()
 		self.lockcond.wait()
 		self.lockcond.release()
@@ -165,8 +187,8 @@ class TumblerThread(threading.Thread):
 			for later_tx in self.taker.tx_list[i + 1:]:
 				if later_tx['srcmixdepth'] == tx['srcmixdepth']:
 					sweep = False
-			self.send_tx(tx, self.balance_by_mixdepth[tx['srcmixdepth']], sweep,
-				i, len(self.taker.tx_list))
+			self.current_tx = i
+			self.send_tx(tx, self.balance_by_mixdepth[tx['srcmixdepth']], sweep)
 
 		print 'total finished'
 		self.taker.msgchan.shutdown()
