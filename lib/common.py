@@ -406,6 +406,9 @@ def choose_sweep_order(db, my_total_input, my_tx_fee, n):
     debug('considered order combinations')
     debug(pprint.pformat(dbgprint))
 
+    if len(ordercombos) == 0:
+        debug('ERROR not enough liquidity in the orderbook')
+        return None, 0  #TODO handle not enough liquidity better, maybe an Exception
     ordercombo = weighted_order_choose(ordercombos, n, lambda k: k[1][1])
     orders = dict([(o['counterparty'], o['oid']) for o in ordercombo[0]])
     cjamount = ordercombo[1][0]
