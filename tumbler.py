@@ -129,16 +129,16 @@ class TumblerThread(threading.Thread):
                 orders, cjamount = choose_sweep_order(
                     self.taker.db, total_value, self.taker.txfee,
                     tx['makercount'])
+                if orders == None:
+                    print 'waiting for liquidity'
+                    time.sleep(10)
+                    continue
                 cj_fee = 1.0 * (
                     cjamount - total_value) / tx['makercount'] / cjamount
                 print 'average fee = ' + str(cj_fee)
                 if cj_fee > self.taker.maxcjfee:
                     print 'cj fee too high at ' + str(
                         cj_fee) + ', waiting 10 seconds'
-                    time.sleep(10)
-                    continue
-                if orders == None:
-                    print 'waiting for liquidity'
                     time.sleep(10)
                     continue
                 break

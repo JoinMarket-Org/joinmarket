@@ -112,7 +112,6 @@ class BlockrInterface(BlockchainInterface):
                         last_used_addr][2] + 1
 
     def sync_unspent(self, wallet):
-        time.sleep(10)
         #finds utxos in the wallet
         st = time.time()
         rate_limit_time = 10 * 60  #dont refresh unspent dict more often than 10 minutes
@@ -148,6 +147,9 @@ class BlockrInterface(BlockchainInterface):
                     wallet.unspent[u['tx'] + ':' + str(u[
                         'n'])] = {'address': dat['address'],
                                   'value': int(u['amount'].replace('.', ''))}
+        for u in wallet.spent_utxos:
+            wallet.unspent.pop(u, None)
+
         self.last_sync_unspent = time.time()
         common.debug('blockr sync_unspent took ' + str((self.last_sync_unspent -
                                                         st)) + 'sec')

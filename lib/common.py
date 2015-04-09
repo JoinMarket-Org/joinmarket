@@ -131,6 +131,7 @@ class Wallet(object):
 
         self.addr_cache = {}
         self.unspent = {}
+        self.spent_utxos = []
 
     def get_seed(self, seedarg):
         path = os.path.join('wallets', seedarg)
@@ -186,6 +187,7 @@ class Wallet(object):
             del self.unspent[utxo]
         debug('removed utxos, wallet now is \n' + pprint.pformat(
             self.get_utxos_by_mixdepth()))
+        self.spent_utxos += removed_utxos.keys()
         return removed_utxos
 
     def add_new_utxos(self, tx, txid):
@@ -305,7 +307,9 @@ def choose_order(db, cj_amount, n):
               if cj_amount >= o['minsize'] and cj_amount <= o['maxsize']]
     counterparties = set([o[0] for o in orders])
     if n > len(counterparties):
-        debug('ERROR not enough liquidity in the orderbook')
+        debug(
+            'ERROR not enough liquidity in the orderbook n=%d counterparties=%d'
+            % (n, len(counterparties)))
         return None, 0  #TODO handle not enough liquidity better, maybe an Exception
     orders = sorted(orders, key=lambda k: k[2])
     debug('considered orders = ' + str(orders))
