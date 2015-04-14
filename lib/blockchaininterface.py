@@ -22,11 +22,6 @@ def get_blockchain_interface_instance(config):
 		raise ValueError("Invalid blockchain source")	
 	return bc_interface
 
-
-#download_wallet_history() find_unspent_addresses() #finding where to put index and my utxos
-#add address notify()
-#fetchtx() needs to accept a list of addresses too
-#pushtx()
 class BlockchainInterface(object):
 	__metaclass__ = abc.ABCMeta
 	def __init__(self):
@@ -69,6 +64,14 @@ class BlockchainInterface(object):
 		accepts list of txid:vout too
 		'''
 		pass
+
+	@abc.abstractmethod
+	def query_utxo_set(self, txouts):
+		'''
+		takes a utxo or a list of utxos
+		returns None if they are spend or unconfirmed
+		otherwise returns value in satoshis, address and output script
+		'''
 
 class BlockrInterface(BlockchainInterface):
 	def __init__(self, testnet = False):
@@ -272,6 +275,26 @@ class BlockrInterface(BlockchainInterface):
 			return False, 'some utxos already spent'
 		return True, 'success'
 
+	def query_utxo_set(self, txout):
+		if not isinstance(txout, list):
+			txout = [txout]
+		txids = [h[:64] for h in txout]
+		txids_dupremoved = list(set(txids))
+		blockr_url = 'http://' + self.blockr_domain + '.blockr.io/api/v1/tx/info/'
+		data = json.loads(btc.make_request(blockr_url + ','.join(txids_dupremoved)))['data']
+		if not isinstance(data, list):
+			data = [data]
+		result = []
+		for txo in txout:
+			txdata = [d for d in data if d['tx'] == txo[:64]][0]
+			vout = [v for v in txdata['vouts'] if v['n'] == int(txo[65:])][0]
+			if vout['is_spent'] == 1:
+				result.append(None)
+			else:
+				result.append({'value': int(Decimal(vout['amount'])*Decimal('1e8')),
+					'address': vout['address'], 'script': vout['extras']['script']})
+		return result if len(result) > 1 else result[0]
+
 		
 class NotifyRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
 	def __init__(self, request, client_address, base_server):
@@ -450,6 +473,21 @@ class BitcoinCoreInterface(BlockchainInterface):
 			if ret == '':
 				return False, 'tx ' + txo + ' not found. Unconfirmed or already spent.'
 		return True, 'success'
+
+	def query_utxo_set(self, txout):
+		if not isinstance(txout, list):
+			txout = [txout]
+		result = []
+		for txo in txout:
+			ret = self.rpc(['gettxout', txo[:64], txo[65:], 'false'])
+			if ret == '':
+				result.append(None)
+			else:
+				data = json.loads(ret)
+				result.append({'value': int(Decimal(str(data['value']))*Decimal('1e8')),
+					'address': data['scriptPubKey']['addresses'][0], 'script': data['scriptPubKey']['hex']})
+		return result if len(result) > 1 else result[0]
+
 
 #class for regtest chain access
 #running on local daemon. Only 
