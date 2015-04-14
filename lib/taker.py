@@ -5,7 +5,7 @@ import common
 import enc_wrapper
 import bitcoin as btc
 
-import sqlite3, base64, threading, time, random
+import sqlite3, base64, threading, time, random, pprint
 
 
 class CoinJoinTX(object):
@@ -77,12 +77,13 @@ class CoinJoinTX(object):
         order = self.db.execute('SELECT ordertype, txfee, cjfee FROM '
                                 'orderbook WHERE oid=? AND counterparty=?',
                                 (self.active_orders[nick], nick)).fetchone()
-        goodoutputs, errmsg = common.bc_interface.is_output_suitable(utxo_list)
-        if not goodoutputs:
-            common.debug('ERROR bad outputs: ' + errmsg)
+        utxo_data = common.bc_interface.query_utxo_set(self.utxos[nick])
+        if None in utxo_data:
+            common.debug(
+                'ERROR outputs unconfirmed or already spent. utxo_data=' +
+                pprint.pformat(utxo_data))
             raise RuntimeError('killing taker, TODO handle this error')
-        self.nonrespondants.remove(nick)
-        total_input = calc_total_input_value(self.utxos[nick])
+        total_input = sum([d['value'] for d in utxo_data])
         real_cjfee = calc_cj_fee(order['ordertype'], order['cjfee'],
                                  self.cj_amount)
         self.outputs.append({'address': change_addr,
@@ -93,6 +94,7 @@ class CoinJoinTX(object):
         cj_addr = btc.pubtoaddr(cj_pub, get_addr_vbyte())
         self.outputs.append({'address': cj_addr, 'value': self.cj_amount})
         self.cjfee_total += real_cjfee
+        self.nonrespondants.remove(nick)
         if len(self.nonrespondants) > 0:
             debug('nonrespondants = ' + str(self.nonrespondants))
             return
@@ -119,7 +121,6 @@ class CoinJoinTX(object):
         utxo_tx = [dict([('output', u)]) for u in sum(self.utxos.values(), [])]
         random.shuffle(self.outputs)
         tx = btc.mktx(utxo_tx, self.outputs)
-        import pprint
         debug('obtained tx\n' + pprint.pformat(btc.deserialize(tx)))
         self.msgchan.send_tx(self.active_orders.keys(), tx)
 
@@ -139,9 +140,11 @@ class CoinJoinTX(object):
         for index, ins in enumerate(self.latest_tx['ins']):
             if ins['script'] != '':
                 continue
-            ftx = common.bc_interface.fetchtx(ins['outpoint']['hash'])
-            src_val = btc.deserialize(ftx)['outs'][ins['outpoint']['index']]
-            sig_good = btc.verify_tx_input(tx, index, src_val['script'], *
+            utxo = ins['outpoint']['hash'] + ':' + str(ins['outpoint']['index'])
+            utxo_data = common.bc_interface.query_utxo_set(utxo)
+            if utxo_data[0] == None:
+                continue
+            sig_good = btc.verify_tx_input(tx, index, utxo_data[0]['script'], *
                                            btc.deserialize_script(sig))
             if sig_good:
                 debug('found good sig at index=%d' % (index))

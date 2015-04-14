@@ -99,15 +99,6 @@ def debug_dump_object(obj, skip_fields=[]):
             debug(str(v))
 
 
-def get_addr_from_utxo(txhash, index):
-    '''return the bitcoin address of the outpoint at 
-	the specified index for the transaction with specified hash.
-	Return None if no such index existed for that transaction.'''
-    return btc.script_to_address(
-        btc.deserialize(bc_interface.fetchtx(txhash))['outs'][index]['script'],
-        get_addr_vbyte())
-
-
 class Wallet(object):
 
     def __init__(self, seedarg, max_mix_depth=2):
@@ -258,16 +249,6 @@ def calc_cj_fee(ordertype, cjfee, cj_amount):
     else:
         raise RuntimeError('unknown order type: ' + str(ordertype))
     return real_cjfee
-
-
-#TODO this function is used once, it has no point existing
-def calc_total_input_value(utxos):
-    input_sum = 0
-    for utxo in utxos:
-        #tx = btc.blockr_fetchtx(utxo[:64], get_network())
-        tx = bc_interface.fetchtx(utxo[:64])
-        input_sum += int(btc.deserialize(tx)['outs'][int(utxo[65:])]['value'])
-    return input_sum
 
 
 def weighted_order_choose(orders, n, feekey):
