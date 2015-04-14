@@ -47,22 +47,8 @@ class BlockchainInterface(object):
 		pass
 
 	@abc.abstractmethod
-	def fetchtx(self, txid):
-		'''Returns a txhash of a given txid, or list of txids'''
-		pass
-
-	@abc.abstractmethod
 	def pushtx(self, txhex):
 		'''pushes tx to the network, returns txhash'''
-		pass
-
-	@abc.abstractmethod
-	def is_output_suitable(self, txout):
-		'''
-		checks whether the txid:vout output is suitable to be used,
-		must be already mined into a block, and unspent
-		accepts list of txid:vout too
-		'''
 		pass
 
 	@abc.abstractmethod
@@ -72,6 +58,7 @@ class BlockchainInterface(object):
 		returns None if they are spend or unconfirmed
 		otherwise returns value in satoshis, address and output script
 		'''
+		#address and output script contain the same information btw
 
 class BlockrInterface(BlockchainInterface):
 	def __init__(self, testnet = False):
@@ -239,9 +226,6 @@ class BlockrInterface(BlockchainInterface):
 
 		NotifyThread(self.blockr_domain, txd, unconfirmfun, confirmfun).start()
 
-	def fetchtx(self, txid):
-		return str(btc.blockr_fetchtx(txid, self.network))
-
 	def pushtx(self, txhex):
 		data = json.loads(btc.blockr_pushtx(txhex, self.network))
 		if data['status'] != 'success':
@@ -249,31 +233,6 @@ class BlockrInterface(BlockchainInterface):
 			common.debug(data) 
 			return None
 		return data['data']
-
-	def is_output_suitable(self, txout):
-		if not isinstance(txout, list):
-			txout = [txout]
-		txids = [h[:64] for h in txout]
-		blockr_url = 'http://' + self.blockr_domain + '.blockr.io/api/v1/tx/info/'
-		data = json.loads(btc.make_request(blockr_url + ','.join(txids)))['data']
-		if not isinstance(data, list):
-			data = [data]
-		addrs = []
-		for tx in data:
-			if tx['is_unconfirmed']:
-				return False, 'tx ' + tx['tx'] + ' unconfirmed'
-			for outs in tx['vouts']:
-				addrs.append(outs['address'])
-		common.debug('addrs ' + pprint.pformat(addrs))
-		utxos = btc.blockr_unspent(addrs, self.network)
-		utxos = [u['output'] for u in utxos]
-		common.debug('unspents = ' + pprint.pformat(utxos))
-		common.debug('txouts   = ' + pprint.pformat(txout))
-		txoutset = set(txout)
-		utxoset = set(utxos)
-		if not utxoset.issuperset(txoutset):
-			return False, 'some utxos already spent'
-		return True, 'success'
 
 	def query_utxo_set(self, txout):
 		if not isinstance(txout, list):
@@ -293,7 +252,7 @@ class BlockrInterface(BlockchainInterface):
 			else:
 				result.append({'value': int(Decimal(vout['amount'])*Decimal('1e8')),
 					'address': vout['address'], 'script': vout['extras']['script']})
-		return result if len(result) > 1 else result[0]
+		return result
 
 		
 class NotifyRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
@@ -307,7 +266,7 @@ class NotifyRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
 
 		if self.path.startswith('/walletnotify?'):
 			txid = self.path[len(pages[0]):]
-			txd = btc.deserialize(self.btcinterface.fetchtx(txid))
+			txd = btc.deserialize(self.rpc(['getrawtransaction', txid]).strip())
 			tx_output_set = set([(sv['script'], sv['value']) for sv in txd['outs']])
 
 			unconfirmfun, confirmfun = None, None
@@ -458,21 +417,8 @@ class BitcoinCoreInterface(BlockchainInterface):
 		tx_output_set = set([(sv['script'], sv['value']) for sv in txd['outs']])
 		self.txnotify_fun.append((tx_output_set, unconfirmfun, confirmfun))
 
-	def fetchtx(self, txid):
-		return self.rpc(['getrawtransaction', txid]).strip()
-
 	def pushtx(self, txhex):
 		return self.rpc(['sendrawtransaction', txhex]).strip()
-
-	def is_output_suitable(self, txout):
-		if not isinstance(txout, list):
-			txout = [txout]
-
-		for txo in txout:
-			ret = self.rpc(['gettxout', txo[:64], txo[65:], 'false'])
-			if ret == '':
-				return False, 'tx ' + txo + ' not found. Unconfirmed or already spent.'
-		return True, 'success'
 
 	def query_utxo_set(self, txout):
 		if not isinstance(txout, list):
@@ -486,7 +432,7 @@ class BitcoinCoreInterface(BlockchainInterface):
 				data = json.loads(ret)
 				result.append({'value': int(Decimal(str(data['value']))*Decimal('1e8')),
 					'address': data['scriptPubKey']['addresses'][0], 'script': data['scriptPubKey']['hex']})
-		return result if len(result) > 1 else result[0]
+		return result
 
 
 #class for regtest chain access

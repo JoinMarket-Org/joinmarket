@@ -29,12 +29,16 @@ class CoinJoinOrder(object):
 		self.utxos, self.cj_addr, self.change_addr = maker.oid_to_order(oid, amount)
 		#check nothing has messed up with the wallet code, remove this code after a while
 		import pprint
-		pprint.pprint(self.utxos)
-		for utxo, va in self.utxos.iteritems():
-			txd = btc.deserialize(common.bc_interface.fetchtx(utxo[:64]))
-			value = txd['outs'][int(utxo[65:])]['value']
-			if value != va['value']:
-				debug('wrongly labeled utxo, expected value ' + str(va['value']) + ' got ' + str(value))
+		debug('maker utxos = ' + pprint.pformat(self.utxos))
+		utxo_list = self.utxos.keys()
+		utxo_data = common.bc_interface.query_utxo_set(utxo_list)
+		if None in utxo_data:
+			debug('wrongly using an already spent utxo. utxo_data = ' + pprint.pformat(utxo_data))
+			sys.exit(0)
+		for utxo, data in zip(utxo_list, utxo_data):
+			if self.utxos[utxo]['value'] != data['value']:
+				debug('wrongly labeled utxo, expected value ' +
+					str(self.utxos[utxo]['value']) + ' got ' + str(data['value']))
 				sys.exit(0)
 
 		self.ordertype = order['ordertype']
@@ -114,10 +118,11 @@ class CoinJoinOrder(object):
 		tx_utxo_set = set([ins['outpoint']['hash'] + ':' \
 		                   + str(ins['outpoint']['index']) for ins in txd['ins']])
 		#complete authentication: check the tx input uses the authing pubkey
-		if not btc.pubtoaddr(self.i_utxo_pubkey, get_addr_vbyte()) \
-		   in [get_addr_from_utxo(i['outpoint']['hash'], i['outpoint']['index']) \
-		   for i in txd['ins']]:
-		        return False, "authenticating bitcoin address is not contained"			
+		input_utxo_data = common.bc_interface.query_utxo_set(list(tx_utxo_set))
+		input_addresses = [u['address'] for u in input_utxo_data]
+		if btc.pubtoaddr(self.i_utxo_pubkey, get_addr_vbyte())\
+			not in input_addresses:
+		        return False, "authenticating bitcoin address is not contained"
 		my_utxo_set = set(self.utxos.keys())
 		wallet_utxos = set(self.maker.wallet.unspent)
 		if not tx_utxo_set.issuperset(my_utxo_set):
