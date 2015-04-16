@@ -1,7 +1,7 @@
 #from joinmarket import *
 import subprocess
 import unittest
-import json, threading, abc, pprint, time, random, sys
+import json, threading, abc, pprint, time, random, sys, os
 import BaseHTTPServer, SimpleHTTPServer
 from decimal import Decimal
 import bitcoin as btc
@@ -327,6 +327,8 @@ class NotifyRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
             common.alert_message = self.path[len(pages[1]):]
             common.debug('Got an alert!\nMessage=' + common.alert_message)
 
+        os.system('wget -q --spider --timeout=0.5 --tries=1 http://localhost:' +
+                  str(self.base_server.server_address[1] + 1) + self.path)
         self.send_response(200)
         #self.send_header('Connection', 'close')
         self.end_headers()
@@ -340,14 +342,20 @@ class BitcoinCoreNotifyThread(threading.Thread):
         self.btcinterface = btcinterface
 
     def run(self):
-        common.debug('started bitcoin core notify listening thread')
-        hostport = ('localhost', 62602)
-        httpd = BaseHTTPServer.HTTPServer(hostport, NotifyRequestHeader)
-        httpd.btcinterface = self.btcinterface
-        httpd.serve_forever()
+        for inc in range(10):
+            hostport = ('localhost', 62602 + inc)
+            try:
+                httpd = BaseHTTPServer.HTTPServer(hostport, NotifyRequestHeader)
+            except Exception:
+                continue
+            httpd.btcinterface = self.btcinterface
+            common.debug('started bitcoin core notify listening thread, port=' +
+                         str(hostport[1]))
+            httpd.serve_forever()
+        common.debug('failed to bind for bitcoin core notify listening')
 
-#must run bitcoind with -txindex=1 -server
-#-walletnotify="wget --spider -q http://localhost:62602/walletnotify?%s"
+#must run bitcoind with -server
+#-walletnotify="wget -q --spider --timeout=0.5 --tries=1 http://localhost:62602/walletnotify?%s"
 #and make sure wget is installed
 
 
