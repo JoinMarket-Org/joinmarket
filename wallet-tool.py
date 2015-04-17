@@ -1,5 +1,5 @@
 import sys, os
-import getpass, aes, json, datetime
+import getpass, json, datetime
 from optparse import OptionParser
 data_dir = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(data_dir, 'lib'))
@@ -105,6 +105,11 @@ elif method == 'summary':
         total_balance += balance_depth
     print 'total balance = %.8fbtc' % (total_balance / 1e8)
 elif method == 'generate' or method == 'recover':
+    try:
+        import aes
+    except ImportError:
+        print 'You must install slowaes\nTry running: sudo pip install slowaes'
+        sys.exit(0)
     if method == 'generate':
         seed = btc.sha256(os.urandom(64))[:32]
         words = old_mnemonic.mn_encode(seed)

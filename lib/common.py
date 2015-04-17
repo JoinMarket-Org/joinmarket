@@ -1,7 +1,7 @@
 import bitcoin as btc
 from decimal import Decimal
 from math import factorial
-import sys, datetime, json, time, pprint, threading, aes, getpass
+import sys, datetime, json, time, pprint, threading, getpass
 import numpy as np
 import blockchaininterface
 from ConfigParser import SafeConfigParser
@@ -130,6 +130,11 @@ class Wallet(object):
             debug('seedarg interpreted as seed')
             return seedarg
         debug('seedarg interpreted as wallet file name')
+        try:
+            import aes
+        except ImportError:
+            print 'You must install slowaes\nTry running: sudo pip install slowaes'
+            sys.exit(0)
         fd = open(path, 'r')
         walletfile = fd.read()
         fd.close()
