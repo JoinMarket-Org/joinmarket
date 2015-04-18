@@ -76,7 +76,7 @@ class PatientSendPayment(maker.Maker, taker.Taker):
 			'maxsize': self.amount, 'txfee': self.txfee, 'cjfee': self.cjfee}
 		return [order]
 
-	def oid_to_order(self, oid, amount):
+	def oid_to_order(self, cjorder, oid, amount):
 		#TODO race condition (kinda)
 		#if an order arrives and before it finishes another order arrives
 		# its possible this bot will end up paying to the destaddr more than it

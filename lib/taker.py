@@ -118,9 +118,11 @@ class CoinJoinTX(object):
 	def add_signature(self, sigb64):
 		sig = base64.b64decode(sigb64).encode('hex')
 		inserted_sig = False
+		unsigned_input_count = sum([len(u) for u in self.utxos.values()])
 		tx = btc.serialize(self.latest_tx)
 		for index, ins in enumerate(self.latest_tx['ins']):
 			if ins['script'] != '':
+				unsigned_input_count -= 1
 				continue
 			utxo = ins['outpoint']['hash'] + ':' + str(ins['outpoint']['index'])
 			utxo_data = common.bc_interface.query_utxo_set(utxo)
@@ -128,7 +130,8 @@ class CoinJoinTX(object):
 				continue
 			sig_good = btc.verify_tx_input(tx, index, utxo_data[0]['script'], *btc.deserialize_script(sig))
 			if sig_good:
-				debug('found good sig at index=%d' % (index))
+				unsigned_input_count -= 1
+				debug('found good sig at index=%d remaining=%d' % (index, unsigned_input_count))
 				ins['script'] = sig
 				inserted_sig = True
 				break

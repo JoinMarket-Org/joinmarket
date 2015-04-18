@@ -226,6 +226,7 @@ class IRCMessageChannel(MessageChannel):
 						self.on_seen_tx(nick, txhex)
 			except CJPeerError:
 				#TODO proper error handling
+				debug('cj peer error TODO handle')
 				continue
 
 	def __on_pubmsg(self, nick, message):
