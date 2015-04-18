@@ -299,7 +299,8 @@ class NotifyRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
 
         if self.path.startswith('/walletnotify?'):
             txid = self.path[len(pages[0]):]
-            txd = btc.deserialize(self.rpc(['getrawtransaction', txid]).strip())
+            txd = btc.deserialize(self.btcinterface.rpc(['getrawtransaction',
+                                                         txid]).strip())
             tx_output_set = set([(sv['script'], sv['value']) for sv in txd[
                 'outs']])
 
