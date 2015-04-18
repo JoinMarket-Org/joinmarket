@@ -28,9 +28,17 @@ class CoinJoinOrder(object):
         order = order_s[0]
         if amount < order['minsize'] or amount > order['maxsize']:
             self.maker.msgchan.send_error(nick, 'amount out of range')
-        self.utxos, self.cj_addr, self.change_addr = maker.oid_to_order(oid,
-                                                                        amount)
-        #check nothing has messed up with the wallet code, remove this code after a while
+        self.ordertype = order['ordertype']
+        self.txfee = order['txfee']
+        self.cjfee = order['cjfee']
+        debug('new cjorder nick=%s oid=%d amount=%d' % (nick, oid, amount))
+        self.utxos, self.cj_addr, self.change_addr = maker.oid_to_order(
+            self, oid, amount)
+        if not self.utxos:
+            self.maker.msgchan.send_error(
+                nick, 'unable to fill order constrained by dust avoidance')
+            #TODO make up orders offers in a way that this error cant appear
+            #check nothing has messed up with the wallet code, remove this code after a while
         import pprint
         debug('maker utxos = ' + pprint.pformat(self.utxos))
         utxo_list = self.utxos.keys()
@@ -45,10 +53,6 @@ class CoinJoinOrder(object):
                     utxo]['value']) + ' got ' + str(data['value']))
                 sys.exit(0)
 
-        self.ordertype = order['ordertype']
-        self.txfee = order['txfee']
-        self.cjfee = order['cjfee']
-        debug('new cjorder nick=%s oid=%d amount=%d' % (nick, oid, amount))
         #always a new address even if the order ends up never being
         # furfilled, you dont want someone pretending to fill all your
         # orders to find out which addresses you use
@@ -296,7 +300,7 @@ class Maker(CoinJoinerPeer):
 
         #has to return a list of utxos and mixing depth the cj address will be in
         # the change address will be in mixing_depth-1
-    def oid_to_order(self, oid, amount):
+    def oid_to_order(self, cjorder, oid, amount):
         '''
 		unspent = []
 		for utxo, addrvalue in self.wallet.unspent.iteritems():

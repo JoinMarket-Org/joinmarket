@@ -8,6 +8,7 @@ from ConfigParser import SafeConfigParser
 import os
 nickname = ''
 MAX_PRIVMSG_LEN = 400
+DUST_THRESHOLD = 5430
 bc_interface = None
 ordername_list = ["absorder", "relorder"]
 debug_file_handle = None
@@ -204,7 +205,8 @@ class Wallet(object):
         '''
 		returns a list of utxos sorted by different mix levels
 		'''
-        debug('wallet.unspent = \n' + pprint.pformat(self.unspent))
+        debug('get_utxos_by_mixdepth wallet.unspent = \n' + pprint.pformat(
+            self.unspent))
         mix_utxo_list = {}
         for m in range(self.max_mix_depth):
             mix_utxo_list[m] = {}

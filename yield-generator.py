@@ -13,7 +13,7 @@ import common
 from socket import gethostname
 
 txfee = 1000
-cjfee = '0.002'  # 1% fee
+cjfee = '0.002'  # 0.2% fee
 mix_levels = 5
 nickname = 'yigen-' + binascii.hexlify(os.urandom(4))
 nickserv_password = ''
@@ -55,21 +55,37 @@ class YieldGenerator(Maker):
                  'cjfee': cjfee}
         return [order]
 
-    def oid_to_order(self, oid, amount):
+    def oid_to_order(self, cjorder, oid, amount):
         mix_balance = self.wallet.get_balance_by_mixdepth()
         max_mix = max(mix_balance, key=mix_balance.get)
 
         #algo attempts to make the largest-balance mixing depth get an even larger balance
+        debug('finding suitable mixdepth')
         mixdepth = (max_mix - 1) % self.wallet.max_mix_depth
         while True:
-            if mixdepth in mix_balance and mix_balance[mixdepth] > amount:
+            if mixdepth in mix_balance and mix_balance[mixdepth] >= amount:
                 break
             mixdepth = (mixdepth - 1) % self.wallet.max_mix_depth
         #mixdepth is the chosen depth we'll be spending from
-        utxos = self.wallet.select_utxos(mixdepth, amount)
         cj_addr = self.wallet.get_receive_addr(
             (mixdepth + 1) % self.wallet.max_mix_depth)
         change_addr = self.wallet.get_change_addr(mixdepth)
+
+        utxos = self.wallet.select_utxos(mixdepth, amount)
+        my_total_in = sum([va['value'] for va in utxos.values()])
+        real_cjfee = calc_cj_fee(cjorder.ordertype, cjorder.cjfee, amount)
+        change_value = my_total_in - amount - cjorder.txfee + real_cjfee
+        if change_value <= common.DUST_THRESHOLD:
+            debug('change value=%d below dust threshold, finding new utxos' %
+                  (change_value))
+            try:
+                utxos = self.wallet.select_utxos(mixdepth,
+                                                 amount + common.DUST_THRESHOLD)
+            except Exception:
+                debug(
+                    'dont have the required UTXOs to make a output above the dust threshold, quitting')
+                return None, None, None
+
         return utxos, cj_addr, change_addr
 
     def on_tx_unconfirmed(self, cjorder, txid, removed_utxos):
