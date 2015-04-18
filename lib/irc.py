@@ -111,10 +111,10 @@ class IRCMessageChannel(MessageChannel):
             orderparams = COMMAND_PREFIX + order['ordertype'] +\
              ' ' + ' '.join([str(order[k]) for k in order_keys])
             orderlines.append(orderparams)
-            line = header + ''.join(orderlines)
+            line = header + ''.join(orderlines) + ' ~'
             if len(line) > MAX_PRIVMSG_LEN or i == len(orderlist) - 1:
                 if i < len(orderlist) - 1:
-                    line = header + ''.join(orderlines[:-1])
+                    line = header + ''.join(orderlines[:-1]) + ' ~'
                 self.send_raw(line)
                 orderlines = [orderlines[-1]]
 
@@ -155,7 +155,8 @@ class IRCMessageChannel(MessageChannel):
         for m in message_chunks:
             trailer = ' ~' if m == message_chunks[-1] else ' ;'
             header = "PRIVMSG " + nick + " :"
-            if m == message_chunks[0]: header += COMMAND_PREFIX + cmd + ' '
+            if m == message_chunks[0]:
+                header += COMMAND_PREFIX + cmd + ' '
             self.send_raw(header + m + trailer)
 
     def send_raw(self, line):
@@ -295,6 +296,7 @@ class IRCMessageChannel(MessageChannel):
         if target == self.nick:
             if nick not in self.built_privmsg:
                 if message[0] != COMMAND_PREFIX:
+                    debug('message not a cmd')
                     return
                 #new message starting
                 cmd_string = message[1:].split(' ')[0]
@@ -325,9 +327,12 @@ class IRCMessageChannel(MessageChannel):
             else:
                 #drop the bad nick
                 del self.built_privmsg[nick]
-        else:
+        elif target == self.channel:
             debug("<<pubmsg nick=%s message=%s" % (nick, message))
             self.__on_pubmsg(nick, message)
+        else:
+            debug('what is this? privmsg src=%s target=%s message=%s;' %
+                  (source, target, message))
 
     def __handle_line(self, line):
         line = line.rstrip()
