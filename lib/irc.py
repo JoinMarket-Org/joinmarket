@@ -354,6 +354,7 @@ class IRCMessageChannel(MessageChannel):
 		elif chunks[1] == '332' or chunks[1] == 'TOPIC': #channel topic
 			topic = get_irc_text(line)
 			self.on_set_topic(topic)
+			debug('Connected to IRC and joined channel')
 		elif chunks[1] == 'QUIT':
 			nick = get_irc_nick(chunks[0])
 			if nick == self.nick:
