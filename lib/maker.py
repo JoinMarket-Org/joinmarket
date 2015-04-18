@@ -263,7 +263,7 @@ class Maker(CoinJoinerPeer):
 		#each utxo is a single absolute-fee order
 		orderlist = []
 		for utxo, addrvalue in self.wallet.unspent.iteritems():
-			order = {'oid': self.get_next_oid(), 'ordertype': 'absorder', 'minsize': 0,
+			order = {'oid': self.get_next_oid(), 'ordertype': 'absorder', 'minsize': 12000,
 				'maxsize': addrvalue['value'], 'txfee': 10000, 'cjfee': 100000,
 				'utxo': utxo, 'mixdepth': self.wallet.addr_cache[addrvalue['address']][0]}
 			orderlist.append(order)
@@ -308,12 +308,12 @@ class Maker(CoinJoinerPeer):
 		for i, out in enumerate(cjorder.tx['outs']):
 			addr = btc.script_to_address(out['script'], get_addr_vbyte())
 			if addr == cjorder.change_addr:
-				neworder = {'oid': self.get_next_oid(), 'ordertype': 'absorder', 'minsize': 0,
+				neworder = {'oid': self.get_next_oid(), 'ordertype': 'absorder', 'minsize': 12000,
 					'maxsize': out['value'], 'txfee': 10000, 'cjfee': 100000,
 					'utxo': txid + ':' + str(i)}
 				to_announce.append(neworder)
 			if addr == cjorder.cj_addr:
-				neworder = {'oid': self.get_next_oid(), 'ordertype': 'absorder', 'minsize': 0,
+				neworder = {'oid': self.get_next_oid(), 'ordertype': 'absorder', 'minsize': 12000,
 					'maxsize': out['value'], 'txfee': 10000, 'cjfee': 100000,
 					'utxo': txid + ':' + str(i)}
 				to_announce.append(neworder)
@@ -326,8 +326,9 @@ def main():
 	import sys
 	seed = sys.argv[1] #btc.sha256('dont use brainwallets except for holding testnet coins')
 
+	common.load_program_config()
 	wallet = Wallet(seed, max_mix_depth=5)
-	wallet.sync_wallet()
+	common.bc_interface.sync_wallet(wallet)
 
 	from irc import IRCMessageChannel
 	irc = IRCMessageChannel(nickname)
