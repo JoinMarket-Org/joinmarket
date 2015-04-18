@@ -6,6 +6,7 @@ import socket, threading, time, ssl
 import base64, os
 import enc_wrapper
 
+MAX_PRIVMSG_LEN = 350
 COMMAND_PREFIX = '!'
 PING_INTERVAL = 40
 PING_TIMEOUT = 10
@@ -104,15 +105,18 @@ class IRCMessageChannel(MessageChannel):
     def announce_orders(self, orderlist, nick=None):
         #nick=None means announce publicly
         order_keys = ['oid', 'minsize', 'maxsize', 'txfee', 'cjfee']
-        orderline = ''
-        for order in orderlist:
-            #TODO send all the orders on one line
-            elem_list = [str(order[k]) for k in order_keys]
-            if nick:
-                self.__privmsg(nick, order['ordertype'], ' '.join(elem_list))
-            else:
-                self.__pubmsg(COMMAND_PREFIX + order['ordertype'] + ' ' +
-                              ' '.join(elem_list))
+        header = 'PRIVMSG ' + (nick if nick else self.channel) + ' :'
+        orderlines = []
+        for i, order in enumerate(orderlist):
+            orderparams = COMMAND_PREFIX + order['ordertype'] +\
+             ' ' + ' '.join([str(order[k]) for k in order_keys])
+            orderlines.append(orderparams)
+            line = header + ''.join(orderlines)
+            if len(line) > MAX_PRIVMSG_LEN or i == len(orderlist) - 1:
+                if i < len(orderlist) - 1:
+                    line = header + ''.join(orderlines[:-1])
+                self.send_raw(line)
+                orderlines = [orderlines[-1]]
 
     def cancel_orders(self, oid_list):
         clines = [COMMAND_PREFIX + 'cancel ' + str(oid) for oid in oid_list]
@@ -143,8 +147,8 @@ class IRCMessageChannel(MessageChannel):
         if box:
             message = enc_wrapper.encrypt_encode(message, box)
 
-        if len(message) > 350:
-            message_chunks = chunks(message, 350)
+        if len(message) > MAX_PRIVMSG_LEN:
+            message_chunks = chunks(message, MAX_PRIVMSG_LEN)
         else:
             message_chunks = [message]
 
@@ -369,10 +373,10 @@ class IRCMessageChannel(MessageChannel):
             self.connect_attempts = 0
             if self.on_welcome:
                 self.on_welcome()
+            debug('Connected to IRC and joined channel')
         elif chunks[1] == '332' or chunks[1] == 'TOPIC':  #channel topic
             topic = get_irc_text(line)
             self.on_set_topic(topic)
-            debug('Connected to IRC and joined channel')
         elif chunks[1] == 'QUIT':
             nick = get_irc_nick(chunks[0])
             if nick == self.nick:

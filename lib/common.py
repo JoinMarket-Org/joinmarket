@@ -7,7 +7,6 @@ import blockchaininterface
 from ConfigParser import SafeConfigParser
 import os
 nickname = ''
-MAX_PRIVMSG_LEN = 400
 DUST_THRESHOLD = 5430
 bc_interface = None
 ordername_list = ["absorder", "relorder"]
