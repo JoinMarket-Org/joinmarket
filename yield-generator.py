@@ -35,14 +35,9 @@ class YieldGenerator(Maker):
 
     def __init__(self, msgchan, wallet):
         Maker.__init__(self, msgchan, wallet)
-        self.msgchan.register_channel_callbacks(
-            self.on_welcome, self.on_set_topic, self.on_connect, None,
-            self.on_nick_leave, None)
-
-    def on_connect(self):
-        if len(nickserv_password) > 0:
-            self.msgchan.send_raw('PRIVMSG NickServ :identify ' +
-                                  nickserv_password)
+        self.msgchan.register_channel_callbacks(self.on_welcome,
+                                                self.on_set_topic, None, None,
+                                                self.on_nick_leave, None)
 
     def create_my_orders(self):
         mix_balance = self.wallet.get_balance_by_mixdepth()
@@ -106,7 +101,8 @@ def main():
     common.nickname = nickname
     irc = IRCMessageChannel(common.nickname,
                             realname='btcint=' + common.config.get(
-                                "BLOCKCHAIN", "blockchain_source"))
+                                "BLOCKCHAIN", "blockchain_source"),
+                            password=nickserv_password)
     maker = YieldGenerator(irc, wallet)
     try:
         debug('connecting to irc')

@@ -332,6 +332,24 @@ class IRCMessageChannel(MessageChannel):
             return
 
         chunks = line.split(' ')
+        if self.password:
+            if chunks[1] == 'CAP':
+                if chunks[3] != 'ACK':
+                    debug('server does not support SASL, quitting')
+                    self.shutdown()
+                self.send_raw('AUTHENTICATE PLAIN')
+            elif chunks[0] == 'AUTHENTICATE':
+                self.send_raw('AUTHENTICATE ' + base64.b64encode(
+                    self.nick + '\x00' + self.nick + '\x00' + self.password))
+            elif chunks[1] == '903':
+                debug('Successfully authenticated')
+                self.password = None
+                self.send_raw('CAP END')
+            elif chunks[1] == '904':
+                debug('Failed authentication, wrong password')
+                self.shutdown()
+            return
+
         if chunks[1] == 'PRIVMSG':
             self.__handle_privmsg(chunks[0], chunks[2], get_irc_text(line))
         if chunks[1] == 'PONG':
@@ -387,7 +405,11 @@ class IRCMessageChannel(MessageChannel):
 			self.motd_fd.close()
 		'''
 
-    def __init__(self, nick, username='username', realname='realname'):
+    def __init__(self,
+                 nick,
+                 username='username',
+                 realname='realname',
+                 password=None):
         MessageChannel.__init__(self)
         self.cjpeer = None  #subclasses have to set this to self
         self.nick = nick
@@ -395,6 +417,9 @@ class IRCMessageChannel(MessageChannel):
                            int(config.get("MESSAGING", "port")))
         self.channel = '#' + config.get("MESSAGING", "channel")
         self.userrealname = (username, realname)
+        if password and len(password) == 0:
+            password = None
+        self.password = password
 
     def run(self):
         self.connect_attempts = 0
@@ -411,6 +436,8 @@ class IRCMessageChannel(MessageChannel):
                 self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 self.sock.connect(self.serverport)
                 self.fd = self.sock.makefile()
+                if self.password:
+                    self.send_raw('CAP REQ :sasl')
                 self.send_raw('USER %s b c :%s' % self.userrealname)
                 self.send_raw('NICK ' + self.nick)
                 while 1:
