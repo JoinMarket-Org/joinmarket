@@ -2,7 +2,7 @@ from common import *
 from message_channel import MessageChannel
 from message_channel import CJPeerError
 
-import socket, threading, time
+import socket, threading, time, ssl
 import base64, os
 import enc_wrapper
 
@@ -434,6 +434,9 @@ class IRCMessageChannel(MessageChannel):
             try:
                 debug('connecting')
                 self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                if config.get("MESSAGING", "usessl").lower() == 'true':
+
+                    self.sock = ssl.wrap_socket(self.sock)
                 self.sock.connect(self.serverport)
                 self.fd = self.sock.makefile()
                 if self.password:
