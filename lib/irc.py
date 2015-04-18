@@ -2,7 +2,7 @@ from common import *
 from message_channel import MessageChannel
 from message_channel import CJPeerError
 
-import socket, threading, time
+import socket, threading, time, ssl
 import base64, os
 import enc_wrapper
 
@@ -157,7 +157,8 @@ class IRCMessageChannel(MessageChannel):
     def send_raw(self, line):
         #if not line.startswith('PING LAG'):
         #	debug('sendraw ' + line)
-        self.sock.sendall(line + '\r\n')
+        #self.sock.sendall(line + '\r\n')
+        self.sslsock.send(line + '\r\n')
 
     def check_for_orders(self, nick, chunks):
         if chunks[0] in ordername_list:
@@ -325,10 +326,11 @@ class IRCMessageChannel(MessageChannel):
             self.__on_pubmsg(nick, message)
 
     def __handle_line(self, line):
-        line = line.rstrip()
+        line = line.strip('\r\n')
         #print('<< ' + line)
         if line.startswith('PING '):
-            self.send_raw(line.replace('PING', 'PONG'))
+            #self.send_raw(line.replace('PING', 'PONG'))
+            self.send_raw('PONG ' + line.split()[1])
             return
 
         chunks = line.split(' ')
@@ -434,8 +436,11 @@ class IRCMessageChannel(MessageChannel):
             try:
                 debug('connecting')
                 self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                self.sock.connect(self.serverport)
-                self.fd = self.sock.makefile()
+                #self.sock.connect(self.serverport)
+                #self.fd = self.sock.makefile()
+                self.sslsock = ssl.wrap_socket(self.sock)
+                self.sslsock.connect(self.serverport)
+                self.fd = self.sslsock.makefile()
                 if self.password:
                     self.send_raw('CAP REQ :sasl')
                 self.send_raw('USER %s b c :%s' % self.userrealname)
