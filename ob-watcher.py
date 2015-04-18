@@ -226,7 +226,7 @@ def main():
     import bitcoin as btc
     import common
     import binascii, os
-    common.nickname = 'guitaker-' + binascii.hexlify(os.urandom(4))
+    common.nickname = 'watcher' + binascii.hexlify(os.urandom(4))
     common.load_program_config()
 
     irc = IRCMessageChannel(common.nickname)
