@@ -271,8 +271,7 @@ class IRCMessageChannel(MessageChannel):
 			if endindex == -1:
 				return
 			ctcp = message[1:endindex + 1]
-			#self.send_raw('PRIVMSG ' + nick + ' :\x01VERSION 
-			#TODO ctcp version here, since some servers dont let you get on without
+			self.send_raw('PRIVMSG ' + nick + ' :\x01VERSION xchat 2.8.8 Ubuntu\x01') 
 		if target == self.nick:
 			if nick not in self.built_privmsg:
 				if message[0] != COMMAND_PREFIX:
