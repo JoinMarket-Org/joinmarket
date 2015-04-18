@@ -273,13 +273,16 @@ class IRCMessageChannel(MessageChannel):
 
 	def __handle_privmsg(self, source, target, message):
 		nick = get_irc_nick(source)
-		if message[0] == '\x01':
-			endindex = message[1:].find('\x01')
-			if endindex == -1:
-				return
-			ctcp = message[1:endindex + 1]
-			self.send_raw('PRIVMSG ' + nick + ' :\x01VERSION xchat 2.8.8 Ubuntu\x01')
 		if target == self.nick:
+			if message[0] == '\x01':
+				endindex = message[1:].find('\x01')
+				if endindex == -1:
+					return
+				ctcp = message[1:endindex + 1]
+				if ctcp.upper() == 'VERSION':
+					self.send_raw('PRIVMSG ' + nick + ' :\x01VERSION xchat 2.8.8 Ubuntu\x01')
+						return
+
 			if nick not in self.built_privmsg:
 				if message[0] != COMMAND_PREFIX:
 					debug('message not a cmd')
