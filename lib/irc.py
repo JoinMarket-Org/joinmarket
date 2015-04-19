@@ -12,7 +12,7 @@ PING_INTERVAL = 40
 PING_TIMEOUT = 10
 encrypted_commands = ["auth", "ioauth", "tx", "sig"]
 plaintext_commands = ["fill", "error", "pubkey", "orderbook", "relorder",
-                      "absorder"]
+                      "absorder", "push"]
 
 
 def get_irc_text(line):
@@ -100,6 +100,10 @@ class IRCMessageChannel(MessageChannel):
             self.__privmsg(nick, 'tx', txb64)
             time.sleep(
                 1)  #HACK! really there should be rate limiting, see issue#31
+
+    def push_tx(self, nick, txhex):
+        txb64 = base64.b64encode(txhex.decode('hex'))
+        self.__privmsg(nick, 'push', txb64)
 
     #Maker callbacks
     def announce_orders(self, orderlist, nick=None):
@@ -244,6 +248,14 @@ class IRCMessageChannel(MessageChannel):
                         self.send_error(nick, 'bad base64 tx. ' + repr(e))
                     if self.on_seen_tx:
                         self.on_seen_tx(nick, txhex)
+                elif chunks[0] == 'push':
+                    b64tx = chunks[1]
+                    try:
+                        txhex = base64.b64decode(b64tx).encode('hex')
+                    except TypeError as e:
+                        self.send_error(nick, 'bad base64 tx. ' + repr(e))
+                    if self.on_push_tx:
+                        self.on_push_tx(nick, txhex)
             except CJPeerError:
                 #TODO proper error handling
                 debug('cj peer error TODO handle')

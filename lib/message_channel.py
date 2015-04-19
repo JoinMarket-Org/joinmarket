@@ -28,6 +28,7 @@ class MessageChannel(object):
         self.on_order_fill = None
         self.on_seen_auth = None
         self.on_seen_tx = None
+        self.on_push_tx = None
 
     def run(self):
         pass
@@ -84,16 +85,21 @@ class MessageChannel(object):
     def send_tx(self, nick_list, txhex):
         pass
 
+    def push_tx(self, nick, txhex):
+        pass
+
     #maker commands
     def register_maker_callbacks(self,
                                  on_orderbook_requested=None,
                                  on_order_fill=None,
                                  on_seen_auth=None,
-                                 on_seen_tx=None):
+                                 on_seen_tx=None,
+                                 on_push_tx=None):
         self.on_orderbook_requested = on_orderbook_requested
         self.on_order_fill = on_order_fill
         self.on_seen_auth = on_seen_auth
         self.on_seen_tx = on_seen_tx
+        self.on_push_tx = on_push_tx
 
     def announce_orders(self, orderlist, nick=None):
         pass  #nick=None means announce publicly
