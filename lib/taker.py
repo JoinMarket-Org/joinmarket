@@ -145,9 +145,12 @@ class CoinJoinTX(object):
 		if not tx_signed:
 			return
 		debug('the entire tx is signed, ready to pushtx()')
+		txhex = btc.serialize(self.latest_tx)
+		debug('\n' + txhex)
 
-		debug('\n' + btc.serialize(self.latest_tx))
-		txid = common.bc_interface.pushtx(btc.serialize(self.latest_tx))
+		#TODO send to a random maker or push myself
+		#self.msgchan.push_tx(self.active_orders.keys()[0], txhex)	
+		txid = common.bc_interface.pushtx(txhex)
 		debug('pushed tx ' + str(txid))
 		if self.finishcallback != None:
 			self.finishcallback(self)

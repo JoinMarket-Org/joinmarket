@@ -166,7 +166,7 @@ class Maker(CoinJoinerPeer):
 		self.msgchan.register_channel_callbacks(self.on_welcome, self.on_set_topic,
 			None, None, self.on_nick_leave, None)
 		msgchan.register_maker_callbacks(self.on_orderbook_requested,
-			self.on_order_fill, self.on_seen_auth, self.on_seen_tx)
+			self.on_order_fill, self.on_seen_auth, self.on_seen_tx, self.on_push_tx)
 		msgchan.cjpeer = self
 
 		self.active_orders = {}
@@ -206,6 +206,11 @@ class Maker(CoinJoinerPeer):
 			self.active_orders[nick].recv_tx(nick, txhex)
 		finally:
 			self.wallet_unspent_lock.release()
+
+	def on_push_tx(self, nick, txhex):
+		debug('received txhex from ' + nick + ' to push\n' + txhex)
+		txid = common.bc_interface.pushtx(txhex)
+		debug('pushed tx ' + str(txid))
 
 	def on_welcome(self):
 		self.msgchan.announce_orders(self.orderlist)
