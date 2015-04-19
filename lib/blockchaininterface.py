@@ -460,6 +460,8 @@ class BitcoinCoreInterface(BlockchainInterface):
         wallet.unspent = {}
         unspent_list = json.loads(self.rpc(['listunspent']))
         for u in unspent_list:
+            if 'account' not in u:
+                continue
             if u['account'] != wallet_name:
                 continue
             if u['address'] not in wallet.addr_cache:
