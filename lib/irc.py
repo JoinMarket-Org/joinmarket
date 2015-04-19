@@ -6,7 +6,7 @@ import socket, threading, time, ssl
 import base64, os
 import enc_wrapper
 
-MAX_PRIVMSG_LEN = 350
+MAX_PRIVMSG_LEN = 400
 COMMAND_PREFIX = '!'
 PING_INTERVAL = 40
 PING_TIMEOUT = 10
@@ -147,16 +147,17 @@ class IRCMessageChannel(MessageChannel):
         if box:
             message = enc_wrapper.encrypt_encode(message, box)
 
-        if len(message) > MAX_PRIVMSG_LEN:
-            message_chunks = chunks(message, MAX_PRIVMSG_LEN)
+        header = "PRIVMSG " + nick + " :"
+        max_chunk_len = MAX_PRIVMSG_LEN - len(header) - len(cmd) - 4
+        #1 for command prefix 1 for space 2 for trailer
+        if len(message) > max_chunk_len:
+            message_chunks = chunks(message, max_chunk_len)
         else:
             message_chunks = [message]
-
         for m in message_chunks:
             trailer = ' ~' if m == message_chunks[-1] else ' ;'
-            header = "PRIVMSG " + nick + " :"
             if m == message_chunks[0]:
-                header += COMMAND_PREFIX + cmd + ' '
+                m = COMMAND_PREFIX + cmd + ' ' + m
             self.send_raw(header + m + trailer)
 
     def send_raw(self, line):
