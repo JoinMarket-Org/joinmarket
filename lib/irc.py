@@ -485,8 +485,11 @@ class IRCMessageChannel(MessageChannel):
             except IOError as e:
                 debug(repr(e))
             finally:
-                self.fd.close()
-                self.sock.close()
+                try:
+                    self.fd.close()
+                    self.sock.close()
+                except Exception as e:
+                    print repr(e)
             if self.on_disconnect:
                 self.on_disconnect()
             debug('disconnected irc')

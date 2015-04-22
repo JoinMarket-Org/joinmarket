@@ -145,10 +145,11 @@ class CoinJoinOrder(object):
             return False, 'my utxos already spent'
 
         my_total_in = sum([va['value'] for va in self.utxos.values()])
-        real_cjfee = calc_cj_fee(self.ordertype, self.cjfee, self.cj_amount)
+        self.real_cjfee = calc_cj_fee(self.ordertype, self.cjfee,
+                                      self.cj_amount)
         expected_change_value = (
-            my_total_in - self.cj_amount - self.txfee + real_cjfee)
-        debug('earned = ' + str(real_cjfee - self.txfee))
+            my_total_in - self.cj_amount - self.txfee + self.real_cjfee)
+        debug('earned = ' + str(self.real_cjfee - self.txfee))
         debug('mycjaddr, mychange = ' + self.cj_addr + ', ' + self.change_addr)
 
         times_seen_cj_addr = 0

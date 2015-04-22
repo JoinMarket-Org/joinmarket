@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-import time, os, binascii, sys
+import time, os, binascii, sys, datetime
 import pprint
 data_dir = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(data_dir, 'lib'))
@@ -14,12 +14,12 @@ from socket import gethostname
 
 txfee = 1000
 cjfee = '0.002'  # 0.2% fee
-mix_levels = 5
 nickname = 'yigen-' + binascii.hexlify(os.urandom(4))
 nickserv_password = ''
 minsize = int(
     1.2 * txfee / float(cjfee)
 )  #minimum size is such that you always net profit at least 20% of the miner fee
+mix_levels = 5
 
 
 #is a maker for the purposes of generating a yield from held
@@ -38,6 +38,22 @@ class YieldGenerator(Maker):
         self.msgchan.register_channel_callbacks(self.on_welcome,
                                                 self.on_set_topic, None, None,
                                                 self.on_nick_leave, None)
+        self.tx_unconfirm_timestamp = {}
+
+    def log_statement(self, data):
+        data = [str(d) for d in data]
+        self.income_statement = open('yield-generator-income-statement.csv',
+                                     'aw')
+        self.income_statement.write(','.join(data) + '\n')
+        self.income_statement.close()
+
+    def on_welcome(self):
+        Maker.on_welcome(self)
+        self.log_statement(['timestamp', 'cj amount/satoshi', 'my input count',
+                            'my input value/satoshi', 'cjfee/satoshi',
+                            'earned/satoshi', 'confirm time/min', 'notes'])
+        timestamp = datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+        self.log_statement([timestamp, '', '', '', '', '', '', 'Connected'])
 
     def create_my_orders(self):
         mix_balance = self.wallet.get_balance_by_mixdepth()
@@ -89,6 +105,7 @@ class YieldGenerator(Maker):
         return utxos, cj_addr, change_addr
 
     def on_tx_unconfirmed(self, cjorder, txid, removed_utxos):
+        self.tx_unconfirm_timestamp[cjorder.cj_addr] = int(time.time())
         #if the balance of the highest-balance mixing depth change then reannounce it
         oldorder = self.orderlist[0] if len(self.orderlist) > 0 else None
         neworders = self.create_my_orders()
@@ -101,15 +118,20 @@ class YieldGenerator(Maker):
         return ([], [neworders[0]])
 
     def on_tx_confirmed(self, cjorder, confirmations, txid):
-        return self.on_tx_unconfirmed(None, None, None)
+        confirm_time = int(time.time()) - self.tx_unconfirm_timestamp[
+            cjorder.cj_addr]
+        timestamp = datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+        self.log_statement([timestamp, cjorder.cj_amount, len(
+            cjorder.utxos), sum([av['value'] for av in cjorder.utxos.values(
+            )]), cjorder.real_cjfee, cjorder.real_cjfee - cjorder.txfee, round(
+                confirm_time / 60.0, 2), ''])
+        return self.on_tx_unconfirmed(cjorder, txid, None)
 
 
 def main():
     common.load_program_config()
     import sys
-    seed = sys.argv[
-        1
-    ]  #btc.sha256('dont use brainwallets except for holding testnet coins')
+    seed = sys.argv[1]
     wallet = Wallet(seed, max_mix_depth=mix_levels)
     common.bc_interface.sync_wallet(wallet)
     wallet.print_debug_wallet_info()
