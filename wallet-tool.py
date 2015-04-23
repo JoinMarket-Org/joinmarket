@@ -72,7 +72,7 @@ if method == 'display' or method == 'displayall':
 				privkey = btc.encode_privkey(wallet.get_key(m, forchange, k), 'wif_compressed',
 					get_addr_vbyte()) if options.showprivkey else ''
 				if method == 'displayall' or  balance > 0 or used == ' new':
-					print '  m/0/%d/%d/%03d %s %s %.8f btc %s' % (m, forchange, k, addr, used, balance/1e8, privkey)
+					print '  m/0/%d/%d/%03d %-35s%s %.8f btc %s' % (m, forchange, k, addr, used, balance/1e8, privkey)
 		print 'for mixdepth=%d balance=%.8fbtc' % (m, balance_depth/1e8)
 		total_balance += balance_depth
 	print 'total balance = %.8fbtc' % (total_balance/1e8)
@@ -113,7 +113,7 @@ elif method == 'generate' or method == 'recover':
 	encrypted_seed = aes.encryptData(password_key, seed.decode('hex'))
 	timestamp = datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
 	walletfile = json.dumps({'creator': 'joinmarket project', 'creation_time': timestamp,
-		'encrypted_seed': encrypted_seed.encode('hex')})
+		'encrypted_seed': encrypted_seed.encode('hex'), 'network': common.get_network()})
 	walletname = raw_input('Input wallet file name (default: wallet.json): ')
 	if len(walletname) == 0:
 		walletname = 'wallet.json'
