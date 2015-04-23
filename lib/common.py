@@ -139,6 +139,10 @@ class Wallet(object):
         walletfile = fd.read()
         fd.close()
         walletdata = json.loads(walletfile)
+        if walletdata['network'] != get_network():
+            print 'wallet network(%s) does not match joinmarket configured network(%s)' % (
+                walletdata['network'], get_network())
+            sys.exit(0)
         password = getpass.getpass('Enter wallet decryption passphrase: ')
         password_key = btc.bin_dbl_sha256(password)
         decrypted_seed = aes.decryptData(password_key,
