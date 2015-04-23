@@ -52,7 +52,7 @@ def generate_tumbler_tx(destaddrs, options):
             tx_list.append(tx)
 
     total_dest_addr = len(destaddrs) + options.addrask
-    external_dest_addrs = destaddrs + ['addrask'] * options.addrask
+    external_dest_addrs = ['addrask'] * options.addrask + destaddrs
     if total_dest_addr > options.mixdepthcount:
         print 'not enough mixing depths to pay to all destination addresses'
         return None
@@ -68,10 +68,8 @@ def generate_tumbler_tx(destaddrs, options):
             for tx in tx_list:
                 if tx['srcmixdepth'] == srcmix:
                     if tx['dest'] == 'internal':
-                        print 'removing tx = ' + str(tx)
                         tx_list_remove.append(tx)
                     else:
-                        print 'setting amount to 1'
                         tx['amount_ratio'] = 1.0
             [tx_list.remove(t) for t in tx_list_remove]
     return tx_list
@@ -112,7 +110,7 @@ class TumblerThread(threading.Thread):
                 addr_valid, errormsg = validate_address(destaddr)
                 if addr_valid:
                     break
-                print 'Address ' + addr + ' invalid. ' + errormsg + ' try again'
+                print 'Address ' + destaddr + ' invalid. ' + errormsg + ' try again'
         else:
             destaddr = tx['dest']
 
@@ -344,8 +342,8 @@ def main():
     (options, args) = parser.parse_args()
     #TODO somehow implement a lower limit
 
-    if len(args) < 2:
-        parser.error('Needs a seed and destination addresses')
+    if len(args) < 1:
+        parser.error('Needs a seed')
         sys.exit(0)
     seed = args[0]
     destaddrs = args[1:]
@@ -363,8 +361,6 @@ def main():
         print 'this is very bad for privacy'
         print '=' * 50
 
-    print 'seed=' + seed
-    print 'destaddrs=' + str(destaddrs)
     print str(options)
     tx_list = generate_tumbler_tx(destaddrs, options)
     if not tx_list:
