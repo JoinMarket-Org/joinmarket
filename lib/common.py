@@ -129,7 +129,7 @@ class Wallet(object):
         if not os.path.isfile(path):
             debug('seedarg interpreted as seed')
             return seedarg
-        debug('seedarg interpreted as wallet file name')
+        #debug('seedarg interpreted as wallet file name')
         try:
             import aes
         except ImportError:
