@@ -1,17 +1,30 @@
+
+IRC Channel:
+#joinmarket on irc.freenode.net
+[https://webchat.freenode.net/?channels=%23joinmarket]
+
 Bitcointalk thread:
-https://bitcointalk.org/index.php?topic=919116.msg10096563
+[https://bitcointalk.org/index.php?topic=919116.msg10096563]
 
+Subreddit:
+[www.reddit.com/r/joinmarket]
 
-FIRST IMPLEMENTATION OF JOINMARKET
+Twitter:
+[www.twitter.com/joinmarket]
 
-you will need to know python somewhat to play around with it
- also get some testnet coins
+Wiki page for more detailed articles:
+[https://github.com/chris-belcher/joinmarket/wiki]
 
-HOWTO try
+INSTALLING
+0. You will need python 2.7
 1. You will need libsodium installed
  Get it here: http://doc.libsodium.org/installation/README.html
+2. You will need slowaes installed
+ sudo pip install slowaes
+3. Get some testnet coins
 
-2. run python wallet-tool.py generate
+RUNNING
+$ python wallet-tool.py generate
  to create your encrypted wallet file, make sure to save the 12 word seed
 
 $ python ob-watcher.py
