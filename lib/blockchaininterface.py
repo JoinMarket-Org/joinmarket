@@ -65,6 +65,7 @@ class BlockchainInterface(object):
 
 
 class BlockrInterface(BlockchainInterface):
+    BLOCKR_MAX_ADDR_REQ_COUNT = 20
 
     def __init__(self, testnet=False):
         super(BlockrInterface, self).__init__()
@@ -75,14 +76,13 @@ class BlockrInterface(BlockchainInterface):
     def sync_addresses(self, wallet, gaplimit=6):
         common.debug('downloading wallet history')
         #sets Wallet internal indexes to be at the next unused address
-        addr_req_count = 20
         for mix_depth in range(wallet.max_mix_depth):
             for forchange in [0, 1]:
                 unused_addr_count = 0
                 last_used_addr = ''
                 while unused_addr_count < gaplimit:
                     addrs = [wallet.get_new_addr(mix_depth, forchange)
-                             for i in range(addr_req_count)]
+                             for i in range(self.BLOCKR_MAX_ADDR_REQ_COUNT)]
 
                     #TODO send a pull request to pybitcointools
                     # because this surely should be possible with a function from it
@@ -112,7 +112,6 @@ class BlockrInterface(BlockchainInterface):
                 % (st - self.last_sync_unspent))
             return
         wallet.unspent = {}
-        addr_req_count = 20
 
         addrs = wallet.addr_cache.keys()
         if len(addrs) == 0:
@@ -120,7 +119,7 @@ class BlockrInterface(BlockchainInterface):
             return
         i = 0
         while i < len(addrs):
-            inc = min(len(addrs) - i, addr_req_count)
+            inc = min(len(addrs) - i, self.BLOCKR_MAX_ADDR_REQ_COUNT)
             req = addrs[i:i + inc]
             i += inc
 
@@ -266,12 +265,20 @@ class BlockrInterface(BlockchainInterface):
         if not isinstance(txout, list):
             txout = [txout]
         txids = [h[:64] for h in txout]
-        txids_dupremoved = list(set(txids))
-        blockr_url = 'http://' + self.blockr_domain + '.blockr.io/api/v1/tx/info/'
-        data = json.loads(btc.make_request(blockr_url + ','.join(
-            txids_dupremoved)))['data']
-        if not isinstance(data, list):
-            data = [data]
+        txids = list(set(txids))  #remove duplicates
+        #self.BLOCKR_MAX_ADDR_REQ_COUNT = 2
+        if len(txids) > self.BLOCKR_MAX_ADDR_REQ_COUNT:
+            txids = common.chunks(txids, self.BLOCKR_MAX_ADDR_REQ_COUNT)
+        else:
+            txids = [txids]
+        data = []
+        for ids in txids:
+            blockr_url = 'http://' + self.blockr_domain + '.blockr.io/api/v1/tx/info/'
+            blockr_data = json.loads(btc.make_request(blockr_url + ','.join(
+                ids)))['data']
+            if not isinstance(blockr_data, list):
+                blockr_data = [blockr_data]
+            data += blockr_data
         result = []
         for txo in txout:
             txdata = [d for d in data if d['tx'] == txo[:64]][0]
