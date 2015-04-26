@@ -53,8 +53,8 @@ methods = ['display', 'displayall', 'summary'] + noseed_methods
 if len(args) < 1:
     parser.error('Needs a seed, wallet file or method')
     sys.exit(0)
-
 load_program_config()
+
 if args[0] in noseed_methods:
     method = args[0]
 else:
