@@ -357,7 +357,7 @@ class BitcoinCoreInterface(BlockchainInterface):
 	def sync_addresses(self, wallet, gaplimit=6):
 		common.debug('requesting wallet history')
 		wallet_name = 'joinmarket-wallet-' + btc.dbl_sha256(wallet.keys[0][0])[:6]
-		addr_req_count = 20
+		addr_req_count = 50
 		wallet_addr_list = []
 		for mix_depth in range(wallet.max_mix_depth):
 			for forchange in [0, 1]:

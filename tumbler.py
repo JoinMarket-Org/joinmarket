@@ -289,6 +289,7 @@ def main():
 	dbg_tx_list = []
 	for srcmixdepth, txlist in tx_dict.iteritems():
 		dbg_tx_list.append({'srcmixdepth': srcmixdepth, 'tx': txlist})
+	print 'tumbler transaction list'
 	pprint(dbg_tx_list)
 
 	total_wait = sum([tx['wait'] for tx in tx_list])
