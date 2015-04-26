@@ -87,7 +87,7 @@ class TumblerThread(threading.Thread):
 
 	def finishcallback(self, coinjointx):
 		common.bc_interface.add_tx_notify(coinjointx.latest_tx,
-			self.unconfirm_callback, self.confirm_callback)
+			self.unconfirm_callback, self.confirm_callback, coinjointx.my_cj_addr)
 		self.taker.wallet.remove_old_utxos(coinjointx.latest_tx)
 
 	def send_tx(self, tx, balance, sweep):

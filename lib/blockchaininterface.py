@@ -42,7 +42,7 @@ class BlockchainInterface(object):
 		pass
 
 	@abc.abstractmethod
-	def add_tx_notify(self, txd, unconfirmfun, confirmfun):
+	def add_tx_notify(self, txd, unconfirmfun, confirmfun, notifyaddr):
 		'''Invokes unconfirmfun and confirmfun when tx is seen on the network'''
 		pass
 
@@ -134,7 +134,7 @@ class BlockrInterface(BlockchainInterface):
 		self.last_sync_unspent = time.time()
 		common.debug('blockr sync_unspent took ' + str((self.last_sync_unspent - st)) + 'sec')
 
-	def add_tx_notify(self, txd, unconfirmfun, confirmfun):
+	def add_tx_notify(self, txd, unconfirmfun, confirmfun, notifyaddr):
 		unconfirm_timeout = 10*60 #seconds
 		unconfirm_poll_period = 5
 		confirm_timeout = 2*60*60
@@ -427,10 +427,18 @@ class BitcoinCoreInterface(BlockchainInterface):
 		et = time.time()
 		common.debug('bitcoind sync_unspent took ' + str((et - st)) + 'sec')
 
-	def add_tx_notify(self, txd, unconfirmfun, confirmfun):
+	def add_tx_notify(self, txd, unconfirmfun, confirmfun, notifyaddr):
 		if not self.notifythread:
 			self.notifythread = BitcoinCoreNotifyThread(self)
 			self.notifythread.start()
+		one_addr_imported = False
+		for outs in txd['outs']:
+			addr = btc.script_to_address(outs['script'], common.get_addr_vbyte())
+			if self.rpc(['getaccount', addr]) != '':
+				one_addr_imported = True
+				break
+		if not one_addr_imported:
+			self.rpc(['importaddress', notifyaddr, 'joinmarket-notify', 'false'])
 		tx_output_set = set([(sv['script'], sv['value']) for sv in txd['outs']])
 		self.txnotify_fun.append((tx_output_set, unconfirmfun, confirmfun))
 
