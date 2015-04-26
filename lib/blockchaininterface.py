@@ -458,12 +458,19 @@ class BitcoinCoreInterface(BlockchainInterface):
 #with > 100 blocks.
 class RegtestBitcoinCoreInterface(BitcoinCoreInterface):
 	def __init__(self, bitcoin_cli_cmd):
-		super(BitcoinCoreInterface, self).__init__(bitcoin_cli_cmd, False)
+		super(RegtestBitcoinCoreInterface, self).__init__(bitcoin_cli_cmd, False)
 		self.command_params = bitcoin_cli_cmd + ['-regtest']
 
 	def pushtx(self, txhex):
-		ret = super(RegtestBitcoinCoreInterface, self).send_tx(txhex)
-		self.tick_forward_chain(1)
+		ret = super(RegtestBitcoinCoreInterface, self).pushtx(txhex)
+		class TickChainThread(threading.Thread):
+			def __init__(self, bcinterface):
+				threading.Thread.__init__(self)
+				self.bcinterface = bcinterface
+			def run(self):
+				time.sleep(15)
+				self.bcinterface.tick_forward_chain(1)
+		TickChainThread(self).start()
 		return ret
 
 	def tick_forward_chain(self, n):
