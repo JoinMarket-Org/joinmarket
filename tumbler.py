@@ -243,10 +243,10 @@ def main():
 		'This option controlls the parameters of that normal curve. (mean, standard deviation). default=(3, 1)')
 	parser.add_option('--amountpower', type='float', dest='amountpower', default=100.0,
 		help='The output amounts follow a power law distribution, this is the power, default=100.0')
-	parser.add_option('-l', '--timelambda', type='float', dest='timelambda', default=2,
+	parser.add_option('-l', '--timelambda', type='float', dest='timelambda', default=20,
 		help='Average the number of minutes to wait between transactions. Randomly chosen '
 		' following an exponential distribution, which describes the time between uncorrelated'
-		' events. default=5')
+		' events. default=20')
 	parser.add_option('-w', '--wait-time', action='store', type='float', dest='waittime',
 		help='wait time in seconds to allow orders to arrive, default=5', default=5)
 	parser.add_option('-s', '--mincjamount', type='float', dest='mincjamount', default=0.0001,
