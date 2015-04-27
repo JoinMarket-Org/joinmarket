@@ -7,7 +7,7 @@ import blockchaininterface
 from ConfigParser import SafeConfigParser
 import os
 nickname = ''
-DUST_THRESHOLD = 5430
+DUST_THRESHOLD = 543
 bc_interface = None
 ordername_list = ["absorder", "relorder"]
 debug_file_handle = None
