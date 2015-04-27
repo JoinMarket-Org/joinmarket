@@ -320,11 +320,11 @@ def main():
         '--timelambda',
         type='float',
         dest='timelambda',
-        default=2,
+        default=20,
         help=
         'Average the number of minutes to wait between transactions. Randomly chosen '
         ' following an exponential distribution, which describes the time between uncorrelated'
-        ' events. default=5')
+        ' events. default=20')
     parser.add_option(
         '-w',
         '--wait-time',
