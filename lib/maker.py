@@ -100,7 +100,7 @@ class CoinJoinOrder(object):
         #len(sigs) > 0 guarenteed since i did verify_unsigned_tx()
 
         common.bc_interface.add_tx_notify(self.tx, self.unconfirm_callback,
-                                          self.confirm_callback)
+                                          self.confirm_callback, self.cj_addr)
         debug('sending sigs ' + str(sigs))
         self.maker.msgchan.send_sigs(nick, sigs)
         self.maker.active_orders[nick] = None

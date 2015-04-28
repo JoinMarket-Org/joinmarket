@@ -39,6 +39,7 @@ class CoinJoinTX(object):
         self.finishcallback = finishcallback
         self.my_txfee = my_txfee
         self.outputs = [{'address': my_cj_addr, 'value': self.cj_amount}]
+        self.my_cj_addr = my_cj_addr
         self.my_change_addr = my_change_addr
         self.cjfee_total = 0
         self.latest_tx = None

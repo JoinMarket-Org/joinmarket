@@ -33,8 +33,8 @@ def generate_tumbler_tx(destaddrs, options):
     tx_list = []
     for m, txcount in enumerate(txcounts):
         #assume that the sizes of outputs will follow a power law
-        amount_ratios = 1.0 - np.random.power(options.amountpower, txcount)
-        amount_ratios /= sum(amount_ratios)
+        amount_fractions = 1.0 - np.random.power(options.amountpower, txcount)
+        amount_fractions /= sum(amount_fractions)
         #transaction times are uncorrelated
         #time between events in a poisson process followed exp
         waits = np.random.exponential(options.timelambda, txcount)
@@ -42,13 +42,13 @@ def generate_tumbler_tx(destaddrs, options):
         makercounts = np.random.normal(options.makercountrange[0],
                                        options.makercountrange[1], txcount)
         makercounts = lower_bounded_int(makercounts, 2)
-        for amount_ratio, wait, makercount in zip(amount_ratios, waits,
-                                                  makercounts):
-            tx = {'amount_ratio': amount_ratio,
+        for amount_fraction, wait, makercount in zip(amount_fractions, waits,
+                                                     makercounts):
+            tx = {'amount_fraction': amount_fraction,
                   'wait': round(wait, 2),
                   'srcmixdepth': m + options.mixdepthsrc,
                   'makercount': makercount,
-                  'dest': 'internal'}
+                  'destination': 'internal'}
             tx_list.append(tx)
 
     total_dest_addr = len(destaddrs) + options.addrask
@@ -60,17 +60,17 @@ def generate_tumbler_tx(destaddrs, options):
         srcmix = options.mixdepthsrc + options.mixdepthcount - mix_offset - 1
         for tx in reversed(tx_list):
             if tx['srcmixdepth'] == srcmix:
-                tx['dest'] = external_dest_addrs[mix_offset]
+                tx['destination'] = external_dest_addrs[mix_offset]
                 break
         if mix_offset == 0:
             #setting last mixdepth to send all to dest
             tx_list_remove = []
             for tx in tx_list:
                 if tx['srcmixdepth'] == srcmix:
-                    if tx['dest'] == 'internal':
+                    if tx['destination'] == 'internal':
                         tx_list_remove.append(tx)
                     else:
-                        tx['amount_ratio'] = 1.0
+                        tx['amount_fraction'] = 1.0
             [tx_list.remove(t) for t in tx_list_remove]
     return tx_list
 
@@ -95,16 +95,16 @@ class TumblerThread(threading.Thread):
         self.lockcond.release()
 
     def finishcallback(self, coinjointx):
-        common.bc_interface.add_tx_notify(coinjointx.latest_tx,
-                                          self.unconfirm_callback,
-                                          self.confirm_callback)
+        common.bc_interface.add_tx_notify(
+            coinjointx.latest_tx, self.unconfirm_callback,
+            self.confirm_callback, coinjointx.my_cj_addr)
         self.taker.wallet.remove_old_utxos(coinjointx.latest_tx)
 
     def send_tx(self, tx, balance, sweep):
         destaddr = None
-        if tx['dest'] == 'internal':
+        if tx['destination'] == 'internal':
             destaddr = self.taker.wallet.get_receive_addr(tx['srcmixdepth'] + 1)
-        elif tx['dest'] == 'addrask':
+        elif tx['destination'] == 'addrask':
             while True:
                 destaddr = raw_input('insert new address: ')
                 addr_valid, errormsg = validate_address(destaddr)
@@ -112,7 +112,7 @@ class TumblerThread(threading.Thread):
                     break
                 print 'Address ' + destaddr + ' invalid. ' + errormsg + ' try again'
         else:
-            destaddr = tx['dest']
+            destaddr = tx['destination']
 
         if sweep:
             print 'sweeping'
@@ -144,7 +144,7 @@ class TumblerThread(threading.Thread):
                                 destaddr, None, self.taker.txfee,
                                 self.finishcallback)
         else:
-            amount = int(tx['amount_ratio'] * balance)
+            amount = int(tx['amount_fraction'] * balance)
             if amount < self.taker.mincjamount:
                 print 'cj amount too low, bringing up'
                 amount = self.taker.mincjamount
@@ -377,6 +377,7 @@ def main():
     dbg_tx_list = []
     for srcmixdepth, txlist in tx_dict.iteritems():
         dbg_tx_list.append({'srcmixdepth': srcmixdepth, 'tx': txlist})
+    print 'tumbler transaction list'
     pprint(dbg_tx_list)
 
     total_wait = sum([tx['wait'] for tx in tx_list])
