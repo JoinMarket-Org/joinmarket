@@ -126,6 +126,7 @@ class IRCMessageChannel(MessageChannel):
 		#TODO make it send the sigs on one line if there's space
 		for s in sig_list:
 			self.__privmsg(nick, 'sig', s)
+			time.sleep(0.5) #HACK! really there should be rate limiting, see issue#31
 
 	def __pubmsg(self, message):
 		debug('>>pubmsg ' + message)
