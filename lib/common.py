@@ -52,7 +52,7 @@ def debug(msg):
         print 'Alert Message: ' + alert_message
     print outmsg
     if nickname:  #debugs before creating bot nick won't be handled like this
-        debug_file_handle.write(outmsg + '\n')
+        debug_file_handle.write(outmsg + '\r\n')
 
 
 def chunks(d, n):

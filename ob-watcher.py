@@ -5,7 +5,7 @@ data_dir = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(data_dir, 'lib'))
 
 import taker
-from irc import IRCMessageChannel
+from irc import IRCMessageChannel, random_nick
 from common import *
 
 tableheading = '''
@@ -226,7 +226,7 @@ def main():
     import bitcoin as btc
     import common
     import binascii, os
-    common.nickname = 'watcher' + binascii.hexlify(os.urandom(4))
+    common.nickname = random_nick()  #watcher' +binascii.hexlify(os.urandom(4))
     common.load_program_config()
 
     irc = IRCMessageChannel(common.nickname)
