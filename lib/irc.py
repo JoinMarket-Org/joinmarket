@@ -4,7 +4,7 @@ from message_channel import MessageChannel
 from message_channel import CJPeerError
 
 import socket, threading, time, ssl
-import base64, os
+import base64, os, urllib2, re
 import enc_wrapper
 
 MAX_PRIVMSG_LEN = 400
@@ -13,6 +13,16 @@ PING_INTERVAL = 40
 PING_TIMEOUT = 10
 encrypted_commands = ["auth", "ioauth", "tx", "sig"]
 plaintext_commands = ["fill", "error", "pubkey", "orderbook", "relorder", "absorder", "push"]
+
+def random_nick():
+	random_article_url = 'http://en.wikipedia.org/wiki/Special:Random'
+	page = urllib2.urlopen(random_article_url).read()
+	page_title = page[page.index('<title>') + 7 : page.index('</title>')]
+	title = page_title[:page_title.index(' - Wikipedia')]
+	ircnick = ''.join([s.capitalize() for s in re.split('\\W+', title)])
+	if re.match('\\d', ircnick[0]):
+		ircnick = '_' + ircnick
+	return ircnick
 
 def get_irc_text(line):
 	return line[line[1:].find(':') + 2:]
@@ -371,7 +381,8 @@ class IRCMessageChannel(MessageChannel):
 				self.on_connect()
 			self.send_raw('JOIN ' + self.channel)
 		elif chunks[1] == '433': #nick in use
-			self.nick += '_'
+			#self.nick = random_nick()
+			self.nick += '_' #helps keep identity constant if just _ added
 			self.send_raw('NICK ' + self.nick)
 		elif chunks[1] == '366': #end of names list
 			self.connect_attempts = 0
@@ -413,10 +424,11 @@ class IRCMessageChannel(MessageChannel):
 			self.motd_fd.close()
 		'''
 
-	def __init__(self, nick, username='username', realname='realname', password=None):
+	def __init__(self, given_nick, username='username', realname='realname', password=None):
 		MessageChannel.__init__(self)
 		self.cjpeer = None #subclasses have to set this to self
-		self.nick = nick
+		self.given_nick = given_nick
+		self.nick = given_nick
 		self.serverport = (config.get("MESSAGING","host"), int(config.get("MESSAGING","port")))
 		self.channel = '#'+ config.get("MESSAGING","channel")
 		self.userrealname = (username, realname)
@@ -445,7 +457,7 @@ class IRCMessageChannel(MessageChannel):
 				if self.password:
 					self.send_raw('CAP REQ :sasl')
 				self.send_raw('USER %s b c :%s' % self.userrealname)
-				self.send_raw('NICK ' + self.nick)
+				self.send_raw('NICK ' + self.given_nick)
 				while 1:
 					try:
 						line = self.fd.readline()

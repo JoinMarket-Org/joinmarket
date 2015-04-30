@@ -1,24 +1,24 @@
 
 IRC Channel:
 #joinmarket on irc.freenode.net
-[https://webchat.freenode.net/?channels=%23joinmarket]
+https://webchat.freenode.net/?channels=%23joinmarket
 
 Bitcointalk thread:
-[https://bitcointalk.org/index.php?topic=919116.msg10096563]
+https://bitcointalk.org/index.php?topic=919116.msg10096563
 
 Subreddit:
-[www.reddit.com/r/joinmarket]
+www.reddit.com/r/joinmarket
 
 Twitter:
-[www.twitter.com/joinmarket]
+www.twitter.com/joinmarket
 
 Wiki page for more detailed articles:
-[https://github.com/chris-belcher/joinmarket/wiki]
+https://github.com/chris-belcher/joinmarket/wiki
 
 INSTALLING
 0. You will need python 2.7
 1. You will need libsodium installed
- Get it here: http://doc.libsodium.org/installation/README.html
+ Get it here: http://doc.libsodium.org/
 2. You will need slowaes installed
  sudo pip install slowaes
 3. Get some testnet coins

@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.join(data_dir, 'lib'))
 import taker as takermodule
 import common
 from common import *
-from irc import IRCMessageChannel
+from irc import IRCMessageChannel, random_nick
 
 from optparse import OptionParser
 import numpy as np
@@ -318,7 +318,8 @@ def main():
 	common.bc_interface.sync_wallet(wallet)
 	wallet.print_debug_wallet_info()
 
-	common.nickname = 'tumbler-'+binascii.hexlify(os.urandom(4))
+	common.nickname = random_nick()
+	debug('starting tumbler')
 	irc = IRCMessageChannel(common.nickname)
 	tumbler = Tumbler(irc, wallet, tx_list, options.txfee, options.maxcjfee, options.mincjamount)
 	try:
