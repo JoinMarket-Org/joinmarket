@@ -8,7 +8,7 @@ from common import *
 import common
 import taker
 import maker
-from irc import IRCMessageChannel
+from irc import IRCMessageChannel, random_nick
 import bitcoin as btc
 
 
@@ -192,7 +192,6 @@ def main():
         return
 
     waittime = timedelta(hours=options.waittime).total_seconds()
-    print 'Running patient sender of a payment'
     print 'txfee=%d cjfee=%d waittime=%s makercount=%d' % (
         options.txfee, options.cjfee, str(timedelta(hours=options.waittime)),
         options.makercount)
@@ -205,7 +204,8 @@ def main():
         print 'not enough money at mixdepth=%d, exiting' % (options.mixdepth)
         return
 
-    common.nickname = 'ppayer-' + binascii.hexlify(os.urandom(4))
+    common.nickname = random_nick()
+    debug('Running patient sender of a payment')
 
     irc = IRCMessageChannel(common.nickname)
     bot = PatientSendPayment(irc, wallet, destaddr, amount, options.makercount,
@@ -215,7 +215,6 @@ def main():
         irc.run()
     except:
         debug('CRASHING, DUMPING EVERYTHING')
-        debug('wallet seed = ' + seed)
         debug_dump_object(wallet, ['addr_cache', 'keys', 'seed'])
         debug_dump_object(taker)
         import traceback

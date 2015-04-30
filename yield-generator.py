@@ -6,7 +6,7 @@ data_dir = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(data_dir, 'lib'))
 
 from maker import *
-from irc import IRCMessageChannel
+from irc import IRCMessageChannel, random_nick
 import bitcoin as btc
 import common
 
@@ -14,7 +14,7 @@ from socket import gethostname
 
 txfee = 1000
 cjfee = '0.002'  # 0.2% fee
-nickname = 'yigen-' + binascii.hexlify(os.urandom(4))
+nickname = random_nick()
 nickserv_password = ''
 minsize = int(
     1.2 * txfee / float(cjfee)
@@ -137,6 +137,7 @@ def main():
     wallet.print_debug_wallet_info()
 
     common.nickname = nickname
+    debug('starting yield generator')
     irc = IRCMessageChannel(common.nickname,
                             realname='btcint=' + common.config.get(
                                 "BLOCKCHAIN", "blockchain_source"),

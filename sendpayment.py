@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.join(data_dir, 'lib'))
 from common import *
 import common
 import taker as takermodule
-from irc import IRCMessageChannel
+from irc import IRCMessageChannel, random_nick
 import bitcoin as btc
 
 
@@ -131,8 +131,9 @@ def main():
         print 'ERROR: Address invalid. ' + errormsg
         return
 
+    common.nickname = random_nick()
+    debug('starting sendpayment')
     import binascii, os
-    common.nickname = 'payer-' + binascii.hexlify(os.urandom(4))
 
     wallet = Wallet(seed, options.mixdepth + 1)
     common.bc_interface.sync_wallet(wallet)
