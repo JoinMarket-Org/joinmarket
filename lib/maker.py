@@ -236,14 +236,6 @@ class Maker(CoinJoinerPeer):
         self.msgchan.announce_orders(self.orderlist)
         self.active_orders = {}
 
-    def on_set_topic(self, newtopic):
-        chunks = newtopic.split('|')
-        if len(chunks) > 1:
-            print '=' * 60
-            print 'MESSAGE FROM BELCHER!'
-            print chunks[1].strip()
-            print '=' * 60
-
     def on_nick_leave(self, nick):
         self.active_orders[nick] = None
 

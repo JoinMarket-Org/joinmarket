@@ -184,6 +184,24 @@ class CoinJoinerPeer(object):
     def get_crypto_box_from_nick(self, nick):
         raise Exception()
 
+    def on_set_topic(self, newtopic):
+        chunks = newtopic.split('|')
+        for msg in chunks[1:]:
+            try:
+                msg = msg.strip()
+                params = msg.split(' ')
+                min_version = int(params[0])
+                max_version = int(params[1])
+                alert = msg[msg.index(params[1]) + len(params[1]):].strip()
+            except ValueError, IndexError:
+                continue
+            if min_version < common.JM_VERSION and max_version > common.JM_VERSION:
+                print '=' * 60
+                print 'JOINMARKET ALERT'
+                print alert
+                print '=' * 60
+                common.joinmarket_alert = alert
+
 
 class OrderbookWatch(CoinJoinerPeer):
 
@@ -222,14 +240,6 @@ class OrderbookWatch(CoinJoinerPeer):
 
     def on_disconnect(self):
         self.db.execute('DELETE FROM orderbook;')
-
-    def on_set_topic(self, newtopic):
-        chunks = newtopic.split('|')
-        if len(chunks) > 1:
-            print '=' * 60
-            print 'MESSAGE FROM BELCHER!'
-            print chunks[1].strip()
-            print '=' * 60
 
 
 #assume this only has one open cj tx at a time

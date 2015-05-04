@@ -332,8 +332,8 @@ class NotifyRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
                     common.debug('ran confirmfun')
 
         elif self.path.startswith('/alertnotify?'):
-            common.alert_message = self.path[len(pages[1]):]
-            common.debug('Got an alert!\nMessage=' + common.alert_message)
+            common.core_alert = self.path[len(pages[1]):]
+            common.debug('Got an alert!\nMessage=' + common.core_alert)
 
         os.system('wget -q --spider --timeout=0.5 --tries=1 http://localhost:' +
                   str(self.base_server.server_address[1] + 1) + self.path)

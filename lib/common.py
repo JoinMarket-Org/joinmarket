@@ -6,12 +6,15 @@ import numpy as np
 import blockchaininterface
 from ConfigParser import SafeConfigParser
 import os
+
+JM_VERSION = 1
 nickname = ''
 DUST_THRESHOLD = 543
 bc_interface = None
 ordername_list = ["absorder", "relorder"]
 debug_file_handle = None
-alert_message = None
+core_alert = None
+joinmarket_alert = None
 
 config = SafeConfigParser()
 config_location = 'joinmarket.cfg'
@@ -48,8 +51,10 @@ def debug(msg):
     if nickname and not debug_file_handle:
         debug_file_handle = open(nickname + '.log', 'ab')
     outmsg = datetime.datetime.now().strftime("[%Y/%m/%d %H:%M:%S] ") + msg
-    if alert_message:
-        print 'Alert Message: ' + alert_message
+    if core_alert:
+        print 'Core Alert Message: ' + core_alert
+    if joinmarket_alert:
+        print 'JoinMarket Alert Message: ' + joinmarket_alert
     print outmsg
     if nickname:  #debugs before creating bot nick won't be handled like this
         debug_file_handle.write(outmsg + '\r\n')
