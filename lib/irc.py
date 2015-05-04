@@ -22,6 +22,7 @@ def random_nick():
 	ircnick = ''.join([s.capitalize() for s in re.split('\\W+', title)])
 	if re.match('\\d', ircnick[0]):
 		ircnick = '_' + ircnick
+	ircnick = ircnick[:9]
 	return ircnick
 
 def get_irc_text(line):
