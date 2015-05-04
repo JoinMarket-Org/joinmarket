@@ -132,8 +132,12 @@ class Wallet(object):
     def get_seed(self, seedarg):
         path = os.path.join('wallets', seedarg)
         if not os.path.isfile(path):
-            debug('seedarg interpreted as seed')
-            return seedarg
+            if get_network() == 'testnet':
+                debug(
+                    'seedarg interpreted as seed, only available in testnet because this probably has lower entropy')
+                return seedarg
+            else:
+                raise IOError('wallet file not found')
         #debug('seedarg interpreted as wallet file name')
         try:
             import aes
