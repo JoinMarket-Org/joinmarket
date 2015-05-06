@@ -26,4 +26,8 @@ INSTALLING
 3. you will need numpy 1.7 or later installed
 4. (optional) matplotlib for displaying the graphs in orderbook-watcher
 
+in the joinmarket.cfg configuration file, set
+    network = mainnet
+for the actual bitcoin mainnet
+
 Read the wiki for more detailed articles on how to use
