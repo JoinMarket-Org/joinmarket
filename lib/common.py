@@ -42,6 +42,12 @@ def load_program_config():
 	global bc_interface
 	bc_interface = blockchaininterface.get_blockchain_interface_instance(config)
 
+def get_config_irc_channel():
+	channel = '#'+ config.get("MESSAGING","channel")
+	if get_network() == 'testnet':
+		channel += '-test'
+	return channel
+
 def debug(msg):
 	global debug_file_handle
 	if nickname and not debug_file_handle: 
@@ -59,11 +65,8 @@ def chunks(d, n):
 	return [d[x: x+n] for x in xrange(0, len(d), n)]
 
 def get_network():
-	'''Returns network name as required by pybitcointools'''
-	if config.get("BLOCKCHAIN","network") == 'testnet':
-		return 'testnet'
-	else:
-		raise Exception("Only testnet is currently implemented")
+	'''Returns network name'''
+	return config.get("BLOCKCHAIN","network")
 
 def get_addr_vbyte():
 	if get_network() == 'testnet':

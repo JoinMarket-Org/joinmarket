@@ -431,7 +431,7 @@ class IRCMessageChannel(MessageChannel):
 		self.given_nick = given_nick
 		self.nick = given_nick
 		self.serverport = (config.get("MESSAGING","host"), int(config.get("MESSAGING","port")))
-		self.channel = '#'+ config.get("MESSAGING","channel")
+		self.channel = get_config_irc_channel()
 		self.userrealname = (username, realname)
 		if password and len(password) == 0:
 			password = None
@@ -451,7 +451,6 @@ class IRCMessageChannel(MessageChannel):
 				debug('connecting')
 				self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 				if config.get("MESSAGING","usessl").lower() == 'true':
-
 					self.sock = ssl.wrap_socket(self.sock)
 				self.sock.connect(self.serverport)
 				self.fd = self.sock.makefile()
