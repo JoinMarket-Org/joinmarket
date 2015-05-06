@@ -19,7 +19,7 @@ import old_mnemonic
 # m/0/n/1/k kth change address, for mixing depth n
 
 parser = OptionParser(
-    usage='usage: %prog [options] [seed / wallet file] [method]',
+    usage='usage: %prog [options] [wallet file] [method]',
     description='Does useful little tasks involving your bip32 wallet. The' +
     ' method is one of the following: display- shows addresses and balances.' +
     ' displayall - shows ALL addresses and balances.' +
@@ -51,7 +51,7 @@ noseed_methods = ['generate', 'recover']
 methods = ['display', 'displayall', 'summary'] + noseed_methods
 
 if len(args) < 1:
-    parser.error('Needs a seed, wallet file or method')
+    parser.error('Needs a wallet file or method')
     sys.exit(0)
 load_program_config()
 
