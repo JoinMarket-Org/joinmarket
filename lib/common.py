@@ -312,7 +312,7 @@ def choose_order(db, cj_amount, n):
     counterparties = set([o[0] for o in orders])
     if n > len(counterparties):
         debug(
-            'ERROR not enough liquidity in the orderbook n=%d counterparties=%d'
+            'ERROR not enough liquidity in the orderbook n=%d suitable-counterparties=%d'
             % (n, len(counterparties)))
         return None, 0  #TODO handle not enough liquidity better, maybe an Exception
     orders = sorted(orders, key=lambda k: k[2])
