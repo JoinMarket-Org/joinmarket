@@ -42,6 +42,9 @@ class PaymentThread(threading.Thread):
 				self.taker.destaddr, None, self.taker.txfee, self.finishcallback)
 		else:
 			orders, total_cj_fee = choose_order(self.taker.db, self.taker.amount, self.taker.makercount)
+			if not orders:
+				debug('ERROR not enough liquidity in the orderbook, exiting')
+				return
 			print 'chosen orders to fill ' + str(orders) + ' totalcjfee=' + str(total_cj_fee)
 			total_amount = self.taker.amount + total_cj_fee + self.taker.txfee
 			print 'total amount spent = ' + str(total_amount)
