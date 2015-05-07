@@ -1,4 +1,3 @@
-
 IRC Channel:
 #joinmarket on irc.freenode.net
 https://webchat.freenode.net/?channels=%23joinmarket
@@ -11,6 +10,9 @@ www.reddit.com/r/joinmarket
 
 Twitter:
 www.twitter.com/joinmarket
+
+Donation address:
+1AZgQZWYRteh6UyF87hwuvyWj73NvWKpL
 
 Wiki page for more detailed articles:
 https://github.com/chris-belcher/joinmarket/wiki
