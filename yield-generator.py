@@ -66,7 +66,7 @@ class YieldGenerator(Maker):
         order = {'oid': 0,
                  'ordertype': 'relorder',
                  'minsize': minsize,
-                 'maxsize': mix_balance[max_mix],
+                 'maxsize': mix_balance[max_mix] - common.DUST_THRESHOLD,
                  'txfee': txfee,
                  'cjfee': cjfee}
         return [order]
