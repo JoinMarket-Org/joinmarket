@@ -60,7 +60,7 @@ class YieldGenerator(Maker):
 		#print mix_balance
 		max_mix = max(mix_balance, key=mix_balance.get)
 		order = {'oid': 0, 'ordertype': 'relorder', 'minsize': minsize,
-			'maxsize': mix_balance[max_mix], 'txfee': txfee, 'cjfee': cjfee}
+			'maxsize': mix_balance[max_mix] - common.DUST_THRESHOLD, 'txfee': txfee, 'cjfee': cjfee}
 		return [order]
 
 	def oid_to_order(self, cjorder, oid, amount):
