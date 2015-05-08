@@ -24,7 +24,7 @@ INSTALLING
  use this line to check it was installed correctly
  python lib/enc_wrapper.py
 2. You will need slowaes installed for encrypting your wallet
- sudo pip install slowaes
+ sudo pip install --pre slowaes
 3. you will need numpy 1.7 or later installed
 4. (optional) matplotlib for displaying the graphs in orderbook-watcher
 
