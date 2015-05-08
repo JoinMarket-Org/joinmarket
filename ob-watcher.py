@@ -24,7 +24,7 @@ tableheading = '''
 shutdownform = '<form action="shutdown" method="post"><input type="submit" value="Shutdown" /></form>'
 shutdownpage = '<html><body><center><h1>Successfully Shut down</h1></center></body></html>'
 
-refresh_orderbook_form = '<form action="refreshorderbook" method="post"><input type="submit" value="Refresh Orderbook" /></form>'
+refresh_orderbook_form = '<form action="refreshorderbook" method="post"><input type="submit" value="Check for timed-out counterparties" /></form>'
 
 
 def calc_depth_data(db, value):
