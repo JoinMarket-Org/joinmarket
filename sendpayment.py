@@ -38,6 +38,10 @@ class PaymentThread(threading.Thread):
 			utxo_list = self.taker.wallet.get_utxos_by_mixdepth()[self.taker.mixdepth]
 			total_value = sum([va['value'] for va in utxo_list.values()])
 			orders, cjamount = choose_sweep_order(self.taker.db, total_value, self.taker.txfee, self.taker.makercount)
+			if not self.taker.answeryes:
+				if raw_input('send with these orders? (y/n):')[0] != 'y':
+					self.finishcallback(None)
+					return
 			self.taker.start_cj(self.taker.wallet, cjamount, orders, utxo_list,
 				self.taker.destaddr, None, self.taker.txfee, self.finishcallback)
 		else:
@@ -46,6 +50,10 @@ class PaymentThread(threading.Thread):
 				debug('ERROR not enough liquidity in the orderbook, exiting')
 				return
 			print 'chosen orders to fill ' + str(orders) + ' totalcjfee=' + str(total_cj_fee)
+			if not self.taker.answeryes:
+				if raw_input('send with these orders? (y/n):')[0] != 'y':
+					self.finishcallback(None)
+					return
 			total_amount = self.taker.amount + total_cj_fee + self.taker.txfee
 			print 'total amount spent = ' + str(total_amount)
 
@@ -55,7 +63,7 @@ class PaymentThread(threading.Thread):
 				self.finishcallback)
 
 class SendPayment(takermodule.Taker):
-	def __init__(self, msgchan, wallet, destaddr, amount, makercount, txfee, waittime, mixdepth):
+	def __init__(self, msgchan, wallet, destaddr, amount, makercount, txfee, waittime, mixdepth, answeryes):
 		takermodule.Taker.__init__(self, msgchan)
 		self.wallet = wallet
 		self.destaddr = destaddr
@@ -64,6 +72,7 @@ class SendPayment(takermodule.Taker):
 		self.txfee = txfee
 		self.waittime = waittime
 		self.mixdepth = mixdepth
+		self.answeryes = answeryes
 
 	def on_welcome(self):
 		takermodule.Taker.on_welcome(self)
@@ -82,6 +91,8 @@ def main():
 		help='how many makers to coinjoin with, default=2', default=2)
 	parser.add_option('-m', '--mixdepth', action='store', type='int', dest='mixdepth',
 		help='mixing depth to spend from, default=0', default=0)
+	parser.add_option('--yes', action='store_true', dest='answeryes', default=False,
+		help='answer yes to everything')
 	(options, args) = parser.parse_args()
 
 	if len(args) < 3:
@@ -107,7 +118,7 @@ def main():
 
 	irc = IRCMessageChannel(common.nickname)
 	taker = SendPayment(irc, wallet, destaddr, amount, options.makercount, options.txfee,
-		options.waittime, options.mixdepth)
+		options.waittime, options.mixdepth, options.answeryes)
 	try:
 		debug('starting irc')
 		irc.run()
