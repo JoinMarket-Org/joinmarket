@@ -135,6 +135,8 @@ class CoinJoinOrder(object):
                            + str(ins['outpoint']['index']) for ins in txd['ins']])
         #complete authentication: check the tx input uses the authing pubkey
         input_utxo_data = common.bc_interface.query_utxo_set(list(tx_utxo_set))
+        if None in input_utxo_data:
+            return False, 'some utxos already spent or not confirmed yet'
         input_addresses = [u['address'] for u in input_utxo_data]
         if btc.pubtoaddr(self.i_utxo_pubkey, get_addr_vbyte())\
          not in input_addresses:
