@@ -274,7 +274,32 @@ def weighted_order_choose(orders, n, feekey):
 	chosen_order_index = np.random.choice(len(orders), p=weight)
 	return orders[chosen_order_index]
 
-def choose_order(db, cj_amount, n):
+def cheapest_order_choose(orders, n, feekey):
+	'''
+	Return the cheapest order from the orders.
+	'''
+	return sorted(orders, key=feekey)[0]
+
+def pick_order(orders, n, feekey):
+	i = -1
+	print("Considered orders:");
+	for o in orders:
+		i+=1
+		print("    "+str(i)+". "+str(o[0])+", CJ fee: "+str(o[2]))
+	pickedOrderIndex = -1
+	if i==0:
+		print("Only one possible pick, picking it.")
+		return orders[0]
+	while pickedOrderIndex == -1:
+		pickedOrderIndex = raw_input('Pick an order between 0 and '+str(i)+': ')
+		if pickedOrderIndex!='' and pickedOrderIndex[0].isdigit():
+			pickedOrderIndex = int(pickedOrderIndex[0])
+			if pickedOrderIndex>=0 and pickedOrderIndex<len(orders):
+				return orders[pickedOrderIndex]
+		pickedOrderIndex = -1
+		
+
+def choose_order(db, cj_amount, n, chooseOrdersBy):
 	sqlorders = db.execute('SELECT * FROM orderbook;').fetchall()
 	orders = [(o['counterparty'], o['oid'],	calc_cj_fee(o['ordertype'], o['cjfee'], cj_amount))
 		for o in sqlorders if cj_amount >= o['minsize'] and cj_amount <= o['maxsize']]
@@ -283,12 +308,12 @@ def choose_order(db, cj_amount, n):
 		debug('ERROR not enough liquidity in the orderbook n=%d suitable-counterparties=%d'
 			% (n, len(counterparties)))
 		return None, 0 #TODO handle not enough liquidity better, maybe an Exception
-	orders = sorted(orders, key=lambda k: k[2])
+	orders = sorted(orders, key=lambda k: k[2]) #sort from smallest to biggest cj fee
 	debug('considered orders = ' + str(orders))
 	total_cj_fee = 0
 	chosen_orders = []
 	for i in range(n):
-		chosen_order = weighted_order_choose(orders, n, lambda k: k[2])
+		chosen_order = chooseOrdersBy(orders, n, lambda k: k[2])
 		orders = [o for o in orders if o[0] != chosen_order[0]] #remove all orders from that same counterparty
 		chosen_orders.append(chosen_order)
 		total_cj_fee += chosen_order[2]
@@ -330,7 +355,7 @@ def create_combination(li, n):
 	assert len(result) == nCk(len(li), n)
 	return result
 
-def choose_sweep_order(db, my_total_input, my_tx_fee, n):
+def choose_sweep_order(db, my_total_input, my_tx_fee, n, chooseOrdersBy):
 	'''
 	choose an order given that we want to be left with no change
 	i.e. sweep an entire group of utxos
@@ -377,7 +402,8 @@ def choose_sweep_order(db, my_total_input, my_tx_fee, n):
 	if len(ordercombos) == 0:
 		debug('ERROR not enough liquidity in the orderbook')
 		return None, 0 #TODO handle not enough liquidity better, maybe an Exception
-	ordercombo = weighted_order_choose(ordercombos, n, lambda k: k[1][1])
+		
+	ordercombo = chooseOrdersBy(ordercombos, n, lambda k: k[1][1]) #index [1][1] = cjfee	
 	orders = dict([(o['counterparty'], o['oid']) for o in ordercombo[0]])
 	cjamount =  ordercombo[1][0]
 	debug('chosen orders = ' + str(orders))
