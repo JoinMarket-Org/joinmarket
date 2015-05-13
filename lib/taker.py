@@ -151,8 +151,10 @@ class CoinJoinTX(object):
 
 		#TODO send to a random maker or push myself
 		#self.msgchan.push_tx(self.active_orders.keys()[0], txhex)	
-		txid = common.bc_interface.pushtx(txhex)
-		debug('pushed tx ' + str(txid))
+		self.txid = common.bc_interface.pushtx(txhex)
+		debug('pushed tx ' + str(self.txid))
+		if self.txid == None:
+			debug('unable to pushtx')
 		if self.finishcallback != None:
 			self.finishcallback(self)
 
