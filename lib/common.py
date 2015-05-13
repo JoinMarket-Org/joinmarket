@@ -292,7 +292,7 @@ def weighted_order_choose(orders, n, feekey):
 	unless M < orderbook size, then phi goes up to the last order
 	'''
     minfee = feekey(orders[0])
-    M = 2 * n
+    M = n
     if len(orders) > M:
         phi = feekey(orders[M]) - minfee
     else:
