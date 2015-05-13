@@ -12,6 +12,8 @@ nickname = ''
 DUST_THRESHOLD = 543
 bc_interface = None
 ordername_list = ["absorder", "relorder"]
+
+debug_file_lock = threading.Lock()
 debug_file_handle = None
 core_alert = None
 joinmarket_alert = None
@@ -55,16 +57,17 @@ def get_config_irc_channel():
 
 def debug(msg):
     global debug_file_handle
-    if nickname and not debug_file_handle:
-        debug_file_handle = open(nickname + '.log', 'ab')
-    outmsg = datetime.datetime.now().strftime("[%Y/%m/%d %H:%M:%S] ") + msg
-    if core_alert:
-        print 'Core Alert Message: ' + core_alert
-    if joinmarket_alert:
-        print 'JoinMarket Alert Message: ' + joinmarket_alert
-    print outmsg
-    if nickname:  #debugs before creating bot nick won't be handled like this
-        debug_file_handle.write(outmsg + '\r\n')
+    with debug_file_lock:
+        if nickname and not debug_file_handle:
+            debug_file_handle = open(nickname + '.log', 'ab')
+        outmsg = datetime.datetime.now().strftime("[%Y/%m/%d %H:%M:%S] ") + msg
+        if core_alert:
+            print 'Core Alert Message: ' + core_alert
+        if joinmarket_alert:
+            print 'JoinMarket Alert Message: ' + joinmarket_alert
+        print outmsg
+        if nickname:  #debugs before creating bot nick won't be handled like this
+            debug_file_handle.write(outmsg + '\r\n')
 
 
 def chunks(d, n):
