@@ -51,7 +51,7 @@ class BlockchainInterface(object):
 
     @abc.abstractmethod
     def pushtx(self, txhex):
-        '''pushes tx to the network, returns txhash'''
+        '''pushes tx to the network, returns txhash, or None if failed'''
         pass
 
     @abc.abstractmethod
@@ -254,9 +254,13 @@ class BlockrInterface(BlockchainInterface):
         NotifyThread(self.blockr_domain, txd, unconfirmfun, confirmfun).start()
 
     def pushtx(self, txhex):
-        data = json.loads(btc.blockr_pushtx(txhex, self.network))
+        try:
+            json_str = btc.blockr_pushtx(txhex, self.network)
+        except Exception:
+            common.debug('failed blockr.io pushtx')
+            return None
+        data = json.loads(json_str)
         if data['status'] != 'success':
-            #error message generally useless so there might not be a point returning
             common.debug(data)
             return None
         return data['data']
@@ -504,7 +508,11 @@ class BitcoinCoreInterface(BlockchainInterface):
         self.txnotify_fun.append((tx_output_set, unconfirmfun, confirmfun))
 
     def pushtx(self, txhex):
-        return self.rpc(['sendrawtransaction', txhex]).strip()
+        try:
+            return self.rpc(['sendrawtransaction', txhex]).strip()
+        except subprocess.CalledProcessError, e:
+            common.debug('failed pushtx, error ' + repr(e))
+            return None
 
     def query_utxo_set(self, txout):
         if not isinstance(txout, list):

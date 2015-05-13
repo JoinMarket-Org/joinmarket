@@ -150,7 +150,6 @@ def main():
 
     common.nickname = random_nick()
     debug('starting sendpayment')
-    import binascii, os
 
     wallet = Wallet(seed, options.mixdepth + 1)
     common.bc_interface.sync_wallet(wallet)

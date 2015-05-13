@@ -235,6 +235,8 @@ class Maker(CoinJoinerPeer):
         debug('received txhex from ' + nick + ' to push\n' + txhex)
         txid = common.bc_interface.pushtx(txhex)
         debug('pushed tx ' + str(txid))
+        if txid == None:
+            self.send_error(nick, 'Unable to push tx')
 
     def on_welcome(self):
         self.msgchan.announce_orders(self.orderlist)
