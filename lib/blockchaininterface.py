@@ -342,7 +342,7 @@ class BitcoinCoreInterface(BlockchainInterface):
 		self.notifythread = None
 		self.txnotify_fun = []
 
-	def get_wallet_name(self):
+	def get_wallet_name(self, wallet):
 		return 'joinmarket-wallet-' + btc.dbl_sha256(wallet.keys[0][0])[:6]
 
 	def rpc(self, args):
@@ -363,7 +363,7 @@ class BitcoinCoreInterface(BlockchainInterface):
 
 	def sync_addresses(self, wallet, gaplimit=6):
 		common.debug('requesting wallet history')
-		wallet_name = self.get_wallet_name()
+		wallet_name = self.get_wallet_name(wallet)
 		addr_req_count = 50
 		wallet_addr_list = []
 		for mix_depth in range(wallet.max_mix_depth):
@@ -419,7 +419,7 @@ class BitcoinCoreInterface(BlockchainInterface):
 
 	def sync_unspent(self, wallet):
 		st = time.time()
-		wallet_name = self.get_wallet_name()
+		wallet_name = self.get_wallet_name(wallet)
 		wallet.unspent = {}
 		unspent_list = json.loads(self.rpc(['listunspent']))
 		for u in unspent_list:
