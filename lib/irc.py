@@ -3,7 +3,7 @@ from common import *
 from message_channel import MessageChannel
 from message_channel import CJPeerError
 
-import socket, threading, time, ssl
+import socket, threading, time, ssl, socks
 import base64, os, urllib2, re
 import enc_wrapper
 
@@ -431,6 +431,8 @@ class IRCMessageChannel(MessageChannel):
 		self.given_nick = given_nick
 		self.nick = given_nick
 		self.serverport = (config.get("MESSAGING","host"), int(config.get("MESSAGING","port")))
+		self.socks5_host = config.get("MESSAGING","socks5_host")
+		self.socks5_port = int(config.get("MESSAGING","socks5_port"))
 		self.channel = get_config_irc_channel()
 		self.userrealname = (username, realname)
 		if password and len(password) == 0:
@@ -449,11 +451,16 @@ class IRCMessageChannel(MessageChannel):
 		while self.connect_attempts < 10 and not self.give_up:
 			try:
 				debug('connecting')
-				self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+				if config.get("MESSAGING","socks5").lower() == 'true':
+					debug("Using socks5 proxy %s:%s" % (self.socks5_host, self.socks5_port))
+					socks.setdefaultproxy(socks.PROXY_TYPE_SOCKS5, self.socks5_host, self.socks5_port, True)
+					self.sock = socks.socksocket()	
+				else:
+					self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 				if config.get("MESSAGING","usessl").lower() == 'true':
 					self.sock = ssl.wrap_socket(self.sock)
-				self.sock.connect(self.serverport)
 				self.fd = self.sock.makefile()
+				self.sock.connect(self.serverport)
 				if self.password:
 					self.send_raw('CAP REQ :sasl')
 				self.send_raw('USER %s b c :%s' % self.userrealname)
