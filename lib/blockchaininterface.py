@@ -324,6 +324,10 @@ class NotifyRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
                                                            '0', 'true']))
                 if txdata['confirmations'] == 0:
                     unconfirmfun(txd, txid)
+                    #TODO pass the total transfered amount value here somehow
+                    #wallet_name = self.get_wallet_name()
+                    #amount = 
+                    #bitcoin-cli move wallet_name "" amount
                     common.debug('ran unconfirmfun')
                 else:
                     confirmfun(txd, txid, txdata['confirmations'])
@@ -379,6 +383,9 @@ class BitcoinCoreInterface(BlockchainInterface):
         self.notifythread = None
         self.txnotify_fun = []
 
+    def get_wallet_name(self):
+        return 'joinmarket-wallet-' + btc.dbl_sha256(wallet.keys[0][0])[:6]
+
     def rpc(self, args):
         try:
             if args[0] != 'importaddress':
@@ -398,8 +405,7 @@ class BitcoinCoreInterface(BlockchainInterface):
 
     def sync_addresses(self, wallet, gaplimit=6):
         common.debug('requesting wallet history')
-        wallet_name = 'joinmarket-wallet-' + btc.dbl_sha256(wallet.keys[0][
-            0])[:6]
+        wallet_name = self.get_wallet_name()
         addr_req_count = 50
         wallet_addr_list = []
         for mix_depth in range(wallet.max_mix_depth):
@@ -419,7 +425,8 @@ class BitcoinCoreInterface(BlockchainInterface):
         if len(txs) == 1000:
             raise Exception(
                 'time to stop putting off this bug and actually fix it, see the TODO')
-        used_addr_list = [tx['address'] for tx in txs]
+        used_addr_list = [tx['address']
+                          for tx in txs if tx['category'] == 'receive']
         too_few_addr_mix_change = []
         for mix_depth in range(wallet.max_mix_depth):
             for forchange in [0, 1]:
@@ -462,8 +469,7 @@ class BitcoinCoreInterface(BlockchainInterface):
 
     def sync_unspent(self, wallet):
         st = time.time()
-        wallet_name = 'joinmarket-wallet-' + btc.dbl_sha256(wallet.keys[0][
-            0])[:6]
+        wallet_name = self.get_wallet_name()
         wallet.unspent = {}
         unspent_list = json.loads(self.rpc(['listunspent']))
         for u in unspent_list:
