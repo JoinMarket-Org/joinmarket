@@ -40,9 +40,14 @@ class PaymentThread(threading.Thread):
             utxo_list = self.taker.wallet.get_utxos_by_mixdepth()[
                 self.taker.mixdepth]
             total_value = sum([va['value'] for va in utxo_list.values()])
-            orders, cjamount = choose_sweep_order(self.taker.db, total_value,
-                                                  self.taker.txfee,
-                                                  self.taker.makercount)
+            if self.taker.choosecheapest:  #choose cheapest
+                chooseOrdersBy = cheapest_order_choose
+            else:  #choose randomly (weighted)
+                chooseOrdersBy = weighted_order_choose
+
+            orders, cjamount = choose_sweep_order(
+                self.taker.db, total_value, self.taker.txfee,
+                self.taker.makercount, chooseOrdersBy)
             if not self.taker.answeryes:
                 if raw_input('send with these orders? (y/n):')[0] != 'y':
                     self.finishcallback(None)
@@ -51,8 +56,16 @@ class PaymentThread(threading.Thread):
                                 self.taker.destaddr, None, self.taker.txfee,
                                 self.finishcallback)
         else:
+            if self.taker.pickorders:  #pick orders manually
+                chooseOrdersBy = pick_order
+            elif self.taker.choosecheapest:  #choose cheapest
+                chooseOrdersBy = cheapest_order_choose
+            else:  #choose randomly (weighted)
+                chooseOrdersBy = weighted_order_choose
+
             orders, total_cj_fee = choose_order(
-                self.taker.db, self.taker.amount, self.taker.makercount)
+                self.taker.db, self.taker.amount, self.taker.makercount,
+                chooseOrdersBy)
             if not orders:
                 debug('ERROR not enough liquidity in the orderbook, exiting')
                 return
@@ -77,7 +90,7 @@ class PaymentThread(threading.Thread):
 class SendPayment(takermodule.Taker):
 
     def __init__(self, msgchan, wallet, destaddr, amount, makercount, txfee,
-                 waittime, mixdepth, answeryes):
+                 waittime, mixdepth, answeryes, choosecheapest, pickorders):
         takermodule.Taker.__init__(self, msgchan)
         self.wallet = wallet
         self.destaddr = destaddr
@@ -87,6 +100,8 @@ class SendPayment(takermodule.Taker):
         self.waittime = waittime
         self.mixdepth = mixdepth
         self.answeryes = answeryes
+        self.choosecheapest = choosecheapest
+        self.pickorders = pickorders
 
     def on_welcome(self):
         takermodule.Taker.on_welcome(self)
@@ -121,6 +136,21 @@ def main():
                       dest='makercount',
                       help='how many makers to coinjoin with, default=2',
                       default=2)
+    parser.add_option(
+        '-C',
+        '--choose-cheapest',
+        action='store_true',
+        dest='choosecheapest',
+        default=False,
+        help='override weightened offers picking and choose cheapest')
+    parser.add_option(
+        '-P',
+        '--pick-orders',
+        action='store_true',
+        dest='pickorders',
+        default=False,
+        help=
+        'manually pick which orders to take. doesn\'t work while sweeping.')
     parser.add_option('-m',
                       '--mixdepth',
                       action='store',
@@ -158,7 +188,8 @@ def main():
     irc = IRCMessageChannel(common.nickname)
     taker = SendPayment(irc, wallet, destaddr, amount, options.makercount,
                         options.txfee, options.waittime, options.mixdepth,
-                        options.answeryes)
+                        options.answeryes, options.choosecheapest,
+                        options.pickorders)
     try:
         debug('starting irc')
         irc.run()
