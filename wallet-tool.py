@@ -32,7 +32,7 @@ parser.add_option('-p', '--privkey', action='store_true', dest='showprivkey',
 	help='print private key along with address, default false')
 parser.add_option('-m', '--maxmixdepth', action='store', type='int', dest='maxmixdepth',
 	default=5, help='maximum mixing depth to look for, default=5')
-parser.add_option('-g', '--gap-limit', action='store', dest='gaplimit',
+parser.add_option('-g', '--gap-limit', type="int", action='store', dest='gaplimit',
 	help='gap limit for wallet, default=6', default=6)
 (options, args) = parser.parse_args()
 
