@@ -39,7 +39,7 @@ class YieldGenerator(Maker):
 
 	def log_statement(self, data):
 		data = [str(d) for d in data]
-		self.income_statement = open('yield-generator-income-statement.csv', 'aw')
+		self.income_statement = open(os.path.join('logs', 'yigen-statement.csv'), 'aw')
 		self.income_statement.write(','.join(data) + '\n')
 		self.income_statement.close()
 
