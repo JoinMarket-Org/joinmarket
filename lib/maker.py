@@ -243,7 +243,8 @@ class Maker(CoinJoinerPeer):
         self.active_orders = {}
 
     def on_nick_leave(self, nick):
-        self.active_orders[nick] = None
+        if nick in self.active_orders:
+            del self.active_orders[nick]
 
     def modify_orders(self, to_cancel, to_announce):
         debug('modifying orders. to_cancel=' + str(to_cancel) + '\nto_announce='
