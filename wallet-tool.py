@@ -41,6 +41,7 @@ parser.add_option('-m',
                   help='maximum mixing depth to look for, default=5')
 parser.add_option('-g',
                   '--gap-limit',
+                  type="int",
                   action='store',
                   dest='gaplimit',
                   help='gap limit for wallet, default=6',
