@@ -193,11 +193,6 @@ class IRCMessageChannel(MessageChannel):
                 maxsize = chunks[3]
                 txfee = chunks[4]
                 cjfee = chunks[5]
-                if any(float(t) < 0
-                       for t in [oid, minsize, maxsize, txfee, cjfee]):
-                    return
-                if float(minsize) > float(maxsize):
-                    return
                 if self.on_order_seen:
                     self.on_order_seen(counterparty, oid, ordertype, minsize,
                                        maxsize, txfee, cjfee)
