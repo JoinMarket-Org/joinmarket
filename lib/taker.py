@@ -199,6 +199,21 @@ class OrderbookWatch(CoinJoinerPeer):
 			+ "minsize INTEGER, maxsize INTEGER, txfee INTEGER, cjfee TEXT);")
 
 	def on_order_seen(self,	counterparty, oid, ordertype, minsize, maxsize, txfee, cjfee):
+		if int(oid) < 0 or int(oid) > sys.maxint:
+			debug("Got invalid order: " + oid + " from " + counterparty)
+			return
+		if int(minsize) < 0 or int(minsize) > 21*10**14:
+			debug("Got invalid minsize: " + minsize + " from " + counterparty)
+			return
+		if int(maxsize) < 0 or int(maxsize) > 21*10**14:
+			debug("Got invalid maxsize: " + maxsize + " from " + counterparty)
+			return
+		if int(txfee) < 0:
+			debug("Got invalid txfee: " + txfee +  " from " + counterparty)
+			return
+		if int(minsize) > int(maxsize):
+			debug("Got minsize bigger than maxsize: " + minsize + " - " + maxsize + " from " + counterparty)
+			return
 		self.db.execute("DELETE FROM orderbook WHERE counterparty=? AND oid=?;",
 			(counterparty, oid))
 		self.db.execute('INSERT INTO orderbook VALUES(?, ?, ?, ?, ?, ?, ?);',
