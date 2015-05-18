@@ -27,8 +27,7 @@ required_options = {'BLOCKCHAIN':
 
 def load_program_config():
     loadedFiles = config.read([config_location])
-    #detailed sanity checking :
-    #did the file exist?
+    #Create default config file if not found
     if len(loadedFiles) != 1:
         defaultconfig = """
 [BLOCKCHAIN]
