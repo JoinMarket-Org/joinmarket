@@ -6,7 +6,7 @@ import sys, datetime, json, time, pprint, threading, getpass
 import numpy as np
 import blockchaininterface
 from ConfigParser import SafeConfigParser
-import os
+import os, io
 
 JM_VERSION = 1
 nickname = ''
@@ -29,7 +29,25 @@ def load_program_config():
 	#detailed sanity checking :
 	#did the file exist?
 	if len(loadedFiles) != 1:
-		raise Exception("Could not find config file: "+config_location)
+		defaultconfig = """
+[BLOCKCHAIN]
+blockchain_source = blockr 
+network = mainnet
+bitcoin_cli_cmd = bitcoin-cli
+
+[MESSAGING]
+host = irc.snoonet.org
+channel = joinmarket-pit
+port = 6697
+usessl = true
+socks5 = false
+socks5_host = 127.0.0.1
+socks5_port = 9150
+"""
+		config.readfp(io.BytesIO(defaultconfig))
+		with open(config_location, "wb") as configfile:
+			config.write(configfile)
+
 	#check for sections
 	for s in required_options:
 		if s not in config.sections():
