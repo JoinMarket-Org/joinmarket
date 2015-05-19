@@ -24,6 +24,7 @@ def random_nick():
     if re.match('\\d', ircnick[0]):
         ircnick = '_' + ircnick
     ircnick = ircnick[:9]
+    print 'Generated random nickname: ' + ircnick  #not using debug because it might not know the logfile name at this point
     return ircnick
 
 
