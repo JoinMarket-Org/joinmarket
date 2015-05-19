@@ -30,12 +30,12 @@ class BlockchainInterface(object):
     def __init__(self):
         pass
 
-    def sync_wallet(self, wallet, gaplimit=6):
-        self.sync_addresses(wallet, gaplimit)
+    def sync_wallet(self, wallet):
+        self.sync_addresses(wallet)
         self.sync_unspent(wallet)
 
     @abc.abstractmethod
-    def sync_addresses(self, wallet, gaplimit=6):
+    def sync_addresses(self, wallet):
         '''Finds which addresses have been used and sets wallet.index appropriately'''
         pass
 
@@ -73,29 +73,32 @@ class BlockrInterface(BlockchainInterface):
         self.blockr_domain = 'tbtc' if testnet else 'btc'
         self.last_sync_unspent = 0
 
-    def sync_addresses(self, wallet, gaplimit=6):
+    def sync_addresses(self, wallet):
         common.debug('downloading wallet history')
         #sets Wallet internal indexes to be at the next unused address
         for mix_depth in range(wallet.max_mix_depth):
             for forchange in [0, 1]:
                 unused_addr_count = 0
                 last_used_addr = ''
-                while unused_addr_count < gaplimit:
+                while unused_addr_count < wallet.gaplimit or\
+                  wallet.index[mix_depth][forchange] <= wallet.index_cache[mix_depth][forchange]:
                     addrs = [wallet.get_new_addr(mix_depth, forchange)
                              for i in range(self.BLOCKR_MAX_ADDR_REQ_COUNT)]
 
                     #TODO send a pull request to pybitcointools
                     # because this surely should be possible with a function from it
                     blockr_url = 'http://' + self.blockr_domain + '.blockr.io/api/v1/address/txs/'
+                    #print 'downloading, lastusedaddr = ' + last_used_addr + ' unusedaddrcount= ' + str(unused_addr_count)
                     res = btc.make_request(blockr_url + ','.join(addrs))
                     data = json.loads(res)['data']
                     for dat in data:
+                        #if forchange == 0:
+                        #	print ' nbtxs ' + str(dat['nb_txs']) + ' addr=' + dat['address'] + ' unused=' + str(unused_addr_count)
                         if dat['nb_txs'] != 0:
                             last_used_addr = dat['address']
+                            unused_addr_count = 0
                         else:
                             unused_addr_count += 1
-                            if unused_addr_count >= gaplimit:
-                                break
                 if last_used_addr == '':
                     wallet.index[mix_depth][forchange] = 0
                 else:
@@ -407,7 +410,7 @@ class BitcoinCoreInterface(BlockchainInterface):
         print 'now restart bitcoind with -rescan'
         sys.exit(0)
 
-    def sync_addresses(self, wallet, gaplimit=6):
+    def sync_addresses(self, wallet):
         common.debug('requesting wallet history')
         wallet_name = self.get_wallet_name(wallet)
         addr_req_count = 50
@@ -438,7 +441,8 @@ class BitcoinCoreInterface(BlockchainInterface):
                 last_used_addr = ''
                 breakloop = False
                 while not breakloop:
-                    if unused_addr_count >= gaplimit:
+                    if unused_addr_count >= wallet.gaplimit and\
+                      wallet.index[mix_depth][forchange] >= wallet.index_cache[mix_depth][forchange]:
                         break
                     mix_change_addrs = [wallet.get_new_addr(
                         mix_depth, forchange) for i in range(addr_req_count)]
@@ -450,11 +454,9 @@ class BitcoinCoreInterface(BlockchainInterface):
                             break
                         if mc_addr in used_addr_list:
                             last_used_addr = mc_addr
+                            unused_addr_count = 0
                         else:
                             unused_addr_count += 1
-                            if unused_addr_count >= gaplimit:
-                                breakloop = True
-                                break
 
                 if last_used_addr == '':
                     wallet.index[mix_depth][forchange] = 0
