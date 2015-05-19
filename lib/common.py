@@ -150,7 +150,6 @@ class Wallet(object):
 			sys.exit(0)
 		if 'index_cache' in walletdata:
 			self.index_cache = walletdata['index_cache']
-			print 'index cache = ' + str(self.index_cache)
 		password = getpass.getpass('Enter wallet decryption passphrase: ')
 		password_key = btc.bin_dbl_sha256(password)
 		decrypted_seed = aes.decryptData(password_key, walletdata['encrypted_seed']
