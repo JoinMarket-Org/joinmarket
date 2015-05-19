@@ -61,9 +61,9 @@ if args[0] in noseed_methods:
 else:
     seed = args[0]
     method = ('display' if len(args) == 1 else args[1].lower())
-    wallet = Wallet(seed, options.maxmixdepth, options.gaplimit)
+    wallet = Wallet(seed, options.maxmixdepth)
     if method != 'showseed':
-        common.bc_interface.sync_wallet(wallet)
+        common.bc_interface.sync_wallet(wallet, options.gaplimit)
 
 if method == 'display' or method == 'displayall':
     total_balance = 0
