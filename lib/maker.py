@@ -33,6 +33,7 @@ class CoinJoinOrder(object):
 		self.cjfee = order['cjfee']
 		debug('new cjorder nick=%s oid=%d amount=%d' % (nick, oid, amount))
 		self.utxos, self.cj_addr, self.change_addr = maker.oid_to_order(self, oid, amount)
+		self.maker.wallet.update_cache_index()
 		if not self.utxos:
 			self.maker.msgchan.send_error(nick, 'unable to fill order constrained by dust avoidance')
 			#TODO make up orders offers in a way that this error cant appear
