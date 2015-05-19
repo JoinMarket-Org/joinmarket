@@ -114,10 +114,11 @@ def debug_dump_object(obj, skip_fields=[]):
 
 class Wallet(object):
 
-    def __init__(self, seedarg, max_mix_depth=2):
+    def __init__(self, seedarg, max_mix_depth=2, gaplimit=6):
         self.max_mix_depth = max_mix_depth
-        self.seed = self.get_seed(seedarg)
-        master = btc.bip32_master_key(self.seed)
+        self.gaplimit = gaplimit
+        seed = self.get_seed(seedarg)
+        master = btc.bip32_master_key(seed)
         m_0 = btc.bip32_ckd(master, 0)
         mixing_depth_keys = [btc.bip32_ckd(m_0, c)
                              for c in range(max_mix_depth)]
@@ -138,6 +139,8 @@ class Wallet(object):
         self.spent_utxos = []
 
     def get_seed(self, seedarg):
+        self.path = None
+        self.index_cache = [[0, 0]] * self.max_mix_depth
         path = os.path.join('wallets', seedarg)
         if not os.path.isfile(path):
             if get_network() == 'testnet':
@@ -147,6 +150,7 @@ class Wallet(object):
             else:
                 raise IOError('wallet file not found')
         #debug('seedarg interpreted as wallet file name')
+        self.path = path
         try:
             import aes
         except ImportError:
@@ -160,12 +164,30 @@ class Wallet(object):
             print 'wallet network(%s) does not match joinmarket configured network(%s)' % (
                 walletdata['network'], get_network())
             sys.exit(0)
+        if 'index_cache' in walletdata:
+            self.index_cache = walletdata['index_cache']
+            print 'index cache = ' + str(self.index_cache)
         password = getpass.getpass('Enter wallet decryption passphrase: ')
         password_key = btc.bin_dbl_sha256(password)
         decrypted_seed = aes.decryptData(password_key,
                                          walletdata['encrypted_seed']
                                          .decode('hex')).encode('hex')
         return decrypted_seed
+
+    def update_cache_index(self):
+        if not self.path:
+            return
+        if not os.path.isfile(self.path):
+            return
+        fd = open(self.path, 'r')
+        walletfile = fd.read()
+        fd.close()
+        walletdata = json.loads(walletfile)
+        walletdata['index_cache'] = self.index
+        walletfile = json.dumps(walletdata)
+        fd = open(self.path, 'w')
+        fd.write(walletfile)
+        fd.close()
 
     def get_key(self, mixing_depth, forchange, i):
         return btc.bip32_extract_key(btc.bip32_ckd(self.keys[mixing_depth][
@@ -180,6 +202,7 @@ class Wallet(object):
         addr = self.get_addr(mixing_depth, forchange, index[forchange])
         self.addr_cache[addr] = (mixing_depth, forchange, index[forchange])
         index[forchange] += 1
+        #self.update_cache_index()
         return addr
 
     def get_receive_addr(self, mixing_depth):
