@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.join(data_dir, 'lib'))
 from maker import *
 from irc import IRCMessageChannel, random_nick
 import bitcoin as btc
-import common
+import common, blockchaininterface
 
 from socket import gethostname
 
@@ -132,6 +132,14 @@ def main():
     common.load_program_config()
     import sys
     seed = sys.argv[1]
+    if isinstance(common.bc_interface, blockchaininterface.BlockrInterface):
+        print '\nYou are running a yield generator by polling the blockr.io website'
+        print 'This is quite bad for privacy. That site is owned by coinbase.com'
+        print 'Learn how to setup JoinMarket with Bitcoin Core: https://github.com/chris-belcher/joinmarket/wiki/Running-JoinMarket-with-Bitcoin-Core-full-node'
+        ret = raw_input('\nContinue? (y/n):')
+        if ret[0] != 'y':
+            return
+
     wallet = Wallet(seed, max_mix_depth=mix_levels)
     common.bc_interface.sync_wallet(wallet)
     wallet.print_debug_wallet_info()
