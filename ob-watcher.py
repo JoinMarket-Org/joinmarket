@@ -211,7 +211,7 @@ class HTTPDThread(threading.Thread):
         hostport = ('localhost', 62601)
         httpd = BaseHTTPServer.HTTPServer(hostport, OrderbookPageRequestHeader)
         httpd.taker = self.taker
-        print 'started http server, visit http://{0}:{1}/'.format(*hostport)
+        print '\nstarted http server, visit http://{0}:{1}/\n'.format(*hostport)
         httpd.serve_forever()
 
 
