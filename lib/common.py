@@ -6,6 +6,7 @@ import numpy as np
 import blockchaininterface
 from ConfigParser import SafeConfigParser
 import os
+import itertools
 
 JM_VERSION = 1
 nickname = ''
@@ -384,42 +385,6 @@ def choose_order(db, cj_amount, n, chooseOrdersBy):
     return dict(chosen_orders), total_cj_fee
 
 
-def nCk(n, k):
-    '''
-	n choose k
-	'''
-    return factorial(n) / factorial(k) / factorial(n - k)
-
-
-def create_combination(li, n):
-    '''
-	Creates a list of combinations of elements of a given list
-	For example, combination(['apple', 'orange', 'pear'], 2)
-		= [('apple', 'orange'), ('apple', 'pear'), ('orange', 'pear')]
-	'''
-    result = []
-    if n == 1:
-        result = [(l,) for l in li]  #same thing but each order is a tuple
-    elif n == 2:
-        #this case could be removed and the function completely recurvsive
-        # but for n=2 this is slightly more efficent
-        for i, e1 in enumerate(li):
-            for e2 in li[i + 1:]:
-                result.append((e1, e2))
-    else:
-        for i, e in enumerate(li):
-            if len(li[i:]) < n:
-                #there wont be
-                continue
-            combn1 = create_combination(li[i:], n - 1)
-            for c in combn1:
-                if e not in c:
-                    result.append((e,) + c)
-
-    assert len(result) == nCk(len(li), n)
-    return result
-
-
 def choose_sweep_order(db, my_total_input, my_tx_fee, n, chooseOrdersBy):
     '''
 	choose an order given that we want to be left with no change
@@ -457,7 +422,7 @@ def choose_sweep_order(db, my_total_input, my_tx_fee, n, chooseOrdersBy):
                  'txfee', 'cjfee']
     orderlist = [dict([(k, o[k]) for k in orderkeys]) for o in sqlorders]
 
-    ordercombos = create_combination(orderlist, n)
+    ordercombos = [combo for combo in itertools.combinations(orderlist, n)]
 
     ordercombos = [(c, calc_zero_change_cj_amount(c)) for c in ordercombos]
     ordercombos = [oc for oc in ordercombos
