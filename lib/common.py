@@ -24,14 +24,12 @@ required_options = {'BLOCKCHAIN':
                     ['blockchain_source', 'network', 'bitcoin_cli_cmd'],
                     'MESSAGING': ['host', 'channel', 'port']}
 
-
-def load_program_config():
-    loadedFiles = config.read([config_location])
-    #Create default config file if not found
-    if len(loadedFiles) != 1:
-        defaultconfig = """
+defaultconfig =\
+"""
 [BLOCKCHAIN]
 blockchain_source = blockr 
+#options: blockr, json-rpc, regtest 
+#before using json-rpc read https://github.com/chris-belcher/joinmarket/wiki/Running-JoinMarket-with-Bitcoin-Core-full-node 
 network = mainnet
 bitcoin_cli_cmd = bitcoin-cli
 
@@ -45,9 +43,14 @@ socks5_host = 127.0.0.1
 socks5_port = 9150
 """
 
+
+def load_program_config():
+    loadedFiles = config.read([config_location])
+    #Create default config file if not found
+    if len(loadedFiles) != 1:
         config.readfp(io.BytesIO(defaultconfig))
-        with open(config_location, "wb") as configfile:
-            config.write(configfile)
+        with open(config_location, "w") as configfile:
+            configfile.write(defaultconfig)
 
     #check for sections
     for s in required_options:
