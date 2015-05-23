@@ -34,13 +34,18 @@ network = mainnet
 bitcoin_cli_cmd = bitcoin-cli
 
 [MESSAGING]
-host = irc.snoonet.org
+host = irc.cyberguerrilla.org
 channel = joinmarket-pit
 port = 6697
 usessl = true
 socks5 = false
-socks5_host = 127.0.0.1
+socks5_host = localhost
 socks5_port = 9150
+#for tor
+#host = 6dvj6v5imhny3anf.onion
+#port = 6667
+#usessl = false
+#socks5 = true
 """
 
 def load_program_config():
