@@ -314,7 +314,10 @@ def weighted_order_choose(orders, n, feekey):
 	else:
 		phi = feekey(orders[-1]) - minfee
 	fee = np.array([feekey(o) for o in orders])
-	weight = np.exp(-(1.0*fee - minfee) / phi)
+	if phi > 0:
+		weight = np.exp(-(1.0*fee - minfee) / phi)
+	else:
+		weight = np.ones_like(fee)
 	weight /= sum(weight)
 	debug('randomly choosing orders with weighting\n' + pprint.pformat(zip(orders, weight)))
 	chosen_order_index = np.random.choice(len(orders), p=weight)
