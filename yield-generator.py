@@ -135,6 +135,8 @@ def main():
     if isinstance(common.bc_interface, blockchaininterface.BlockrInterface):
         print '\nYou are running a yield generator by polling the blockr.io website'
         print 'This is quite bad for privacy. That site is owned by coinbase.com'
+        print 'Also your bot will run faster and more efficently, you can be immediately notified of new bitcoin network'
+        print ' information so your money will be working for you as hard as possible'
         print 'Learn how to setup JoinMarket with Bitcoin Core: https://github.com/chris-belcher/joinmarket/wiki/Running-JoinMarket-with-Bitcoin-Core-full-node'
         ret = raw_input('\nContinue? (y/n):')
         if ret[0] != 'y':
