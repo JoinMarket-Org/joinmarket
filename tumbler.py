@@ -120,13 +120,10 @@ class TumblerThread(threading.Thread):
                 'srcmixdepth']]
             total_value = sum([addrval['value'] for addrval in all_utxos.values(
             )])
-            orders, cjamount = choose_sweep_order(
-                self.taker.db, total_value, self.taker.txfee, tx['makercount'])
             while True:
-                #orders, total_cj_fee = choose_order(self.taker.db, amount, tx['makercount'])
                 orders, cjamount = choose_sweep_order(
                     self.taker.db, total_value, self.taker.txfee,
-                    tx['makercount'])
+                    tx['makercount'], weighted_order_choose)
                 if orders == None:
                     print 'waiting for liquidity'
                     time.sleep(10)
@@ -152,7 +149,8 @@ class TumblerThread(threading.Thread):
             print 'coinjoining ' + str(amount)
             while True:
                 orders, total_cj_fee = choose_order(self.taker.db, amount,
-                                                    tx['makercount'])
+                                                    tx['makercount'],
+                                                    weighted_order_choose)
                 cj_fee = 1.0 * total_cj_fee / tx['makercount'] / amount
                 print 'average fee = ' + str(cj_fee)
                 if cj_fee > self.taker.maxcjfee:

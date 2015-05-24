@@ -36,7 +36,8 @@ class TakerThread(threading.Thread):
         #cancel the remaining order
         self.tmaker.modify_orders([0], [])
         orders, total_cj_fee = choose_order(self.tmaker.db, self.tmaker.amount,
-                                            self.tmaker.makercount)
+                                            self.tmaker.makercount,
+                                            weighted_order_choose)
         print 'chosen orders to fill ' + str(orders) + ' totalcjfee=' + str(
             total_cj_fee)
         total_amount = self.tmaker.amount + total_cj_fee + self.tmaker.txfee
