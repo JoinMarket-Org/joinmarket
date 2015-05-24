@@ -143,11 +143,8 @@ class CoinJoinOrder(object):
          not in input_addresses:
             return False, "authenticating bitcoin address is not contained"
         my_utxo_set = set(self.utxos.keys())
-        wallet_utxos = set(self.maker.wallet.unspent)
         if not tx_utxo_set.issuperset(my_utxo_set):
             return False, 'my utxos are not contained'
-        if not wallet_utxos.issuperset(my_utxo_set):
-            return False, 'my utxos already spent'
 
         my_total_in = sum([va['value'] for va in self.utxos.values()])
         self.real_cjfee = calc_cj_fee(self.ordertype, self.cjfee,
