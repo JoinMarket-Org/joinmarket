@@ -402,6 +402,10 @@ class IRCMessageChannel(MessageChannel):
             if self.on_connect:
                 self.on_connect()
             self.send_raw('JOIN ' + self.channel)
+            self.send_raw('MODE ' + self.given_nick + ' +B'
+                         )  #marks as bots on unreal
+            self.send_raw('MODE ' + self.given_nick + ' -R'
+                         )  #allows unreg'd private messages
         elif chunks[1] == '433':  #nick in use
             #self.nick = random_nick()
             self.nick += '_'  #helps keep identity constant if just _ added
@@ -497,8 +501,6 @@ class IRCMessageChannel(MessageChannel):
                     self.send_raw('CAP REQ :sasl')
                 self.send_raw('USER %s b c :%s' % self.userrealname)
                 self.send_raw('NICK ' + self.given_nick)
-                self.send_raw('MODE ' + self.given_nick + ' +B'
-                             )  #marks as bots on unreal
                 while 1:
                     try:
                         line = self.fd.readline()
