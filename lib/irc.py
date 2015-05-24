@@ -381,8 +381,7 @@ class IRCMessageChannel(MessageChannel):
                 self.send_raw('AUTHENTICATE PLAIN')
             elif chunks[0] == 'AUTHENTICATE':
                 self.send_raw('AUTHENTICATE ' + base64.b64encode(
-                    self.nick + '\x00' + self.userrealname[
-                        0] + '\x00' + self.password))
+                    self.nick + '\x00' + self.nick + '\x00' + self.password))
             elif chunks[1] == '903':
                 debug('Successfully authenticated')
                 self.password = None
