@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.join(data_dir, 'lib'))
 import taker
 from irc import IRCMessageChannel, random_nick
 from common import *
+import common
 
 tableheading = '''
 <table>
@@ -142,14 +143,17 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
         fd = open('orderbook.html', 'r')
         orderbook_fmt = fd.read()
         fd.close()
+        alert_msg = ''
+        if common.joinmarket_alert:
+            alert_msg = '<br />JoinMarket Alert Message:<br />' + common.joinmarket_alert
         if self.path == '/':
             ordercount, ordertable = self.create_orderbook_table()
             replacements = {
                 'PAGETITLE': 'JoinMarket Browser Interface',
                 'MAINHEADING': 'JoinMarket Orderbook',
-                'SECONDHEADING': (
-                    str(ordercount) + ' orders found by ' +
-                    self.get_counterparty_count() + ' counterparties'),
+                'SECONDHEADING':
+                (str(ordercount) + ' orders found by ' +
+                 self.get_counterparty_count() + ' counterparties' + alert_msg),
                 'MAINBODY': refresh_orderbook_form + shutdownform + tableheading
                 + ordertable + '</table>\n'
             }
@@ -157,7 +161,7 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
             replacements = {
                 'PAGETITLE': 'JoinMarket Browser Interface',
                 'MAINHEADING': 'Order Sizes',
-                'SECONDHEADING': 'Order Size Histogram',
+                'SECONDHEADING': 'Order Size Histogram' + alert_msg,
                 'MAINBODY': create_size_histogram(self.taker.db)
             }
         elif self.path.startswith('/depth'):
@@ -169,7 +173,7 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
             replacements = {
                 'PAGETITLE': 'JoinMarket Browser Interface',
                 'MAINHEADING': 'Depth Chart',
-                'SECONDHEADING': 'Orderbook Depth',
+                'SECONDHEADING': 'Orderbook Depth' + alert_msg,
                 'MAINBODY': '<br />'.join(mainbody)
             }
         orderbook_page = orderbook_fmt
