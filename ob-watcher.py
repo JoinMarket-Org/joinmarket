@@ -49,7 +49,13 @@ def create_depth_chart(db, cj_amount):
     if len(orderfees) == 0:
         return 'No orders at amount ' + str(cj_amount / 1e8)
     fig = plt.figure()
-    plt.hist(orderfees, 30, histtype='bar', rwidth=0.8)
+    if len(orderfees) == 1:
+        plt.hist(orderfees,
+                 30,
+                 rwidth=0.8,
+                 range=(orderfees[0] / 2, orderfees[0] * 2))
+    else:
+        plt.hist(orderfees, 30, rwidth=0.8)
     plt.grid()
     plt.title('CoinJoin Orderbook Depth Chart for amount=' + str(cj_amount /
                                                                  1e8) + 'btc')
