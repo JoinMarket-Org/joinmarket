@@ -129,9 +129,9 @@ class IRCMessageChannel(MessageChannel):
 	def send_pubkey(self, nick, pubkey):
 		self.__privmsg(nick, 'pubkey', pubkey)
 
-	def send_ioauth(self, nick, utxo_list, cj_pubkey, change_addr, sig):
-		authmsg = (str(','.join(utxo_list)) + ' ' + 
-	                cj_pubkey + ' ' + change_addr + ' ' + sig)
+	def send_ioauth(self, nick, utxo_list, input_pubkey, cj_addr, change_addr, sig):
+		authmsg = (str(','.join(utxo_list)) + ' ' + input_pubkey + ' ' +
+	                cj_addr + ' ' + change_addr + ' ' + sig)
 		self.__privmsg(nick, 'ioauth', authmsg)
 
 	def send_sigs(self, nick, sig_list):
@@ -212,11 +212,13 @@ class IRCMessageChannel(MessageChannel):
 						self.on_pubkey(nick, maker_pk)
 				elif chunks[0] == 'ioauth':
 					utxo_list = chunks[1].split(',')
-					cj_pub = chunks[2]
-					change_addr = chunks[3]
-					btc_sig = chunks[4]
+					input_pubkey = chunks[2]
+					cj_addr = chunks[3]
+					change_addr = chunks[4]
+					btc_sig = chunks[5]
 					if self.on_ioauth:
-						self.on_ioauth(nick, utxo_list, cj_pub, change_addr, btc_sig)
+						self.on_ioauth(nick, utxo_list, 
+					input_pubkey, cj_addr, change_addr, btc_sig)
 				elif chunks[0] == 'sig':
 					sig = chunks[1]
 					if self.on_sig:

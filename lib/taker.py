@@ -49,16 +49,24 @@ class CoinJoinTX(object):
 		my_btc_sig = btc.ecdsa_sign(self.kp.hex_pk(), my_btc_priv)
 		self.msgchan.send_auth(nick, my_btc_pub, my_btc_sig)
 	
-	def auth_counterparty(self, nick, btc_sig, cj_pub):
+	def auth_counterparty(self, nick, btc_sig, input_pubkey, utxo_list):
 		'''Validate the counterpartys claim to own the btc
 		address/pubkey that will be used for coinjoining 
-		with an ecdsa verification.'''
-		if not btc.ecdsa_verify(self.crypto_boxes[nick][0], btc_sig, cj_pub):
+		with an ecdsa verification. The btc pubkey used is
+		that corresponding to the first utxo in the provided
+		utxo list.'''
+		if not btc.ecdsa_verify(self.crypto_boxes[nick][0], btc_sig, input_pubkey):
 			print 'signature didnt match pubkey and message'
 			return False
+		#check that the pubkey used was indeed that for an input
+		#specified in the utxos
+		input_utxo_data = common.bc_interface.query_utxo_set(list(utxo_list))
+		input_addresses = [u['address'] for u in input_utxo_data]
+		if btc.pubtoaddr(input_pubkey, get_addr_vbyte()) not in input_addresses:
+			return False, "authenticating bitcoin address is not contained"		
 		return True
 	
-	def recv_txio(self, nick, utxo_list, cj_pub, change_addr):	
+	def recv_txio(self, nick, utxo_list, cj_addr, change_addr):	
 		if nick not in self.nonrespondants:
 			debug('nick(' + nick + ') not in nonrespondants ' + str(self.nonrespondants))
 			return
@@ -77,7 +85,6 @@ class CoinJoinTX(object):
 			total_input - self.cj_amount - order['txfee'] + real_cjfee})
 		print 'fee breakdown for %s totalin=%d cjamount=%d txfee=%d realcjfee=%d' % (nick,
 			total_input, self.cj_amount, order['txfee'], real_cjfee)
-		cj_addr = btc.pubtoaddr(cj_pub, get_addr_vbyte())
 		self.outputs.append({'address': cj_addr, 'value': self.cj_amount})
 		self.cjfee_total += real_cjfee
 		self.nonrespondants.remove(nick)
@@ -259,12 +266,12 @@ class Taker(OrderbookWatch):
 	def on_pubkey(self, nick, maker_pubkey):
 		self.cjtx.start_encryption(nick, maker_pubkey)
 
-	def on_ioauth(self, nick, utxo_list, cj_pub, change_addr, btc_sig):
-		if not self.cjtx.auth_counterparty(nick, btc_sig, cj_pub):
+	def on_ioauth(self, nick, utxo_list, input_pubkey, cj_addr, change_addr, btc_sig):
+		if not self.cjtx.auth_counterparty(nick, btc_sig, input_pubkey, utxo_list):
 			print 'Authenticated encryption with counterparty: ' + nick + \
 			' not established. TODO: send rejection message'
 			return				
-		self.cjtx.recv_txio(nick, utxo_list, cj_pub, change_addr)
+		self.cjtx.recv_txio(nick, utxo_list, cj_addr, change_addr)
 
 	def on_sig(self, nick, sig):
 		self.cjtx.add_signature(sig)

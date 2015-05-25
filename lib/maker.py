@@ -66,10 +66,12 @@ class CoinJoinOrder(object):
 		#(but input utxo pubkey is checked in verify_unsigned_tx).
 		#Send auth request to taker
 		#TODO the next 2 lines are a little inefficient.
-		btc_key = self.maker.wallet.get_key_from_addr(self.cj_addr)
+		auth_utxo = self.utxos[sorted(self.utxos.keys())[0]]
+		btc_key = self.maker.wallet.get_key_from_addr(auth_utxo['address'])
 		btc_pub = btc.privtopub(btc_key)
 		btc_sig = btc.ecdsa_sign(self.kp.hex_pk(), btc_key)
-		self.maker.msgchan.send_ioauth(nick, self.utxos.keys(), btc_pub, self.change_addr, btc_sig)
+		self.maker.msgchan.send_ioauth(nick, self.utxos.keys(), 
+		btc_pub, self.cj_addr, self.change_addr, btc_sig)
 		return True
 	
 	def recv_tx(self, nick, txhex):
