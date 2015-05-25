@@ -3,7 +3,7 @@ from decimal import Decimal
 from math import factorial
 import sys, datetime, json, time, pprint, threading, getpass
 import numpy as np
-import blockchaininterface
+import blockchaininterface, slowaes
 from ConfigParser import SafeConfigParser
 import os, io, itertools
 
@@ -177,11 +177,6 @@ class Wallet(object):
                 raise IOError('wallet file not found')
         #debug('seedarg interpreted as wallet file name')
         self.path = path
-        try:
-            import aes
-        except ImportError:
-            print 'You must install slowaes\nTry running: sudo pip install slowaes'
-            sys.exit(0)
         fd = open(path, 'r')
         walletfile = fd.read()
         fd.close()
@@ -194,9 +189,9 @@ class Wallet(object):
             self.index_cache = walletdata['index_cache']
         password = getpass.getpass('Enter wallet decryption passphrase: ')
         password_key = btc.bin_dbl_sha256(password)
-        decrypted_seed = aes.decryptData(password_key,
-                                         walletdata['encrypted_seed']
-                                         .decode('hex')).encode('hex')
+        decrypted_seed = slowaes.decryptData(password_key,
+                                             walletdata['encrypted_seed']
+                                             .decode('hex')).encode('hex')
         return decrypted_seed
 
     def update_cache_index(self):
