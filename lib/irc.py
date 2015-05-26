@@ -9,8 +9,8 @@ import enc_wrapper
 
 MAX_PRIVMSG_LEN = 400
 COMMAND_PREFIX = '!'
-PING_INTERVAL = 40
-PING_TIMEOUT = 10
+PING_INTERVAL = 180
+PING_TIMEOUT = 30
 encrypted_commands = ["auth", "ioauth", "tx", "sig"]
 plaintext_commands = ["fill", "error", "pubkey", "orderbook", "relorder",
                       "absorder", "push"]
