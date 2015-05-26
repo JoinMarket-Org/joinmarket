@@ -1,4 +1,4 @@
-
+#
 from common import *
 from message_channel import MessageChannel
 from message_channel import CJPeerError
@@ -51,13 +51,13 @@ class PingThread(threading.Thread):
 				if not self.irc.ping_reply:
 					debug('irc ping timed out')
 					try: self.irc.close()
-					except IOError: pass
+					except: pass
 					try: self.irc.fd.close()
-					except IOError: pass
+					except: pass
 					try: 
 						self.irc.sock.shutdown(socket.SHUT_RDWR)
 						self.irc.sock.close()
-					except IOError: pass
+					except: pass
 			except IOError as e:
 				debug('ping thread: ' + repr(e))
 		debug('ended ping thread')
@@ -449,7 +449,7 @@ class IRCMessageChannel(MessageChannel):
 		self.give_up = False
 		self.ping_reply = True
 		self.lockcond = threading.Condition()
-		#PingThread(self).start()
+		PingThread(self).start()
 
 		while self.connect_attempts < 10 and not self.give_up:
 			try:
