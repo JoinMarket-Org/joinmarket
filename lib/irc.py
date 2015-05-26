@@ -464,6 +464,7 @@ class IRCMessageChannel(MessageChannel):
 					self.sock = ssl.wrap_socket(self.sock)
 				self.fd = self.sock.makefile()
 				self.sock.connect(self.serverport)
+				self.password = None
 				if self.given_password:
 					self.password = self.given_password
 					self.send_raw('CAP REQ :sasl')
