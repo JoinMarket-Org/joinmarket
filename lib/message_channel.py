@@ -75,5 +75,5 @@ class MessageChannel(object):
 	def announce_orders(self, orderlist, nick=None): pass #nick=None means announce publicly
 	def cancel_orders(self, oid_list): pass
 	def send_pubkey(self, nick, pubkey): pass
-	def send_ioauth(self, nick, utxo_list, cj_pubkey, change_addr, sig): pass
+	def send_ioauth(self, nick, utxo_list, input_pubkey, cj_addr, change_addr, sig): pass
 	def send_sigs(self, nick, sig_list): pass
