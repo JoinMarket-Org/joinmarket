@@ -440,7 +440,7 @@ class IRCMessageChannel(MessageChannel):
 		self.userrealname = (username, realname)
 		if password and len(password) == 0:
 			password = None
-		self.password = password
+		self.given_password = password
 
 	def run(self):
 		self.connect_attempts = 0
@@ -464,7 +464,8 @@ class IRCMessageChannel(MessageChannel):
 					self.sock = ssl.wrap_socket(self.sock)
 				self.fd = self.sock.makefile()
 				self.sock.connect(self.serverport)
-				if self.password:
+				if self.given_password:
+					self.password = self.given_password
 					self.send_raw('CAP REQ :sasl')
 				self.send_raw('USER %s b c :%s' % self.userrealname)
 				self.send_raw('NICK ' + self.given_nick)
