@@ -327,8 +327,14 @@ class NotifyRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
             if unconfirmfun == None:
                 common.debug('txid=' + txid + ' not being listened for')
             else:
-                txdata = json.loads(self.btcinterface.rpc(['gettxout', txid,
-                                                           '0', 'true']))
+                jsonstr = None  #on rare occasions people spend their output without waiting for a confirm
+                for n in range(len(txd['outs'])):
+                    jsonstr = self.btcinterface.rpc(['gettxout', txid, str(n),
+                                                     'true'])
+                    if jsonstr != '':
+                        break
+                assert jsonstr != ''
+                txdata = json.loads(jsonstr)
                 if txdata['confirmations'] == 0:
                     unconfirmfun(txd, txid)
                     #TODO pass the total transfered amount value here somehow
