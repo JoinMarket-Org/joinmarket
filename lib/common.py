@@ -126,8 +126,47 @@ def debug_dump_object(obj, skip_fields=[]):
 		else:
 			debug(str(v))
 
-class Wallet(object):
+class AbstractWallet(object):
+	'''
+	Abstract wallet for use with JoinMarket
+	Mostly written with Wallet in mind, the default JoinMarket HD wallet
+	'''
+	def __init__(self):
+		pass
+	def get_key_from_addr(self, addr):
+		return None
+	def get_utxos_by_mixdepth(self):
+		return None
+	def get_change_addr(self, mixing_depth):
+		return None
+	def update_cache_index(self):
+		pass
+	def remove_old_utxos(self, tx):
+		pass
+	def add_new_utxos(self, tx, txid):
+		pass
+
+	def select_utxos(self, mixdepth, amount):
+		utxo_list = self.get_utxos_by_mixdepth()[mixdepth]
+		unspent = [{'utxo': utxo, 'value': addrval['value']}
+			for utxo, addrval in utxo_list.iteritems()]
+		inputs = btc.select(unspent, amount)
+		debug('for mixdepth=' + str(mixdepth) + ' amount=' + str(amount) + ' selected:')
+		debug(pprint.pformat(inputs))
+		return dict([(i['utxo'], {'value': i['value'], 'address':
+			utxo_list[i['utxo']]['address']}) for i in inputs])
+
+	def get_balance_by_mixdepth(self):
+		mix_balance = {}
+		for m in range(self.max_mix_depth):
+			mix_balance[m] = 0
+		for mixdepth, utxos in self.get_utxos_by_mixdepth().iteritems():
+			mix_balance[mixdepth] = sum([addrval['value'] for addrval in utxos.values()])
+		return mix_balance
+
+class Wallet(AbstractWallet):
 	def __init__(self, seedarg, max_mix_depth=2, gaplimit=6):
+		super(Wallet, self).__init__()
 		self.max_mix_depth = max_mix_depth
 		self.gaplimit = gaplimit
 		seed = self.get_seed(seedarg)
@@ -263,30 +302,32 @@ class Wallet(object):
 			mix_utxo_list[mixdepth][utxo] = addrvalue
 		return mix_utxo_list
 
-	def get_balance_by_mixdepth(self):
-		mix_balance = {}
-		for m in range(self.max_mix_depth):
-			mix_balance[m] = 0
-		for mixdepth, utxos in self.get_utxos_by_mixdepth().iteritems():
-			mix_balance[mixdepth] = sum([addrval['value'] for addrval in utxos.values()])
-		return mix_balance
+class BitcoinCoreWallet(AbstractWallet):
+	def __init__(self, fromaccount):
+		super(BitcoinCoreWallet, self).__init__()
+		if not isinstance(bc_interface, blockchaininterface.BitcoinCoreInterface):
+			raise RuntimeError('Bitcoin Core wallet can only be used when blockchain interface is BitcoinCoreInterface')
+		self.fromaccount = fromaccount
+		self.max_mix_depth = 1
 
-	def select_utxos(self, mixdepth, amount):
-		utxo_list = self.get_utxos_by_mixdepth()[mixdepth]
-		unspent = [{'utxo': utxo, 'value': self.unspent[utxo]['value']}
-			for utxo in utxo_list]
-		inputs = btc.select(unspent, amount)
-		debug('for mixdepth=' + str(mixdepth) + ' amount=' + str(amount) + ' selected:')
-		debug(pprint.pformat(inputs))
-		return dict([(i['utxo'], {'value': i['value'], 'address':
-			self.unspent[i['utxo']]['address']}) for i in inputs])
+	def get_key_from_addr(self, addr):
+		return bc_interface.rpc(['dumpprivkey', addr]).strip()
 
-	def print_debug_wallet_info(self):
-		debug('printing debug wallet information')
-		debug('utxos')
-		debug(pprint.pformat(self.unspent))
-		debug('wallet.index')
-		debug(pprint.pformat(self.index))
+	def get_utxos_by_mixdepth(self):
+		ret = bc_interface.rpc(['listunspent'])
+		unspent_list = json.loads(ret)
+		result = {0: {}}
+		for u in unspent_list:
+			if not u['spendable']:
+				continue
+			if self.fromaccount and 'account' in u and u['account'] != self.fromaccount:
+				continue
+			result[0][u['txid'] + ':' + str(u['vout'])] = {'address': u['address'],
+				'value': int(Decimal(str(u['amount'])) * Decimal('1e8'))}
+		return result
+
+	def get_change_addr(self, mixing_depth):
+		return bc_interface.rpc(['getrawchangeaddress']).strip()
 
 def calc_cj_fee(ordertype, cjfee, cj_amount):
 	real_cjfee = None

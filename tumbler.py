@@ -314,7 +314,6 @@ def main():
 	#python tumbler.py -N 2 1 -c 3 0.001 -l 0.1 -M 3 -a 0 seed 1xxx 1yyy
 	wallet = Wallet(seed, max_mix_depth = options.mixdepthsrc + options.mixdepthcount)
 	common.bc_interface.sync_wallet(wallet)
-	wallet.print_debug_wallet_info()
 
 	common.nickname = random_nick()
 	debug('starting tumbler')
