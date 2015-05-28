@@ -123,7 +123,7 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
     def create_orderbook_table(self):
         result = ''
         rows = self.taker.db.execute('SELECT * FROM orderbook;').fetchall()
-        for o in rows:
+        for o in sorted(rows, key=lambda x: x['cjfee']):
             result += ' <tr>\n'
             order_keys_display = (
                 ('ordertype', ordertype_display), ('counterparty', do_nothing),
