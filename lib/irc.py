@@ -236,12 +236,12 @@ class IRCMessageChannel(MessageChannel):
 						self.on_order_fill(nick, oid, amount, taker_pk)
 				elif chunks[0] == 'auth':
 					try:
-						i_utxo_pubkey = chunks[1]
+						pubkeys = chunks[1].split(',')
 						btc_sig = chunks[2]
 					except (ValueError, IndexError) as e:
 						self.send_error(nick, str(e))
 					if self.on_seen_auth:
-						self.on_seen_auth(nick, i_utxo_pubkey, btc_sig)
+						self.on_seen_auth(nick, pubkeys, btc_sig)
 				elif chunks[0] == 'tx':
 					b64tx = chunks[1]
 					try:

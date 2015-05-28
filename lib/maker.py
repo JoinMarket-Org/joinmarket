@@ -56,10 +56,27 @@ class CoinJoinOrder(object):
 		# orders to find out which addresses you use
 		self.maker.msgchan.send_pubkey(nick, self.kp.hex_pk())
 		
-	def auth_counterparty(self, nick, i_utxo_pubkey, btc_sig):
-		self.i_utxo_pubkey = i_utxo_pubkey
-		
-		if not btc.ecdsa_verify(self.taker_pk, btc_sig, self.i_utxo_pubkey):
+	def auth_counterparty(self, nick, pubkeys, btc_sig):
+		if len(pubkeys)>1:
+			try:
+				M = int(pubkeys[-1])
+			except ValueError as e:
+				debug("Failed to parse multisig keys, "+e)
+				return False
+			if M not in range(1,15):
+				debug("Invalid M for M of N multisig: "+str(M))
+				return False
+			if len(pubkeys) not in range(3,17):
+				debug("Invalid number of pubkeys for multisig: "+str(M))
+				return False
+		self.i_utxo_pubkeys = pubkeys
+		pk_verified = False
+		for i,p in enumerate(self.i_utxo_pubkeys):
+			if i > 0 and i==len(self.i_utxo_pubkeys)-1: continue
+			if btc.ecdsa_verify(self.taker_pk, btc_sig, p):
+				pk_verified = True
+				break 
+		if not pk_verified:
 			print 'signature didnt match pubkey and message'
 			return False
 		#authorisation of taker passed 
@@ -130,9 +147,17 @@ class CoinJoinOrder(object):
 		if None in input_utxo_data:
 			return False, 'some utxos already spent or not confirmed yet'
 		input_addresses = [u['address'] for u in input_utxo_data]
-		if btc.pubtoaddr(self.i_utxo_pubkey, get_addr_vbyte())\
-			not in input_addresses:
-		        return False, "authenticating bitcoin address is not contained"
+		if len(self.i_utxo_pubkeys) == 1:
+			if btc.pubtoaddr(self.i_utxo_pubkeys[0], get_addr_vbyte())\
+				not in input_addresses:
+				return False, "authenticating bitcoin address is not contained"
+		else:
+			M = self.i_utxo_pubkeys[-1]
+			N = len(self.i_utxo_pubkeys)-1
+			claimed_msig_addr = get_multisig_addr(self.i_utxo_pubkeys[:-1], M, N)
+			if claimed_msig_addr not in input_addresses:
+				return False, "authenticating bitcoin address is not contained"
+			
 		my_utxo_set = set(self.utxos.keys())
 		if not tx_utxo_set.issuperset(my_utxo_set):
 			return False, 'my utxos are not contained'
@@ -195,10 +220,10 @@ class Maker(CoinJoinerPeer):
 		finally:
 			self.wallet_unspent_lock.release()
 
-	def on_seen_auth(self, nick, pubkey, sig):
+	def on_seen_auth(self, nick, pubkeys, sig):
 		if nick not in self.active_orders or self.active_orders[nick] == None:
 			self.msgchan.send_error(nick, 'No open order from this nick')
-		self.active_orders[nick].auth_counterparty(nick, pubkey, sig)
+		self.active_orders[nick].auth_counterparty(nick, pubkeys, sig)
 		#TODO if auth_counterparty returns false, remove this order from active_orders
 		# and send an error
 

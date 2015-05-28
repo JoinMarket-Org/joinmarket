@@ -14,9 +14,12 @@ transactions and not to Maker and Taker entities.
 Encrypted
 =========
 
-TAK: !auth <input utxo pubkey> <btc sig of taker encryption pubkey using input utxo pubkey>
+TAK: !auth <input utxo pubkey1[, input utxo pubkey2,..,M]> <btc sig of taker encryption pubkey using input utxo pubkey>
 (Maker verifies the btc sig; if not valid, connection is dropped - send REJECT message)
-MAK: !ioauth <utxo list> <coinjoin pubkey> <change address> <btc sig of maker encryption pubkey using coinjoin pubkey>
+If the input utxo pubkey field is a comma-separated list instead of a single value, it is interpreted as the data
+for a multisig address, with the last field being the M in M of N (and N being the number of pubkeys. The btc sig
+can then be using any of the given pubkeys.)
+MAK: !ioauth <utxo list> <input pubkey> <coinjoin address> <change address> <btc sig of maker encryption pubkey using input pubkey>
 (Taker verifies the btc sig; if not valid, as for previous)
 
 Because the !auth messages are under encryption, there is no privacy leak of bitcoin pubkeys or output addresses.

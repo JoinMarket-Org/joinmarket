@@ -97,6 +97,22 @@ def get_network():
 	'''Returns network name'''
 	return config.get("BLOCKCHAIN","network")
 
+def get_multisig_addr(pubkeys, M, N):
+	'''Note on usage: It is critical to remember
+	that the multisig address constructed DOES depend
+	on the order of the pubkeys! An attempt to sign off
+	a transaction must have the order of signatures correct.'''
+	mscript = btc.mk_multisig_script(pubkeys, M, N).decode('hex')
+	return btc.script_to_address(mscript, get_magic_byte())
+
+def get_magic_byte():
+	if get_addr_vbyte() == 0x00:
+		return 5
+	elif get_addr_vbyte() == 0x6f:
+		return 196
+	else:
+		raise Exception("Unrecognized network type")
+
 def get_addr_vbyte():
 	if get_network() == 'testnet':
 		return 0x6f
