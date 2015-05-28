@@ -1,4 +1,4 @@
-
+#
 from common import *
 from message_channel import MessageChannel
 from message_channel import CJPeerError
@@ -9,8 +9,8 @@ import enc_wrapper
 
 MAX_PRIVMSG_LEN = 400
 COMMAND_PREFIX = '!'
-PING_INTERVAL = 40
-PING_TIMEOUT = 10
+PING_INTERVAL = 180
+PING_TIMEOUT = 30
 encrypted_commands = ["auth", "ioauth", "tx", "sig"]
 plaintext_commands = ["fill", "error", "pubkey", "orderbook", "relorder", "absorder", "push"]
 
@@ -51,13 +51,13 @@ class PingThread(threading.Thread):
 				if not self.irc.ping_reply:
 					debug('irc ping timed out')
 					try: self.irc.close()
-					except IOError: pass
+					except: pass
 					try: self.irc.fd.close()
-					except IOError: pass
+					except: pass
 					try: 
 						self.irc.sock.shutdown(socket.SHUT_RDWR)
 						self.irc.sock.close()
-					except IOError: pass
+					except: pass
 			except IOError as e:
 				debug('ping thread: ' + repr(e))
 		debug('ended ping thread')
@@ -354,6 +354,17 @@ class IRCMessageChannel(MessageChannel):
 			return
 
 		chunks = line.split(' ')
+		if chunks[1] == 'QUIT':
+			nick = get_irc_nick(chunks[0])
+			if nick == self.nick:
+				raise IOError('we quit')
+			else:
+				if self.on_nick_leave:
+					self.on_nick_leave(nick)
+		elif chunks[1] == '433': #nick in use
+			#self.nick = random_nick()
+			self.nick += '_' #helps keep identity constant if just _ added
+			self.send_raw('NICK ' + self.nick)
 		if self.password:
 			if chunks[1] == 'CAP':
 				if chunks[3] != 'ACK':
@@ -382,12 +393,8 @@ class IRCMessageChannel(MessageChannel):
 			if self.on_connect:
 				self.on_connect()
 			self.send_raw('JOIN ' + self.channel)
-			self.send_raw('MODE ' + self.given_nick + ' +B') #marks as bots on unreal
-			self.send_raw('MODE ' + self.given_nick + ' -R') #allows unreg'd private messages
-		elif chunks[1] == '433': #nick in use
-			#self.nick = random_nick()
-			self.nick += '_' #helps keep identity constant if just _ added
-			self.send_raw('NICK ' + self.nick)
+			self.send_raw('MODE ' + self.nick + ' +B') #marks as bots on unreal
+			self.send_raw('MODE ' + self.nick + ' -R') #allows unreg'd private messages
 		elif chunks[1] == '366': #end of names list
 			self.connect_attempts = 0
 			if self.on_welcome:
@@ -396,13 +403,6 @@ class IRCMessageChannel(MessageChannel):
 		elif chunks[1] == '332' or chunks[1] == 'TOPIC': #channel topic
 			topic = get_irc_text(line)
 			self.on_set_topic(topic)
-		elif chunks[1] == 'QUIT':
-			nick = get_irc_nick(chunks[0])
-			if nick == self.nick:
-				raise IOError('we quit')
-			else:
-				if self.on_nick_leave:
-					self.on_nick_leave(nick)
 		elif chunks[1] == 'KICK':
 			target = chunks[3]
 			nick = get_irc_nick(chunks[0])
@@ -440,7 +440,7 @@ class IRCMessageChannel(MessageChannel):
 		self.userrealname = (username, realname)
 		if password and len(password) == 0:
 			password = None
-		self.password = password
+		self.given_password = password
 
 	def run(self):
 		self.connect_attempts = 0
@@ -449,7 +449,7 @@ class IRCMessageChannel(MessageChannel):
 		self.give_up = False
 		self.ping_reply = True
 		self.lockcond = threading.Condition()
-		#PingThread(self).start()
+		PingThread(self).start()
 
 		while self.connect_attempts < 10 and not self.give_up:
 			try:
@@ -464,10 +464,13 @@ class IRCMessageChannel(MessageChannel):
 					self.sock = ssl.wrap_socket(self.sock)
 				self.fd = self.sock.makefile()
 				self.sock.connect(self.serverport)
-				if self.password:
+				self.password = None
+				if self.given_password:
+					self.password = self.given_password
 					self.send_raw('CAP REQ :sasl')
 				self.send_raw('USER %s b c :%s' % self.userrealname)
-				self.send_raw('NICK ' + self.given_nick)
+				self.nick = self.given_nick
+				self.send_raw('NICK ' + self.nick)
 				while 1:
 					try:
 						line = self.fd.readline()
