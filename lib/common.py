@@ -86,7 +86,7 @@ def debug(msg):
     with debug_file_lock:
         if nickname and not debug_file_handle:
             debug_file_handle = open(
-                os.path.join('logs', nickname + '.log'), 'ab')
+                os.path.join('logs', nickname + '.log'), 'ab', 1)
         outmsg = datetime.datetime.now().strftime("[%Y/%m/%d %H:%M:%S] ") + msg
         if core_alert:
             print 'Core Alert Message: ' + core_alert
