@@ -132,7 +132,8 @@ class PatientSendPayment(maker.Maker, taker.Taker):
 
 def main():
     parser = OptionParser(
-        usage='usage: %prog [options] [wallet file / seed] [amount] [destaddr]',
+        usage=
+        'usage: %prog [options] [wallet file / fromaccount] [amount] [destaddr]',
         description='Sends a payment from your wallet to an given address' +
         ' using coinjoin. First acts as a maker, announcing an order and ' +
         'waiting for someone to fill it. After a set period of time, gives' +
@@ -177,12 +178,20 @@ def main():
                       dest='mixdepth',
                       help='mixing depth to spend from, default=0',
                       default=0)
+    parser.add_option(
+        '--rpcwallet',
+        action='store_true',
+        dest='userpcwallet',
+        default=False,
+        help=
+        'Use the Bitcoin Core wallet through json rpc, instead of the internal joinmarket '
+        + 'wallet. Requires blockchain_source=json-rpc')
     (options, args) = parser.parse_args()
 
     if len(args) < 3:
-        parser.error('Needs a seed, amount and destination address')
+        parser.error('Needs a wallet, amount and destination address')
         sys.exit(0)
-    seed = args[0]
+    wallet_name = args[0]
     amount = int(args[1])
     destaddr = args[2]
 
@@ -197,7 +206,12 @@ def main():
         options.txfee, options.cjfee, str(timedelta(hours=options.waittime)),
         options.makercount)
 
-    wallet = Wallet(seed, options.mixdepth + 1)
+    if not options.userpcwallet:
+        wallet = Wallet(wallet_name, options.mixdepth + 1)
+    else:
+        print 'not implemented yet'
+        sys.exit(0)
+        wallet = BitcoinCoreWallet(fromaccount=wallet_name)
     common.bc_interface.sync_wallet(wallet)
 
     available_balance = wallet.get_balance_by_mixdepth()[options.mixdepth]
@@ -216,7 +230,7 @@ def main():
         irc.run()
     except:
         debug('CRASHING, DUMPING EVERYTHING')
-        debug_dump_object(wallet, ['addr_cache', 'keys', 'seed'])
+        debug_dump_object(wallet, ['addr_cache', 'keys'])
         debug_dump_object(taker)
         import traceback
         traceback.print_exc()

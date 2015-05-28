@@ -404,7 +404,6 @@ def main():
     wallet = Wallet(seed,
                     max_mix_depth=options.mixdepthsrc + options.mixdepthcount)
     common.bc_interface.sync_wallet(wallet)
-    wallet.print_debug_wallet_info()
 
     common.nickname = random_nick()
     debug('starting tumbler')

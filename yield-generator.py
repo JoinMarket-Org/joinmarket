@@ -144,7 +144,6 @@ def main():
 
     wallet = Wallet(seed, max_mix_depth=mix_levels)
     common.bc_interface.sync_wallet(wallet)
-    wallet.print_debug_wallet_info()
 
     common.nickname = nickname
     debug('starting yield generator')
