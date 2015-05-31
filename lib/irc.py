@@ -167,7 +167,7 @@ class IRCMessageChannel(MessageChannel):
 
 	def send_raw(self, line):
 		#if not line.startswith('PING LAG'):
-		debug('sendraw ' + line)
+		#	debug('sendraw ' + line)
 		self.sock.sendall(line + '\r\n')
 
 	def check_for_orders(self, nick, chunks):
@@ -335,20 +335,20 @@ class IRCMessageChannel(MessageChannel):
 					parsed = self.built_privmsg[nick][1]
 				#wipe the message buffer waiting for the next one
 				del self.built_privmsg[nick]
-				#debug("<<privmsg nick=%s message=%s" % (nick, parsed))
+				debug("<<privmsg nick=%s message=%s" % (nick, parsed))
 				self.__on_privmsg(nick, parsed)
 			else:
 				#drop the bad nick
 				del self.built_privmsg[nick]
 		elif target == self.channel:
-			#debug("<<pubmsg nick=%s message=%s" % (nick, message))
+			debug("<<pubmsg nick=%s message=%s" % (nick, message))
 			self.__on_pubmsg(nick, message)
 		else:
 			debug('what is this? privmsg src=%s target=%s message=%s;' % (source, target, message))
 		
 	def __handle_line(self, line):
 		line = line.rstrip()
-		debug('<< ' + line)
+		#debug('<< ' + line)
 		if line.startswith('PING '):
 			self.send_raw(line.replace('PING', 'PONG'))
 			return
