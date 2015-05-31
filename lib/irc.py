@@ -418,7 +418,6 @@ class IRCMessageChannel(MessageChannel):
             self.send_raw('MODE ' + self.nick + ' -R'
                          )  #allows unreg'd private messages
         elif chunks[1] == '366':  #end of names list
-            self.connect_attempts = 0
             if self.on_welcome:
                 self.on_welcome()
             debug('Connected to IRC and joined channel')
@@ -472,7 +471,6 @@ class IRCMessageChannel(MessageChannel):
         self.given_password = password
 
     def run(self):
-        self.connect_attempts = 0
         self.waiting = {}
         self.built_privmsg = {}
         self.give_up = False
@@ -480,7 +478,7 @@ class IRCMessageChannel(MessageChannel):
         self.lockcond = threading.Condition()
         PingThread(self).start()
 
-        while self.connect_attempts < 10 and not self.give_up:
+        while not self.give_up:
             try:
                 debug('connecting')
                 if config.get("MESSAGING", "socks5").lower() == 'true':
@@ -527,8 +525,8 @@ class IRCMessageChannel(MessageChannel):
             if self.on_disconnect:
                 self.on_disconnect()
             debug('disconnected irc')
-            time.sleep(10)
-            self.connect_attempts += 1
+            if not self.give_up:
+                time.sleep(30)
         debug('ending irc')
         self.give_up = True
 
