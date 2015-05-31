@@ -64,6 +64,7 @@ class CoinJoinTX(object):
         '''Validate the counterpartys claim to own the btc
 		address/pubkey that will be used for coinjoining 
 		with an ecdsa verification.'''
+        #crypto_boxes[nick][0] = maker_pubkey
         if not btc.ecdsa_verify(self.crypto_boxes[nick][0], btc_sig, cj_pub):
             print 'signature didnt match pubkey and message'
             return False
@@ -275,7 +276,7 @@ class Taker(OrderbookWatch):
         #maybe a start_cj_tx() method is needed
 
     def get_crypto_box_from_nick(self, nick):
-        return self.cjtx.crypto_boxes[nick][1]
+        return self.cjtx.crypto_boxes[nick][1]  #libsodium encryption object
 
     def start_cj(self,
                  wallet,
