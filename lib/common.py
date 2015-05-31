@@ -428,12 +428,15 @@ def pick_order(orders, n, feekey):
         print("Only one possible pick, picking it.")
         return orders[0]
     while pickedOrderIndex == -1:
-        pickedOrderIndex = raw_input('Pick an order between 0 and ' + str(i) +
-                                     ': ')
-        if pickedOrderIndex != '' and pickedOrderIndex[0].isdigit():
-            pickedOrderIndex = int(pickedOrderIndex[0])
-            if pickedOrderIndex >= 0 and pickedOrderIndex < len(orders):
-                return orders[pickedOrderIndex]
+        try:
+            pickedOrderIndex = int(raw_input('Pick an order between 0 and ' +
+                                             str(i) + ': '))
+        except ValueError:
+            pickedOrderIndex = -1
+            continue
+
+        if pickedOrderIndex >= 0 and pickedOrderIndex < len(orders):
+            return orders[pickedOrderIndex]
         pickedOrderIndex = -1
 
 
