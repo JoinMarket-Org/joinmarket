@@ -167,7 +167,7 @@ class IRCMessageChannel(MessageChannel):
 
 	def send_raw(self, line):
 		#if not line.startswith('PING LAG'):
-		debug('sendraw ' + line)
+		#	debug('sendraw ' + line)
 		self.sock.sendall(line + '\r\n')
 
 	def check_for_orders(self, nick, chunks):
@@ -335,20 +335,20 @@ class IRCMessageChannel(MessageChannel):
 					parsed = self.built_privmsg[nick][1]
 				#wipe the message buffer waiting for the next one
 				del self.built_privmsg[nick]
-				#debug("<<privmsg nick=%s message=%s" % (nick, parsed))
+				debug("<<privmsg nick=%s message=%s" % (nick, parsed))
 				self.__on_privmsg(nick, parsed)
 			else:
 				#drop the bad nick
 				del self.built_privmsg[nick]
 		elif target == self.channel:
-			#debug("<<pubmsg nick=%s message=%s" % (nick, message))
+			debug("<<pubmsg nick=%s message=%s" % (nick, message))
 			self.__on_pubmsg(nick, message)
 		else:
 			debug('what is this? privmsg src=%s target=%s message=%s;' % (source, target, message))
 		
 	def __handle_line(self, line):
 		line = line.rstrip()
-		debug('<< ' + line)
+		#debug('<< ' + line)
 		if line.startswith('PING '):
 			self.send_raw(line.replace('PING', 'PONG'))
 			return
@@ -396,7 +396,6 @@ class IRCMessageChannel(MessageChannel):
 			self.send_raw('MODE ' + self.nick + ' +B') #marks as bots on unreal
 			self.send_raw('MODE ' + self.nick + ' -R') #allows unreg'd private messages
 		elif chunks[1] == '366': #end of names list
-			self.connect_attempts = 0
 			if self.on_welcome:
 				self.on_welcome()
 			debug('Connected to IRC and joined channel')
@@ -443,7 +442,6 @@ class IRCMessageChannel(MessageChannel):
 		self.given_password = password
 
 	def run(self):
-		self.connect_attempts = 0
 		self.waiting = {}
 		self.built_privmsg = {}
 		self.give_up = False
@@ -451,7 +449,7 @@ class IRCMessageChannel(MessageChannel):
 		self.lockcond = threading.Condition()
 		PingThread(self).start()
 
-		while self.connect_attempts < 10 and not self.give_up:
+		while not self.give_up:
 			try:
 				debug('connecting')
 				if config.get("MESSAGING","socks5").lower() == 'true':
@@ -494,8 +492,8 @@ class IRCMessageChannel(MessageChannel):
 			if self.on_disconnect:
 				self.on_disconnect()
 			debug('disconnected irc')
-			time.sleep(10)
-			self.connect_attempts += 1
+			if not self.give_up:
+				time.sleep(30)
 		debug('ending irc')
 		self.give_up = True
 
