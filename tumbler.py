@@ -77,7 +77,7 @@ class TumblerThread(threading.Thread):
 		self.taker = taker
 
 	def unconfirm_callback(self, txd, txid):
-		print 'that was %d tx out of %d' % (self.current_tx+1, len(self.taker.tx_list))
+		debug('that was %d tx out of %d' % (self.current_tx+1, len(self.taker.tx_list)))
 
 	def confirm_callback(self, txd, txid, confirmations):
 		self.taker.wallet.add_new_utxos(txd, txid)
@@ -105,20 +105,20 @@ class TumblerThread(threading.Thread):
 			destaddr = tx['destination']
 
 		if sweep:
-			print 'sweeping'
+			debug('sweeping')
 			all_utxos = self.taker.wallet.get_utxos_by_mixdepth()[tx['srcmixdepth']]
 			total_value = sum([addrval['value'] for addrval in all_utxos.values()])
 			while True:
 				orders, cjamount = choose_sweep_order(self.taker.db, total_value, self.taker.txfee, tx['makercount'], weighted_order_choose)
 				if orders == None:
-					print 'waiting for liquidity'
-					time.sleep(10)
+					debug('waiting for liquidity 1min, hopefully more orders should come in')
+					time.sleep(60)
 					continue
 				cj_fee = 1.0*(cjamount - total_value) / tx['makercount'] / cjamount
-				print 'average fee = ' + str(cj_fee)
+				debug('average fee = ' + str(cj_fee))
 				if cj_fee > self.taker.maxcjfee:
-					print 'cj fee too high at ' + str(cj_fee) + ', waiting 10 seconds'
-					time.sleep(10)
+					print 'cj fee higher than maxcjfee at ' + str(cj_fee) + ', waiting 60 seconds'
+					time.sleep(60)
 					continue
 				break
 			self.taker.start_cj(self.taker.wallet, cjamount, orders, all_utxos, destaddr,
@@ -126,26 +126,27 @@ class TumblerThread(threading.Thread):
 		else:
 			amount = int(tx['amount_fraction'] * balance)
 			if amount < self.taker.mincjamount:
-				print 'cj amount too low, bringing up'
+				debug('cj amount too low, bringing up')
 				amount = self.taker.mincjamount
 			changeaddr = self.taker.wallet.get_change_addr(tx['srcmixdepth'])
-			print 'coinjoining ' + str(amount)
+			debug('coinjoining ' + str(amount) + ' satoshi')
 			while True:
 				orders, total_cj_fee = choose_order(self.taker.db, amount, tx['makercount'], weighted_order_choose)
 				cj_fee = 1.0*total_cj_fee / tx['makercount'] / amount
-				print 'average fee = ' + str(cj_fee)
+				debug('average fee = ' + str(cj_fee))
+
 				if cj_fee > self.taker.maxcjfee:
-					print 'cj fee too high at ' + str(cj_fee) + ', waiting 10 seconds'
-					time.sleep(10)
+					debug('cj fee higher than maxcjfee at ' + str(cj_fee) + ', waiting 60 seconds')
+					time.sleep(60)
 					continue
 				if orders == None:
-					print 'waiting for liquidity'
-					time.sleep(10)
+					debug('waiting for liquidity 1min, hopefully more orders should come in')
+					time.sleep(60)
 					continue
 				break
-			print 'chosen orders to fill ' + str(orders) + ' totalcjfee=' + str(total_cj_fee)
+			debug('chosen orders to fill ' + str(orders) + ' totalcjfee=' + str(total_cj_fee))
 			total_amount = amount + total_cj_fee + self.taker.txfee
-			print 'total amount spent = ' + str(total_amount)
+			debug('total amount spent = ' + str(total_amount))
 
 			utxos = self.taker.wallet.select_utxos(tx['srcmixdepth'], amount)
 			self.taker.start_cj(self.taker.wallet, amount, orders, utxos, destaddr,
@@ -156,23 +157,23 @@ class TumblerThread(threading.Thread):
 		self.lockcond.release()
 		debug('tx confirmed, waiting for ' + str(tx['wait']) + ' minutes')
 		time.sleep(tx['wait'] * 60)
-		print 'woken'
+		debug('woken')
 
 	def run(self):
-		print 'waiting for all orders to certainly arrive'
+		debug('waiting for all orders to certainly arrive')
 		time.sleep(orderwaittime)
 
 		sqlorders = self.taker.db.execute('SELECT cjfee, ordertype FROM orderbook;').fetchall()
 		orders = [o['cjfee'] for o in sqlorders if o['ordertype'] == 'relorder']
 		orders = sorted(orders)
 		relorder_fee = float(orders[0])
-		print 'relorder fee = ' + str(relorder_fee)
+		debug('relorder fee = ' + str(relorder_fee))
 		maker_count = sum([tx['makercount'] for tx in self.taker.tx_list])
-		print('uses ' + str(maker_count) + ' makers, at ' + str(relorder_fee*100) + '% per maker, estimated total cost '
+		debug('uses ' + str(maker_count) + ' makers, at ' + str(relorder_fee*100) + '% per maker, estimated total cost '
 			+ str(round((1 - (1 - relorder_fee)**maker_count) * 100, 3)) + '%')
 
 		time.sleep(orderwaittime)
-		print 'starting'
+		debug('starting')
 		self.lockcond = threading.Condition()
 
 		self.balance_by_mixdepth = {}
@@ -186,7 +187,7 @@ class TumblerThread(threading.Thread):
 			self.current_tx = i
 			self.send_tx(tx, self.balance_by_mixdepth[tx['srcmixdepth']], sweep)
 
-		print 'total finished'
+		debug('total finished')
 		self.taker.msgchan.shutdown()
 
 		'''
@@ -287,7 +288,7 @@ def main():
 	dbg_tx_list = []
 	for srcmixdepth, txlist in tx_dict.iteritems():
 		dbg_tx_list.append({'srcmixdepth': srcmixdepth, 'tx': txlist})
-	print 'tumbler transaction list'
+	debug('tumbler transaction list')
 	pprint(dbg_tx_list)
 
 	total_wait = sum([tx['wait'] for tx in tx_list])
