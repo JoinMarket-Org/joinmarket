@@ -11,7 +11,7 @@ from optparse import OptionParser
 import numpy as np
 from pprint import pprint
 
-orderwaittime = 5
+orderwaittime = 10
 
 
 def lower_bounded_int(thelist, lowerbound):
@@ -269,7 +269,7 @@ def main():
         dest='maxcjfee',
         default=0.03,
         help=
-        'maximum coinjoin fee the tumbler is willing to pay to a single market maker. default=0.03 (3%)')
+        'maximum coinjoin fee the tumbler is willing to pay to a single market maker. default=0.01 (1%)')
     parser.add_option(
         '-a',
         '--addrask',
@@ -286,9 +286,9 @@ def main():
         action='store',
         dest='makercountrange',
         help=
-        'Input the range of makers to use. e.g. 3-5 will random use between '
-        '3 and 5 makers inclusive, default=3 4',
-        default=(3, 1))
+        'Input the mean and spread of number of makers to use. e.g. 3 1.5 will be a normal distribution '
+        'with mean 3 and standard deveation 1.5 inclusive, default=3 1.5',
+        default=(3, 1.5))
     parser.add_option('-M',
                       '--mixdepthcount',
                       type='int',
@@ -331,12 +331,13 @@ def main():
         dest='waittime',
         help='wait time in seconds to allow orders to arrive, default=5',
         default=5)
-    parser.add_option('-s',
-                      '--mincjamount',
-                      type='float',
-                      dest='mincjamount',
-                      default=0.0001,
-                      help='minimum coinjoin amount in transaction')
+    parser.add_option(
+        '-s',
+        '--mincjamount',
+        type='int',
+        dest='mincjamount',
+        default=100000,
+        help='minimum coinjoin amount in transaction in satoshi, default 100k')
     (options, args) = parser.parse_args()
     #TODO somehow implement a lower limit
 

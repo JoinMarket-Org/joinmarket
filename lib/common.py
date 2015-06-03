@@ -393,7 +393,7 @@ def weighted_order_choose(orders, n, feekey):
 	unless M < orderbook size, then phi goes up to the last order
 	'''
     minfee = feekey(orders[0])
-    M = n
+    M = 1.5 * n
     if len(orders) > M:
         phi = feekey(orders[M]) - minfee
     else:
@@ -449,8 +449,8 @@ def choose_order(db, cj_amount, n, chooseOrdersBy):
     counterparties = set([o[0] for o in orders])
     if n > len(counterparties):
         debug(
-            'ERROR not enough liquidity in the orderbook n=%d suitable-counterparties=%d'
-            % (n, len(counterparties)))
+            'ERROR not enough liquidity in the orderbook n=%d suitable-counterparties=%d amount=%d totalorders=%d'
+            % (n, len(counterparties), cj_amount), len(orders))
         return None, 0  #TODO handle not enough liquidity better, maybe an Exception
     orders = sorted(orders,
                     key=lambda k: k[2])  #sort from smallest to biggest cj fee
