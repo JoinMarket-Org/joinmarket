@@ -12,7 +12,7 @@ from optparse import OptionParser
 import numpy as np
 from pprint import pprint
 
-orderwaittime = 5
+orderwaittime = 10
 
 def lower_bounded_int(thelist, lowerbound):
 	return [int(l) if int(l) >= lowerbound else lowerbound for l in thelist]
@@ -225,14 +225,14 @@ def main():
 	parser.add_option('-f', '--txfee', type='int', dest='txfee',
 		default=10000, help='miner fee contribution, in satoshis, default=10000')
 	parser.add_option('-x', '--maxcjfee', type='float', dest='maxcjfee',
-		default=0.03, help='maximum coinjoin fee the tumbler is willing to pay to a single market maker. default=0.03 (3%)')
+		default=0.03, help='maximum coinjoin fee the tumbler is willing to pay to a single market maker. default=0.01 (1%)')
 	parser.add_option('-a', '--addrask', type='int', dest='addrask',
 		default=2, help='How many more addresses to ask for in the terminal. Should '
 			'be similar to --txcountparams. default=2')
 	parser.add_option('-N', '--makercountrange', type='float', nargs=2, action='store',
 		dest='makercountrange',
-		help='Input the range of makers to use. e.g. 3-5 will random use between '
-		'3 and 5 makers inclusive, default=3 4', default=(3, 1))
+		help='Input the mean and spread of number of makers to use. e.g. 3 1.5 will be a normal distribution '
+		'with mean 3 and standard deveation 1.5 inclusive, default=3 1.5', default=(3, 1.5))
 	parser.add_option('-M', '--mixdepthcount', type='int', dest='mixdepthcount',
 		help='How many mixing depths to mix through', default=4)
 	parser.add_option('-c', '--txcountparams', type='float', nargs=2, dest='txcountparams', default=(5, 1),
@@ -247,8 +247,8 @@ def main():
 		' events. default=20')
 	parser.add_option('-w', '--wait-time', action='store', type='float', dest='waittime',
 		help='wait time in seconds to allow orders to arrive, default=5', default=5)
-	parser.add_option('-s', '--mincjamount', type='float', dest='mincjamount', default=0.0001,
-		help='minimum coinjoin amount in transaction')
+	parser.add_option('-s', '--mincjamount', type='int', dest='mincjamount', default=100000,
+		help='minimum coinjoin amount in transaction in satoshi, default 100k')
 	(options, args) = parser.parse_args()
 	#TODO somehow implement a lower limit
 
