@@ -26,6 +26,9 @@ INSTALLING
 2. you will need numpy 1.7 or later installed
 3. (optional) matplotlib for displaying the graphs in orderbook-watcher
 
+If installing on Windows, consult this wiki page for helpful instructions
+https://github.com/chris-belcher/joinmarket/wiki/Installing-JoinMarket-on-Windows-7-(temporary)
+
 in the joinmarket.cfg configuration file, set
     network = mainnet
 for the actual bitcoin mainnet
