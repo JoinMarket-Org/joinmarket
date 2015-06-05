@@ -12,13 +12,15 @@ import common, blockchaininterface
 
 from socket import gethostname
 
-txfee = 1000
-# fees for available mix levels from max to min amounts. mix_levels-1
-cjfee = ['0.0008','0.0007', '0.0006', '0.0005']
+#txfee = 1000
+# tx fees for available mix levels from max to min amounts. mix_levels is max. 
+txfee = [1000,1000,100,100]
+# fees for available mix levels from max to min amounts. mix_levels is max
+cjfee = ['0.0009','0.0008', '0.0007','0.0006']
 nickname = random_nick()
 nickserv_password = ''
 # minsize is dynamic and defined during orders creation in create_my_orders
-#minsize = int(1.2 * txfee / float(cjfee)) #minimum size is such that you always net profit at least 20% of the miner fee 
+#minsize = int(1.2 * txfee / float(cjfee)) #minimum size is such that you always net profit at least 20% of the miner fee
 mix_levels = 5
 
 
@@ -63,10 +65,10 @@ class YieldGenerator(Maker):
                 oid=0
                 for cj in cjfee:
                           max_mix = max(mix_balance, key=mix_balance.get)
-                          if  mix_balance[max_mix] - common.DUST_THRESHOLD > 0:
-                                    minsize = int(1.2 * txfee / float(cj))
+			  minsize = int(1.2 * txfee[oid] / float(cj))
+                          if  mix_balance[max_mix] - common.DUST_THRESHOLD > 0 and minsize < mix_balance[max_mix] - common.DUST_THRESHOLD:
                                     order = {'oid': oid, 'ordertype': 'relorder', 'minsize': minsize,
-                                            'maxsize': mix_balance[max_mix] - common.DUST_THRESHOLD, 'txfee': txfee, 'cjfee': cj}
+                                            'maxsize': mix_balance[max_mix] - common.DUST_THRESHOLD, 'txfee': txfee[oid], 'cjfee': cj}
                                     orders.append(order)
                                     oid+=1
                                     del mix_balance[max_mix]
@@ -78,7 +80,7 @@ class YieldGenerator(Maker):
 		#mix_balance = self.wallet.get_balance_by_mixdepth()
 		#getting balances and removing unpaid mix levels from the list
 		orders=self.orderlist
-		mix_balance={key: value for key, value in self.wallet.get_balance_by_mixdepth().items() if value <= filter(lambda orders: orders['oid'] == oid, orders)[0]['maxsize']}
+		mix_balance={key: value for key, value in self.wallet.get_balance_by_mixdepth().items() if value-common.DUST_THRESHOLD <= filter(lambda orders: orders['oid'] == oid, orders)[0]['maxsize']}
 		max_mix = max(mix_balance, key=mix_balance.get)
 
 		#algo attempts to make the largest-balance mixing depth get an even larger balance
