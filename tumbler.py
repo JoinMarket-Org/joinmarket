@@ -12,7 +12,7 @@ from optparse import OptionParser
 import numpy as np
 from pprint import pprint
 
-orderwaittime = 5
+orderwaittime = 10
 
 def lower_bounded_int(thelist, lowerbound):
 	return [int(l) if int(l) >= lowerbound else lowerbound for l in thelist]
@@ -77,7 +77,7 @@ class TumblerThread(threading.Thread):
 		self.taker = taker
 
 	def unconfirm_callback(self, txd, txid):
-		print 'that was %d tx out of %d' % (self.current_tx+1, len(self.taker.tx_list))
+		debug('that was %d tx out of %d' % (self.current_tx+1, len(self.taker.tx_list)))
 
 	def confirm_callback(self, txd, txid, confirmations):
 		self.taker.wallet.add_new_utxos(txd, txid)
@@ -105,22 +105,20 @@ class TumblerThread(threading.Thread):
 			destaddr = tx['destination']
 
 		if sweep:
-			print 'sweeping'
+			debug('sweeping')
 			all_utxos = self.taker.wallet.get_utxos_by_mixdepth()[tx['srcmixdepth']]
 			total_value = sum([addrval['value'] for addrval in all_utxos.values()])
-			orders, cjamount = choose_sweep_order(self.taker.db, total_value, self.taker.txfee, tx['makercount'])
 			while True:
-				#orders, total_cj_fee = choose_order(self.taker.db, amount, tx['makercount'])
-				orders, cjamount = choose_sweep_order(self.taker.db, total_value, self.taker.txfee, tx['makercount'])
+				orders, cjamount = choose_sweep_order(self.taker.db, total_value, self.taker.txfee, tx['makercount'], weighted_order_choose)
 				if orders == None:
-					print 'waiting for liquidity'
-					time.sleep(10)
+					debug('waiting for liquidity 1min, hopefully more orders should come in')
+					time.sleep(60)
 					continue
 				cj_fee = 1.0*(cjamount - total_value) / tx['makercount'] / cjamount
-				print 'average fee = ' + str(cj_fee)
+				debug('average fee = ' + str(cj_fee))
 				if cj_fee > self.taker.maxcjfee:
-					print 'cj fee too high at ' + str(cj_fee) + ', waiting 10 seconds'
-					time.sleep(10)
+					print 'cj fee higher than maxcjfee at ' + str(cj_fee) + ', waiting 60 seconds'
+					time.sleep(60)
 					continue
 				break
 			self.taker.start_cj(self.taker.wallet, cjamount, orders, all_utxos, destaddr,
@@ -128,26 +126,27 @@ class TumblerThread(threading.Thread):
 		else:
 			amount = int(tx['amount_fraction'] * balance)
 			if amount < self.taker.mincjamount:
-				print 'cj amount too low, bringing up'
+				debug('cj amount too low, bringing up')
 				amount = self.taker.mincjamount
 			changeaddr = self.taker.wallet.get_change_addr(tx['srcmixdepth'])
-			print 'coinjoining ' + str(amount)
+			debug('coinjoining ' + str(amount) + ' satoshi')
 			while True:
-				orders, total_cj_fee = choose_order(self.taker.db, amount, tx['makercount'])
+				orders, total_cj_fee = choose_order(self.taker.db, amount, tx['makercount'], weighted_order_choose)
 				cj_fee = 1.0*total_cj_fee / tx['makercount'] / amount
-				print 'average fee = ' + str(cj_fee)
+				debug('average fee = ' + str(cj_fee))
+
 				if cj_fee > self.taker.maxcjfee:
-					print 'cj fee too high at ' + str(cj_fee) + ', waiting 10 seconds'
-					time.sleep(10)
+					debug('cj fee higher than maxcjfee at ' + str(cj_fee) + ', waiting 60 seconds')
+					time.sleep(60)
 					continue
 				if orders == None:
-					print 'waiting for liquidity'
-					time.sleep(10)
+					debug('waiting for liquidity 1min, hopefully more orders should come in')
+					time.sleep(60)
 					continue
 				break
-			print 'chosen orders to fill ' + str(orders) + ' totalcjfee=' + str(total_cj_fee)
+			debug('chosen orders to fill ' + str(orders) + ' totalcjfee=' + str(total_cj_fee))
 			total_amount = amount + total_cj_fee + self.taker.txfee
-			print 'total amount spent = ' + str(total_amount)
+			debug('total amount spent = ' + str(total_amount))
 
 			utxos = self.taker.wallet.select_utxos(tx['srcmixdepth'], amount)
 			self.taker.start_cj(self.taker.wallet, amount, orders, utxos, destaddr,
@@ -158,23 +157,23 @@ class TumblerThread(threading.Thread):
 		self.lockcond.release()
 		debug('tx confirmed, waiting for ' + str(tx['wait']) + ' minutes')
 		time.sleep(tx['wait'] * 60)
-		print 'woken'
+		debug('woken')
 
 	def run(self):
-		print 'waiting for all orders to certainly arrive'
+		debug('waiting for all orders to certainly arrive')
 		time.sleep(orderwaittime)
 
 		sqlorders = self.taker.db.execute('SELECT cjfee, ordertype FROM orderbook;').fetchall()
 		orders = [o['cjfee'] for o in sqlorders if o['ordertype'] == 'relorder']
 		orders = sorted(orders)
 		relorder_fee = float(orders[0])
-		print 'relorder fee = ' + str(relorder_fee)
+		debug('relorder fee = ' + str(relorder_fee))
 		maker_count = sum([tx['makercount'] for tx in self.taker.tx_list])
-		print('uses ' + str(maker_count) + ' makers, at ' + str(relorder_fee*100) + '% per maker, estimated total cost '
+		debug('uses ' + str(maker_count) + ' makers, at ' + str(relorder_fee*100) + '% per maker, estimated total cost '
 			+ str(round((1 - (1 - relorder_fee)**maker_count) * 100, 3)) + '%')
 
 		time.sleep(orderwaittime)
-		print 'starting'
+		debug('starting')
 		self.lockcond = threading.Condition()
 
 		self.balance_by_mixdepth = {}
@@ -188,7 +187,7 @@ class TumblerThread(threading.Thread):
 			self.current_tx = i
 			self.send_tx(tx, self.balance_by_mixdepth[tx['srcmixdepth']], sweep)
 
-		print 'total finished'
+		debug('total finished')
 		self.taker.msgchan.shutdown()
 
 		'''
@@ -227,14 +226,14 @@ def main():
 	parser.add_option('-f', '--txfee', type='int', dest='txfee',
 		default=10000, help='miner fee contribution, in satoshis, default=10000')
 	parser.add_option('-x', '--maxcjfee', type='float', dest='maxcjfee',
-		default=0.03, help='maximum coinjoin fee the tumbler is willing to pay to a single market maker. default=0.03 (3%)')
+		default=0.03, help='maximum coinjoin fee the tumbler is willing to pay to a single market maker. default=0.01 (1%)')
 	parser.add_option('-a', '--addrask', type='int', dest='addrask',
 		default=2, help='How many more addresses to ask for in the terminal. Should '
 			'be similar to --txcountparams. default=2')
 	parser.add_option('-N', '--makercountrange', type='float', nargs=2, action='store',
 		dest='makercountrange',
-		help='Input the range of makers to use. e.g. 3-5 will random use between '
-		'3 and 5 makers inclusive, default=3 4', default=(3, 1))
+		help='Input the mean and spread of number of makers to use. e.g. 3 1.5 will be a normal distribution '
+		'with mean 3 and standard deveation 1.5 inclusive, default=3 1.5', default=(3, 1.5))
 	parser.add_option('-M', '--mixdepthcount', type='int', dest='mixdepthcount',
 		help='How many mixing depths to mix through', default=4)
 	parser.add_option('-c', '--txcountparams', type='float', nargs=2, dest='txcountparams', default=(5, 1),
@@ -249,8 +248,8 @@ def main():
 		' events. default=20')
 	parser.add_option('-w', '--wait-time', action='store', type='float', dest='waittime',
 		help='wait time in seconds to allow orders to arrive, default=5', default=5)
-	parser.add_option('-s', '--mincjamount', type='float', dest='mincjamount', default=0.0001,
-		help='minimum coinjoin amount in transaction')
+	parser.add_option('-s', '--mincjamount', type='int', dest='mincjamount', default=100000,
+		help='minimum coinjoin amount in transaction in satoshi, default 100k')
 	(options, args) = parser.parse_args()
 	#TODO somehow implement a lower limit
 
@@ -289,7 +288,7 @@ def main():
 	dbg_tx_list = []
 	for srcmixdepth, txlist in tx_dict.iteritems():
 		dbg_tx_list.append({'srcmixdepth': srcmixdepth, 'tx': txlist})
-	print 'tumbler transaction list'
+	debug('tumbler transaction list')
 	pprint(dbg_tx_list)
 
 	total_wait = sum([tx['wait'] for tx in tx_list])
@@ -316,7 +315,6 @@ def main():
 	#python tumbler.py -N 2 1 -c 3 0.001 -l 0.1 -M 3 -a 0 seed 1xxx 1yyy
 	wallet = Wallet(seed, max_mix_depth = options.mixdepthsrc + options.mixdepthcount)
 	common.bc_interface.sync_wallet(wallet)
-	wallet.print_debug_wallet_info()
 
 	common.nickname = random_nick()
 	debug('starting tumbler')

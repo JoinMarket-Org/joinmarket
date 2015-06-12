@@ -93,7 +93,7 @@ class SendPayment(takermodule.Taker):
 		PaymentThread(self).start()
 
 def main():
-	parser = OptionParser(usage='usage: %prog [options] [wallet file / seed] [amount] [destaddr]',
+	parser = OptionParser(usage='usage: %prog [options] [wallet file / fromaccount] [amount] [destaddr]',
 		description='Sends a single payment from the zero mixing depth of your ' +
 			'wallet to an given address using coinjoin and then switches off. ' +
 			'Setting amount to zero will do a sweep, where the entire mix depth is emptied')
@@ -111,12 +111,15 @@ def main():
 		help='mixing depth to spend from, default=0', default=0)
 	parser.add_option('--yes', action='store_true', dest='answeryes', default=False,
 		help='answer yes to everything')
+	parser.add_option('--rpcwallet', action='store_true', dest='userpcwallet', default=False,
+		help='Use the Bitcoin Core wallet through json rpc, instead of the internal joinmarket ' +
+			'wallet. Requires blockchain_source=json-rpc')
 	(options, args) = parser.parse_args()
 
 	if len(args) < 3:
-		parser.error('Needs a seed, amount and destination address')
+		parser.error('Needs a wallet, amount and destination address')
 		sys.exit(0)
-	seed = args[0]
+	wallet_name = args[0]
 	amount = int(args[1])
 	destaddr = args[2]
 	
@@ -129,9 +132,11 @@ def main():
 	common.nickname = random_nick()
 	debug('starting sendpayment')
 
-	wallet = Wallet(seed, options.mixdepth + 1)
+	if not options.userpcwallet:
+		wallet = Wallet(wallet_name, options.mixdepth + 1)
+	else:
+		wallet = BitcoinCoreWallet(fromaccount = wallet_name)
 	common.bc_interface.sync_wallet(wallet)
-	wallet.print_debug_wallet_info()
 
 	irc = IRCMessageChannel(common.nickname)
 	taker = SendPayment(irc, wallet, destaddr, amount, options.makercount, options.txfee,
@@ -141,8 +146,7 @@ def main():
 		irc.run()
 	except:
 		debug('CRASHING, DUMPING EVERYTHING')
-		debug('wallet seed = ' + seed)
-		debug_dump_object(wallet, ['addr_cache', 'keys', 'seed'])
+		debug_dump_object(wallet, ['addr_cache', 'keys', 'wallet_name'])
 		debug_dump_object(taker)
 		import traceback
 		debug(traceback.format_exc())
