@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.join(data_dir, 'lib'))
 import bitcoin as btc
 from common import Wallet, load_program_config, get_addr_vbyte
 import common
-import old_mnemonic
+import old_mnemonic, slowaes
 
 #structure for cj market wallet
 # m/0/ root key
@@ -61,9 +61,9 @@ if args[0] in noseed_methods:
 else:
     seed = args[0]
     method = ('display' if len(args) == 1 else args[1].lower())
-    wallet = Wallet(seed, options.maxmixdepth)
+    wallet = Wallet(seed, options.maxmixdepth, options.gaplimit)
     if method != 'showseed':
-        common.bc_interface.sync_wallet(wallet, options.gaplimit)
+        common.bc_interface.sync_wallet(wallet)
 
 if method == 'display' or method == 'displayall':
     total_balance = 0
@@ -107,11 +107,6 @@ elif method == 'summary':
         total_balance += balance_depth
     print 'total balance = %.8fbtc' % (total_balance / 1e8)
 elif method == 'generate' or method == 'recover':
-    try:
-        import aes
-    except ImportError:
-        print 'You must install slowaes\nTry running: sudo pip install slowaes'
-        sys.exit(0)
     if method == 'generate':
         seed = btc.sha256(os.urandom(64))[:32]
         words = old_mnemonic.mn_encode(seed)
@@ -128,7 +123,7 @@ elif method == 'generate' or method == 'recover':
         print 'ERROR. Passwords did not match'
         sys.exit(0)
     password_key = btc.bin_dbl_sha256(password)
-    encrypted_seed = aes.encryptData(password_key, seed.decode('hex'))
+    encrypted_seed = slowaes.encryptData(password_key, seed.decode('hex'))
     timestamp = datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
     walletfile = json.dumps({'creator': 'joinmarket project',
                              'creation_time': timestamp,

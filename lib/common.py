@@ -3,9 +3,9 @@ from decimal import Decimal
 from math import factorial
 import sys, datetime, json, time, pprint, threading, getpass
 import numpy as np
-import blockchaininterface
+import blockchaininterface, slowaes
 from ConfigParser import SafeConfigParser
-import os
+import os, io, itertools
 
 JM_VERSION = 1
 nickname = ''
@@ -24,13 +24,39 @@ required_options = {'BLOCKCHAIN':
                     ['blockchain_source', 'network', 'bitcoin_cli_cmd'],
                     'MESSAGING': ['host', 'channel', 'port']}
 
+defaultconfig =\
+"""
+[BLOCKCHAIN]
+blockchain_source = blockr 
+#options: blockr, json-rpc, regtest 
+#before using json-rpc read https://github.com/chris-belcher/joinmarket/wiki/Running-JoinMarket-with-Bitcoin-Core-full-node 
+network = mainnet
+bitcoin_cli_cmd = bitcoin-cli
+
+[MESSAGING]
+host = irc.cyberguerrilla.org
+channel = joinmarket-pit
+port = 6697
+usessl = true
+socks5 = false
+socks5_host = localhost
+socks5_port = 9150
+#for tor
+#host = 6dvj6v5imhny3anf.onion
+#port = 6667
+#usessl = false
+#socks5 = true
+"""
+
 
 def load_program_config():
     loadedFiles = config.read([config_location])
-    #detailed sanity checking :
-    #did the file exist?
+    #Create default config file if not found
     if len(loadedFiles) != 1:
-        raise Exception("Could not find config file: " + config_location)
+        config.readfp(io.BytesIO(defaultconfig))
+        with open(config_location, "w") as configfile:
+            configfile.write(defaultconfig)
+
     #check for sections
     for s in required_options:
         if s not in config.sections():
@@ -60,7 +86,7 @@ def debug(msg):
     with debug_file_lock:
         if nickname and not debug_file_handle:
             debug_file_handle = open(
-                os.path.join('logs', nickname + '.log'), 'ab')
+                os.path.join('logs', nickname + '.log'), 'ab', 1)
         outmsg = datetime.datetime.now().strftime("[%Y/%m/%d %H:%M:%S] ") + msg
         if core_alert:
             print 'Core Alert Message: ' + core_alert
@@ -112,12 +138,64 @@ def debug_dump_object(obj, skip_fields=[]):
             debug(str(v))
 
 
-class Wallet(object):
+class AbstractWallet(object):
+    '''
+	Abstract wallet for use with JoinMarket
+	Mostly written with Wallet in mind, the default JoinMarket HD wallet
+	'''
 
-    def __init__(self, seedarg, max_mix_depth=2):
+    def __init__(self):
+        pass
+
+    def get_key_from_addr(self, addr):
+        return None
+
+    def get_utxos_by_mixdepth(self):
+        return None
+
+    def get_change_addr(self, mixing_depth):
+        return None
+
+    def update_cache_index(self):
+        pass
+
+    def remove_old_utxos(self, tx):
+        pass
+
+    def add_new_utxos(self, tx, txid):
+        pass
+
+    def select_utxos(self, mixdepth, amount):
+        utxo_list = self.get_utxos_by_mixdepth()[mixdepth]
+        unspent = [{'utxo': utxo,
+                    'value': addrval['value']}
+                   for utxo, addrval in utxo_list.iteritems()]
+        inputs = btc.select(unspent, amount)
+        debug('for mixdepth=' + str(mixdepth) + ' amount=' + str(amount) +
+              ' selected:')
+        debug(pprint.pformat(inputs))
+        return dict([(i['utxo'], {'value': i['value'],
+                                  'address': utxo_list[i['utxo']]['address']})
+                     for i in inputs])
+
+    def get_balance_by_mixdepth(self):
+        mix_balance = {}
+        for m in range(self.max_mix_depth):
+            mix_balance[m] = 0
+        for mixdepth, utxos in self.get_utxos_by_mixdepth().iteritems():
+            mix_balance[mixdepth] = sum([addrval['value']
+                                         for addrval in utxos.values()])
+        return mix_balance
+
+
+class Wallet(AbstractWallet):
+
+    def __init__(self, seedarg, max_mix_depth=2, gaplimit=6):
+        super(Wallet, self).__init__()
         self.max_mix_depth = max_mix_depth
-        self.seed = self.get_seed(seedarg)
-        master = btc.bip32_master_key(self.seed)
+        self.gaplimit = gaplimit
+        seed = self.get_seed(seedarg)
+        master = btc.bip32_master_key(seed)
         m_0 = btc.bip32_ckd(master, 0)
         mixing_depth_keys = [btc.bip32_ckd(m_0, c)
                              for c in range(max_mix_depth)]
@@ -138,6 +216,8 @@ class Wallet(object):
         self.spent_utxos = []
 
     def get_seed(self, seedarg):
+        self.path = None
+        self.index_cache = [[0, 0]] * self.max_mix_depth
         path = os.path.join('wallets', seedarg)
         if not os.path.isfile(path):
             if get_network() == 'testnet':
@@ -147,11 +227,7 @@ class Wallet(object):
             else:
                 raise IOError('wallet file not found')
         #debug('seedarg interpreted as wallet file name')
-        try:
-            import aes
-        except ImportError:
-            print 'You must install slowaes\nTry running: sudo pip install slowaes'
-            sys.exit(0)
+        self.path = path
         fd = open(path, 'r')
         walletfile = fd.read()
         fd.close()
@@ -160,12 +236,29 @@ class Wallet(object):
             print 'wallet network(%s) does not match joinmarket configured network(%s)' % (
                 walletdata['network'], get_network())
             sys.exit(0)
+        if 'index_cache' in walletdata:
+            self.index_cache = walletdata['index_cache']
         password = getpass.getpass('Enter wallet decryption passphrase: ')
         password_key = btc.bin_dbl_sha256(password)
-        decrypted_seed = aes.decryptData(password_key,
-                                         walletdata['encrypted_seed']
-                                         .decode('hex')).encode('hex')
+        decrypted_seed = slowaes.decryptData(password_key,
+                                             walletdata['encrypted_seed']
+                                             .decode('hex')).encode('hex')
         return decrypted_seed
+
+    def update_cache_index(self):
+        if not self.path:
+            return
+        if not os.path.isfile(self.path):
+            return
+        fd = open(self.path, 'r')
+        walletfile = fd.read()
+        fd.close()
+        walletdata = json.loads(walletfile)
+        walletdata['index_cache'] = self.index
+        walletfile = json.dumps(walletdata)
+        fd = open(self.path, 'w')
+        fd.write(walletfile)
+        fd.close()
 
     def get_key(self, mixing_depth, forchange, i):
         return btc.bip32_extract_key(btc.bip32_ckd(self.keys[mixing_depth][
@@ -180,6 +273,7 @@ class Wallet(object):
         addr = self.get_addr(mixing_depth, forchange, index[forchange])
         self.addr_cache[addr] = (mixing_depth, forchange, index[forchange])
         index[forchange] += 1
+        #self.update_cache_index()
         return addr
 
     def get_receive_addr(self, mixing_depth):
@@ -237,33 +331,39 @@ class Wallet(object):
             mix_utxo_list[mixdepth][utxo] = addrvalue
         return mix_utxo_list
 
-    def get_balance_by_mixdepth(self):
-        mix_balance = {}
-        for m in range(self.max_mix_depth):
-            mix_balance[m] = 0
-        for mixdepth, utxos in self.get_utxos_by_mixdepth().iteritems():
-            mix_balance[mixdepth] = sum([addrval['value']
-                                         for addrval in utxos.values()])
-        return mix_balance
 
-    def select_utxos(self, mixdepth, amount):
-        utxo_list = self.get_utxos_by_mixdepth()[mixdepth]
-        unspent = [{'utxo': utxo,
-                    'value': self.unspent[utxo]['value']} for utxo in utxo_list]
-        inputs = btc.select(unspent, amount)
-        debug('for mixdepth=' + str(mixdepth) + ' amount=' + str(amount) +
-              ' selected:')
-        debug(pprint.pformat(inputs))
-        return dict([(i['utxo'], {'value': i['value'],
-                                  'address': self.unspent[i['utxo']]['address']}
-                     ) for i in inputs])
+class BitcoinCoreWallet(AbstractWallet):
 
-    def print_debug_wallet_info(self):
-        debug('printing debug wallet information')
-        debug('utxos')
-        debug(pprint.pformat(self.unspent))
-        debug('wallet.index')
-        debug(pprint.pformat(self.index))
+    def __init__(self, fromaccount):
+        super(BitcoinCoreWallet, self).__init__()
+        if not isinstance(bc_interface,
+                          blockchaininterface.BitcoinCoreInterface):
+            raise RuntimeError(
+                'Bitcoin Core wallet can only be used when blockchain interface is BitcoinCoreInterface')
+        self.fromaccount = fromaccount
+        self.max_mix_depth = 1
+
+    def get_key_from_addr(self, addr):
+        return bc_interface.rpc(['dumpprivkey', addr]).strip()
+
+    def get_utxos_by_mixdepth(self):
+        ret = bc_interface.rpc(['listunspent'])
+        unspent_list = json.loads(ret)
+        result = {0: {}}
+        for u in unspent_list:
+            if not u['spendable']:
+                continue
+            if self.fromaccount and 'account' in u and u[
+                    'account'] != self.fromaccount:
+                continue
+            result[0][u['txid'] + ':' + str(u[
+                'vout'])] = {'address': u['address'],
+                             'value':
+                             int(Decimal(str(u['amount'])) * Decimal('1e8'))}
+        return result
+
+    def get_change_addr(self, mixing_depth):
+        return bc_interface.rpc(['getrawchangeaddress']).strip()
 
 
 def calc_cj_fee(ordertype, cjfee, cj_amount):
@@ -293,13 +393,16 @@ def weighted_order_choose(orders, n, feekey):
 	unless M < orderbook size, then phi goes up to the last order
 	'''
     minfee = feekey(orders[0])
-    M = n
+    M = int(1.5 * n)
     if len(orders) > M:
         phi = feekey(orders[M]) - minfee
     else:
         phi = feekey(orders[-1]) - minfee
     fee = np.array([feekey(o) for o in orders])
-    weight = np.exp(-(1.0 * fee - minfee) / phi)
+    if phi > 0:
+        weight = np.exp(-(1.0 * fee - minfee) / phi)
+    else:
+        weight = np.ones_like(fee)
     weight /= sum(weight)
     debug('randomly choosing orders with weighting\n' + pprint.pformat(zip(
         orders, weight)))
@@ -325,12 +428,15 @@ def pick_order(orders, n, feekey):
         print("Only one possible pick, picking it.")
         return orders[0]
     while pickedOrderIndex == -1:
-        pickedOrderIndex = raw_input('Pick an order between 0 and ' + str(i) +
-                                     ': ')
-        if pickedOrderIndex != '' and pickedOrderIndex[0].isdigit():
-            pickedOrderIndex = int(pickedOrderIndex[0])
-            if pickedOrderIndex >= 0 and pickedOrderIndex < len(orders):
-                return orders[pickedOrderIndex]
+        try:
+            pickedOrderIndex = int(raw_input('Pick an order between 0 and ' +
+                                             str(i) + ': '))
+        except ValueError:
+            pickedOrderIndex = -1
+            continue
+
+        if pickedOrderIndex >= 0 and pickedOrderIndex < len(orders):
+            return orders[pickedOrderIndex]
         pickedOrderIndex = -1
 
 
@@ -343,8 +449,8 @@ def choose_order(db, cj_amount, n, chooseOrdersBy):
     counterparties = set([o[0] for o in orders])
     if n > len(counterparties):
         debug(
-            'ERROR not enough liquidity in the orderbook n=%d suitable-counterparties=%d'
-            % (n, len(counterparties)))
+            'ERROR not enough liquidity in the orderbook n=%d suitable-counterparties=%d amount=%d totalorders=%d'
+            % (n, len(counterparties), cj_amount, len(orders)))
         return None, 0  #TODO handle not enough liquidity better, maybe an Exception
     orders = sorted(orders,
                     key=lambda k: k[2])  #sort from smallest to biggest cj fee
@@ -360,42 +466,6 @@ def choose_order(db, cj_amount, n, chooseOrdersBy):
     debug('chosen orders = ' + str(chosen_orders))
     chosen_orders = [o[:2] for o in chosen_orders]
     return dict(chosen_orders), total_cj_fee
-
-
-def nCk(n, k):
-    '''
-	n choose k
-	'''
-    return factorial(n) / factorial(k) / factorial(n - k)
-
-
-def create_combination(li, n):
-    '''
-	Creates a list of combinations of elements of a given list
-	For example, combination(['apple', 'orange', 'pear'], 2)
-		= [('apple', 'orange'), ('apple', 'pear'), ('orange', 'pear')]
-	'''
-    result = []
-    if n == 1:
-        result = [(l,) for l in li]  #same thing but each order is a tuple
-    elif n == 2:
-        #this case could be removed and the function completely recurvsive
-        # but for n=2 this is slightly more efficent
-        for i, e1 in enumerate(li):
-            for e2 in li[i + 1:]:
-                result.append((e1, e2))
-    else:
-        for i, e in enumerate(li):
-            if len(li[i:]) < n:
-                #there wont be
-                continue
-            combn1 = create_combination(li[i:], n - 1)
-            for c in combn1:
-                if e not in c:
-                    result.append((e,) + c)
-
-    assert len(result) == nCk(len(li), n)
-    return result
 
 
 def choose_sweep_order(db, my_total_input, my_tx_fee, n, chooseOrdersBy):
@@ -435,7 +505,7 @@ def choose_sweep_order(db, my_total_input, my_tx_fee, n, chooseOrdersBy):
                  'txfee', 'cjfee']
     orderlist = [dict([(k, o[k]) for k in orderkeys]) for o in sqlorders]
 
-    ordercombos = create_combination(orderlist, n)
+    ordercombos = [combo for combo in itertools.combinations(orderlist, n)]
 
     ordercombos = [(c, calc_zero_change_cj_amount(c)) for c in ordercombos]
     ordercombos = [oc for oc in ordercombos

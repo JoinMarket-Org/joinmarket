@@ -64,6 +64,7 @@ class CoinJoinTX(object):
         '''Validate the counterpartys claim to own the btc
 		address/pubkey that will be used for coinjoining 
 		with an ecdsa verification.'''
+        #crypto_boxes[nick][0] = maker_pubkey
         if not btc.ecdsa_verify(self.crypto_boxes[nick][0], btc_sig, cj_pub):
             print 'signature didnt match pubkey and message'
             return False
@@ -224,6 +225,22 @@ class OrderbookWatch(CoinJoinerPeer):
 
     def on_order_seen(self, counterparty, oid, ordertype, minsize, maxsize,
                       txfee, cjfee):
+        if int(oid) < 0 or int(oid) > sys.maxint:
+            debug("Got invalid order: " + oid + " from " + counterparty)
+            return
+        if int(minsize) < 0 or int(minsize) > 21 * 10**14:
+            debug("Got invalid minsize: " + minsize + " from " + counterparty)
+            return
+        if int(maxsize) < 0 or int(maxsize) > 21 * 10**14:
+            debug("Got invalid maxsize: " + maxsize + " from " + counterparty)
+            return
+        if int(txfee) < 0:
+            debug("Got invalid txfee: " + txfee + " from " + counterparty)
+            return
+        if int(minsize) > int(maxsize):
+            debug("Got minsize bigger than maxsize: " + minsize + " - " +
+                  maxsize + " from " + counterparty)
+            return
         self.db.execute("DELETE FROM orderbook WHERE counterparty=? AND oid=?;",
                         (counterparty, oid))
         self.db.execute(
@@ -259,7 +276,7 @@ class Taker(OrderbookWatch):
         #maybe a start_cj_tx() method is needed
 
     def get_crypto_box_from_nick(self, nick):
-        return self.cjtx.crypto_boxes[nick][1]
+        return self.cjtx.crypto_boxes[nick][1]  #libsodium encryption object
 
     def start_cj(self,
                  wallet,
