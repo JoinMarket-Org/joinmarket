@@ -111,14 +111,17 @@ class YieldGenerator(Maker):
 	def on_tx_unconfirmed(self, cjorder, txid, removed_utxos):
 		self.tx_unconfirm_timestamp[cjorder.cj_addr] = int(time.time())
 		neworders = self.create_my_orders()
-		if len(self.orderlist) != len(neworders):
-			#announce all new orders
+		oldorders=self.orderlist
+		cancelOrders=[]
+		if len(oldorders) != len(neworders):
+			#announce all new orders and cancel old one
+			cancelOrders=[k['oid']for k in filter(lambda oldorders: oldorders['oid'] not in [i['oid'] for i, j in zip(sorted(neworders),sorted(oldorders)) if i != j], oldorders)]
 			annOrders=neworders
 		else:
 			#announce only diff
-			annOrders=[i for i, j in zip(sorted(neworders),sorted(self.orderlist)) if i != j]
+			annOrders=[i for i, j in zip(sorted(neworders),sorted(oldorders)) if i != j]
 		#announce new orders, replacing the old orders
-		return ([], annOrders)
+		return (cancelOrders, annOrders)
 
 	def on_tx_confirmed(self, cjorder, confirmations, txid):
 		confirm_time = int(time.time()) - self.tx_unconfirm_timestamp[cjorder.cj_addr]
