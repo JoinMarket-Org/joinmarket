@@ -1,6 +1,8 @@
 
 import BaseHTTPServer, SimpleHTTPServer, threading
 from decimal import Decimal
+import urllib2
+#from urllib2.urlparse import parse_qs
 import io, base64, time, sys, os
 data_dir = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(data_dir, 'lib'))
@@ -10,16 +12,18 @@ from irc import IRCMessageChannel, random_nick
 from common import *
 import common
 
+# ['counterparty', 'oid', 'ordertype', 'minsize', 'maxsize', 'txfee', 'cjfee']
+
 tableheading = '''
 <table>
  <tr>
-  <th>Type</th>
-  <th>Counterparty</th>
-  <th>Order ID</th>
-  <th>Fee</th>
-  <th>Miner Fee Contribution</th>
-  <th>Minimum Size</th>
-  <th>Maximum Size</th>
+  <th><a href="?orderby=ordertype">Type</a></th>
+  <th><a href="?orderby=counterparty">Counterparty</a></th>
+  <th><a href="?orderby=oid">Order ID</a></th>
+  <th><a href="?orderby=cjfee">Fee</a></th>
+  <th><a href="?orderby=txfee">Miner Fee Contribution</a></th>
+  <th><a href="?orderby=minsize">Minimum Size</a></th>
+  <th><a href="?orderby=maxsize">Maximum Size</a></th>
  </tr>
 '''
 
@@ -103,11 +107,23 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
 		self.base_server = base_server
 		SimpleHTTPServer.SimpleHTTPRequestHandler.__init__(self, request, client_address, base_server)
 
-	def create_orderbook_table(self):
+	def create_orderbook_table(self, orderby, desc):
 		result = ''
 		rows = self.taker.db.execute('SELECT * FROM orderbook;').fetchall()
+                if not rows:
+                        return 0, result
+                if orderby:
+                        orderby = orderby[0]
 		ordersorder = ['absorder','relorder']
-		for o in sorted(rows,cmp=lambda x,y: cmp(x['cjfee'],y['cjfee']) if x['ordertype']==y['ordertype'] else cmp(ordersorder.index(x['ordertype']),ordersorder.index(y['ordertype']))):
+                if orderby not in rows[0].keys() or orderby == 'cjfee':
+                        orderby = 'cjfee'
+                        orderby_cmp = lambda x,y: cmp(Decimal(x['cjfee']),Decimal(y['cjfee'])) if x['ordertype']==y['ordertype'] \
+                                      else cmp(ordersorder.index(x['ordertype']),ordersorder.index(y['ordertype']))
+                else:
+                        orderby_cmp = lambda x,y: cmp(x[orderby],y[orderby])
+                if desc:
+                        orderby_cmp = lambda x,y: orderby_cmp(y,x)
+		for o in sorted(rows,cmp=orderby_cmp):
 			result += ' <tr>\n'
 			order_keys_display = (('ordertype', ordertype_display), ('counterparty', do_nothing),
 				 ('oid', order_str), ('cjfee', cjfee_display), ('txfee', satoshi_to_unit),
@@ -124,6 +140,8 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
 	def do_GET(self):
 		#SimpleHTTPServer.SimpleHTTPRequestHandler.do_GET(self)
 		#print 'httpd received ' + self.path + ' request'
+                self.path, query = self.path.split('?',1) if '?' in self.path else (self.path,'')
+                args = urllib2.urlparse.parse_qs(query)
 		pages = ['/', '/ordersize', '/depth']
 		if self.path not in pages:
 			return
@@ -134,7 +152,7 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
 		if common.joinmarket_alert:
 			alert_msg = '<br />JoinMarket Alert Message:<br />' + common.joinmarket_alert
 		if self.path == '/':
-			ordercount, ordertable = self.create_orderbook_table()
+			ordercount, ordertable = self.create_orderbook_table(args.get('orderby'),'desc' in args)
 			replacements = {
 				'PAGETITLE': 'JoinMarket Browser Interface',
 				'MAINHEADING': 'JoinMarket Orderbook',
@@ -193,7 +211,7 @@ class HTTPDThread(threading.Thread):
 		self.daemon = True
 		self.taker = taker
 	def run(self):
-		hostport = ('localhost', 62601)
+		hostport = ('localhost', 62602)
 		httpd = BaseHTTPServer.HTTPServer(hostport, OrderbookPageRequestHeader)
 		httpd.taker = self.taker
 		print '\nstarted http server, visit http://{0}:{1}/\n'.format(*hostport)
