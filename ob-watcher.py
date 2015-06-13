@@ -208,7 +208,7 @@ class HTTPDThread(threading.Thread):
 		self.daemon = True
 		self.taker = taker
 	def run(self):
-		hostport = ('localhost', 62602)
+		hostport = ('localhost', 62601)
 		httpd = BaseHTTPServer.HTTPServer(hostport, OrderbookPageRequestHeader)
 		httpd.taker = self.taker
 		print '\nstarted http server, visit http://{0}:{1}/\n'.format(*hostport)
