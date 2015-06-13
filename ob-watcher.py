@@ -1,7 +1,6 @@
 import BaseHTTPServer, SimpleHTTPServer, threading
 from decimal import Decimal
 import urllib2
-#from urllib2.urlparse import parse_qs
 import io, base64, time, sys, os
 data_dir = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(data_dir, 'lib'))
@@ -12,19 +11,14 @@ from common import *
 import common
 
 # ['counterparty', 'oid', 'ordertype', 'minsize', 'maxsize', 'txfee', 'cjfee']
+col = '  <th><a href="?orderby={0}">{1}</a></br><a href="?orderby={0}&desc=1">(desc)</a></th>\n'  # .format(field,label)
 
-tableheading = '''
-<table>
- <tr>
-  <th><a href="?orderby=ordertype">Type</a></th>
-  <th><a href="?orderby=counterparty">Counterparty</a></th>
-  <th><a href="?orderby=oid">Order ID</a></th>
-  <th><a href="?orderby=cjfee">Fee</a></th>
-  <th><a href="?orderby=txfee">Miner Fee Contribution</a></th>
-  <th><a href="?orderby=minsize">Minimum Size</a></th>
-  <th><a href="?orderby=maxsize">Maximum Size</a></th>
- </tr>
-'''
+tableheading = '<table>\n <tr>' + ''.join(
+    [col.format('ordertype', 'Type'), col.format(
+        'counterparty', 'Counterparty'), col.format('oid', 'Order ID'),
+     col.format('cjfee', 'Fee'), col.format('txfee', 'Miner Fee Contribution'),
+     col.format('minsize', 'Minimum Size'), col.format(
+         'maxsize', 'Maximum Size')]) + ' </tr>'
 
 shutdownform = '<form action="shutdown" method="post"><input type="submit" value="Shutdown" /></form>'
 shutdownpage = '<html><body><center><h1>Successfully Shut down</h1></center></body></html>'
@@ -139,7 +133,8 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
         else:
             orderby_cmp = lambda x, y: cmp(x[orderby], y[orderby])
         if desc:
-            orderby_cmp = lambda x, y: orderby_cmp(y, x)
+            orderby_cmp_wrapper = orderby_cmp
+            orderby_cmp = lambda x, y: orderby_cmp_wrapper(y, x)
         for o in sorted(rows, cmp=orderby_cmp):
             result += ' <tr>\n'
             order_keys_display = (
