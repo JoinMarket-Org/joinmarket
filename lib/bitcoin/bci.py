@@ -6,37 +6,15 @@ try:
     from urllib.request import build_opener
 except:
     from urllib2 import build_opener
-from cache import Cache
 
 
 # Makes a request to a given URL (first arg) and optional params (second arg)
 def make_request(*args):
-
-    usecache = all([type(x) == str for x in args])
-    if usecache:
-        c = Cache()
-        key = '-*-'.join(args)
-        if c.get(key):
-            data = c.get(key)
-            c.close()
-            return data
-
     opener = build_opener()
     opener.addheaders = [('User-agent',
                           'Mozilla/5.0' + str(random.randrange(1000000)))]
     try:
-        data = opener.open(*args).read().strip()
-        if usecache:
-            c.put(key, data)
-            # clean
-            if 'putcount' not in c:
-                c['putcount'] = 0
-            c['putcount'] += 1
-            if c['putcount'] > 1000:
-                del c['putcount']
-                c.clean()
-            c.close()
-        return data
+        return opener.open(*args).read().strip()
     except Exception as e:
         try:
             p = e.read().strip()
