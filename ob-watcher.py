@@ -97,6 +97,13 @@ def satoshi_to_unit(sat, order):
 def order_str(s, order):
 	return str(s)
 
+ordersorder = ['absorder','relorder']
+def cmp_orders(first, other):
+        key = (lambda order: float(order['cjfee']))\
+              if first['ordertype'] == other['ordertype'] else \
+                 lambda order: ordersorder.index(order['ordertype'])
+        return cmp(key(first), key(other))
+
 class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
 	def __init__(self, request, client_address, base_server):
 		self.taker = base_server.taker
@@ -106,8 +113,7 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
 	def create_orderbook_table(self):
 		result = ''
 		rows = self.taker.db.execute('SELECT * FROM orderbook;').fetchall()
-		ordersorder = ['absorder','relorder']
-		for o in sorted(rows,cmp=lambda x,y: cmp(x['cjfee'],y['cjfee']) if x['ordertype']==y['ordertype'] else cmp(ordersorder.index(x['ordertype']),ordersorder.index(y['ordertype']))):
+		for o in sorted(rows,cmp=cmp_orders):
 			result += ' <tr>\n'
 			order_keys_display = (('ordertype', ordertype_display), ('counterparty', do_nothing),
 				 ('oid', order_str), ('cjfee', cjfee_display), ('txfee', satoshi_to_unit),
