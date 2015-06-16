@@ -210,10 +210,16 @@ class Wallet(AbstractWallet):
 			sys.exit(0)
 		if 'index_cache' in walletdata:
 			self.index_cache = walletdata['index_cache']
-		password = getpass.getpass('Enter wallet decryption passphrase: ')
-		password_key = btc.bin_dbl_sha256(password)
-		decrypted_seed = slowaes.decryptData(password_key, walletdata['encrypted_seed']
-			.decode('hex')).encode('hex')
+		decrypted = 0
+		while not decrypted:
+			try:
+				password = getpass.getpass('Enter wallet decryption passphrase: ')
+				password_key = btc.bin_dbl_sha256(password)
+				decrypted_seed = slowaes.decryptData(password_key, walletdata['encrypted_seed']
+					.decode('hex')).encode('hex')
+				decrypted = 1
+			except ValueError:
+				decrypted = 0
 		return decrypted_seed
 
 	def update_cache_index(self):
