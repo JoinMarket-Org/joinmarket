@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.join(data_dir, 'lib'))
 import taker
 from irc import IRCMessageChannel, random_nick
 from common import *
-
+import common
 
 tableheading = '''
 <table>
@@ -46,7 +46,10 @@ def create_depth_chart(db, cj_amount):
 	if len(orderfees) == 0:
 		return 'No orders at amount ' + str(cj_amount/1e8)
 	fig = plt.figure()
-	plt.hist(orderfees, 30, histtype='bar', rwidth=0.8)
+	if len(orderfees) == 1:
+		plt.hist(orderfees, 30, rwidth=0.8, range=(orderfees[0]/2, orderfees[0]*2))
+	else:
+		plt.hist(orderfees, 30, rwidth=0.8)
 	plt.grid()
 	plt.title('CoinJoin Orderbook Depth Chart for amount=' + str(cj_amount/1e8) + 'btc')
 	plt.xlabel('CoinJoin Fee / btc')
@@ -103,7 +106,8 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
 	def create_orderbook_table(self):
 		result = ''
 		rows = self.taker.db.execute('SELECT * FROM orderbook;').fetchall()
-		for o in rows:
+		ordersorder = ['absorder','relorder']
+		for o in sorted(rows,cmp=lambda x,y: cmp(x['cjfee'],y['cjfee']) if x['ordertype']==y['ordertype'] else cmp(ordersorder.index(x['ordertype']),ordersorder.index(y['ordertype']))):
 			result += ' <tr>\n'
 			order_keys_display = (('ordertype', ordertype_display), ('counterparty', do_nothing),
 				 ('oid', order_str), ('cjfee', cjfee_display), ('txfee', satoshi_to_unit),
@@ -126,20 +130,23 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
 		fd = open('orderbook.html', 'r')
 		orderbook_fmt = fd.read()
 		fd.close()
+		alert_msg = ''
+		if common.joinmarket_alert:
+			alert_msg = '<br />JoinMarket Alert Message:<br />' + common.joinmarket_alert
 		if self.path == '/':
 			ordercount, ordertable = self.create_orderbook_table()
 			replacements = {
 				'PAGETITLE': 'JoinMarket Browser Interface',
 				'MAINHEADING': 'JoinMarket Orderbook',
 				'SECONDHEADING': (str(ordercount) + ' orders found by '
-					+ self.get_counterparty_count() + ' counterparties'),
+					+ self.get_counterparty_count() + ' counterparties' + alert_msg),
 				'MAINBODY': refresh_orderbook_form + shutdownform + tableheading + ordertable + '</table>\n'
 			}
 		elif self.path == '/ordersize':
 			replacements = {
 				'PAGETITLE': 'JoinMarket Browser Interface',
 				'MAINHEADING': 'Order Sizes',
-				'SECONDHEADING': 'Order Size Histogram',
+				'SECONDHEADING': 'Order Size Histogram' + alert_msg,
 				'MAINBODY': create_size_histogram(self.taker.db)
 			}
 		elif self.path.startswith('/depth'):
@@ -150,7 +157,7 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
 			replacements = {
 				'PAGETITLE': 'JoinMarket Browser Interface',
 				'MAINHEADING': 'Depth Chart',
-				'SECONDHEADING': 'Orderbook Depth',
+				'SECONDHEADING': 'Orderbook Depth' + alert_msg,
 				'MAINBODY': '<br />'.join(mainbody)
 			}
 		orderbook_page = orderbook_fmt
@@ -189,7 +196,7 @@ class HTTPDThread(threading.Thread):
 		hostport = ('localhost', 62601)
 		httpd = BaseHTTPServer.HTTPServer(hostport, OrderbookPageRequestHeader)
 		httpd.taker = self.taker
-		print 'started http server, visit http://{0}:{1}/'.format(*hostport)
+		print '\nstarted http server, visit http://{0}:{1}/\n'.format(*hostport)
 		httpd.serve_forever()
 
 		
