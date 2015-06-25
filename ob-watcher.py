@@ -13,12 +13,12 @@ import common
 # ['counterparty', 'oid', 'ordertype', 'minsize', 'maxsize', 'txfee', 'cjfee']
 col = '  <th><a href="?orderby={0}">{1}</a></br><a href="?orderby={0}&desc=1">(desc)</a></th>\n'  # .format(field,label)
 
-tableheading = '<table>\n <tr>' + ''.join(
-    [col.format('ordertype', 'Type'), col.format(
-        'counterparty', 'Counterparty'), col.format('oid', 'Order ID'),
-     col.format('cjfee', 'Fee'), col.format('txfee', 'Miner Fee Contribution'),
-     col.format('minsize', 'Minimum Size'), col.format(
-         'maxsize', 'Maximum Size')]) + ' </tr>'
+tableheading = '<table>\n <tr>' + ''.join([
+    col.format('ordertype', 'Type'), col.format('counterparty', 'Counterparty'),
+    col.format('oid', 'Order ID'), col.format('cjfee', 'Fee'), col.format(
+        'txfee', 'Miner Fee Contribution'), col.format(
+            'minsize', 'Minimum Size'), col.format('maxsize', 'Maximum Size')
+]) + ' </tr>'
 
 shutdownform = '<form action="shutdown" method="post"><input type="submit" value="Shutdown" /></form>'
 shutdownpage = '<html><body><center><h1>Successfully Shut down</h1></center></body></html>'
@@ -129,7 +129,7 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
         if orderby not in rows[0].keys() or orderby == 'cjfee':
             orderby = 'cjfee'
             orderby_cmp = lambda x,y: cmp(Decimal(x['cjfee']),Decimal(y['cjfee'])) if x['ordertype']==y['ordertype'] \
-                          else cmp(ordersorder.index(x['ordertype']),ordersorder.index(y['ordertype']))
+             else cmp(ordersorder.index(x['ordertype']),ordersorder.index(y['ordertype']))
         else:
             orderby_cmp = lambda x, y: cmp(x[orderby], y[orderby])
         if desc:
