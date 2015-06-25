@@ -169,8 +169,8 @@ class Wallet(AbstractWallet):
 		super(Wallet, self).__init__()
 		self.max_mix_depth = max_mix_depth
 		self.gaplimit = gaplimit
-		seed = self.get_seed(seedarg)
-		master = btc.bip32_master_key(seed)
+		self.seed = self.get_seed(seedarg)
+		master = btc.bip32_master_key(self.seed)
 		m_0 = btc.bip32_ckd(master, 0)
 		mixing_depth_keys = [btc.bip32_ckd(m_0, c) for c in range(max_mix_depth)]
 		self.keys = [(btc.bip32_ckd(m, 0), btc.bip32_ckd(m, 1)) for m in mixing_depth_keys]
