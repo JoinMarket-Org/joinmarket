@@ -14,14 +14,14 @@ import common
 # ['counterparty', 'oid', 'ordertype', 'minsize', 'maxsize', 'txfee', 'cjfee']
 col = '  <th><a href="?orderby={0}">{1}</a></br><a href="?orderby={0}&desc=1">(desc)</a></th>\n' # .format(field,label)
 
-tableheading = '<table>\n <tr>' + ''.join(
-        [col.format('ordertype','Type'),
-         col.format('counterparty','Counterparty'),
-         col.format('oid','Order ID'),
-         col.format('cjfee','Fee'),
-         col.format('txfee','Miner Fee Contribution'),
-         col.format('minsize','Minimum Size'),
-         col.format('maxsize','Maximum Size')]) + ' </tr>'
+tableheading = '<table>\n <tr>' + ''.join([
+	col.format('ordertype','Type'),
+	col.format('counterparty','Counterparty'),
+	col.format('oid','Order ID'),
+	col.format('cjfee','Fee'),
+	col.format('txfee','Miner Fee Contribution'),
+	col.format('minsize','Minimum Size'),
+	col.format('maxsize','Maximum Size')]) + ' </tr>'
 
 shutdownform = '<form action="shutdown" method="post"><input type="submit" value="Shutdown" /></form>'
 shutdownpage = '<html><body><center><h1>Successfully Shut down</h1></center></body></html>'
@@ -106,20 +106,20 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
 	def create_orderbook_table(self, orderby, desc):
 		result = ''
 		rows = self.taker.db.execute('SELECT * FROM orderbook;').fetchall()
-                if not rows:
-                        return 0, result
-                if orderby:
-                        orderby = orderby[0]
+		if not rows:
+			return 0, result
+		if orderby:
+			orderby = orderby[0]
 		ordersorder = ['absorder','relorder']
-                if orderby not in rows[0].keys() or orderby == 'cjfee':
-                        orderby = 'cjfee'
-                        orderby_cmp = lambda x,y: cmp(Decimal(x['cjfee']),Decimal(y['cjfee'])) if x['ordertype']==y['ordertype'] \
-                                      else cmp(ordersorder.index(x['ordertype']),ordersorder.index(y['ordertype']))
-                else:
-                        orderby_cmp = lambda x,y: cmp(x[orderby],y[orderby])
-                if desc:
-                        orderby_cmp_wrapper = orderby_cmp
-                        orderby_cmp = lambda x,y: orderby_cmp_wrapper(y,x)
+		if orderby not in rows[0].keys() or orderby == 'cjfee':
+			orderby = 'cjfee'
+			orderby_cmp = lambda x,y: cmp(Decimal(x['cjfee']),Decimal(y['cjfee'])) if x['ordertype']==y['ordertype'] \
+				else cmp(ordersorder.index(x['ordertype']),ordersorder.index(y['ordertype']))
+		else:
+			orderby_cmp = lambda x,y: cmp(x[orderby],y[orderby])
+		if desc:
+			orderby_cmp_wrapper = orderby_cmp
+			orderby_cmp = lambda x,y: orderby_cmp_wrapper(y,x)
 		for o in sorted(rows,cmp=orderby_cmp):
 			result += ' <tr>\n'
 			order_keys_display = (('ordertype', ordertype_display), ('counterparty', do_nothing),
@@ -137,8 +137,8 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
 	def do_GET(self):
 		#SimpleHTTPServer.SimpleHTTPRequestHandler.do_GET(self)
 		#print 'httpd received ' + self.path + ' request'
-                self.path, query = self.path.split('?',1) if '?' in self.path else (self.path,'')
-                args = urllib2.urlparse.parse_qs(query)
+		self.path, query = self.path.split('?',1) if '?' in self.path else (self.path,'')
+		args = urllib2.urlparse.parse_qs(query)
 		pages = ['/', '/ordersize', '/depth']
 		if self.path not in pages:
 			return
