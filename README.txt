@@ -17,7 +17,7 @@ Donation address:
 Wiki page for more detailed articles:
 https://github.com/chris-belcher/joinmarket/wiki
 
-INSTALLING
+REQUIRED INSTALLATION DEPENDENCIES
 0. You will need python 2.7
 1. You will need libsodium installed
  Get it here: http://doc.libsodium.org/
@@ -26,6 +26,13 @@ INSTALLING
 2. you will need numpy 1.7 or later installed
 3. (optional) matplotlib for displaying the graphs in orderbook-watcher
 
+GET DEBIAN / UBUNTU INSTALL DEPENDENCIES:
+0. sudo apt-get update -y && sudo apt-get upgrade -y && sudo apt-get install python 
+1. sudo apt-get install libsodium-dev -y
+2. sudo apt-get install python-pip -y && sudo pip install numpy --upgrade
+3. (optional) sudo apt-get install python-matplotlib -y
+
+WINDOWS:
 If installing on Windows, consult this wiki page for helpful instructions
 https://github.com/chris-belcher/joinmarket/wiki/Installing-JoinMarket-on-Windows-7-(temporary)
 
