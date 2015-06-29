@@ -491,10 +491,10 @@ class IRCMessageChannel(MessageChannel):
                 else:
                     self.sock = socket.socket(socket.AF_INET,
                                               socket.SOCK_STREAM)
+                self.sock.connect(self.serverport)
                 if config.get("MESSAGING", "usessl").lower() == 'true':
                     self.sock = ssl.wrap_socket(self.sock)
                 self.fd = self.sock.makefile()
-                self.sock.connect(self.serverport)
                 self.password = None
                 if self.given_password:
                     self.password = self.given_password
