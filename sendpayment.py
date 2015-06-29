@@ -206,7 +206,7 @@ def main():
         irc.run()
     except:
         debug('CRASHING, DUMPING EVERYTHING')
-        debug_dump_object(wallet, ['addr_cache', 'keys', 'wallet_name'])
+        debug_dump_object(wallet, ['addr_cache', 'keys', 'wallet_name', 'seed'])
         debug_dump_object(taker)
         import traceback
         debug(traceback.format_exc())
