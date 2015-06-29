@@ -139,7 +139,6 @@ def main():
                         print '\nDone, no payments sent.\nUse -N 3 or higher, or do not set -N to use default (2) makers.\nsendpayment.py --help for more help.\n'
                         sys.exit(0)
         else:
-                #print 'PASS: Makercount at or above two. Higher maker count provides more privacy.\n'
                 if options.makercount == 2:
                         print 'Sending with N=2 (default) makers.  Use --makercount=N for increased privacy (addl maker fees).  See sendpayment.py --help for info.\n'
                 else:
