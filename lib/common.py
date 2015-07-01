@@ -363,6 +363,7 @@ def weighted_order_choose(orders, n, feekey):
 	else:
 		phi = feekey(orders[-1]) - minfee
 	fee = np.array([feekey(o) for o in orders])
+	debug('phi=' + str(phi) + ' fee=' + str(fee))
 	if phi > 0:
 		weight = np.exp(-(1.0*fee - minfee) / phi)
 	else:
