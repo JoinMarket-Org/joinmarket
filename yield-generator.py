@@ -61,6 +61,9 @@ class YieldGenerator(Maker):
 		max_mix = max(mix_balance, key=mix_balance.get)
 		order = {'oid': 0, 'ordertype': 'relorder', 'minsize': minsize,
 			'maxsize': mix_balance[max_mix] - common.DUST_THRESHOLD, 'txfee': txfee, 'cjfee': cjfee}
+		if order['minsize'] > order['maxsize']:
+			timestamp = datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+			self.log_statement([timestamp, '', '', '', '', '', '', 'The minimum order size is greater than the maximum order size.  Either change the order size conditions in the beginning of yield-generator.py, or deposit more.'])
 		return [order]
 
 	def oid_to_order(self, cjorder, oid, amount):
