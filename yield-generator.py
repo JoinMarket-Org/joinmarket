@@ -14,7 +14,8 @@ from socket import gethostname
 
 #txfee = 1000
 # tx fees for available mix levels from max to min amounts. mix_levels is max. 
-txfee = [1000,1000,100,100]
+#txfee = [1000,1000,100,100]
+txfee = 1000
 # fees for available mix levels from max to min amounts. mix_levels is max
 cjfee = ['0.0009','0.0008', '0.0007','0.0006', '0.0005']
 nickname = random_nick()
@@ -63,41 +64,44 @@ class YieldGenerator(Maker):
 			return []
 		#sorts the mixdepth_balance map by balance size
 		filtered_mix_balance = sorted(list(mix_balance.iteritems()), key=lambda a: a[1], reverse=True)
+		minsize = int(1.2 * txfee / float(cjfee[0]))
+		filtered_mix_balance = [f for f in filtered_mix_balance if f[1] > minsize]
+		debug('minsize=' + str(minsize))
+		min_balances = filtered_mix_balance[1:] + [(-1, minsize)]
+		mix_balance_min = [(mxb[0], mxb[1], mnb[1]) for mxb, mnb in zip(filtered_mix_balance, min_balances)]
 
+		debug('mixdepth_balance_min = ' + str(mix_balance_min))
 		orders=[]
-		for oid, mixdepth_balance in enumerate(filtered_mix_balance):
-			mixdepth, balance = mixdepth_balance
-
-
-
-		for oid, cjf in enumerate(cjfee):
-			max_mix = max(mix_balance, key=mix_balance.get)
-			minsize = int(1.2 * txfee[oid] / float(cjf))
-			if mix_balance[max_mix] < common.DUST_THRESHOLD or minsize > mix_balance[max_mix] - common.DUST_THRESHOLD:
-				break
-			order = {'oid': oid, 'ordertype': 'relorder', 'minsize': minsize,
-				    'maxsize': mix_balance[max_mix] - common.DUST_THRESHOLD, 'txfee': txfee[oid], 'cjfee': cjf}
+		for oid, mix_balance_min in enumerate(mix_balance_min):
+			mixdepth, balance, mins = mix_balance_min
+			#the maker class reads specific keys from the dict, but others
+			# are allowed in there and will be ignored
+			order = {'oid': oid, 'ordertype': 'relorder', 'minsize': mins - common.DUST_THRESHOLD + 1,
+				'maxsize': balance - common.DUST_THRESHOLD, 'txfee': txfee, 'cjfee': cjfee[oid],
+				'mixdepth': mixdepth}
 			orders.append(order)
-			del mix_balance[max_mix]
+
+		absorder_fee = calc_cj_fee('relorder', cjfee[oid], minsize)
+		order = {'oid': oid+1, 'ordertype': 'absorder', 'minsize': common.DUST_THRESHOLD + 1,
+			'maxsize': minsize - common.DUST_THRESHOLD, 'txfee': txfee, 'cjfee': absorder_fee}
+		orders.append(order)
 
 		pprint.pprint(orders)
+		sys.exit(0)
 		return orders
 
 	def oid_to_order(self, cjorder, oid, amount):
-		#mix_balance = self.wallet.get_balance_by_mixdepth()
-		#getting balances and removing unpaid mix levels from the list
-		orders = self.orderlist
-		mix_balance={key: value for key, value in self.wallet.get_balance_by_mixdepth().items()\
-			if value-common.DUST_THRESHOLD <= filter(lambda orders: orders['oid'] == oid, orders)[0]['maxsize']}
-		max_mix = max(mix_balance, key=mix_balance.get)
+		order = [o for o in self.orderlist if o['oid'] == oid][0]
+		if order['ordertype'] == 'relorder':
+			mixdepth = order['mixdepth']
+		else:
+			#for the absolute fee order, take from the lowest balance higher than dust
+			mix_balance = self.wallet.get_balance_by_mixdepth()
+			filtered_mix_balance = dict([(m, b) for m, b in mix_balance.iteritems() if b > common.DUST_THRESHOLD])
+			filtered_mix_balance = sorted(list(mix_balance.iteritems()), key=lambda a: a[1], reverse=True)
+			mixdepth = filtered_mix_balance[-1][0]
+		debug('filling order, mixdepth=' + str(mixdepth))
 
-		#algo attempts to make the largest-balance mixing depth get an even larger balance
-		debug('finding suitable mixdepth')
-		mixdepth = (max_mix - 1) % self.wallet.max_mix_depth
-		while True:
-			if mixdepth in mix_balance and mix_balance[mixdepth] >= amount:
-				break
-			mixdepth = (mixdepth - 1) % self.wallet.max_mix_depth
 		#mixdepth is the chosen depth we'll be spending from
 		cj_addr = self.wallet.get_receive_addr((mixdepth + 1) % self.wallet.max_mix_depth)
 		change_addr = self.wallet.get_change_addr(mixdepth)
