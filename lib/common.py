@@ -358,7 +358,7 @@ def weighted_order_choose(orders, n, feekey):
 	'''
 	minfee = feekey(orders[0])
 	M = int(1.5*n)
-	if len(orders) >= M:
+	if len(orders) > M:
 		phi = feekey(orders[M]) - minfee
 	else:
 		phi = feekey(orders[-1]) - minfee
