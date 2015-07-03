@@ -9,7 +9,7 @@ import os, io, itertools
 
 JM_VERSION = 1
 nickname = ''
-DUST_THRESHOLD = 543
+DUST_THRESHOLD = 546
 bc_interface = None
 ordername_list = ["absorder", "relorder"]
 
