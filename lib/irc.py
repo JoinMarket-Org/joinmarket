@@ -3,10 +3,9 @@ from common import *
 from message_channel import MessageChannel
 from message_channel import CJPeerError
 
-import string
-import random
+import string, random
 import socket, threading, time, ssl, socks
-import base64, os
+import base64, os, re
 import enc_wrapper
 
 MAX_PRIVMSG_LEN = 400
@@ -18,6 +17,8 @@ plaintext_commands = ["fill", "error", "pubkey", "orderbook", "relorder", "absor
 
 def random_nick(size=9, chars=string.ascii_uppercase + string.ascii_lowercase + string.digits):
         ircnick = ''.join(random.choice(chars) for _ in range(size))
+        if re.match('\\d', ircnick[0-9]):
+	        ircnick = '_' + ircnick
         print 'Generated random nickname: ' + ircnick #not using debug because it might not know the logfile name at this point
         return ircnick
 
