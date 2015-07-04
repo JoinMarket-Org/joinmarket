@@ -323,7 +323,7 @@ class BitcoinCoreWallet(AbstractWallet):
 		for u in unspent_list:
 			if not u['spendable']:
 				continue
-			if self.fromaccount and 'account' in u and u['account'] != self.fromaccount:
+			if self.fromaccount and (('account' not in u) or u['account'] != self.fromaccount):
 				continue
 			result[0][u['txid'] + ':' + str(u['vout'])] = {'address': u['address'],
 				'value': int(Decimal(str(u['amount'])) * Decimal('1e8'))}
