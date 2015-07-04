@@ -2,7 +2,7 @@
 import subprocess
 import unittest
 import json, threading, abc, pprint, time, random, sys, os
-import BaseHTTPServer, SimpleHTTPServer
+import BaseHTTPServer, SimpleHTTPServer, urllib
 from decimal import Decimal
 import bitcoin as btc
 
@@ -349,7 +349,7 @@ class NotifyRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
                     common.debug('ran confirmfun')
 
         elif self.path.startswith('/alertnotify?'):
-            common.core_alert = self.path[len(pages[1]):]
+            common.core_alert = urllib.unquote(self.path[len(pages[1]):])
             common.debug('Got an alert!\nMessage=' + common.core_alert)
 
         os.system('wget -q --spider --timeout=0.5 --tries=1 http://localhost:' +
