@@ -228,36 +228,67 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
 
 class HTTPDThread(threading.Thread):
 
-    def __init__(self, taker):
+    def __init__(self, taker, hostport):
         threading.Thread.__init__(self)
         self.daemon = True
         self.taker = taker
+        self.hostport = hostport
 
     def run(self):
-        hostport = ('localhost', 62601)
-        httpd = BaseHTTPServer.HTTPServer(hostport, OrderbookPageRequestHeader)
+        #hostport = ('localhost', 62601)
+        httpd = BaseHTTPServer.HTTPServer(self.hostport,
+                                          OrderbookPageRequestHeader)
         httpd.taker = self.taker
-        print '\nstarted http server, visit http://{0}:{1}/\n'.format(*hostport)
+        print('\nstarted http server, visit http://{0}:{1}/\n'.format(
+            *self.hostport))
         httpd.serve_forever()
 
 
 class GUITaker(taker.OrderbookWatch):
 
+    def __init__(self, msgchan, hostport):
+        self.hostport = hostport
+        super(GUITaker, self).__init__(msgchan)
+
     def on_welcome(self):
         taker.OrderbookWatch.on_welcome(self)
-        HTTPDThread(self).start()
+        HTTPDThread(self, self.hostport).start()
 
 
 def main():
     import bitcoin as btc
     import common
     import binascii, os
+    from optparse import OptionParser
+
     common.nickname = random_nick()  #watcher' +binascii.hexlify(os.urandom(4))
     common.load_program_config()
 
+    parser = OptionParser(
+        usage='usage: %prog [options]',
+        description='Runs a webservice which shows the orderbook.')
+    parser.add_option('-H',
+                      '--host',
+                      action='store',
+                      type='string',
+                      dest='host',
+                      default='localhost',
+                      help='hostname or IP to bind to, default=localhost')
+    parser.add_option('-p',
+                      '--port',
+                      action='store',
+                      type='int',
+                      dest='port',
+                      help='port to listen on, default=62601',
+                      default=62601)
+    (options, args) = parser.parse_args()
+
+    hostport = (options.host, options.port)
+
     irc = IRCMessageChannel(common.nickname)
-    taker = GUITaker(irc)
-    print 'starting irc'
+    taker = GUITaker(irc, hostport)
+    print('starting irc')
+
     irc.run()
 
 
