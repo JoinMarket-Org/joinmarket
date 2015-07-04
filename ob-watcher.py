@@ -11,9 +11,9 @@ from common import *
 import common
 
 # ['counterparty', 'oid', 'ordertype', 'minsize', 'maxsize', 'txfee', 'cjfee']
-col = '  <th><a href="?orderby={0}">{1}</a></br><a href="?orderby={0}&desc=1">(desc)</a></th>\n'  # .format(field,label)
+col = '  <th>{1}</th>\n'  # .format(field,label)
 
-tableheading = '<table>\n <tr>' + ''.join([
+tableheading = '<table class="tftable sortable" border="1">\n <tr>' + ''.join([
     col.format('ordertype', 'Type'), col.format('counterparty', 'Counterparty'),
     col.format('oid', 'Order ID'), col.format('cjfee', 'Fee'), col.format(
         'txfee', 'Miner Fee Contribution'), col.format(
