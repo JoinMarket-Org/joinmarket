@@ -20,7 +20,7 @@ txfee = 5000
 # fees for available mix levels from max to min amounts.
 #cjfee = ['0.000027','0.000026', '0.000025','0.000024', '0.000023']
 cjfee = ['0.00015', '0.00014', '0.00013', '0.00012', '0.00011']
-cjfee = ["%0.5f" % (0.00015 - n*0.00001) for n in range(mix_levels)]
+#cjfee = ["%0.5f" % (0.00015 - n*0.00001) for n in range(mix_levels)]
 nickname = random_nick()
 nickserv_password = ''
 
