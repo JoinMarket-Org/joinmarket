@@ -78,7 +78,8 @@ class YieldGenerator(Maker):
                                 oid+=1
                                 del max_mix
                         else:
-                                break
+                                oid+=1
+                                del max_mix
                 return orders
 
         def oid_to_order(self, cjorder, oid, amount):
