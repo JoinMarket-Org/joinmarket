@@ -323,7 +323,7 @@ class BitcoinCoreWallet(AbstractWallet):
 		for u in unspent_list:
 			if not u['spendable']:
 				continue
-			if self.fromaccount and 'account' in u and u['account'] != self.fromaccount:
+			if self.fromaccount and (('account' not in u) or u['account'] != self.fromaccount):
 				continue
 			result[0][u['txid'] + ':' + str(u['vout'])] = {'address': u['address'],
 				'value': int(Decimal(str(u['amount'])) * Decimal('1e8'))}
@@ -363,10 +363,11 @@ def weighted_order_choose(orders, n, feekey):
 	else:
 		phi = feekey(orders[-1]) - minfee
 	fee = np.array([feekey(o) for o in orders])
+	debug('phi=' + str(phi) + ' fee=' + str(fee))
 	if phi > 0:
 		weight = np.exp(-(1.0*fee - minfee) / phi)
 	else:
-		weight = np.ones_like(fee)
+		weight = np.ones_like(fee, dtype=np.float)
 	weight /= sum(weight)
 	debug('randomly choosing orders with weighting\n' + pprint.pformat(zip(orders, weight)))
 	chosen_order_index = np.random.choice(len(orders), p=weight)
