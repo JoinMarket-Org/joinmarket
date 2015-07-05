@@ -21,7 +21,7 @@ cjfee = ['0.0009','0.0008', '0.0007','0.0006', '0.0005']
 nickname = random_nick()
 nickserv_password = ''
 # minsize is dynamic and defined during orders creation in create_my_orders
-#minsize = int(1.2 * txfee / float(cjfee)) #minimum size is such that you always net profit at least 20% of the miner fee
+#minsize = int(1.2 * txfee / float(cjfee))
 mix_levels = 5
 
 
@@ -64,11 +64,12 @@ class YieldGenerator(Maker):
 			return []
 		#sorts the mixdepth_balance map by balance size
 		filtered_mix_balance = sorted(list(mix_balance.iteritems()), key=lambda a: a[1], reverse=True)
-		minsize = int(1.2 * txfee / float(cjfee[0]))
+		minsize = int(1.5 * txfee / float(cjfee[0])) #minimum size is such that you always net profit at least 50% of the miner fee
 		filtered_mix_balance = [f for f in filtered_mix_balance if f[1] > minsize]
-		debug('minsize=' + str(minsize))
+		debug('minsize=' + str(minsize)) 
 		min_balances = filtered_mix_balance[1:] + [(-1, minsize)]
 		mix_balance_min = [(mxb[0], mxb[1], mnb[1]) for mxb, mnb in zip(filtered_mix_balance, min_balances)]
+		mix_balance_min = mix_balance_min[::-1] #reverse list order
 
 		debug('mixdepth_balance_min = ' + str(mix_balance_min))
 		orders=[]
@@ -76,18 +77,16 @@ class YieldGenerator(Maker):
 			mixdepth, balance, mins = mix_balance_min
 			#the maker class reads specific keys from the dict, but others
 			# are allowed in there and will be ignored
-			order = {'oid': oid, 'ordertype': 'relorder', 'minsize': mins - common.DUST_THRESHOLD + 1,
+			order = {'oid': oid+1, 'ordertype': 'relorder', 'minsize': mins - common.DUST_THRESHOLD + 1,
 				'maxsize': balance - common.DUST_THRESHOLD, 'txfee': txfee, 'cjfee': cjfee[oid],
 				'mixdepth': mixdepth}
 			orders.append(order)
 
+		#the absorder is always oid=0
 		absorder_fee = calc_cj_fee('relorder', cjfee[oid], minsize)
-		order = {'oid': oid+1, 'ordertype': 'absorder', 'minsize': common.DUST_THRESHOLD + 1,
+		order = {'oid': 0, 'ordertype': 'absorder', 'minsize': common.DUST_THRESHOLD + 1,
 			'maxsize': minsize - common.DUST_THRESHOLD, 'txfee': txfee, 'cjfee': absorder_fee}
-		orders.append(order)
-
-		pprint.pprint(orders)
-		sys.exit(0)
+		orders = [order] + orders
 		return orders
 
 	def oid_to_order(self, cjorder, oid, amount):
@@ -122,18 +121,57 @@ class YieldGenerator(Maker):
 
 	def on_tx_unconfirmed(self, cjorder, txid, removed_utxos):
 		self.tx_unconfirm_timestamp[cjorder.cj_addr] = int(time.time())
-		neworders = self.create_my_orders()
-		oldorders=self.orderlist
-		cancelOrders=[]
-		if len(oldorders) != len(neworders):
-			#announce all new orders and cancel old one
-			cancelOrders=[k['oid']for k in filter(lambda oldorders: oldorders['oid'] not in [i['oid'] for i, j in zip(sorted(neworders),sorted(oldorders)) if i != j], oldorders)]
-			annOrders=neworders
-		else:
-			#announce only diff
-			annOrders=[i for i, j in zip(sorted(neworders),sorted(oldorders)) if i != j]
-		#announce new orders, replacing the old orders
-		return (cancelOrders, annOrders)
+
+		'''
+		case 0
+		the absorder will basically never get changed, unless there are no utxos left, when neworders==[]
+		case 1
+		a single coin is split into two coins across levels
+		must announce a new order, plus modify the old order
+		case 2
+		two existing mixdepths get modified
+		announce the modified new orders
+		case 3
+		one existing mixdepth gets emptied into another
+		cancel it, modify the place it went
+
+		algorithm
+		find all the orders which have changed, the length of that list tells us which case
+		'''
+
+		myorders = self.create_my_orders()
+		oldorders = self.orderlist
+		if len(myorders) == 0:
+			return ([o['oid'] for o in oldorders], [])
+
+		cancel_orders = []
+		ann_orders = []
+
+		neworders = [o for o in myorders if o['ordertype'] == 'relorder']
+		oldorders = [o for o in oldorders if o['ordertype'] == 'relorder']
+		new_old_diff = [i for i, j in zip(sorted(neworders), sorted(oldorders)) if i != j]
+		old_new_diff = [i for i, j in zip(sorted(oldorders), sorted(neworders)) if i != j]
+
+		debug('neworders = \n' + '\n'.join([str(o) for o in neworders]))
+		debug('oldorders = \n' + '\n'.join([str(o) for o in oldorders]))
+		debug('new_old_diff = \n' + '\n'.join([str(o) for o in new_old_diff]))
+		debug('old_new_diff = \n' + '\n'.join([str(o) for o in old_new_diff]))
+		if len(neworders) == len(oldorders):
+			ann_orders = new_old_diff
+		elif len(neworders) > len(oldorders):
+			ann_orders = [o for o in neworders if o not in oldorders]
+		elif len(neworders) < len(oldorders):
+			ann_orders = [o for o in neworders if o not in oldorders]
+			ann_oids = [o['oid'] for o in ann_orders]
+			cancel_orders = [o['oid'] for o in old_new_diff if o['oid'] not in ann_oids]
+
+		if len([o for o in self.orderlist if o['ordertype'] == 'absorder']) == 0:
+			absorder = [o for o in myorders if o['ordertype'] == 'absorder'][0]
+			ann_orders = [absorder] + ann_orders
+
+		debug('can_orders = ' + str(cancel_orders))
+		debug('ann_orders = \n' + '\n'.join([str(o) for o in ann_orders]))
+		return (cancel_orders, ann_orders)
 
 	def on_tx_confirmed(self, cjorder, confirmations, txid):
 		confirm_time = int(time.time()) - self.tx_unconfirm_timestamp[cjorder.cj_addr]
