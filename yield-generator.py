@@ -13,7 +13,7 @@ import common, blockchaininterface
 from socket import gethostname
 
 # fees for available mix levels in mix depth order, using five mix levels
-cjfee = ['0.0001','0.0001','0.0001','0.0001','0.0001']
+cjfee = ['0.001','0.001','0.001','0.001','0.001']
 nickname = random_nick()
 nickserv_password = ''
 # minsize is dynamic and defined during orders creation in create_my_orders
