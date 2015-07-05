@@ -20,7 +20,7 @@ nickserv_password = ''
 # minimum size is such that you always net profit at least 20% of the miner fee
 # miner fee contributions are based on the number of inputs for each mixing depth
 # each input will contribute 180 satoshi, this is based on min transaction sizes for a utxo
-# (see https://github.com/bitcoin/bitcoin/blob/master/src/primitives/transaction.h#L146)
+# (see https://github.com/bitcoin/bitcoin/blob/master/src/primitives/transaction.h#L144-145)
 # default bitcoin core client pays 1000 satoshi per kb, or about 0.98 satoshi per byte
 # this is used to determine the value of 180 per utxo
 mix_levels = 5
