@@ -18,7 +18,6 @@ mix_levels = 5
 #miner fee contribution
 txfee = 5000
 # fees for available mix levels from max to min amounts.
-#cjfee = ['0.000027','0.000026', '0.000025','0.000024', '0.000023']
 cjfee = ['0.00015', '0.00014', '0.00013', '0.00012', '0.00011']
 #cjfee = ["%0.5f" % (0.00015 - n*0.00001) for n in range(mix_levels)]
 nickname = random_nick()
@@ -75,6 +74,7 @@ class YieldGenerator(Maker):
 		min_balances = filtered_mix_balance[1:] + [(-1, minsize)]
 		mix_balance_min = [(mxb[0], mxb[1], mnb[1]) for mxb, mnb in zip(filtered_mix_balance, min_balances)]
 		mix_balance_min = mix_balance_min[::-1] #reverse list order
+		thecjfee = cjfee[::-1]
 
 		debug('mixdepth_balance_min = ' + str(mix_balance_min))
 		orders=[]
@@ -84,14 +84,14 @@ class YieldGenerator(Maker):
 			#the maker class reads specific keys from the dict, but others
 			# are allowed in there and will be ignored
 			order = {'oid': oid+1, 'ordertype': 'relorder', 'minsize': mins - common.DUST_THRESHOLD + 1,
-				'maxsize': balance - common.DUST_THRESHOLD, 'txfee': txfee, 'cjfee': cjfee[oid],
+				'maxsize': balance - common.DUST_THRESHOLD, 'txfee': txfee, 'cjfee': thecjfee[oid],
 				'mixdepth': mixdepth}
 			oid += 1
 			orders.append(order)
 
 		absorder_size = min(minsize, sorted_mix_balance[0][1])
-		absorder_fee = calc_cj_fee('relorder', cjfee[oid], minsize)
-		debug('absorder fee = ' + str(absorder_fee) + ' uses cjfee=' + str(cjfee[oid]))
+		absorder_fee = calc_cj_fee('relorder', thecjfee[oid], minsize)
+		debug('absorder fee = ' + str(absorder_fee) + ' uses cjfee=' + str(thecjfee[oid]))
 		#the absorder is always oid=0
 		order = {'oid': 0, 'ordertype': 'absorder', 'minsize': common.DUST_THRESHOLD + 1,
 			'maxsize': absorder_size - common.DUST_THRESHOLD, 'txfee': txfee, 'cjfee': absorder_fee}
