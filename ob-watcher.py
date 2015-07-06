@@ -16,10 +16,10 @@ import common
 # uBTC (1 uBTC = 0.00000100 BTC) # microbitcoin, aka 'bit'
 # Sats (1 Sats = 0.00000001 BTC) # Satoshis
 # Uncomment only one of these unit choices:
-UnitDisplayType = "BTC"
-#UnitDisplayType = "mBTC"
-#UnitDisplayType = "uBTC"
-#UnitDisplayType = "Satoshis"
+unit_display_type = "BTC"
+#unit_display_type = "mBTC"
+#unit_display_type = "uBTC"
+#unit_display_type = "Satoshis"
 
 # ['counterparty', 'oid', 'ordertype', 'minsize', 'maxsize', 'txfee', 'cjfee']
 col = '  <th>{1}</th>\n' # .format(field,label)
@@ -102,13 +102,13 @@ def cjfee_display(cjfee, order):
 		return str(float(cjfee) * 100) + '%'
 
 def satoshi_to_unit(sat, order):
-        if UnitDisplayType == "BTC":
+        if unit_display_type == "BTC":
                 return "%.8f" % float(Decimal(sat) / Decimal(1e8))
-        if UnitDisplayType == "mBTC":
+        if unit_display_type == "mBTC":
                 return "%.5f" % float(Decimal(sat) / Decimal(1e5))
-        if UnitDisplayType == "uBTC":
+        if unit_display_type == "uBTC":
                 return "%.2f" % float(Decimal(sat) / Decimal(100))
-        if UnitDisplayType == "Satoshis":
+        if unit_display_type == "Satoshis":
                 return "%.f" % float(Decimal(sat) / Decimal(1))
 
 def order_str(s, order):
