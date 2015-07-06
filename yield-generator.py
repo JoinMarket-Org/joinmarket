@@ -32,6 +32,7 @@ mix_levels = 5
 #spent from utxos that try to make the highest balance even higher
 # so try to keep coins concentrated in one mixing depth
 class YieldGenerator(Maker):
+    statement_file = os.path.join('logs', 'yigen-statement.csv')
 
     def __init__(self, msgchan, wallet):
         Maker.__init__(self, msgchan, wallet)
@@ -41,17 +42,22 @@ class YieldGenerator(Maker):
         self.tx_unconfirm_timestamp = {}
 
     def log_statement(self, data):
+        if common.get_network() == 'testnet':
+            return
+
         data = [str(d) for d in data]
-        self.income_statement = open(
-            os.path.join('logs', 'yigen-statement.csv'), 'aw')
+        self.income_statement = open(statement_file, 'a')
         self.income_statement.write(','.join(data) + '\n')
         self.income_statement.close()
 
     def on_welcome(self):
         Maker.on_welcome(self)
-        self.log_statement(['timestamp', 'cj amount/satoshi', 'my input count',
-                            'my input value/satoshi', 'cjfee/satoshi',
-                            'earned/satoshi', 'confirm time/min', 'notes'])
+        if not os.path.isfile(statement_file):
+            self.log_statement(
+                ['timestamp', 'cj amount/satoshi', 'my input count',
+                 'my input value/satoshi', 'cjfee/satoshi', 'earned/satoshi',
+                 'confirm time/min', 'notes'])
+
         timestamp = datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
         self.log_statement([timestamp, '', '', '', '', '', '', 'Connected'])
 
