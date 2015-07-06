@@ -430,7 +430,7 @@ def pick_order(orders, n, feekey):
     print("Considered orders:")
     for o in orders:
         i += 1
-        print("    " + str(i) + ". " + str(o[0]) + ", CJ fee: " + str(o[2]))
+        print("    %2d. %20s, CJ fee: %6d, tx fee: %6d" % (i, o[0], o[2], o[3]))
     pickedOrderIndex = -1
     if i == 0:
         print("Only one possible pick, picking it.")
@@ -450,8 +450,8 @@ def pick_order(orders, n, feekey):
 
 def choose_order(db, cj_amount, n, chooseOrdersBy):
     sqlorders = db.execute('SELECT * FROM orderbook;').fetchall()
-    orders = [(o['counterparty'], o['oid'], calc_cj_fee(o['ordertype'],
-                                                        o['cjfee'], cj_amount))
+    orders = [(o['counterparty'], o['oid'], calc_cj_fee(
+        o['ordertype'], o['cjfee'], cj_amount), o['txfee'])
               for o in sqlorders
               if cj_amount >= o['minsize'] and cj_amount <= o['maxsize']]
     counterparties = set([o[0] for o in orders])
