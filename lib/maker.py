@@ -127,8 +127,8 @@ class CoinJoinOrder(object):
         finally:
             self.maker.wallet_unspent_lock.release()
         debug('tx in a block')
-        to_cancel, to_announce = self.maker.on_tx_confirmed(self, confirmations,
-                                                            txid)
+        to_cancel, to_announce = self.maker.on_tx_confirmed(self, cjorder,
+                                                            confirmations, txid)
         self.maker.modify_orders(to_cancel, to_announce)
 
     def verify_unsigned_tx(self, txd):
