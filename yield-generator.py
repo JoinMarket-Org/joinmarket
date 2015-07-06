@@ -44,13 +44,13 @@ class YieldGenerator(Maker):
 			return
 
 		data = [str(d) for d in data]
-		self.income_statement = open(statement_file, 'a')
+		self.income_statement = open(self.statement_file, 'a')
 		self.income_statement.write(','.join(data) + '\n')
 		self.income_statement.close()
 
 	def on_welcome(self):
 		Maker.on_welcome(self)
-		if not os.path.isfile(statement_file):
+		if not os.path.isfile(self.statement_file):
 			self.log_statement(['timestamp', 'cj amount/satoshi', 'my input count',
 				'my input value/satoshi', 'cjfee/satoshi', 'earned/satoshi',
 				'confirm time/min', 'notes'])
