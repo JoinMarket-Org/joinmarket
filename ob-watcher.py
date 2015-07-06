@@ -1,4 +1,3 @@
-
 import BaseHTTPServer, SimpleHTTPServer, threading
 from decimal import Decimal
 import urllib2
