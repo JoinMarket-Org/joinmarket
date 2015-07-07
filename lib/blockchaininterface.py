@@ -1,5 +1,4 @@
 #from joinmarket import *
-import subprocess
 import unittest
 import json, threading, abc, pprint, time, random, sys, os, re
 import BaseHTTPServer, urllib
@@ -7,16 +6,23 @@ from decimal import Decimal
 import bitcoin as btc
 
 import common
+import jsonrpc
 
 
 def get_blockchain_interface_instance(config):
     source = config.get("BLOCKCHAIN", "blockchain_source")
-    bitcoin_cli_cmd = config.get("BLOCKCHAIN", "bitcoin_cli_cmd").split(' ')
-    testnet = common.get_network() == 'testnet'
+    rpc_host = config.get("BLOCKCHAIN", "rpc_host")
+    rpc_port = config.get("BLOCKCHAIN", "rpc_port")
+    rpc_user = config.get("BLOCKCHAIN", "rpc_user")
+    rpc_password = config.get("BLOCKCHAIN", "rpc_password")
+    network = common.get_network()
+    testnet = network == 'testnet'
     if source == 'json-rpc':
-        bc_interface = BitcoinCoreInterface(bitcoin_cli_cmd, testnet)
+        rpc = jsonrpc.JsonRpc(rpc_host, rpc_port, rpc_user, rpc_password)
+        bc_interface = BitcoinCoreInterface(rpc, network)
     elif source == 'regtest':
-        bc_interface = RegtestBitcoinCoreInterface(bitcoin_cli_cmd)
+        rpc = jsonrpc.JsonRpc(rpc_host, rpc_port, rpc_user, rpc_password)
+        bc_interface = RegtestBitcoinCoreInterface(rpc)
     elif source == 'blockr':
         bc_interface = BlockrInterface(testnet)
     else:
@@ -316,7 +322,7 @@ class NotifyRequestHeader(BaseHTTPServer.BaseHTTPRequestHandler):
             if not re.match('^[0-9a-fA-F]*$', txid):
                 common.debug('not a txid')
                 return
-            tx = self.btcinterface.rpc(['getrawtransaction', txid]).strip()
+            tx = self.btcinterface.rpc('getrawtransaction', [txid])
             if not re.match('^[0-9a-fA-F]*$', tx):
                 common.debug('not a txhex')
                 return
@@ -335,9 +341,8 @@ class NotifyRequestHeader(BaseHTTPServer.BaseHTTPRequestHandler):
             else:
                 jsonstr = None  #on rare occasions people spend their output without waiting for a confirm
                 for n in range(len(txd['outs'])):
-                    jsonstr = self.btcinterface.rpc(['gettxout', txid, str(n),
-                                                     'true'])
-                    if jsonstr != '':
+                    txout = self.btcinterface.rpc('gettxout', [txid, n, True])
+                    if txout is not None:
                         break
                 assert jsonstr != ''
                 txdata = json.loads(jsonstr)
@@ -398,31 +403,34 @@ class BitcoinCoreNotifyThread(threading.Thread):
 # with addresses not belonging to us
 class BitcoinCoreInterface(BlockchainInterface):
 
-    def __init__(self, bitcoin_cli_cmd, testnet=False):
+    def __init__(self, jsonRpc, network):
         super(BitcoinCoreInterface, self).__init__()
-        self.command_params = bitcoin_cli_cmd
-        if testnet:
-            self.command_params += ['-testnet']
+        self.jsonRpc = jsonRpc
+
+        blockchainInfo = self.jsonRpc.call("getblockchaininfo", [])
+        actualNet = blockchainInfo['chain']
+
+        netmap = {'main': 'mainnet', 'test': 'testnet', 'regtest': 'regtest'}
+        if netmap[actualNet] != network:
+            raise Exception('wrong network configured')
+
         self.notifythread = None
         self.txnotify_fun = []
 
     def get_wallet_name(self, wallet):
         return 'joinmarket-wallet-' + btc.dbl_sha256(wallet.keys[0][0])[:6]
 
-    def rpc(self, args):
-        try:
-            if args[0] != 'importaddress':
-                common.debug('rpc: ' + str(self.command_params + args))
-            res = subprocess.check_output(self.command_params + args)
-            return res
-        except subprocess.CalledProcessError, e:
-            raise  #something here
+    def rpc(self, method, args):
+        if method != 'importaddress':
+            common.debug('rpc: ' + method + " " + str(args))
+        res = self.jsonRpc.call(method, args)
+        return res
 
     def add_watchonly_addresses(self, addr_list, wallet_name):
         common.debug('importing ' + str(len(addr_list)) +
                      ' addresses into account ' + wallet_name)
         for addr in addr_list:
-            self.rpc(['importaddress', addr, wallet_name, 'false'])
+            self.rpc('importaddress', [addr, wallet_name, False])
         if common.config.get("BLOCKCHAIN", "blockchain_source") != 'regtest':
             print 'now restart bitcoind with -rescan'
             sys.exit(0)
@@ -439,19 +447,18 @@ class BitcoinCoreInterface(BlockchainInterface):
                 wallet_addr_list += [wallet.get_new_addr(mix_depth, forchange)
                                      for i in range(addr_req_count)]
                 wallet.index[mix_depth][forchange] = 0
-        imported_addr_list = json.loads(self.rpc(['getaddressesbyaccount',
-                                                  wallet_name]))
+        imported_addr_list = self.rpc('getaddressesbyaccount', [wallet_name])
         if not set(wallet_addr_list).issubset(set(imported_addr_list)):
             self.add_watchonly_addresses(wallet_addr_list, wallet_name)
             return
 
-        ret = self.rpc(['listtransactions', wallet_name, '1000', '0', 'true'])
+        ret = self.rpc('listtransactions', [wallet_name, 1000, 0, True])
         buf = json.loads(ret)
         txs = buf
         # If the buffer's full, check for more, until it ain't
         while len(buf) == 1000:
-            ret = self.rpc(['listtransactions', wallet_name, '1000', str(len(
-                txs)), 'true'])
+            ret = self.rpc('listtransactions', [wallet_name, 1000, len(txs),
+                                                True])
             buf = json.loads(ret)
             txs += buf
         used_addr_list = [tx['address']
@@ -501,7 +508,7 @@ class BitcoinCoreInterface(BlockchainInterface):
         st = time.time()
         wallet_name = self.get_wallet_name(wallet)
         wallet.unspent = {}
-        unspent_list = json.loads(self.rpc(['listunspent']))
+        unspent_list = self.rpc('listunspent', [])
         for u in unspent_list:
             if 'account' not in u:
                 continue
@@ -524,36 +531,30 @@ class BitcoinCoreInterface(BlockchainInterface):
         for outs in txd['outs']:
             addr = btc.script_to_address(outs['script'],
                                          common.get_addr_vbyte())
-            if self.rpc(['getaccount', addr]) != '':
+            if self.rpc('getaccount', [addr]) != '':
                 one_addr_imported = True
                 break
         if not one_addr_imported:
-            self.rpc(['importaddress', notifyaddr, 'joinmarket-notify', 'false'
-                     ])
+            self.rpc('importaddress', [notifyaddr, 'joinmarket-notify', False])
         tx_output_set = set([(sv['script'], sv['value']) for sv in txd['outs']])
         self.txnotify_fun.append((tx_output_set, unconfirmfun, confirmfun))
 
     def pushtx(self, txhex):
-        try:
-            return self.rpc(['sendrawtransaction', txhex]).strip()
-        except subprocess.CalledProcessError, e:
-            common.debug('failed pushtx, error ' + repr(e))
-            return None
+        return self.rpc('sendrawtransaction', [txhex])
 
     def query_utxo_set(self, txout):
         if not isinstance(txout, list):
             txout = [txout]
         result = []
         for txo in txout:
-            ret = self.rpc(['gettxout', txo[:64], txo[65:], 'false'])
-            if ret == '':
+            ret = self.rpc('gettxout', [txo[:64], int(txo[65:]), False])
+            if ret is None:
                 result.append(None)
             else:
-                data = json.loads(ret)
-                result.append({'value': int(Decimal(str(data['value'])) *
+                result.append({'value': int(Decimal(str(ret['value'])) *
                                             Decimal('1e8')),
-                               'address': data['scriptPubKey']['addresses'][0],
-                               'script': data['scriptPubKey']['hex']})
+                               'address': ret['scriptPubKey']['addresses'][0],
+                               'script': ret['scriptPubKey']['hex']})
         return result
 
 
@@ -563,10 +564,8 @@ class BitcoinCoreInterface(BlockchainInterface):
 #with > 100 blocks.
 class RegtestBitcoinCoreInterface(BitcoinCoreInterface):
 
-    def __init__(self, bitcoin_cli_cmd):
-        super(RegtestBitcoinCoreInterface, self).__init__(bitcoin_cli_cmd,
-                                                          False)
-        self.command_params = bitcoin_cli_cmd + ['-regtest']
+    def __init__(self, jsonRpc):
+        super(RegtestBitcoinCoreInterface, self).__init__(jsonRpc, 'regtest')
 
     def pushtx(self, txhex):
         ret = super(RegtestBitcoinCoreInterface, self).pushtx(txhex)
@@ -587,7 +586,7 @@ class RegtestBitcoinCoreInterface(BitcoinCoreInterface):
     def tick_forward_chain(self, n):
         '''Special method for regtest only;
 		instruct to mine n blocks.'''
-        self.rpc(['setgenerate', 'true', str(n)])
+        self.rpc('setgenerate', [True, n])
 
     def grab_coins(self, receiving_addr, amt=50):
         '''
@@ -603,12 +602,12 @@ class RegtestBitcoinCoreInterface(BitcoinCoreInterface):
 		if amt > self.current_balance:
 		#mine enough to get to the reqd amt
 		reqd = int(amt - self.current_balance)
-		reqd_blocks = str(int(reqd/50) +1)
-		if self.rpc(['setgenerate','true', reqd_blocks]):
+		reqd_blocks = int(reqd/50) +1
+		if self.rpc('setgenerate', [True, reqd_blocks]):
 		raise Exception("Something went wrong")
 		'''
         #now we do a custom create transaction and push to the receiver
-        txid = self.rpc(['sendtoaddress', receiving_addr, str(amt)])
+        txid = self.rpc('sendtoaddress', [receiving_addr, amt])
         if not txid:
             raise Exception("Failed to broadcast transaction")
         #confirm
@@ -620,9 +619,9 @@ class RegtestBitcoinCoreInterface(BitcoinCoreInterface):
         #allow importaddress to fail in case the address is already in the wallet
         res = []
         for address in addresses:
-            self.rpc(['importaddress', address, 'watchonly'])
+            self.rpc('importaddress', [address, 'watchonly'])
             res.append({'address':address,'balance':\
-                    int(Decimal(1e8) * Decimal(self.rpc(['getreceivedbyaddress', address])))})
+             int(Decimal(1e8) * Decimal(self.rpc('getreceivedbyaddress', [address])))})
         return {'data': res}
 
 

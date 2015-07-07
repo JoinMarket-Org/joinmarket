@@ -20,8 +20,8 @@ joinmarket_alert = None
 
 config = SafeConfigParser()
 config_location = 'joinmarket.cfg'
-required_options = {'BLOCKCHAIN':
-                    ['blockchain_source', 'network', 'bitcoin_cli_cmd'],
+required_options = {'BLOCKCHAIN': ['blockchain_source', 'network', 'rpc_host',
+                                   'rpc_port', 'rpc_user', 'rpc_password'],
                     'MESSAGING': ['host', 'channel', 'port']}
 
 defaultconfig =\
@@ -31,7 +31,10 @@ blockchain_source = blockr
 #options: blockr, json-rpc, regtest 
 #before using json-rpc read https://github.com/chris-belcher/joinmarket/wiki/Running-JoinMarket-with-Bitcoin-Core-full-node 
 network = mainnet
-bitcoin_cli_cmd = bitcoin-cli
+rpc_host = localhost
+rpc_port = 8332
+rpc_user = bitcoin
+rpc_password = password
 
 [MESSAGING]
 host = irc.cyberguerrilla.org
@@ -351,11 +354,10 @@ class BitcoinCoreWallet(AbstractWallet):
         self.max_mix_depth = 1
 
     def get_key_from_addr(self, addr):
-        return bc_interface.rpc(['dumpprivkey', addr]).strip()
+        return bc_interface.rpc('dumpprivkey', [addr])
 
     def get_utxos_by_mixdepth(self):
-        ret = bc_interface.rpc(['listunspent'])
-        unspent_list = json.loads(ret)
+        unspent_list = bc_interface.rpc('listunspent', [])
         result = {0: {}}
         for u in unspent_list:
             if not u['spendable']:
@@ -370,7 +372,7 @@ class BitcoinCoreWallet(AbstractWallet):
         return result
 
     def get_change_addr(self, mixing_depth):
-        return bc_interface.rpc(['getrawchangeaddress']).strip()
+        return bc_interface.rpc('getrawchangeaddress', [])
 
 
 def calc_cj_fee(ordertype, cjfee, cj_amount):
