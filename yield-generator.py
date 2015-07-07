@@ -114,7 +114,7 @@ class YieldGenerator(Maker):
 			mix_balance = self.wallet.get_balance_by_mixdepth()
 			filtered_mix_balance = dict([(m, b) for m, b in mix_balance.iteritems() if b > common.DUST_THRESHOLD])
 			filtered_mix_balance = sorted(list(mix_balance.iteritems()), key=lambda a: a[1], reverse=True)
-			mixdepth = filtered_mix_balance[-1][0]
+			mixdepth = filtered_mix_balance[0][0]
 		debug('filling order, mixdepth=' + str(mixdepth))
 
 		#mixdepth is the chosen depth we'll be spending from
