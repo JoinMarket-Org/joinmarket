@@ -197,7 +197,12 @@ class Maker(CoinJoinerPeer):
         self.wallet_unspent_lock = threading.Lock()
 
     def get_crypto_box_from_nick(self, nick):
-        return self.active_orders[nick].crypto_box
+        if nick not in self.active_orders:
+            debug('wrong ordering of protocol events, no crypto object, nick=' +
+                  nick)
+            return None
+        else:
+            return self.active_orders[nick].crypto_box
 
     def on_orderbook_requested(self, nick):
         self.msgchan.announce_orders(self.orderlist, nick)
@@ -242,6 +247,7 @@ class Maker(CoinJoinerPeer):
 
     def on_nick_leave(self, nick):
         if nick in self.active_orders:
+            debug('nick ' + nick + ' has left')
             del self.active_orders[nick]
 
     def modify_orders(self, to_cancel, to_announce):
