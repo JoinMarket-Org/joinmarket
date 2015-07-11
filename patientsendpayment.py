@@ -150,8 +150,6 @@ def main():
 	if not options.userpcwallet:
 		wallet = Wallet(wallet_name, options.mixdepth + 1)
 	else:
-		print 'not implemented yet'
-		sys.exit(0)
 		wallet = BitcoinCoreWallet(fromaccount = wallet_name)
 	common.bc_interface.sync_wallet(wallet)
 
