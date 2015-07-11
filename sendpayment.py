@@ -112,8 +112,10 @@ def main():
     parser = OptionParser(
         usage=
         'usage: %prog [options] [wallet file / fromaccount] [amount] [destaddr]',
-        description='Sends a single payment from the zero mixing depth of your '
-        + 'wallet to an given address using coinjoin and then switches off. ' +
+        description='Sends a single payment from a given mixing depth of your '
+        +
+        'wallet to an given address using coinjoin and then switches off. Also sends from bitcoinqt. '
+        +
         'Setting amount to zero will do a sweep, where the entire mix depth is emptied')
     parser.add_option('-f',
                       '--txfee',
