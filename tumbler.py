@@ -303,16 +303,16 @@ def main():
 
 	#a couple of modes
 	#im-running-from-the-nsa, takes about 80 hours, costs a lot
-	#python tumbler.py -a 10 -N 10 5 -c 10 5 -l 50 -M 10 seed 1xxx
+	#python tumbler.py -a 10 -N 10 5 -c 10 5 -l 50 -M 10 wallet_name.json 1xxx
 	#
 	#quick and cheap, takes about 90 minutes
-	#python tumbler.py -N 2 1 -c 3 0.001 -l 10 -M 3 -a 1 seed 1xxx
+	#python tumbler.py -N 2 1 -c 3 0.001 -l 10 -M 3 -a 1 wallet_name.json 1xxx
 	#
 	#default, good enough for most, takes about 5 hours
-	#python tumbler.py seed 1xxx
+	#python tumbler.py wallet_name.json 1xxx
 	#
 	#for quick testing
-	#python tumbler.py -N 2 1 -c 3 0.001 -l 0.1 -M 3 -a 0 seed 1xxx 1yyy
+	#python tumbler.py -N 2 1 -c 3 0.001 -l 0.1 -M 3 -a 0 wallet_name.json 1xxx 1yyy
 	wallet = Wallet(seed, max_mix_depth = options.mixdepthsrc + options.mixdepthcount)
 	common.bc_interface.sync_wallet(wallet)
 
