@@ -352,8 +352,8 @@ class NotifyRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
             common.core_alert = urllib.unquote(self.path[len(pages[1]):])
             common.debug('Got an alert!\nMessage=' + common.core_alert)
 
-        os.system('wget -q --spider --timeout=0.5 --tries=1 http://localhost:' +
-                  str(self.base_server.server_address[1] + 1) + self.path)
+        os.system('curl -sI --connect-timeout 1 http://localhost:' + str(
+            self.base_server.server_address[1] + 1) + self.path)
         self.send_response(200)
         #self.send_header('Connection', 'close')
         self.end_headers()
@@ -380,8 +380,8 @@ class BitcoinCoreNotifyThread(threading.Thread):
         common.debug('failed to bind for bitcoin core notify listening')
 
 #must run bitcoind with -server
-#-walletnotify="wget -q --spider --timeout=0.5 --tries=1 http://localhost:62602/walletnotify?%s"
-#and make sure wget is installed
+#-walletnotify="curl -sI --connect-timeout 1 http://localhost:62602/walletnotify?%s"
+#and make sure curl is installed (git uses it, odds are you've already got it)
 
 
 #TODO must add the tx addresses as watchonly if case we ever broadcast a tx
