@@ -214,7 +214,7 @@ class Tumbler(takermodule.Taker):
 		TumblerThread(self).start()
 
 def main():
-	parser = OptionParser(usage='usage: %prog [options] [wallet file / seed] [destaddr...]',
+	parser = OptionParser(usage='usage: %prog [options] [wallet file] [destaddr(s)...]',
 		description='Sends bitcoins to many different addresses using coinjoin in'
 			' an attempt to break the link between them. Sending to multiple '
 			' addresses is highly recommended for privacy. This tumbler can'
@@ -254,9 +254,9 @@ def main():
 	#TODO somehow implement a lower limit
 
 	if len(args) < 1:
-		parser.error('Needs a seed')
+		parser.error('Needs a wallet file')
 		sys.exit(0)
-	seed = args[0]
+	wallet_file = args[0]
 	destaddrs = args[1:]
 	
 	common.load_program_config()
@@ -301,19 +301,20 @@ def main():
 	if ret[0] != 'y':
 		return
 
+	#NOTE: possibly out of date documentation
 	#a couple of modes
 	#im-running-from-the-nsa, takes about 80 hours, costs a lot
-	#python tumbler.py -a 10 -N 10 5 -c 10 5 -l 50 -M 10 seed 1xxx
+	#python tumbler.py -a 10 -N 10 5 -c 10 5 -l 50 -M 10 wallet_file 1xxx
 	#
 	#quick and cheap, takes about 90 minutes
-	#python tumbler.py -N 2 1 -c 3 0.001 -l 10 -M 3 -a 1 seed 1xxx
+	#python tumbler.py -N 2 1 -c 3 0.001 -l 10 -M 3 -a 1 wallet_file 1xxx
 	#
 	#default, good enough for most, takes about 5 hours
-	#python tumbler.py seed 1xxx
+	#python tumbler.py wallet_file 1xxx
 	#
 	#for quick testing
-	#python tumbler.py -N 2 1 -c 3 0.001 -l 0.1 -M 3 -a 0 seed 1xxx 1yyy
-	wallet = Wallet(seed, max_mix_depth = options.mixdepthsrc + options.mixdepthcount)
+	#python tumbler.py -N 2 1 -c 3 0.001 -l 0.1 -M 3 -a 0 wallet_file 1xxx 1yyy
+	wallet = Wallet(wallet_file, max_mix_depth = options.mixdepthsrc + options.mixdepthcount)
 	common.bc_interface.sync_wallet(wallet)
 
 	common.nickname = random_nick()
