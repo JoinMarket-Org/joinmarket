@@ -91,19 +91,21 @@ class YieldGenerator(Maker):
 			mixdepth, balance, mins = mix_bal_min
 			#the maker class reads specific keys from the dict, but others
 			# are allowed in there and will be ignored
-			order = {'oid': oid+1, 'ordertype': 'relorder', 'minsize': mins - common.DUST_THRESHOLD + 1,
-				'maxsize': balance - common.DUST_THRESHOLD, 'txfee': txfee, 'cjfee': thecjfee[oid],
+			order = {'oid': oid+1, 'ordertype': 'relorder', 'minsize': max(mins - common.DUST_THRESHOLD, common.DUST_THRESHOLD) + 1,
+				'maxsize': max(balance - common.DUST_THRESHOLD, common.DUST_THRESHOLD), 'txfee': txfee, 'cjfee': thecjfee[oid],
 				'mixdepth': mixdepth}
 			oid += 1
 			orders.append(order)
 
 		absorder_size = min(minsize, sorted_mix_balance[0][1])
-		absorder_fee = calc_cj_fee('relorder', thecjfee[oid], minsize)
-		debug('absorder fee = ' + str(absorder_fee) + ' uses cjfee=' + str(thecjfee[oid]))
-		#the absorder is always oid=0
-		order = {'oid': 0, 'ordertype': 'absorder', 'minsize': common.DUST_THRESHOLD + 1,
-			'maxsize': absorder_size - common.DUST_THRESHOLD, 'txfee': txfee, 'cjfee': absorder_fee}
-		orders = [order] + orders
+		if absorder_size != 0:
+			lowest_cjfee = thecjfee[min(oid, len(thecjfee)-1)]
+			absorder_fee = calc_cj_fee('relorder', lowest_cjfee, minsize)
+			debug('absorder fee = ' + str(absorder_fee) + ' uses cjfee=' + str(lowest_cjfee))
+			#the absorder is always oid=0
+			order = {'oid': 0, 'ordertype': 'absorder', 'minsize': common.DUST_THRESHOLD + 1,
+				'maxsize': absorder_size - common.DUST_THRESHOLD, 'txfee': txfee, 'cjfee': absorder_fee}
+			orders = [order] + orders
 		debug('generated orders = \n' + pprint.pformat(orders))
 		return orders
 
