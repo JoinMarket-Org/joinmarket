@@ -186,8 +186,9 @@ class YieldGenerator(Maker):
 			cancel_orders = [o['oid'] for o in old_new_diff if o['oid'] not in ann_oids]
 
 		if len([o for o in self.orderlist if o['ordertype'] == 'absorder']) == 0:
-			absorder = [o for o in myorders if o['ordertype'] == 'absorder'][0]
-			ann_orders = [absorder] + ann_orders
+			absorders = [o for o in myorders if o['ordertype'] == 'absorder']
+			if len(absorders) > 0:
+				ann_orders = [absorders[0]] + ann_orders
 
 		debug('can_orders = ' + str(cancel_orders))
 		debug('ann_orders = \n' + '\n'.join([str(o) for o in ann_orders]))
