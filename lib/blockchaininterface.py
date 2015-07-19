@@ -1,7 +1,7 @@
 #from joinmarket import *
 import subprocess
 import unittest
-import json, threading, abc, pprint, time, random, sys, os
+import json, threading, abc, pprint, time, random, sys, os, re
 import BaseHTTPServer, SimpleHTTPServer, urllib
 from decimal import Decimal
 import bitcoin as btc
@@ -313,8 +313,14 @@ class NotifyRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
 
         if self.path.startswith('/walletnotify?'):
             txid = self.path[len(pages[0]):]
-            txd = btc.deserialize(self.btcinterface.rpc(['getrawtransaction',
-                                                         txid]).strip())
+            if not re.match('^[0-9a-fA-F]*$', txid):
+                debug('not a txid')
+                return
+            tx = self.btcinterface.rpc(['getrawtransaction', txid]).strip()
+            if not re.match('^[0-9a-fA-F]*$', tx):
+                debug('not a txhex')
+                return
+            txd = btc.deserialize(tx)
             tx_output_set = set([(sv['script'], sv['value']) for sv in txd[
                 'outs']])
 
