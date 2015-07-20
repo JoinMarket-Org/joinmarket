@@ -12,8 +12,22 @@ from irc import IRCMessageChannel, random_nick
 import bitcoin as btc
 
 
-#thread which does the buy-side algorithm
-# chooses which coinjoins to initiate and when
+def check_high_fee(total_fee_pc):
+    debug('total coinjoin fee = ' + str(float('%.3g' % (100.0 * total_fee_pc)))
+          + '%')
+    WARNING_THRESHOLD = 0.02  # 2%
+    if total_fee_pc > WARNING_THRESHOLD:
+        print '\n'.join(['=' * 60] * 3)
+        print 'WARNING   ' * 6
+        print '\n'.join(['=' * 60] * 1)
+        print 'OFFERED FEE IS INSANELY LARGE.' * 2
+        print '\n'.join(['=' * 60] * 1)
+        print 'WARNING   ' * 6
+        print '\n'.join(['=' * 60] * 3)
+
+
+    #thread which does the buy-side algorithm
+    # chooses which coinjoins to initiate and when
 class PaymentThread(threading.Thread):
 
     def __init__(self, taker):
@@ -49,6 +63,9 @@ class PaymentThread(threading.Thread):
                 self.taker.db, total_value, self.taker.txfee,
                 self.taker.makercount, chooseOrdersBy)
             if not self.taker.answeryes:
+                debug('total cj fee = ' + str(total_value - cjamount))
+                total_fee_pc = 1.0 * (total_value - cjamount) / cjamount
+                check_high_fee(total_fee_pc)
                 if raw_input('send with these orders? (y/n):')[0] != 'y':
                     self.finishcallback(None)
                     return
@@ -72,6 +89,8 @@ class PaymentThread(threading.Thread):
             print 'chosen orders to fill ' + str(orders) + ' totalcjfee=' + str(
                 total_cj_fee)
             if not self.taker.answeryes:
+                total_fee_pc = 1.0 * total_cj_fee / self.taker.amount
+                check_high_fee(total_fee_pc)
                 if raw_input('send with these orders? (y/n):')[0] != 'y':
                     self.finishcallback(None)
                     return
