@@ -99,7 +99,6 @@ class IRCMessageChannel(MessageChannel):
 		txb64 = base64.b64encode(txhex.decode('hex'))
 		for nick in nick_list:
 			self.__privmsg(nick, 'tx', txb64)
-			time.sleep(1) #HACK! really there should be rate limiting, see issue#31
 
 	def push_tx(self, nick, txhex):
 		txb64 = base64.b64encode(txhex.decode('hex'))
@@ -138,7 +137,6 @@ class IRCMessageChannel(MessageChannel):
 		#TODO make it send the sigs on one line if there's space
 		for s in sig_list:
 			self.__privmsg(nick, 'sig', s)
-			time.sleep(0.5) #HACK! really there should be rate limiting, see issue#31
 
 	def __pubmsg(self, message):
 		debug('>>pubmsg ' + message)
@@ -164,6 +162,7 @@ class IRCMessageChannel(MessageChannel):
 			if m==message_chunks[0]:
 				m = COMMAND_PREFIX + cmd + ' ' + m
 			self.send_raw(header + m + trailer)
+			time.sleep(1) # TODO: proper rate limiting, cf issue#31
 
 	def send_raw(self, line):
 		#if not line.startswith('PING LAG'):
