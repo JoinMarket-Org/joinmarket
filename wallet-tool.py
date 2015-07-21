@@ -125,6 +125,9 @@ elif method == 'generate' or method == 'recover':
 		else:
 			print 'Wallet not overwritten.'
 	else:
+		fd = open(walletpath, 'w')
+		fd.write(walletfile)
+		fd.close()
 		print 'saved to ' + walletname
 elif method == 'showseed':
 	hexseed = wallet.seed
