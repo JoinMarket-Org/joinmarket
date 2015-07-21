@@ -191,7 +191,9 @@ class Wallet(AbstractWallet):
 	def get_seed(self, seedarg):
 		self.path = None
 		self.index_cache = [[0, 0]]*self.max_mix_depth
-		path = os.path.join('wallets', seedarg)
+
+		path = seedarg
+
 		if not os.path.isfile(path):
 			if get_network() == 'testnet':
 				debug('seedarg interpreted as seed, only available in testnet because this probably has lower entropy')
