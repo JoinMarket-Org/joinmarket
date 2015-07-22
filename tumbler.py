@@ -270,7 +270,7 @@ def main():
         '--maxcjfee',
         type='float',
         dest='maxcjfee',
-        default=0.03,
+        default=0.01,
         help=
         'maximum coinjoin fee the tumbler is willing to pay to a single market maker. default=0.01 (1%)')
     parser.add_option(
