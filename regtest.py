@@ -1,5 +1,7 @@
 import sys
 import os, time
+data_dir = os.path.dirname(os.path.realpath(__file__))
+sys.path.insert(0, os.path.join(data_dir, 'lib'))
 import subprocess
 import unittest
 import common
@@ -35,7 +37,7 @@ def local_command(command, bg=False, redirect=''):
 	    print "OS not recognised, quitting."
     elif redirect:
 	command.extend(['>', redirect])
-    
+
     if bg:
 	return subprocess.Popen(command, stdout=subprocess.PIPE,
 	                        stderr=subprocess.PIPE, stdin=subprocess.PIPE)
@@ -68,7 +70,7 @@ class Join2PTests(unittest.TestCase):
     def run_simple_send(self, n):
         #start yield generator with wallet1
 	yigen_proc = local_command(['python','yield-generator.py', 
-	                            str(self.wallets[1]['seed'])], bg=True)
+	                            str(self.wallets[1]['seed'])],redirect=self.wallets[1]['seed'],bg=True)
 	
 	#A significant delay is needed to wait for the yield generator to sync its wallet
 	time.sleep(30)
@@ -78,7 +80,7 @@ class Join2PTests(unittest.TestCase):
 	dest_address = btc.privkey_to_address(os.urandom(32), common.get_addr_vbyte())
 	try:
 	    for i in range(n):
-		sp_proc = local_command(['python','sendpayment.py','-N','1', self.wallets[2]['seed'],\
+		sp_proc = local_command(['python','sendpayment.py','--yes','-N','1', self.wallets[2]['seed'],\
 	                                       str(amt), dest_address])
 	except subprocess.CalledProcessError, e:
 	    if yigen_proc:
@@ -95,8 +97,9 @@ class Join2PTests(unittest.TestCase):
 	#	with open(cf, 'rb') as f:
 	#	    if 'CRASHING' in f.read(): return False
 	    
-	received = common.bc_interface.get_balance_at_addr([dest_address], None)['data'][0]['balance']
-	if received != amt:
+	received = common.bc_interface.get_received_by_addr([dest_address], None)['data'][0]['balance']
+	if received != amt*n:
+	    common.debug('received was: '+str(received)+ ' but amount was: '+str(amt))
 	    return False
 	return True
     	
@@ -143,7 +146,7 @@ class JoinNPTests(unittest.TestCase):
 	amt = 100000000 #in satoshis
 	dest_address = btc.privkey_to_address(os.urandom(32), common.get_addr_vbyte())	
 	try:
-	    sp_proc = local_command(['python','sendpayment.py','-N', str(self.n),\
+	    sp_proc = local_command(['python','sendpayment.py','--yes','-N', str(self.n),\
 	                             self.wallets[self.n]['seed'], str(amt), dest_address])
 	except subprocess.CalledProcessError, e:
 	    for ygp in yigen_procs:
@@ -163,7 +166,7 @@ class JoinNPTests(unittest.TestCase):
 		#with open(cf, 'rb') as f:
 		#    if 'CRASHING' in f.read(): return False
 		    
-	received = common.bc_interface.get_balance_at_addr([dest_address], None)['data'][0]['balance']
+	received = common.bc_interface.get_received_by_addr([dest_address], None)['data'][0]['balance']
 	if received != amt:
 	    return False
 	return True	
