@@ -336,8 +336,12 @@ class BitcoinCoreNotifyThread(threading.Thread):
 		self.btcinterface = btcinterface
 
 	def run(self):
+		if 'notify_port' in common.config.options("BLOCKCHAIN"):
+			notify_port = int(common.config.get("BLOCKCHAIN","notify_port"))
+		else:
+			notify_port = 62602 #default
 		for inc in range(10):
-			hostport = ('localhost', 62602 + inc)
+			hostport = ('localhost', notify_port + inc)
 			try:
 				httpd = BaseHTTPServer.HTTPServer(hostport, NotifyRequestHeader)
 			except Exception:
@@ -378,8 +382,9 @@ class BitcoinCoreInterface(BlockchainInterface):
 		common.debug('importing ' + str(len(addr_list)) + ' addresses into account ' + wallet_name)
 		for addr in addr_list:
 			self.rpc(['importaddress', addr, wallet_name, 'false'])
-		print 'now restart bitcoind with -rescan'
-		sys.exit(0)
+		if common.config.get("BLOCKCHAIN", "blockchain_source") != 'regtest': 
+			print 'now restart bitcoind with -rescan'
+			sys.exit(0)
 
 	def sync_addresses(self, wallet):
 		if isinstance(wallet, common.BitcoinCoreWallet):
@@ -544,7 +549,17 @@ class RegtestBitcoinCoreInterface(BitcoinCoreInterface):
 			raise Exception("Failed to broadcast transaction")
 		#confirm
 		self.tick_forward_chain(1)
-		return txid        
+		return txid
+	
+	def get_received_by_addr(self, addresses, query_params):
+		#NB This will NOT return coinbase coins (but wont matter in our use case).
+		#allow importaddress to fail in case the address is already in the wallet
+		res = []
+		for address in addresses:
+			self.rpc(['importaddress', address,'watchonly'])
+			res.append({'address':address,'balance':\
+			        int(Decimal(1e8) * Decimal(self.rpc(['getreceivedbyaddress', address])))})
+		return {'data':res}	
 
 def main():
 	#TODO some useful quick testing here, so people know if they've set it up right
