@@ -445,12 +445,15 @@ class BitcoinCoreInterface(BlockchainInterface):
             self.add_watchonly_addresses(wallet_addr_list, wallet_name)
             return
 
-        #TODO get all the transactions above 1000, by looping until len(result) < 1000
         ret = self.rpc(['listtransactions', wallet_name, '1000', '0', 'true'])
-        txs = json.loads(ret)
-        if len(txs) == 1000:
-            raise Exception(
-                'time to stop putting off this bug and actually fix it, see the TODO')
+        buf = json.loads(ret)
+        txs = buf
+        # If the buffer's full, check for more, until it ain't
+        while len(buf) == 1000:
+            ret = self.rpc(['listtransactions', wallet_name, '1000', str(len(
+                txs)), 'true'])
+            buf = json.loads(ret)
+            txs += buf
         used_addr_list = [tx['address']
                           for tx in txs if tx['category'] == 'receive']
         too_few_addr_mix_change = []
