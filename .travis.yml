@@ -9,6 +9,7 @@ before_install:
  - sudo apt-get install -y automake
 install:
  - pip install numpy
+ - pip install pexpect
 script:
  - git clone git://github.com/jedisct1/libsodium.git
  - cd libsodium
@@ -31,6 +32,7 @@ script:
  - bitcoin-cli -regtest setgenerate true 101
  - cd test
  - python regtest.py
+ - python wallet-test.py
 branches:
  only:
   - master
