@@ -2,7 +2,7 @@
 import subprocess
 import unittest
 import json, threading, abc, pprint, time, random, sys, os, re
-import BaseHTTPServer, SimpleHTTPServer, urllib
+import BaseHTTPServer, urllib
 from decimal import Decimal
 import bitcoin as btc
 
@@ -270,11 +270,11 @@ class BlockrInterface(BlockchainInterface):
 		return result
 
 		
-class NotifyRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
+class NotifyRequestHeader(BaseHTTPServer.BaseHTTPRequestHandler):
 	def __init__(self, request, client_address, base_server):
 		self.btcinterface = base_server.btcinterface
 		self.base_server = base_server
-		SimpleHTTPServer.SimpleHTTPRequestHandler.__init__(self, request, client_address, base_server)
+		BaseHTTPServer.BaseHTTPRequestHandler.__init__(self, request, client_address, base_server)
 
 	def do_HEAD(self):
 		pages = ('/walletnotify?', '/alertnotify?')
