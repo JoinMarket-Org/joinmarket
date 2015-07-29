@@ -2,7 +2,7 @@
 import subprocess
 import unittest
 import json, threading, abc, pprint, time, random, sys, os, re
-import BaseHTTPServer, SimpleHTTPServer, urllib
+import BaseHTTPServer, urllib
 from decimal import Decimal
 import bitcoin as btc
 
@@ -300,12 +300,12 @@ class BlockrInterface(BlockchainInterface):
         return result
 
 
-class NotifyRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
+class NotifyRequestHeader(BaseHTTPServer.BaseHTTPRequestHandler):
 
     def __init__(self, request, client_address, base_server):
         self.btcinterface = base_server.btcinterface
         self.base_server = base_server
-        SimpleHTTPServer.SimpleHTTPRequestHandler.__init__(
+        BaseHTTPServer.BaseHTTPRequestHandler.__init__(
             self, request, client_address, base_server)
 
     def do_HEAD(self):
@@ -373,8 +373,12 @@ class BitcoinCoreNotifyThread(threading.Thread):
         self.btcinterface = btcinterface
 
     def run(self):
+        if 'notify_port' in common.config.options("BLOCKCHAIN"):
+            notify_port = int(common.config.get("BLOCKCHAIN", "notify_port"))
+        else:
+            notify_port = 62602  #default
         for inc in range(10):
-            hostport = ('localhost', 62602 + inc)
+            hostport = ('localhost', notify_port + inc)
             try:
                 httpd = BaseHTTPServer.HTTPServer(hostport, NotifyRequestHeader)
             except Exception:
@@ -419,8 +423,9 @@ class BitcoinCoreInterface(BlockchainInterface):
                      ' addresses into account ' + wallet_name)
         for addr in addr_list:
             self.rpc(['importaddress', addr, wallet_name, 'false'])
-        print 'now restart bitcoind with -rescan'
-        sys.exit(0)
+        if common.config.get("BLOCKCHAIN", "blockchain_source") != 'regtest':
+            print 'now restart bitcoind with -rescan'
+            sys.exit(0)
 
     def sync_addresses(self, wallet):
         if isinstance(wallet, common.BitcoinCoreWallet):
@@ -440,12 +445,15 @@ class BitcoinCoreInterface(BlockchainInterface):
             self.add_watchonly_addresses(wallet_addr_list, wallet_name)
             return
 
-        #TODO get all the transactions above 1000, by looping until len(result) < 1000
         ret = self.rpc(['listtransactions', wallet_name, '1000', '0', 'true'])
-        txs = json.loads(ret)
-        if len(txs) == 1000:
-            raise Exception(
-                'time to stop putting off this bug and actually fix it, see the TODO')
+        buf = json.loads(ret)
+        txs = buf
+        # If the buffer's full, check for more, until it ain't
+        while len(buf) == 1000:
+            ret = self.rpc(['listtransactions', wallet_name, '1000', str(len(
+                txs)), 'true'])
+            buf = json.loads(ret)
+            txs += buf
         used_addr_list = [tx['address']
                           for tx in txs if tx['category'] == 'receive']
         too_few_addr_mix_change = []
@@ -606,6 +614,16 @@ class RegtestBitcoinCoreInterface(BitcoinCoreInterface):
         #confirm
         self.tick_forward_chain(1)
         return txid
+
+    def get_received_by_addr(self, addresses, query_params):
+        #NB This will NOT return coinbase coins (but wont matter in our use case).
+        #allow importaddress to fail in case the address is already in the wallet
+        res = []
+        for address in addresses:
+            self.rpc(['importaddress', address, 'watchonly'])
+            res.append({'address':address,'balance':\
+                    int(Decimal(1e8) * Decimal(self.rpc(['getreceivedbyaddress', address])))})
+        return {'data': res}
 
 
 def main():

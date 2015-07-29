@@ -20,7 +20,7 @@ def check_high_fee(total_fee_pc):
         print '\n'.join(['=' * 60] * 3)
         print 'WARNING   ' * 6
         print '\n'.join(['=' * 60] * 1)
-        print 'OFFERED FEE IS INSANELY LARGE.' * 2
+        print 'OFFERED COINJOIN FEE IS UNUSUALLY HIGH. DOUBLE/TRIPLE CHECK.'
         print '\n'.join(['=' * 60] * 1)
         print 'WARNING   ' * 6
         print '\n'.join(['=' * 60] * 3)
