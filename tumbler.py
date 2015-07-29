@@ -226,7 +226,7 @@ def main():
 	parser.add_option('-f', '--txfee', type='int', dest='txfee',
 		default=10000, help='miner fee contribution, in satoshis, default=10000')
 	parser.add_option('-x', '--maxcjfee', type='float', dest='maxcjfee',
-		default=0.03, help='maximum coinjoin fee the tumbler is willing to pay to a single market maker. default=0.01 (1%)')
+		default=0.01, help='maximum coinjoin fee the tumbler is willing to pay to a single market maker. default=0.01 (1%)')
 	parser.add_option('-a', '--addrask', type='int', dest='addrask',
 		default=2, help='How many more addresses to ask for in the terminal. Should '
 			'be similar to --txcountparams. default=2')
