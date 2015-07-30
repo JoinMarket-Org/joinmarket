@@ -1,6 +1,6 @@
 import sys
 import os, time
-data_dir = os.path.dirname(os.path.realpath(__file__))
+data_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, os.path.join(data_dir, 'lib'))
 import subprocess
 import unittest
@@ -184,10 +184,8 @@ class JoinNPTests(unittest.TestCase):
 
 
 def main():
+    os.chdir(data_dir)
     common.load_program_config()
-    if not common.bc_interface:
-        print 'not there'
-        exit()
     unittest.main()
 
 
