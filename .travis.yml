@@ -1,0 +1,38 @@
+language: python
+python:
+ - "2.7_with_system_site_packages"
+before_install:
+ - sudo apt-add-repository ppa:bitcoin/bitcoin -y
+ - sudo apt-get update -q
+ - sudo apt-get install --no-install-recommends --no-upgrade -qq bitcoind
+ - sudo apt-get install -y build-essential 
+ - sudo apt-get install -y automake
+install:
+ - pip install numpy
+ - pip install pexpect
+script:
+ - git clone git://github.com/jedisct1/libsodium.git
+ - cd libsodium
+ - git checkout tags/1.0.3
+ - ./autogen.sh
+ - ./configure
+ - make check
+ - sudo make install
+ - cd ..
+#set up joinmarket.cfg
+ - cp test/regtest_joinmarket.cfg joinmarket.cfg
+#E2E encryption (libnacl) tests
+ - python lib/enc_wrapper.py
+#start bitcoin regtest daemon and 101 blocks
+ - mkdir /home/travis/.bitcoin
+ - cp test/bitcoin.conf /home/travis/.bitcoin/.
+ - chmod 600 /home/travis/.bitcoin/bitcoin.conf
+ - bitcoind -regtest -daemon 
+ - sleep 5
+ - bitcoin-cli -regtest setgenerate true 101
+ - cd test
+ - python regtest.py
+ - python wallet-test.py
+branches:
+ only:
+  - master
