@@ -84,6 +84,12 @@ def test_case(case_name,
               ba_message,
               num_iterations=1):
     for i in range(num_iterations):
+        ab_message = ''.join(
+            random.choice(string.ascii_letters)
+            for x in range(100)) if ab_message == 'rand' else ab_message
+        ba_message = ''.join(
+            random.choice(string.ascii_letters)
+            for x in range(100)) if ba_message == 'rand' else ba_message
         otw_amsg = alice_box.encrypt(ab_message)
         bob_ptext = bob_box.decrypt(otw_amsg)
         assert bob_ptext == ab_message, "Encryption test: FAILED. Alice sent: "\
@@ -96,8 +102,8 @@ def test_case(case_name,
 
     print "Encryption test PASSED for case: " + case_name
 
-#to test the encryption functionality
-if __name__ == "__main__":
+
+def test_keypair_setup():
     alice_kp = init_keypair()
     bob_kp = init_keypair()
 
@@ -112,16 +118,29 @@ if __name__ == "__main__":
 
     #now Alice and Bob can use their 'box'
     #constructs (both of which utilise the same
-    #shared secret) to perform encryption/decryption
+    #shared secret) to perform encryption/decryption    
+    #to test the encryption functionality
+    return (alice_box, bob_box)
 
+
+if __name__ == "__main__":
+
+    alice_box, bob_box = test_keypair_setup()
     test_case("short ascii", alice_box, bob_box, "Attack at dawn",
               "Not tonight Josephine!", 5)
 
     import base64, string, random
+    alice_box, bob_box = test_keypair_setup()
     longb641 = base64.b64encode(''.join(random.choice(string.ascii_letters)
                                         for x in range(5000)))
     longb642 = base64.b64encode(''.join(random.choice(string.ascii_letters)
                                         for x in range(5000)))
     test_case("long b64", alice_box, bob_box, longb641, longb642, 5)
-
+    #test a large number of messages on the same connection
+    alice_box, bob_box = test_keypair_setup()
+    test_case("endless_wittering", alice_box, bob_box, 'rand', 'rand', 40000)
+    #edge cases
+    #1 character
+    alice_box, bob_box = test_keypair_setup()
+    test_case("1 char", alice_box, bob_box, '\x00', '\x00', 5)
     print "All test cases passed - encryption and decryption should work correctly."
