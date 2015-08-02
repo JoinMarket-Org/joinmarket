@@ -3,8 +3,9 @@ from common import *
 from message_channel import MessageChannel
 from message_channel import CJPeerError
 
+import string, random
 import socket, threading, time, ssl, socks
-import base64, os, urllib2, re
+import base64, os, re
 import enc_wrapper
 
 MAX_PRIVMSG_LEN = 400
@@ -14,17 +15,12 @@ PING_TIMEOUT = 30
 encrypted_commands = ["auth", "ioauth", "tx", "sig"]
 plaintext_commands = ["fill", "error", "pubkey", "orderbook", "relorder", "absorder", "push"]
 
-def random_nick():
-	random_article_url = 'http://en.wikipedia.org/wiki/Special:Random'
-	page = urllib2.urlopen(random_article_url).read()
-	page_title = page[page.index('<title>') + 7 : page.index('</title>')]
-	title = page_title[:page_title.index(' - Wikipedia')]
-	ircnick = ''.join([s.capitalize() for s in re.split('\\W+', title)])
-	if re.match('\\d', ircnick[0]):
-		ircnick = '_' + ircnick
-	ircnick = ircnick[:9]
-	print 'Generated random nickname: ' + ircnick #not using debug because it might not know the logfile name at this point
-	return ircnick
+def random_nick(size=9, chars=string.ascii_uppercase + string.ascii_lowercase + string.digits):
+        ircnick = ''.join(random.choice(chars) for _ in range(size))
+        if re.match('\\d', ircnick[0-9]):
+	        ircnick = '_' + ircnick
+        print 'Generated random nickname: ' + ircnick #not using debug because it might not know the logfile name at this point
+        return ircnick
 
 def get_irc_text(line):
 	return line[line[1:].find(':') + 2:]
