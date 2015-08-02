@@ -46,7 +46,7 @@ class CoinJoinTX(object):
 		my_btc_addr = self.input_utxos.itervalues().next()['address']
 		my_btc_priv = self.wallet.get_key_from_addr(my_btc_addr)
 		my_btc_pub = btc.privtopub(my_btc_priv)
-		my_btc_sig = btc.ecdsa_sign(self.kp.hex_pk(), my_btc_priv)
+		my_btc_sig = btc.der_encode_sig(*btc.ecdsa_raw_sign(btc.bin_dbl_sha256(self.kp.hex_pk()), my_btc_priv))
 		self.msgchan.send_auth(nick, my_btc_pub, my_btc_sig)
 	
 	def auth_counterparty(self, nick, btc_sig, cj_pub):
@@ -54,7 +54,7 @@ class CoinJoinTX(object):
 		address/pubkey that will be used for coinjoining 
 		with an ecdsa verification.'''
 		#crypto_boxes[nick][0] = maker_pubkey
-		if not btc.ecdsa_verify(self.crypto_boxes[nick][0], btc_sig, cj_pub):
+                if not btc.ecdsa_raw_verify(btc.bin_dbl_sha256(self.crypto_boxes[nick][0]), btc.der_decode_sig(btc_sig), cj_pub):
 			print 'signature didnt match pubkey and message'
 			return False
 		return True

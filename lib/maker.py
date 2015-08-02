@@ -59,7 +59,7 @@ class CoinJoinOrder(object):
 	def auth_counterparty(self, nick, i_utxo_pubkey, btc_sig):
 		self.i_utxo_pubkey = i_utxo_pubkey
 		
-		if not btc.ecdsa_verify(self.taker_pk, btc_sig, self.i_utxo_pubkey):
+		if not btc.ecdsa_raw_verify(btc.bin_dbl_sha256(self.taker_pk), btc.der_decode_sig(btc_sig), self.i_utxo_pubkey):
 			print 'signature didnt match pubkey and message'
 			return False
 		#authorisation of taker passed 
@@ -68,7 +68,7 @@ class CoinJoinOrder(object):
 		#TODO the next 2 lines are a little inefficient.
 		btc_key = self.maker.wallet.get_key_from_addr(self.cj_addr)
 		btc_pub = btc.privtopub(btc_key)
-		btc_sig = btc.ecdsa_sign(self.kp.hex_pk(), btc_key)
+                btc_sig = btc.der_encode_sig(*btc.ecdsa_raw_sign(btc.bin_dbl_sha256(self.kp.hex_pk()), btc_key))
 		self.maker.msgchan.send_ioauth(nick, self.utxos.keys(), btc_pub, self.change_addr, btc_sig)
 		return True
 	
