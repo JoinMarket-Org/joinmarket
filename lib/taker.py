@@ -139,19 +139,30 @@ class CoinJoinTX(object):
     def add_signature(self, sigb64):
         sig = base64.b64decode(sigb64).encode('hex')
         inserted_sig = False
-        tx = btc.serialize(self.latest_tx)
+        txhex = btc.serialize(self.latest_tx)
+
+        #batch retrieval of utxo data
+        utxo = {}
+        ctr = 0
         for index, ins in enumerate(self.latest_tx['ins']):
-            if ins['script'] != '':
+            utxo_for_checking = ins['outpoint']['hash'] + ':' + str(ins[
+                'outpoint']['index'])
+            if ins['script'] != '' or utxo_for_checking in self.input_utxos.keys(
+            ):
                 continue
-            utxo = ins['outpoint']['hash'] + ':' + str(ins['outpoint']['index'])
-            utxo_data = common.bc_interface.query_utxo_set(utxo)
-            if utxo_data[0] == None:
+            utxo[ctr] = [index, utxo_for_checking]
+            ctr += 1
+        utxo_data = common.bc_interface.query_utxo_set([x[1]
+                                                        for x in utxo.values()])
+        #insert signatures
+        for i, u in utxo.iteritems():
+            if utxo_data[i] == None:
                 continue
-            sig_good = btc.verify_tx_input(tx, index, utxo_data[0]['script'], *
-                                           btc.deserialize_script(sig))
+            sig_good = btc.verify_tx_input(txhex, u[0], utxo_data[i]['script'],
+                                           *btc.deserialize_script(sig))
             if sig_good:
-                debug('found good sig at index=%d' % (index))
-                ins['script'] = sig
+                debug('found good sig at index=%d' % (u[0]))
+                self.latest_tx['ins'][u[0]]['script'] = sig
                 inserted_sig = True
                 break
         if not inserted_sig:
