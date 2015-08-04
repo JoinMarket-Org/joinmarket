@@ -8,18 +8,61 @@ import bitcoin as btc
 import common
 import jsonrpc
 
+# This can be removed once CliJsonRpc is gone.
+import subprocess
+
+class CliJsonRpc(object):
+    """
+    Fake JsonRpc class that uses the Bitcoin CLI executable.  This is used
+    as temporary fall back before we switch completely (and exclusively)
+    to the real JSON-RPC interface.
+    """
+
+    def __init__(self, cli, testnet):
+	self.cli = cli
+	if testnet:
+	    self.cli.append("-testnet")
+
+    def call(self, method, params):
+	fullCall = []
+	fullCall.extend (self.cli)
+	fullCall.append (method)
+	for p in params:
+	    if isinstance(p, basestring):
+		fullCall.append(p)
+	    else:
+		fullCall.append(json.dumps(p))
+
+	res = subprocess.check_output(fullCall)
+
+	if res == '':
+	    return None
+
+	try:
+	    return json.loads (res)
+	except ValueError:
+	    return res
+
 def get_blockchain_interface_instance(config):
 	source = config.get("BLOCKCHAIN", "blockchain_source")
-	rpc_host = config.get("BLOCKCHAIN", "rpc_host")
-	rpc_port = config.get("BLOCKCHAIN", "rpc_port")
-	rpc_user = config.get("BLOCKCHAIN", "rpc_user")
-	rpc_password = config.get("BLOCKCHAIN", "rpc_password")
 	network = common.get_network()
 	testnet = network=='testnet'
-	if source == 'json-rpc':
+	if source == 'json-rpc-socket':
+		rpc_host = config.get("BLOCKCHAIN", "rpc_host")
+		rpc_port = config.get("BLOCKCHAIN", "rpc_port")
+		rpc_user = config.get("BLOCKCHAIN", "rpc_user")
+		rpc_password = config.get("BLOCKCHAIN", "rpc_password")
 		rpc = jsonrpc.JsonRpc(rpc_host, rpc_port, rpc_user, rpc_password)
 		bc_interface = BitcoinCoreInterface(rpc, network)
+	elif source == 'json-rpc':
+		bitcoin_cli_cmd = config.get("BLOCKCHAIN", "bitcoin_cli_cmd").split(' ')
+		rpc = CliJsonRpc(bitcoin_cli_cmd, testnet)
+		bc_interface = BitcoinCoreInterface(rpc, network)
 	elif source == 'regtest':
+		rpc_host = config.get("BLOCKCHAIN", "rpc_host")
+		rpc_port = config.get("BLOCKCHAIN", "rpc_port")
+		rpc_user = config.get("BLOCKCHAIN", "rpc_user")
+		rpc_password = config.get("BLOCKCHAIN", "rpc_password")
 		rpc = jsonrpc.JsonRpc(rpc_host, rpc_port, rpc_user, rpc_password)
 		bc_interface = RegtestBitcoinCoreInterface(rpc)
 	elif source == 'blockr':
@@ -411,14 +454,12 @@ class BitcoinCoreInterface(BlockchainInterface):
 			self.add_watchonly_addresses(wallet_addr_list, wallet_name)
 			return
 
-		ret = self.rpc('listtransactions', [wallet_name, 1000, 0, True])
-		buf = json.loads(ret)
+		buf = self.rpc('listtransactions', [wallet_name, 1000, 0, True])
 		txs = buf
 		# If the buffer's full, check for more, until it ain't
 		while len(buf) == 1000:
-			ret = self.rpc('listtransactions', [wallet_name, 1000,
+			buf = self.rpc('listtransactions', [wallet_name, 1000,
 					len(txs), True])
-			buf = json.loads(ret)
 			txs += buf
 		used_addr_list = [tx['address'] for tx in txs if tx['category'] == 'receive']
 		too_few_addr_mix_change = []
