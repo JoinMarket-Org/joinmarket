@@ -9,7 +9,6 @@ from common import *
 from irc import IRCMessageChannel, random_nick
 
 from optparse import OptionParser
-import numpy as np
 from pprint import pprint
 
 orderwaittime = 10
@@ -26,19 +25,20 @@ def generate_tumbler_tx(destaddrs, options):
 
 	#txcounts for going completely from one mixdepth to the next
 	# follows a normal distribution
-	txcounts = np.random.normal(options.txcountparams[0],
+	txcounts = rand_norm_array(options.txcountparams[0],
 		options.txcountparams[1], options.mixdepthcount)
 	txcounts = lower_bounded_int(txcounts, 1)
 	tx_list = []
 	for m, txcount in enumerate(txcounts):
 		#assume that the sizes of outputs will follow a power law
-		amount_fractions = 1.0 - np.random.power(options.amountpower, txcount)
-		amount_fractions /= sum(amount_fractions)
+		amount_fractions = rand_pow_array(options.amountpower, txcount)
+		amount_fractions = [1.0 - x for x in amount_fractions]
+		amount_fractions = [x/sum(amount_fractions) for x in amount_fractions]
 		#transaction times are uncorrelated
 		#time between events in a poisson process followed exp
-		waits = np.random.exponential(options.timelambda, txcount)
+		waits = rand_exp_array(options.timelambda, txcount)
 		#number of makers to use follows a normal distribution
-		makercounts = np.random.normal(options.makercountrange[0], options.makercountrange[1], txcount)
+		makercounts = rand_norm_array(options.makercountrange[0], options.makercountrange[1], txcount)
 		makercounts = lower_bounded_int(makercounts, 2)
 		for amount_fraction, wait, makercount in zip(amount_fractions, waits, makercounts):
 			tx = {'amount_fraction': amount_fraction, 'wait': round(wait, 2),
@@ -148,7 +148,7 @@ class TumblerThread(threading.Thread):
 			total_amount = amount + total_cj_fee + self.taker.txfee
 			debug('total amount spent = ' + str(total_amount))
 
-			utxos = self.taker.wallet.select_utxos(tx['srcmixdepth'], amount)
+			utxos = self.taker.wallet.select_utxos(tx['srcmixdepth'], total_amount)
 			self.taker.start_cj(self.taker.wallet, amount, orders, utxos, destaddr,
 				changeaddr, self.taker.txfee, self.finishcallback)
 

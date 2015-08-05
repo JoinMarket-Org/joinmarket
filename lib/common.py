@@ -1,9 +1,9 @@
 
 import bitcoin as btc
 from decimal import Decimal, InvalidOperation
-from math import factorial
+from math import factorial, exp
 import sys, datetime, json, time, pprint, threading, getpass
-import numpy as np
+import random
 import blockchaininterface, slowaes
 from ConfigParser import SafeConfigParser
 import os, io, itertools
@@ -89,6 +89,39 @@ def debug(msg):
 		print outmsg
 		if nickname: #debugs before creating bot nick won't be handled like this
 			debug_file_handle.write(outmsg + '\r\n')
+			
+
+#Random functions - replacing some NumPy features
+#NOTE THESE ARE NEITHER CRYPTOGRAPHICALLY SECURE 
+#NOR PERFORMANT NOR HIGH PRECISION!
+#Only for sampling purposes
+def rand_norm_array(mu, sigma, n):
+	#use normalvariate instead of gauss for thread safety
+	return [random.normalvariate(mu, sigma) for i in range(n)]
+
+def rand_exp_array(lamda, n):
+	#'lambda' is reserved (in case you are triggered by spelling errors)
+	return [random.expovariate(lamda) for i in range(n)]
+
+def rand_pow_array(power, n):
+	#rather crude in that uses a uniform sample which is a multiple of 1e-4
+	#for basis of formula, see: http://mathworld.wolfram.com/RandomNumber.html
+	return [y**(1.0/power) for y in [x*0.0001 for x in random.sample(xrange(10000),n)]]
+
+def rand_weighted_choice(n, p_arr):
+	'''Choose a value in 0..n-1
+	with the choice weighted by the probabilities
+	in the list p_arr. Note that there will be some
+	floating point rounding errors, but see the note
+	at the top of this section.'''
+	if abs(sum(p_arr)-1.0) > 1e-4:
+		raise ValueError("Sum of probabilities must be 1")
+	if len(p_arr) != n:
+		raise ValueError("Need: "+str(n)+" probabilities.")
+	cum_pr = [sum(p_arr[:i+1]) for i in xrange(len(p_arr))]
+	r = random.random()
+	return sorted(cum_pr+[r]).index(r)
+#End random functions
 
 def chunks(d, n):
 	return [d[x: x+n] for x in xrange(0, len(d), n)]
@@ -362,15 +395,15 @@ def weighted_order_choose(orders, n, feekey):
 		phi = feekey(orders[M]) - minfee
 	else:
 		phi = feekey(orders[-1]) - minfee
-	fee = np.array([feekey(o) for o in orders])
-	debug('phi=' + str(phi) + ' fee=' + str(fee))
+	fee = [feekey(o) for o in orders]
+	debug('phi=' + str(phi) + ' fee=' + ','.join([str(f) for f in fee]))
 	if phi > 0:
-		weight = np.exp(-(1.0*fee - minfee) / phi)
+		weight = [exp(-(1.0*f - minfee)/phi) for f in fee]
 	else:
-		weight = np.ones_like(fee, dtype=np.float)
-	weight /= sum(weight)
+		weight = [1.0]*len(fee)
+	weight = [x/sum(weight) for x in weight]
 	debug('randomly choosing orders with weighting\n' + pprint.pformat(zip(orders, weight)))
-	chosen_order_index = np.random.choice(len(orders), p=weight)
+	chosen_order_index = rand_weighted_choice(len(orders), weight)
 	return orders[chosen_order_index]
 
 def cheapest_order_choose(orders, n, feekey):
