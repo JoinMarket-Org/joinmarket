@@ -7,7 +7,7 @@ import blockchaininterface, slowaes
 from ConfigParser import SafeConfigParser
 import os, io, itertools
 
-JM_VERSION = 1
+JM_VERSION = 2
 nickname = ''
 DUST_THRESHOLD = 546
 bc_interface = None
