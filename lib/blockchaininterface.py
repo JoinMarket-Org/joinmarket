@@ -282,11 +282,11 @@ class NotifyRequestHeader(BaseHTTPServer.BaseHTTPRequestHandler):
 		if self.path.startswith('/walletnotify?'):
 			txid = self.path[len(pages[0]):]
 			if not re.match('^[0-9a-fA-F]*$', txid):
-				debug('not a txid')
+				common.debug('not a txid')
 				return
 			tx = self.btcinterface.rpc(['getrawtransaction', txid]).strip()
 			if not re.match('^[0-9a-fA-F]*$', tx):
-				debug('not a txhex')
+				common.debug('not a txhex')
 				return
 			txd = btc.deserialize(tx)
 			tx_output_set = set([(sv['script'], sv['value']) for sv in txd['outs']])
