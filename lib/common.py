@@ -335,7 +335,7 @@ class BitcoinCoreWallet(AbstractWallet):
 def calc_cj_fee(ordertype, cjfee, cj_amount):
 	real_cjfee = None
 	if ordertype == 'absorder':
-		real_cjfee = int(cjfee)
+		real_cjfee = float(cjfee)
 	elif ordertype == 'relorder':
 		real_cjfee = int((Decimal(cjfee) * Decimal(cj_amount)).quantize(Decimal(1)))
 	else:
