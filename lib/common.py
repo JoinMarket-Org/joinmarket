@@ -1,6 +1,6 @@
 
 import bitcoin as btc
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from math import factorial
 import sys, datetime, json, time, pprint, threading, getpass
 import numpy as np
