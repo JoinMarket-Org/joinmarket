@@ -226,27 +226,39 @@ class OrderbookWatch(CoinJoinerPeer):
 
     def on_order_seen(self, counterparty, oid, ordertype, minsize, maxsize,
                       txfee, cjfee):
-        if int(oid) < 0 or int(oid) > sys.maxint:
-            debug("Got invalid order: " + oid + " from " + counterparty)
-            return
-        if int(minsize) < 0 or int(minsize) > 21 * 10**14:
-            debug("Got invalid minsize: " + minsize + " from " + counterparty)
-            return
-        if int(maxsize) < 0 or int(maxsize) > 21 * 10**14:
-            debug("Got invalid maxsize: " + maxsize + " from " + counterparty)
-            return
-        if int(txfee) < 0:
-            debug("Got invalid txfee: " + txfee + " from " + counterparty)
-            return
-        if int(minsize) > int(maxsize):
-            debug("Got minsize bigger than maxsize: " + minsize + " - " +
-                  maxsize + " from " + counterparty)
-            return
-        self.db.execute("DELETE FROM orderbook WHERE counterparty=? AND oid=?;",
-                        (counterparty, oid))
-        self.db.execute(
-            'INSERT INTO orderbook VALUES(?, ?, ?, ?, ?, ?, ?);',
-            (counterparty, oid, ordertype, minsize, maxsize, txfee, cjfee))
+        try:
+            if int(oid) < 0 or int(oid) > sys.maxint:
+                debug("Got invalid order ID: " + oid + " from " + counterparty)
+                return
+            # delete orders eagerly, so in case a buggy maker sends an invalid offer,
+            # we won't accidentally !fill based on the ghost of its previous message.
+            self.db.execute(
+                "DELETE FROM orderbook WHERE counterparty=? AND oid=?;",
+                (counterparty, oid))
+            # now validate the remaining fields
+            if int(minsize) < 0 or int(minsize) > 21 * 10**14:
+                debug("Got invalid minsize: " + minsize + " from " +
+                      counterparty)
+                return
+            if int(maxsize) < 0 or int(maxsize) > 21 * 10**14:
+                debug("Got invalid maxsize: " + maxsize + " from " +
+                      counterparty)
+                return
+            if int(txfee) < 0:
+                debug("Got invalid txfee: " + txfee + " from " + counterparty)
+                return
+            if int(minsize) > int(maxsize):
+                debug("Got minsize bigger than maxsize: " + minsize + " - " +
+                      maxsize + " from " + counterparty)
+                return
+            self.db.execute(
+                'INSERT INTO orderbook VALUES(?, ?, ?, ?, ?, ?, ?);',
+                (counterparty, oid, ordertype, minsize, maxsize, txfee,
+                 str(Decimal(cjfee))))  # any parseable Decimal is a valid cjfee
+        except InvalidOperation:
+            debug("Got invalid cjfee: " + cjfee + " from " + counterparty)
+        except:
+            debug("Error parsing order " + oid + " from " + counterparty)
 
     def on_order_cancel(self, counterparty, oid):
         self.db.execute("DELETE FROM orderbook WHERE counterparty=? AND oid=?;",
