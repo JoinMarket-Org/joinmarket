@@ -40,7 +40,7 @@ port = 6697
 usessl = true
 socks5 = false
 socks5_host = localhost
-socks5_port = 9150
+socks5_port = 9050
 #for tor
 #host = 6dvj6v5imhny3anf.onion
 #port = 6697
