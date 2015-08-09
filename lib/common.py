@@ -337,11 +337,15 @@ def calc_cj_fee(ordertype, cjfee, cj_amount):
         if ordertype == 'absorder':
                 try:
                         real_cjfee = int(cjfee)
-                except ValueError as e:
+                except Exception as e:
                         debug("WARN: calc_cf_fee error: (" + str(e) + ") - setting invalid cjfee to 1000 BTC then continuing... ")
                         real_cjfee = int(100000000000)
         elif ordertype == 'relorder':
-                real_cjfee = int((Decimal(cjfee) * Decimal(cj_amount)).quantize(Decimal(1)))
+        	try:
+                	real_cjfee = int((Decimal(cjfee) * Decimal(cj_amount)).quantize(Decimal(1)))
+                except Exception as e:
+                	debug("WARN: calc_cf_fee error: (" + str(e) + ") - setting invalid cjfee to 1000 BTC then continuing... ")
+                        real_cjfee = int(100000000000)
         else:
                 raise RuntimeError('unknown order type: ' + str(ordertype))
         return real_cjfee
