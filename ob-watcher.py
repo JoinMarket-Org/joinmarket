@@ -1,5 +1,4 @@
 import BaseHTTPServer, SimpleHTTPServer, threading
-from decimal import Decimal
 import urllib2
 import io, base64, time, sys, os
 data_dir = os.path.dirname(os.path.realpath(__file__))
