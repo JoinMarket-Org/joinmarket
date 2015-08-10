@@ -318,7 +318,7 @@ class BitcoinCoreWallet(AbstractWallet):
 		self.max_mix_depth = 1
 
 	def get_key_from_addr(self, addr):
-		return bc_interface.rpc('dumpprivkey', [addr])
+		return bc_interface.rpc('dumpprivkey', [addr]).strip()
 
 	def get_utxos_by_mixdepth(self):
 		unspent_list = bc_interface.rpc('listunspent', [])
@@ -333,7 +333,7 @@ class BitcoinCoreWallet(AbstractWallet):
 		return result
 
 	def get_change_addr(self, mixing_depth):
-		return bc_interface.rpc('getrawchangeaddress', [])
+		return bc_interface.rpc('getrawchangeaddress', []).strip()
 
 def calc_cj_fee(ordertype, cjfee, cj_amount):
 	real_cjfee = None
