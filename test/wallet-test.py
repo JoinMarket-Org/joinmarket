@@ -5,18 +5,11 @@ sys.path.insert(0, os.path.join(data_dir, 'lib'))
 import subprocess
 import unittest
 import common
+import commontest
 from blockchaininterface import *
 import bitcoin as btc
 import binascii
 import pexpect
-
-
-def interact(process, inputs, expected):
-    if len(inputs) != len(expected):
-        raise Exception("Invalid inputs to interact()")
-    for i, inp in enumerate(inputs):
-        process.expect(expected[i])
-        process.sendline(inp)
 
 
 class TestWalletCreation(unittest.TestCase):
@@ -42,7 +35,7 @@ class TestWalletCreation(unittest.TestCase):
                         'Input wallet file name']
             testlog = open('test/testlog-' + pwd, 'wb')
             p = pexpect.spawn('python wallet-tool.py generate', logfile=testlog)
-            interact(p, test_in, expected)
+            commontest.interact(p, test_in, expected)
             p.expect('saved to')
             #time.sleep(2)
             p.close()
@@ -82,7 +75,7 @@ class TestWalletRecovery(unittest.TestCase):
                         'Reenter wallet encryption passphrase:',
                         'Input wallet file name']
             test_in = [seed, 'abc123', 'abc123', 'test_recover_wallet.json']
-            interact(p, test_in, expected)
+            commontest.interact(p, test_in, expected)
             p.expect('saved to')
             p.close()
             testlog.close()
