@@ -218,7 +218,12 @@ class Wallet(AbstractWallet):
 			try:
 				decrypted_seed = slowaes.decryptData(password_key, encrypted_seed
 					.decode('hex')).encode('hex')
-				decrypted = True
+				#there is a small probability of getting a valid PKCS7 padding
+				#by chance from a wrong password; sanity check the seed length
+				if len(decrypted_seed) == 32:
+					decrypted = True
+				else:
+					raise ValueError
 			except ValueError:
 				print 'Incorrect password'
 				decrypted = False
