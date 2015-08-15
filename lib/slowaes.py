@@ -29,6 +29,8 @@ def strip_PKCS7_padding(s):
     numpads = ord(s[-1])
     if numpads > 16:
         raise ValueError("String ending with %r can't be PCKS7-padded" % s[-1])
+    if not all(numpads == x for x in map(ord, s[-numpads:-1])):
+        raise ValueError("Invalid PKCS7 padding")
     return s[:-numpads]
 
 
