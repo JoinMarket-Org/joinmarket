@@ -5,11 +5,15 @@ sys.path.insert(0, os.path.join(data_dir, 'lib'))
 import subprocess
 import unittest
 import common
+import commontest
 from blockchaininterface import *
 import bitcoin as btc
 import binascii
 
-'''Expectations
+''' Just some random thoughts to motivate possible tests;
+almost none of this has really been done:
+
+Expectations
 1. Any bot should run indefinitely irrespective of the input
 messages it receives, except bots which perform a finite action
 
@@ -39,8 +43,8 @@ def local_command(command, bg=False, redirect=''):
 	command.extend(['>', redirect])
 
     if bg:
-	return subprocess.Popen(command, stdout=subprocess.PIPE,
-	                        stderr=subprocess.PIPE, stdin=subprocess.PIPE)
+	FNULL = open(os.devnull,'w')
+	return subprocess.Popen(command, stdout=FNULL, stderr=subprocess.STDOUT, close_fds=True)
     else:
 	#in case of foreground execution, we can use the output; if not
 	#it doesn't matter
@@ -49,38 +53,33 @@ def local_command(command, bg=False, redirect=''):
 
 	
 class Join2PTests(unittest.TestCase):
+    '''This test case intends to simulate
+    a single join with a single counterparty. In that sense,
+    it's not realistic, because nobody (should) do joins with only 1 maker, 
+    but this test has the virtue of being the simplest possible thing 
+    that JoinMarket can do. '''
     def setUp(self):
         #create 2 new random wallets.
-        #put 100 coins into the first receive address
+        #put 10 coins into the first receive address
         #to allow that bot to start.
-        seed1, seed2 = [binascii.hexlify(x) for x in [os.urandom(15), os.urandom(15)]]
-        self.wallets = {}
-        wallet1 =  common.Wallet(seed1)
-        wallet2 = common.Wallet(seed2)
-        self.wallets[1] = {'seed':seed1,'wallet':wallet1}
-        self.wallets[2] = {'seed':seed2,'wallet':wallet2}
-        #get first address in each wallet
-        addr1 = wallet1.get_receive_addr(0)
-	common.debug("address for wallet1: "+addr1)
-        addr2 = wallet2.get_receive_addr(0)
-	common.debug("address for wallet2: "+addr2)
-        common.bc_interface.grab_coins(addr1,10)
-        common.bc_interface.grab_coins(addr2,10)
+	self.wallets = commontest.make_wallets(2, 
+	            wallet_structures=[[1,0,0,0,0],[1,0,0,0,0]], mean_amt=10)
         
-    def run_simple_send(self, n):
+        
+    def run_simple_send(self, n, m):
         #start yield generator with wallet1
 	yigen_proc = local_command(['python','yield-generator.py', 
-	                            str(self.wallets[1]['seed'])],redirect=self.wallets[1]['seed'],bg=True)
+	                            str(self.wallets[0]['seed'])],bg=True)
 	
 	#A significant delay is needed to wait for the yield generator to sync its wallet
 	time.sleep(30)
 	
 	#run a single sendpayment call with wallet2
-	amt = 100000000 #in satoshis
+	amt = n*100000000 #in satoshis
 	dest_address = btc.privkey_to_address(os.urandom(32), common.get_addr_vbyte())
 	try:
-	    for i in range(n):
-		sp_proc = local_command(['python','sendpayment.py','--yes','-N','1', self.wallets[2]['seed'],\
+	    for i in range(m):
+		sp_proc = local_command(['python','sendpayment.py','--yes','-N','1', self.wallets[1]['seed'],\
 	                                       str(amt), dest_address])
 	except subprocess.CalledProcessError, e:
 	    if yigen_proc:
@@ -91,20 +90,15 @@ class Join2PTests(unittest.TestCase):
 
 	if yigen_proc:
 	    yigen_proc.terminate()
-	
-	#for cf in [self.wallets[1]['seed']+'_yieldgen.out', self.wallets[2]['seed']+'_send.out']:
-	#    if os.path.isfile(cf):
-	#	with open(cf, 'rb') as f:
-	#	    if 'CRASHING' in f.read(): return False
-	    
+	 
 	received = common.bc_interface.get_received_by_addr([dest_address], None)['data'][0]['balance']
-	if received != amt*n:
+	if received != amt*m:
 	    common.debug('received was: '+str(received)+ ' but amount was: '+str(amt))
 	    return False
 	return True
     	
     def test_simple_send(self):
-        self.failUnless(self.run_simple_send(2))
+        self.failUnless(self.run_simple_send(2, 2))
 	
 
 class JoinNPTests(unittest.TestCase):
@@ -114,17 +108,9 @@ class JoinNPTests(unittest.TestCase):
         #create n+1 new random wallets.
         #put 10 coins into the first receive address
         #to allow that bot to start.
-	seeds = map(None, *([iter(os.urandom((self.n+1)*15))]*15))
-	
-        seeds = [binascii.hexlify(''.join(x)) for x in seeds]
-        self.wallets = {}
-	for i, seed in enumerate(seeds):
-	    self.wallets[i] = {'seed':seed, 'wallet':common.Wallet(seed)}
-
-        #get first address in each wallet
-	for i in self.wallets.keys():
-	    common.bc_interface.grab_coins(self.wallets[i]['wallet'].get_receive_addr(0), amt=10)
-	    
+	wallet_structures = [[1,0,0,0,0]]*3
+	self.wallets = commontest.make_wallets(3, wallet_structures=wallet_structures,
+	                                       mean_amt=10)
 	#the sender is wallet (n+1), i.e. index wallets[n]
     
 	
@@ -158,13 +144,6 @@ class JoinNPTests(unittest.TestCase):
 	if any(yigen_procs):
 	    for ygp in yigen_procs:
 		ygp.kill()
-	
-	crash_files = [self.wallets[i]['seed']+'_yieldgen.out' for i in range(self.n)]
-	crash_files.append(self.wallets[self.n]['seed']+'_send.out')
-	for cf in crash_files:
-	    if os.path.isfile(cf): return False
-		#with open(cf, 'rb') as f:
-		#    if 'CRASHING' in f.read(): return False
 		    
 	received = common.bc_interface.get_received_by_addr([dest_address], None)['data'][0]['balance']
 	if received != amt:
