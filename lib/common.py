@@ -29,8 +29,8 @@ defaultconfig =\
 """
 [BLOCKCHAIN]
 blockchain_source = blockr 
-#options: blockr, json-rpc, json-rpc-socket, regtest
-#before using json-rpc read https://github.com/chris-belcher/joinmarket/wiki/Running-JoinMarket-with-Bitcoin-Core-full-node 
+#options: blockr, bitcoin-rpc, json-rpc, regtest
+#for instructions on bitcoin-rpc read https://github.com/chris-belcher/joinmarket/wiki/Running-JoinMarket-with-Bitcoin-Core-full-node 
 network = mainnet
 rpc_host = localhost
 rpc_port = 8332

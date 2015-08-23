@@ -41,13 +41,13 @@ class CliJsonRpc(object):
 	try:
 	    return json.loads (res)
 	except ValueError:
-	    return res
+	    return res.strip()
 
 def get_blockchain_interface_instance(config):
 	source = config.get("BLOCKCHAIN", "blockchain_source")
 	network = common.get_network()
 	testnet = network=='testnet'
-	if source == 'json-rpc-socket':
+	if source == 'bitcoin-rpc':
 		rpc_host = config.get("BLOCKCHAIN", "rpc_host")
 		rpc_port = config.get("BLOCKCHAIN", "rpc_port")
 		rpc_user = config.get("BLOCKCHAIN", "rpc_user")
@@ -349,13 +349,12 @@ class NotifyRequestHeader(BaseHTTPServer.BaseHTTPRequestHandler):
 			if unconfirmfun == None:
 				common.debug('txid=' + txid + ' not being listened for')
 			else:
-				jsonstr = None #on rare occasions people spend their output without waiting for a confirm
+				txdata = None #on rare occasions people spend their output without waiting for a confirm
 				for n in range(len(txd['outs'])):
-					txout = self.btcinterface.rpc('gettxout', [txid, n, True])
-					if txout is not None:
+					txdata = self.btcinterface.rpc('gettxout', [txid, n, True])
+					if txdata is not None:
 						break
-				assert jsonstr != ''
-				txdata = json.loads(jsonstr)
+				assert txdata != None
 				if txdata['confirmations'] == 0:
 					unconfirmfun(txd, txid)
 					#TODO pass the total transfered amount value here somehow
@@ -428,6 +427,8 @@ class BitcoinCoreInterface(BlockchainInterface):
 		if method != 'importaddress':
 			common.debug('rpc: ' + method + " " + str(args))
 		res = self.jsonRpc.call(method, args)
+		if isinstance(res, unicode):
+			res = str(res)
 		return res
 
 	def add_watchonly_addresses(self, addr_list, wallet_name):
