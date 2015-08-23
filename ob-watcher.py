@@ -111,7 +111,7 @@ def cjfee_display(cjfee, order):
 
 
 def satoshi_to_unit(sat, order):
-    return str(Decimal(sat) / Decimal(1e8))
+    return "%.8f" % float(Decimal(sat) / Decimal(1e8))
 
 
 def order_str(s, order):
