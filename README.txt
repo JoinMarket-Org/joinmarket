@@ -28,7 +28,7 @@ REQUIRED INSTALLATION DEPENDENCIES
 
 GET DEBIAN / UBUNTU INSTALL DEPENDENCIES:
 0. sudo apt-get update -y && sudo apt-get upgrade -y && sudo apt-get install python 
-1. sudo apt-get install libsodium-dev -y
+1. sudo apt-get install git libtool automake && git clone https://github.com/jedisct1/libsodium && cd libsodium && ./autogen.sh && ./configure && make && make check && sudo make install
 2. sudo apt-get install python-pip -y && sudo pip install numpy --upgrade
 3. (optional) sudo apt-get install python-matplotlib -y
 
