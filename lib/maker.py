@@ -116,6 +116,7 @@ class CoinJoinOrder(object):
 		finally:
 			self.maker.wallet_unspent_lock.release()
 		debug('tx in a block')
+		debug('earned = ' + str(self.real_cjfee - self.txfee))
 		to_cancel, to_announce = self.maker.on_tx_confirmed(self,
 			confirmations, txid)
 		self.maker.modify_orders(to_cancel, to_announce)
@@ -139,7 +140,7 @@ class CoinJoinOrder(object):
 		self.real_cjfee = calc_cj_fee(self.ordertype, self.cjfee, self.cj_amount)
 		expected_change_value = (my_total_in - self.cj_amount
 			- self.txfee + self.real_cjfee)
-		debug('earned = ' + str(self.real_cjfee - self.txfee))
+		debug('potentially earned = ' + str(self.real_cjfee - self.txfee))
 		debug('mycjaddr, mychange = ' + self.cj_addr + ', ' + self.change_addr)
 
 		times_seen_cj_addr = 0
