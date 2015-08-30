@@ -10,8 +10,8 @@ import enc_wrapper
 
 MAX_PRIVMSG_LEN = 400
 COMMAND_PREFIX = '!'
-PING_INTERVAL = 180
-PING_TIMEOUT = 30
+PING_INTERVAL = 50              # lowered since we compete with data chunks
+PING_TIMEOUT = 340              # raised so we don't time out while sending data
 encrypted_commands = ["auth", "ioauth", "tx", "sig"]
 plaintext_commands = ["fill", "error", "pubkey", "orderbook", "relorder", "absorder", "push"]
 
@@ -108,7 +108,7 @@ class IRCMessageChannel(MessageChannel):
 		txb64 = base64.b64encode(txhex.decode('hex'))
 		for nick in nick_list:
 			self.__privmsg(nick, 'tx', txb64)
-			time.sleep(1) #HACK! really there should be rate limiting, see issue#31
+			time.sleep(5) # raised since we send much to each one
 
 	def push_tx(self, nick, txhex):
 		txb64 = base64.b64encode(txhex.decode('hex'))
@@ -169,6 +169,7 @@ class IRCMessageChannel(MessageChannel):
 		else: 
 			message_chunks = [message]
 		for m in message_chunks:
+			time.sleep(0.9) # lowest that passes CGAN's SendQ/RecvQ
 			trailer = ' ~' if m==message_chunks[-1] else ' ;'
 			if m==message_chunks[0]:
 				m = COMMAND_PREFIX + cmd + ' ' + m

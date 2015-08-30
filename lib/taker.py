@@ -269,6 +269,8 @@ class Taker(OrderbookWatch):
 		pass #TODO implement
 
 	def on_pubkey(self, nick, maker_pubkey):
+		while self.cjtx == None: # race condition! tx construction must
+			time.sleep(1)    # complete before we can proceed
 		self.cjtx.start_encryption(nick, maker_pubkey)
 
 	def on_ioauth(self, nick, utxo_list, cj_pub, change_addr, btc_sig):
