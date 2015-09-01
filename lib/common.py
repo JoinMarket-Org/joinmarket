@@ -401,10 +401,11 @@ def pick_order(orders, n, feekey):
 		pickedOrderIndex = -1
 		
 
-def choose_order(db, cj_amount, n, chooseOrdersBy):
+def choose_orders(db, cj_amount, n, chooseOrdersBy, ignored_makers=[]):
 	sqlorders = db.execute('SELECT * FROM orderbook;').fetchall()
 	orders = [(o['counterparty'], o['oid'],	calc_cj_fee(o['ordertype'], o['cjfee'], cj_amount), o['txfee'])
-		for o in sqlorders if cj_amount >= o['minsize'] and cj_amount <= o['maxsize']]
+		for o in sqlorders if cj_amount >= o['minsize'] and cj_amount <= o['maxsize'] and o['counterparty']
+		not in ignored_makers]
 	counterparties = set([o[0] for o in orders])
 	if n > len(counterparties):
 		debug('ERROR not enough liquidity in the orderbook n=%d suitable-counterparties=%d amount=%d totalorders=%d'
@@ -423,7 +424,7 @@ def choose_order(db, cj_amount, n, chooseOrdersBy):
 	chosen_orders = [o[:2] for o in chosen_orders]
 	return dict(chosen_orders), total_cj_fee
 
-def choose_sweep_order(db, my_total_input, my_tx_fee, n, chooseOrdersBy):
+def choose_sweep_orders(db, my_total_input, my_tx_fee, n, chooseOrdersBy, ignored_makers=[]):
 	'''
 	choose an order given that we want to be left with no change
 	i.e. sweep an entire group of utxos
@@ -456,7 +457,8 @@ def choose_sweep_order(db, my_total_input, my_tx_fee, n, chooseOrdersBy):
 
 	sqlorders = db.execute('SELECT * FROM orderbook;').fetchall()
 	orderkeys = ['counterparty', 'oid', 'ordertype', 'minsize', 'maxsize', 'txfee', 'cjfee']
-	orderlist = [dict([(k, o[k]) for k in orderkeys]) for o in sqlorders]
+	orderlist = [dict([(k, o[k]) for k in orderkeys]) for o in sqlorders
+		if o['counterparty'] not in ignored_makers]
 
 	ordercombos = [combo for combo in itertools.combinations(orderlist, n)]
 
