@@ -96,7 +96,10 @@ elif method == 'generate' or method == 'recover':
 		print 'Write down this wallet recovery seed\n\n' + ' '.join(words) + '\n'
 	elif method == 'recover':
 		words = raw_input('Input 12 word recovery seed: ')
-		words = words.split(' ')
+		words = words.split() #default for split is 1 or more whitespace chars
+		if len(words) != 12:
+			print 'ERROR. Recovery seed phrase must be exactly 12 words.'
+			sys.exit(0)
 		seed = old_mnemonic.mn_decode(words)
 		print seed
 	password = getpass.getpass('Enter wallet encryption passphrase: ')

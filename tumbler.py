@@ -135,7 +135,7 @@ class TumblerThread(threading.Thread):
 					debug('waiting for liquidity 1min, hopefully more orders should come in')
 					time.sleep(60)
 					continue
-				cj_fee = 1.0*(cj_amount - total_value) / self.tx['makercount'] / cj_amount
+				cj_fee = 1.0*(total_value - cjamount) / tx['makercount'] / cjamount
 				debug('average fee = ' + str(cj_fee))
 				if cj_fee > self.taker.maxcjfee:
 					print 'cj fee higher than maxcjfee at ' + str(cj_fee) + ', waiting 60 seconds'

@@ -1,5 +1,4 @@
 import BaseHTTPServer, SimpleHTTPServer, threading
-from decimal import Decimal
 import urllib2
 import io, base64, time, sys, os
 data_dir = os.path.dirname(os.path.realpath(__file__))
@@ -55,21 +54,30 @@ def create_depth_chart(db, cj_amount):
 	plt.ylabel('Frequency')
 	return get_graph_html(fig)
 
-def create_size_histogram(db):
+def create_size_histogram(db, args):
 	try:
 		import matplotlib.pyplot as plt
 	except ImportError:
 		return 'Install matplotlib to see graphs'
 	rows = db.execute('SELECT maxsize FROM orderbook;').fetchall()
-	ordersizes = [r['maxsize']/1e8 for r in rows]
+	ordersizes = sorted([r['maxsize']/1e8 for r in rows])
 
 	fig = plt.figure()
-	plt.hist(ordersizes, 30, histtype='bar', rwidth=0.8)
+        scale = args.get("scale")
+	if (scale is not None) and (scale[0] == "log"):
+		ratio = ordersizes[-1] / ordersizes[0]
+		step = ratio ** 0.0333 # 1/30
+		bins = [ordersizes[0] * (step ** i) for i in range(30)]
+	else:
+		bins = 30
+	plt.hist(ordersizes, bins, histtype='bar', rwidth=0.8)
+	if bins is not 30:
+		fig.axes[0].set_xscale('log')
 	plt.grid()
-	#plt.title('Order size distribution')
 	plt.xlabel('Order sizes / btc')
 	plt.ylabel('Frequency')
-	return get_graph_html(fig)
+	return get_graph_html(fig) + ("<br/><a href='?scale=log'>log scale</a>"
+				      if bins == 30 else "<br/><a href='?'>linear</a>")
 
 def get_graph_html(fig):
 	imbuf = io.BytesIO()
@@ -91,7 +99,7 @@ def cjfee_display(cjfee, order):
 		return str(float(cjfee) * 100) + '%'
 
 def satoshi_to_unit(sat, order):
-	return str(Decimal(sat) / Decimal(1e8))
+	return "%.8f" % float(Decimal(sat) / Decimal(1e8))
 
 def order_str(s, order):
 	return str(s)
@@ -161,7 +169,7 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
 				'PAGETITLE': 'JoinMarket Browser Interface',
 				'MAINHEADING': 'Order Sizes',
 				'SECONDHEADING': 'Order Size Histogram' + alert_msg,
-				'MAINBODY': create_size_histogram(self.taker.db)
+				'MAINBODY': create_size_histogram(self.taker.db, args)
 			}
 		elif self.path.startswith('/depth'):
 			#if self.path[6] == '?':

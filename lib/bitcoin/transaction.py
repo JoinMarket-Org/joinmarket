@@ -151,15 +151,18 @@ def signature_form(tx, i, script, hashcode=SIGHASH_ALL):
 
 
 def der_encode_sig(v, r, s):
-    b1, b2 = safe_hexlify(encode(r, 256)), safe_hexlify(encode(s, 256))
-    if r >= 2**255:
-        b1 = '00' + b1
-    if s >= 2**255:
-        b2 = '00' + b2
-    left = '02'+encode(len(b1)//2, 16, 2)+b1
-    right = '02'+encode(len(b2)//2, 16, 2)+b2
-    return '30'+encode(len(left+right)//2, 16, 2)+left+right
-
+    """Takes (vbyte, r, s) as ints and returns hex der encode sig"""
+    #See https://github.com/vbuterin/pybitcointools/issues/89
+    #See https://github.com/simcity4242/pybitcointools/
+    s = N-s if s>N//2 else s    # BIP62 low s
+    b1, b2 = encode(r, 256), encode(s, 256)
+    if bytearray(b1)[0] & 0x80:     # add null bytes if leading byte interpreted as negative
+        b1 = b'\x00' + b1
+    if bytearray(b2)[0] & 0x80:
+        b2 = b'\x00' + b2
+    left  = b'\x02' + encode(len(b1), 256, 1) + b1
+    right = b'\x02' + encode(len(b2), 256, 1) + b2
+    return safe_hexlify(b'\x30' + encode(len(left+right), 256, 1) + left + right) 
 
 def der_decode_sig(sig):
     leftlen = decode(sig[6:8], 16)*2

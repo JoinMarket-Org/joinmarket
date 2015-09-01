@@ -3,8 +3,9 @@ from common import *
 from message_channel import MessageChannel
 from message_channel import CJPeerError
 
+import string, random
 import socket, threading, time, ssl, socks
-import base64, os, urllib2, re
+import base64, os, re
 import enc_wrapper
 
 MAX_PRIVMSG_LEN = 400
@@ -14,17 +15,25 @@ PING_TIMEOUT = 30
 encrypted_commands = ["auth", "ioauth", "tx", "sig"]
 plaintext_commands = ["fill", "error", "pubkey", "orderbook", "relorder", "absorder", "push"]
 
-def random_nick():
-	random_article_url = 'http://en.wikipedia.org/wiki/Special:Random'
-	page = urllib2.urlopen(random_article_url).read()
-	page_title = page[page.index('<title>') + 7 : page.index('</title>')]
-	title = page_title[:page_title.index(' - Wikipedia')]
-	ircnick = ''.join([s.capitalize() for s in re.split('\\W+', title)])
-	if re.match('\\d', ircnick[0]):
-		ircnick = '_' + ircnick
-	ircnick = ircnick[:9]
+def random_nick(nick_len=9):
+	vowels = "aeiou"
+	consonants = ''.join([chr(c) for c in range(ord('a'), ord('z')+1) if vowels.find(chr(c)) == -1])
+	assert nick_len % 2 == 1
+	N = (nick_len - 1) / 2
+	rnd_consonants = [consonants[random.randrange(len(consonants))] for c in range(N+1)]
+	rnd_vowels = [vowels[random.randrange(len(vowels))] for v in range(N)] + ['']
+	ircnick = ''.join([i for sl in zip(rnd_consonants, rnd_vowels) for i in sl])
+	ircnick = ircnick.capitalize()
 	print 'Generated random nickname: ' + ircnick #not using debug because it might not know the logfile name at this point
 	return ircnick
+	#Other ideas for random nickname generation:
+	# - weight randomness by frequency of letter appearance
+	# - u always follows q
+	# - generate different length nicks
+	# - append two or more of these words together
+	# - randomly combine phonetic sounds instead consonants, which may be two consecutive consonants
+	#  - e.g. th, dj, g, p, gr, ch, sh, kr, 
+	# - neutral network that generates nicks
 
 def get_irc_text(line):
 	return line[line[1:].find(':') + 2:]
