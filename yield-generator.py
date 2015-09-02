@@ -18,6 +18,7 @@ nickname = random_nick()
 nickserv_password = ''
 minsize = int(1.2 * txfee / float(cjfee)) #minimum size is such that you always net profit at least 20% of the miner fee
 mix_levels = 5
+dust_threshold = common.DUST_THRESHOLD # 546 satoshis - only create change greater than this amount
 
 
 
@@ -67,7 +68,7 @@ class YieldGenerator(Maker):
 		#print mix_balance
 		max_mix = max(mix_balance, key=mix_balance.get)
 		order = {'oid': 0, 'ordertype': 'relorder', 'minsize': minsize,
-			'maxsize': mix_balance[max_mix] - common.DUST_THRESHOLD, 'txfee': txfee, 'cjfee': cjfee}
+			'maxsize': mix_balance[max_mix] - dust_threshold, 'txfee': txfee, 'cjfee': cjfee}
 		return [order]
 
 	def oid_to_order(self, cjorder, oid, amount):
@@ -89,10 +90,10 @@ class YieldGenerator(Maker):
 		my_total_in = sum([va['value'] for va in utxos.values()])
 		real_cjfee = calc_cj_fee(cjorder.ordertype, cjorder.cjfee, amount)
 		change_value = my_total_in - amount - cjorder.txfee + real_cjfee
-		if change_value <= common.DUST_THRESHOLD:
+		if change_value <= dust_threshold:
 			debug('change value=%d below dust threshold, finding new utxos' % (change_value))
 			try:
-				utxos = self.wallet.select_utxos(mixdepth, amount + common.DUST_THRESHOLD)
+				utxos = self.wallet.select_utxos(mixdepth, amount + dust_threshold)
 			except Exception:
 				debug('dont have the required UTXOs to make a output above the dust threshold, quitting')
 				return None, None, None
