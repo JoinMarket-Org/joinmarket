@@ -71,31 +71,49 @@ class YieldGenerator(Maker):
 			'maxsize': mix_balance[max_mix] - dust_threshold, 'txfee': txfee, 'cjfee': cjfee}
 		return [order]
 
-	def oid_to_order(self, cjorder, oid, amount):
+	def select_mixdepth(self, amount):
 		mix_balance = self.wallet.get_balance_by_mixdepth()
 		max_mix = max(mix_balance, key=mix_balance.get)
+		if (mix_balance[max_mix] < amount):
+			return None
 
 		#algo attempts to make the largest-balance mixing depth get an even larger balance
-		debug('finding suitable mixdepth')
+		debug('finding suitable mixdepth to spend amount=%d' % (amount,))
 		mixdepth = (max_mix - 1) % self.wallet.max_mix_depth
 		while True:
 			if mixdepth in mix_balance and mix_balance[mixdepth] >= amount:
 				break
 			mixdepth = (mixdepth - 1) % self.wallet.max_mix_depth
+		debug('using mixdepth=%d' % (mixdepth,))
+		return mixdepth
+
+	def oid_to_order(self, cjorder, oid, amount):
+		real_cjfee = calc_cj_fee(cjorder.ordertype, cjorder.cjfee, amount)
+		amount += cjorder.txfee - real_cjfee;
+
 		#mixdepth is the chosen depth we'll be spending from
+		mixdepth = self.select_mixdepth(amount)
+		if (mixdepth is None):
+			debug("don't have the required UTXOs to make an output of the requested size, quitting")
+			return None, None, None
+
 		cj_addr = self.wallet.get_receive_addr((mixdepth + 1) % self.wallet.max_mix_depth)
 		change_addr = self.wallet.get_change_addr(mixdepth)
 
 		utxos = self.wallet.select_utxos(mixdepth, amount)
 		my_total_in = sum([va['value'] for va in utxos.values()])
-		real_cjfee = calc_cj_fee(cjorder.ordertype, cjorder.cjfee, amount)
-		change_value = my_total_in - amount - cjorder.txfee + real_cjfee
-		if change_value <= dust_threshold:
+		change_value = my_total_in - amount
+		if change_value < dust_threshold:
 			debug('change value=%d below dust threshold, finding new utxos' % (change_value))
+			mixdepth = self.select_mixdepth(amount + dust_threshold)
+			if (mixdepth is None):
+				debug("don't have the required UTXOs to make an output above the dust threshold, quitting")
+				return None, None, None
+
 			try:
 				utxos = self.wallet.select_utxos(mixdepth, amount + dust_threshold)
 			except Exception:
-				debug('dont have the required UTXOs to make a output above the dust threshold, quitting')
+				debug('dont have the required UTXOs to make an output above the dust threshold, quitting')
 				return None, None, None
 
 		return utxos, cj_addr, change_addr
