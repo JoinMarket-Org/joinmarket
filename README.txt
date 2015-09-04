@@ -6,10 +6,10 @@ Bitcointalk thread:
 https://bitcointalk.org/index.php?topic=919116.msg10096563
 
 Subreddit:
-www.reddit.com/r/joinmarket
+https://reddit.com/r/joinmarket
 
 Twitter:
-www.twitter.com/joinmarket
+https://twitter.com/joinmarket
 
 Donation address:
 1AZgQZWYRteh6UyF87hwuvyWj73NvWKpL
@@ -23,14 +23,12 @@ REQUIRED INSTALLATION DEPENDENCIES
  Get it here: http://doc.libsodium.org/
  use this line to check it was installed correctly
  python lib/enc_wrapper.py
-2. you will need numpy 1.7 or later installed
-3. (optional) matplotlib for displaying the graphs in orderbook-watcher
+2. (optional) matplotlib for displaying the graphs in orderbook-watcher
 
 GET DEBIAN / UBUNTU INSTALL DEPENDENCIES:
 0. sudo apt-get update -y && sudo apt-get upgrade -y && sudo apt-get install python 
 1. sudo apt-get install libsodium-dev -y
-2. sudo apt-get install python-pip -y && sudo pip install numpy --upgrade
-3. (optional) sudo apt-get install python-matplotlib -y
+2. (optional) sudo apt-get install python-matplotlib -y
 
 WINDOWS:
 If installing on Windows, consult this wiki page for helpful instructions
