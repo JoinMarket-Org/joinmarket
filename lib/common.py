@@ -5,7 +5,7 @@ from math import factorial, exp
 import sys, datetime, json, time, pprint, threading, getpass
 import random
 import blockchaininterface, slowaes
-from ConfigParser import SafeConfigParser
+from ConfigParser import SafeConfigParser, NoSectionError
 import os, io, itertools
 
 JM_VERSION = 2
@@ -50,6 +50,10 @@ socks5_port = 9050
 #port = 6697
 #usessl = true
 #socks5 = true
+
+[POLICY]
+#for dust sweeping, try merge_algorithm = gradual
+merge_algorithm = default
 """
 
 def load_program_config():
@@ -163,13 +167,74 @@ def debug_dump_object(obj, skip_fields=[]):
 		else:
 			debug(str(v))
 
+def select_gradual(unspent, value):
+	'''
+	UTXO selection algorithm for gradual dust reduction
+	If possible, combines outputs, picking as few as possible of the largest
+	utxos less than the target value; if the target value is larger than the
+	sum of all smaller utxos, uses the smallest utxo larger than the value.
+	'''
+	value, key = int(value), lambda u: u["value"]
+	high = sorted([u for u in unspent if key(u) >= value], key=key)
+	low = sorted([u for u in unspent if key(u) < value], key=key)
+	lowsum=reduce(lambda x,y:x+y,map(key,low),0)
+	if value > lowsum:
+		if len(high)==0:
+			raise Exception('Not enough funds')
+		else:
+			return [high[0]]
+	else:
+		start, end, total = 0, 0, 0
+		while total < value:
+			total += low[end]['value']
+			end += 1
+		while total >= value + low[start]['value']:
+			total -= low[start]['value']
+			start += 1
+		return low[start:end]
+
+def select_greedy(unspent, value):
+	'''
+	UTXO selection algorithm for rapid dust reduction
+	Combines the shortest run of utxos (sorted by size, from smallest) which
+	exceeds the target value; if the target value is larger than the sum of
+	all smaller utxos, uses the smallest utxo larger than the target value.
+	'''
+	value, key = int(value), lambda u: u["value"]
+	high = sorted([u for u in unspent if key(u) >= value], key=key)
+	low = sorted([u for u in unspent if key(u) < value], key=key)
+	lowsum=reduce(lambda x,y:x+y,map(key,low),0)
+        print((high, low, lowsum))
+	if value > lowsum:
+		if len(high)==0:
+			raise Exception('Not enough funds')
+		else:
+			return [high[0]]
+	else:
+		end, total = 0, 0
+		while total < value:
+			total += low[end]['value']
+			end += 1
+		return low[0:end]
+
 class AbstractWallet(object):
 	'''
 	Abstract wallet for use with JoinMarket
 	Mostly written with Wallet in mind, the default JoinMarket HD wallet
 	'''
 	def __init__(self):
-		pass
+		self.utxo_selector = btc.select # default fallback: upstream
+		try:
+			if config.get("POLICY", "merge_algorithm") == "gradual":
+				self.utxo_selector = select_gradual
+			elif config.get("POLICY", "merge_algorithm") == "greedy":
+				self.utxo_selector = select_greedy
+			elif config.get("POLICY", "merge_algorithm") != "default":
+				raise Exception("Unknown merge algorithm")
+		except NoSectionError:
+			debug("Please add the new [POLICY] section to your config")
+			debug("Set therein thine merge_algorithm as default or gradual")
+
 	def get_key_from_addr(self, addr):
 		return None
 	def get_utxos_by_mixdepth(self):
@@ -187,7 +252,7 @@ class AbstractWallet(object):
 		utxo_list = self.get_utxos_by_mixdepth()[mixdepth]
 		unspent = [{'utxo': utxo, 'value': addrval['value']}
 			for utxo, addrval in utxo_list.iteritems()]
-		inputs = btc.select(unspent, amount)
+		inputs = self.utxo_selector(unspent, amount)
 		debug('for mixdepth=' + str(mixdepth) + ' amount=' + str(amount) + ' selected:')
 		debug(pprint.pformat(inputs))
 		return dict([(i['utxo'], {'value': i['value'], 'address':
