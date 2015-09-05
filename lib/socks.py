@@ -258,10 +258,7 @@ class socksocket(socket.socket):
         elif resp[1] != "\x00":
             # Connection failed
             self.close()
-            if ord(resp[1]) <= 8:
-                raise Socks5Error(ord(resp[1]), _generalerrors[ord(resp[1])])
-            else:
-                raise Socks5Error(9, _generalerrors[9])
+            raise Socks5Error(_socks5errors[min(9, ord(resp[1]))])
         # Get the bound address/port
         elif resp[3] == "\x01":
             boundaddr = self.__recvall(4)
