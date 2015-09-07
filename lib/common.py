@@ -221,7 +221,6 @@ def select_greedy(unspent, value):
     high = sorted([u for u in unspent if key(u) >= value], key=key)
     low = sorted([u for u in unspent if key(u) < value], key=key)
     lowsum = reduce(lambda x, y: x + y, map(key, low), 0)
-    print((high, low, lowsum))
     if value > lowsum:
         if len(high) == 0:
             raise Exception('Not enough funds')
