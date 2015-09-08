@@ -4,7 +4,7 @@ from math import factorial, exp
 import sys, datetime, json, time, pprint, threading, getpass
 import random
 import blockchaininterface, slowaes
-from ConfigParser import SafeConfigParser, NoSectionError
+from ConfigParser import SafeConfigParser, NoSectionError, NoOptionError
 import os, io, itertools
 
 JM_VERSION = 2
@@ -12,6 +12,7 @@ nickname = ''
 DUST_THRESHOLD = 546
 bc_interface = None
 ordername_list = ["absorder", "relorder"]
+maker_timeout_sec = 30
 
 debug_file_lock = threading.Lock()
 debug_file_handle = None
@@ -49,6 +50,7 @@ socks5_port = 9050
 #port = 6697
 #usessl = true
 #socks5 = true
+maker_timeout_sec = 30
 
 [POLICY]
 #for dust sweeping, try merge_algorithm = gradual
@@ -76,7 +78,13 @@ def load_program_config():
                 raise Exception(
                     "Config file does not contain the required option: " + o)
 
-            #configure the interface to the blockchain on startup
+    try:
+        global maker_timeout_sec
+        maker_timeout_sec = config.getint('MESSAGING', 'maker_timeout_sec')
+    except NoOptionError:
+        debug('maker_timeout_sec not found in .cfg file, using default value')
+
+    #configure the interface to the blockchain on startup
     global bc_interface
     bc_interface = blockchaininterface.get_blockchain_interface_instance(config)
 
@@ -437,8 +445,6 @@ class Wallet(AbstractWallet):
         '''
 		returns a list of utxos sorted by different mix levels
 		'''
-        debug('get_utxos_by_mixdepth wallet.unspent = \n' + pprint.pformat(
-            self.unspent))
         mix_utxo_list = {}
         for m in range(self.max_mix_depth):
             mix_utxo_list[m] = {}
@@ -447,6 +453,7 @@ class Wallet(AbstractWallet):
             if mixdepth not in mix_utxo_list:
                 mix_utxo_list[mixdepth] = {}
             mix_utxo_list[mixdepth][utxo] = addrvalue
+        debug('get_utxos_by_mixdepth = \n' + pprint.pformat(mix_utxo_list))
         return mix_utxo_list
 
 
@@ -558,12 +565,13 @@ def pick_order(orders, n, feekey):
         pickedOrderIndex = -1
 
 
-def choose_order(db, cj_amount, n, chooseOrdersBy):
+def choose_orders(db, cj_amount, n, chooseOrdersBy, ignored_makers=[]):
     sqlorders = db.execute('SELECT * FROM orderbook;').fetchall()
     orders = [(o['counterparty'], o['oid'], calc_cj_fee(
         o['ordertype'], o['cjfee'], cj_amount), o['txfee'])
               for o in sqlorders
-              if cj_amount >= o['minsize'] and cj_amount <= o['maxsize']]
+              if cj_amount >= o['minsize'] and cj_amount <= o['maxsize'] and o[
+                  'counterparty'] not in ignored_makers]
     counterparties = set([o[0] for o in orders])
     if n > len(counterparties):
         debug(
@@ -586,7 +594,12 @@ def choose_order(db, cj_amount, n, chooseOrdersBy):
     return dict(chosen_orders), total_cj_fee
 
 
-def choose_sweep_order(db, my_total_input, my_tx_fee, n, chooseOrdersBy):
+def choose_sweep_orders(db,
+                        my_total_input,
+                        my_tx_fee,
+                        n,
+                        chooseOrdersBy,
+                        ignored_makers=[]):
     '''
 	choose an order given that we want to be left with no change
 	i.e. sweep an entire group of utxos
@@ -621,7 +634,8 @@ def choose_sweep_order(db, my_total_input, my_tx_fee, n, chooseOrdersBy):
     sqlorders = db.execute('SELECT * FROM orderbook;').fetchall()
     orderkeys = ['counterparty', 'oid', 'ordertype', 'minsize', 'maxsize',
                  'txfee', 'cjfee']
-    orderlist = [dict([(k, o[k]) for k in orderkeys]) for o in sqlorders]
+    orderlist = [dict([(k, o[k]) for k in orderkeys])
+                 for o in sqlorders if o['counterparty'] not in ignored_makers]
 
     ordercombos = [combo for combo in itertools.combinations(orderlist, n)]
 
