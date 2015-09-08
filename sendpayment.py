@@ -12,7 +12,6 @@ from irc import IRCMessageChannel, random_nick
 import bitcoin as btc
 
 def check_high_fee(total_fee_pc):
-	debug('total coinjoin fee = ' + str(float('%.3g' % (100.0 * total_fee_pc))) + '%')
 	WARNING_THRESHOLD = 0.02 # 2%
 	if total_fee_pc > WARNING_THRESHOLD:
 		print '\n'.join(['='* 60]*3)
@@ -22,7 +21,6 @@ def check_high_fee(total_fee_pc):
 		print '\n'.join(['='* 60]*1)
 		print 'WARNING   ' * 6
 		print '\n'.join(['='* 60]*3)
-	
 
 #thread which does the buy-side algorithm
 # chooses which coinjoins to initiate and when
@@ -31,56 +29,87 @@ class PaymentThread(threading.Thread):
 		threading.Thread.__init__(self)
 		self.daemon = True
 		self.taker = taker
+		self.ignored_makers = []
 
-	def finishcallback(self, coinjointx):
-		self.taker.msgchan.shutdown()
-
-	def run(self):
-		print 'waiting for all orders to certainly arrive'
-		time.sleep(self.taker.waittime)
-
+	def create_tx(self):
 		crow = self.taker.db.execute('SELECT COUNT(DISTINCT counterparty) FROM orderbook;').fetchone()
 		counterparty_count = crow['COUNT(DISTINCT counterparty)']
+		counterparty_count -= len(self.ignored_makers)
 		if counterparty_count < self.taker.makercount:
 			print 'not enough counterparties to fill order, ending'
 			self.taker.msgchan.shutdown()
 			return
 
+		utxos = None
+		orders = None
+		cjamount = 0
+		change_addr = None
+		choose_orders_recover = None
 		if self.taker.amount == 0:
-			utxo_list = self.taker.wallet.get_utxos_by_mixdepth()[self.taker.mixdepth]
-			total_value = sum([va['value'] for va in utxo_list.values()])
-			
-			orders, cjamount = choose_sweep_order(self.taker.db, total_value, \
-				self.taker.txfee, self.taker.makercount, self.taker.chooseOrdersFunc)
+			utxos = self.taker.wallet.get_utxos_by_mixdepth()[self.taker.mixdepth]
+			total_value = sum([va['value'] for va in utxos.values()])
+			orders, cjamount = choose_sweep_orders(self.taker.db, total_value,
+				self.taker.txfee, self.taker.makercount,
+				self.taker.chooseOrdersFunc, self.ignored_makers)
 			if not self.taker.answeryes:
 				debug('total cj fee = ' + str(total_value - cjamount))
 				total_fee_pc = 1.0*(total_value - cjamount) / cjamount
+				debug('total coinjoin fee = ' + str(float('%.3g' % (100.0 * total_fee_pc))) + '%')
 				check_high_fee(total_fee_pc)
 				if raw_input('send with these orders? (y/n):')[0] != 'y':
 					self.finishcallback(None)
 					return
-			self.taker.start_cj(self.taker.wallet, cjamount, orders, utxo_list,
-				self.taker.destaddr, None, self.taker.txfee, self.finishcallback)
 		else:
-			orders, total_cj_fee = choose_order(self.taker.db, self.taker.amount, \
-				self.taker.makercount, self.taker.chooseOrdersFunc)
+			orders, total_cj_fee = self.sendpayment_choose_orders(self.taker.amount,
+				self.taker.makercount)
 			if not orders:
 				debug('ERROR not enough liquidity in the orderbook, exiting')
 				return
-			print 'chosen orders to fill ' + str(orders) + ' totalcjfee=' + str(total_cj_fee)
-			if not self.taker.answeryes:
-				total_fee_pc = 1.0*total_cj_fee / self.taker.amount
-				check_high_fee(total_fee_pc)
-				if raw_input('send with these orders? (y/n):')[0] != 'y':
-					self.finishcallback(None)
-					return
 			total_amount = self.taker.amount + total_cj_fee + self.taker.txfee
 			print 'total amount spent = ' + str(total_amount)
-
 			utxos = self.taker.wallet.select_utxos(self.taker.mixdepth, total_amount)
-			self.taker.start_cj(self.taker.wallet, self.taker.amount, orders, utxos, self.taker.destaddr,
-				self.taker.wallet.get_change_addr(self.taker.mixdepth), self.taker.txfee,
-				self.finishcallback)
+			cjamount = self.taker.amount
+			change_addr = self.taker.wallet.get_change_addr(self.taker.mixdepth)
+			choose_orders_recover = self.sendpayment_choose_orders
+
+		self.taker.start_cj(self.taker.wallet, cjamount, orders, utxos,
+			self.taker.destaddr, change_addr, self.taker.txfee,
+			self.finishcallback, choose_orders_recover)
+
+	def finishcallback(self, coinjointx):
+		if coinjointx.txid:
+			debug('created fully signed tx, ending')
+			self.taker.msgchan.shutdown()
+			return
+		self.ignored_makers += coinjointx.nonrespondants
+		debug('recreating the tx, ignored_makers=' + str(self.ignored_makers))
+		self.create_tx()
+
+	def sendpayment_choose_orders(self, cj_amount, makercount, nonrespondants=[], active_nicks=[]):
+		self.ignored_makers += nonrespondants
+		orders, total_cj_fee = choose_orders(self.taker.db, cj_amount, makercount,
+			self.taker.chooseOrdersFunc, self.ignored_makers + active_nicks)
+		if not orders:
+			return None, 0
+		print 'chosen orders to fill ' + str(orders) + ' totalcjfee=' + str(total_cj_fee)
+		if not self.taker.answeryes:
+			if len(self.ignored_makers) > 0:
+				noun = 'total'
+			else:
+				noun = 'additional'
+			total_fee_pc = 1.0*total_cj_fee / cj_amount
+			debug(noun + ' coinjoin fee = ' + str(float('%.3g' % (100.0 * total_fee_pc))) + '%')
+			check_high_fee(total_fee_pc)
+			if raw_input('send with these orders? (y/n):')[0] != 'y':
+				self.taker.msgchan.shutdown()
+				return
+		return orders, total_cj_fee
+
+	def run(self):
+		print 'waiting for all orders to certainly arrive'
+		time.sleep(self.taker.waittime)
+		self.create_tx()
+
 
 class SendPayment(takermodule.Taker):
 	def __init__(self, msgchan, wallet, destaddr, amount, makercount, txfee, waittime, mixdepth, answeryes, chooseOrdersFunc):
