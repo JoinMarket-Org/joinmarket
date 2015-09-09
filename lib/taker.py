@@ -162,7 +162,7 @@ class CoinJoinTX(object):
 				self.latest_tx['ins'][u[0]]['script'] = sig
 				inserted_sig = True
 				#check if maker has sent everything possible
-				self.utxos[nick].remove(utxo)
+				self.utxos[nick].remove(u[1])
 				if len(self.utxos[nick]) == 0:
 					debug('nick = ' + nick + ' sent all sigs, removing from nonrespondant list')
 					self.nonrespondants.remove(nick)
@@ -179,6 +179,7 @@ class CoinJoinTX(object):
 				tx_signed = False
 		if not tx_signed:
 			return
+		self.end_timeout_thread = True
 		self.all_responded = True
 		with self.timeout_lock:
 			self.timeout_lock.notify()
@@ -188,15 +189,14 @@ class CoinJoinTX(object):
 		self.txid = btc.txhash(txhex)
 		debug('pushing tx ' + self.txid)
 
+		if self.finishcallback != None:
+			self.finishcallback(self)
 		#TODO send to a random maker or push myself
 		#self.msgchan.push_tx(self.active_orders.keys()[0], txhex)	
 		ret = None
 		ret = common.bc_interface.pushtx(txhex)
 		if ret == None:
 			debug('unable to pushtx')
-		self.end_timeout_thread = True
-		if self.finishcallback != None:
-			self.finishcallback(self)
 
 	def recover_from_nonrespondants(self):
 		debug('nonresponding makers = ' + str(self.nonrespondants))
