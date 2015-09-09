@@ -158,7 +158,7 @@ class TumblerThread(threading.Thread):
                     time.sleep(60)
                     continue
                 cj_fee = 1.0 * (
-                    total_value - cjamount) / tx['makercount'] / cjamount
+                    total_value - cj_amount) / self.tx['makercount'] / cj_amount
                 debug('average fee = ' + str(cj_fee))
                 if cj_fee > self.taker.maxcjfee:
                     print 'cj fee higher than maxcjfee at ' + str(
