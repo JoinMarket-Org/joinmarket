@@ -189,6 +189,10 @@ class TumblerThread(threading.Thread):
             'SELECT cjfee, ordertype FROM orderbook;').fetchall()
         orders = [o['cjfee'] for o in sqlorders if o['ordertype'] == 'relorder']
         orders = sorted(orders)
+        if len(orders) == 0:
+            debug(
+                'There are no orders at all in the orderbook! Is the bot connecting to the right server?')
+            return
         relorder_fee = float(orders[0])
         debug('relorder fee = ' + str(relorder_fee))
         maker_count = sum([tx['makercount'] for tx in self.taker.tx_list])
