@@ -280,7 +280,7 @@ def main():
         '--addrcount',
         type='int',
         dest='addrcount',
-        default=2,
+        default=3,
         help=
         'How many destination addresses in total should be used. If not enough are given on'
         ' as command line arguments, the script will ask for more, default=3')
