@@ -45,12 +45,9 @@ def generate_tumbler_tx(destaddrs, options):
 				'srcmixdepth': m + options.mixdepthsrc, 'makercount': makercount, 'destination': 'internal'}
 			tx_list.append(tx)
 
-	total_dest_addr = len(destaddrs) + options.addrask
-	external_dest_addrs = ['addrask']*options.addrask + destaddrs
-	if total_dest_addr > options.mixdepthcount:
-		print 'not enough mixing depths to pay to all destination addresses'
-		return None
-	for mix_offset in range(total_dest_addr):
+	addrask = options.addrcount - len(destaddrs)
+	external_dest_addrs = ['addrask']*addrask + destaddrs
+	for mix_offset in range(options.addrcount):
 		srcmix = options.mixdepthsrc + options.mixdepthcount - mix_offset - 1
 		for tx in reversed(tx_list):
 			if tx['srcmixdepth'] == srcmix:
@@ -227,9 +224,9 @@ def main():
 		default=10000, help='miner fee contribution, in satoshis, default=10000')
 	parser.add_option('-x', '--maxcjfee', type='float', dest='maxcjfee',
 		default=0.01, help='maximum coinjoin fee the tumbler is willing to pay to a single market maker. default=0.01 (1%)')
-	parser.add_option('-a', '--addrask', type='int', dest='addrask',
-		default=2, help='How many more addresses to ask for in the terminal. Should '
-			'be similar to --txcountparams. default=2')
+	parser.add_option('-a', '--addrcount', type='int', dest='addrcount',
+		default=2, help='How many destination addresses in total should be used. If not enough are given on'
+			' as command line arguments, the script will ask for more, default=3')
 	parser.add_option('-N', '--makercountrange', type='float', nargs=2, action='store',
 		dest='makercountrange',
 		help='Input the mean and spread of number of makers to use. e.g. 3 1.5 will be a normal distribution '
@@ -238,7 +235,7 @@ def main():
 		help='How many mixing depths to mix through', default=4)
 	parser.add_option('-c', '--txcountparams', type='float', nargs=2, dest='txcountparams', default=(5, 1),
 		help='The number of transactions to take coins from one mixing depth to the next, it is'
-		' randomly chosen following a normal distribution. Should be similar to --addrask. '
+		' randomly chosen following a normal distribution. Should be greater than --addrcount. '
 		'This option controlls the parameters of that normal curve. (mean, standard deviation). default=(3, 1)')
 	parser.add_option('--amountpower', type='float', dest='amountpower', default=100.0,
 		help='The output amounts follow a power law distribution, this is the power, default=100.0')
@@ -265,8 +262,13 @@ def main():
 		if not addr_valid:
 			print 'ERROR: Address ' + addr + ' invalid. ' + errormsg
 			return
-	
-	if len(destaddrs) + options.addrask <= 1:
+
+	if len(destaddrs) > options.addrcount:
+		options.addrcount = len(destaddrs)
+	if options.addrcount+1 > options.mixdepthcount:
+		print 'not enough mixing depths to pay to all destination addresses, increasing mixdepthcount'
+		options.mixdepthcount = options.addrcount+1
+	if options.addrcount <= 1:
 		print '='*50
 		print 'WARNING: You are only using one destination address'
 		print 'this is very bad for privacy'
@@ -292,6 +294,7 @@ def main():
 	pprint(dbg_tx_list)
 
 	total_wait = sum([tx['wait'] for tx in tx_list])
+	print 'creates ' + str(len(tx_list)) + ' transactions in total'
 	print 'waits in total for ' + str(len(tx_list)) + ' blocks and ' + str(total_wait) + ' minutes'
 	total_block_and_wait = len(tx_list)*10 + total_wait
 	print('estimated time taken ' + str(total_block_and_wait) +
