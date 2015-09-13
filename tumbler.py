@@ -282,7 +282,7 @@ def main():
         dest='addrcount',
         default=3,
         help=
-        'How many destination addresses in total should be used. If not enough are given on'
+        'How many destination addresses in total should be used. If not enough are given'
         ' as command line arguments, the script will ask for more, default=3')
     parser.add_option(
         '-N',
