@@ -228,7 +228,7 @@ def main():
 	parser.add_option('-x', '--maxcjfee', type='float', dest='maxcjfee',
 		default=0.01, help='maximum coinjoin fee the tumbler is willing to pay to a single market maker. default=0.01 (1%)')
 	parser.add_option('-a', '--addrcount', type='int', dest='addrcount',
-		default=3, help='How many destination addresses in total should be used. If not enough are given on'
+		default=3, help='How many destination addresses in total should be used. If not enough are given'
 			' as command line arguments, the script will ask for more, default=3')
 	parser.add_option('-N', '--makercountrange', type='float', nargs=2, action='store',
 		dest='makercountrange',
