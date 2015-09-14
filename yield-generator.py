@@ -79,8 +79,8 @@ class YieldGenerator(Maker):
 		minsize = int(1.5 * txfee / float(min(cjfee))) #minimum size is such that you always net profit at least 50% of the miner fee
 		filtered_mix_balance = [f for f in sorted_mix_balance if f[1] > minsize]
 		debug('minsize=' + str(minsize) + ' calc\'d with cjfee=' + str(min(cjfee))) 
-		min_balances = filtered_mix_balance[1:] + [(-1, minsize)]
-		mix_balance_min = [(mxb[0], mxb[1], mnb[1]) for mxb, mnb in zip(filtered_mix_balance, min_balances)]
+		lower_bound_balances = filtered_mix_balance[1:] + [(-1, minsize)]
+		mix_balance_min = [(mxb[0], mxb[1], minb[1]) for mxb, minb in zip(filtered_mix_balance, lower_bound_balances)]
 		mix_balance_min = mix_balance_min[::-1] #reverse list order
 		thecjfee = cjfee[::-1]
 
@@ -106,7 +106,7 @@ class YieldGenerator(Maker):
 			order = {'oid': 0, 'ordertype': 'absorder', 'minsize': common.DUST_THRESHOLD + 1,
 				'maxsize': absorder_size - common.DUST_THRESHOLD, 'txfee': txfee, 'cjfee': absorder_fee}
 			orders = [order] + orders
-		debug('generated orders = \n' + pprint.pformat(orders))
+		debug('generated orders = \n' + '\n'.join([str(o) for o in orders]))
 		return orders
 
 	def oid_to_order(self, cjorder, oid, amount):
@@ -169,28 +169,30 @@ class YieldGenerator(Maker):
 
 		neworders = [o for o in myorders if o['ordertype'] == 'relorder']
 		oldorders = [o for o in oldorders if o['ordertype'] == 'relorder']
-		new_old_diff = [i for i, j in zip(sorted(neworders), sorted(oldorders)) if i != j]
-		old_new_diff = [i for i, j in zip(sorted(oldorders), sorted(neworders)) if i != j]
+		#new_setdiff_old = The relative complement of `new` in `old` = members in `new` which are not in `old`
+		new_setdiff_old = [o for o in neworders if o not in oldorders]
+		old_setdiff_new = [o for o in oldorders if o not in neworders]
 
 		debug('neworders = \n' + '\n'.join([str(o) for o in neworders]))
 		debug('oldorders = \n' + '\n'.join([str(o) for o in oldorders]))
-		debug('new_old_diff = \n' + '\n'.join([str(o) for o in new_old_diff]))
-		debug('old_new_diff = \n' + '\n'.join([str(o) for o in old_new_diff]))
+		debug('new_setdiff_old = \n' + '\n'.join([str(o) for o in new_setdiff_old]))
+		debug('old_setdiff_new = \n' + '\n'.join([str(o) for o in old_setdiff_new]))
 		if len(neworders) == len(oldorders):
-			ann_orders = new_old_diff
+			ann_orders = new_setdiff_old
 		elif len(neworders) > len(oldorders):
-			ann_orders = [o for o in neworders if o not in oldorders]
+			ann_orders = new_setdiff_old
 		elif len(neworders) < len(oldorders):
-			ann_orders = [o for o in neworders if o not in oldorders]
+			ann_orders = new_setdiff_old
 			ann_oids = [o['oid'] for o in ann_orders]
-			cancel_orders = [o['oid'] for o in old_new_diff if o['oid'] not in ann_oids]
+			cancel_orders = [o['oid'] for o in old_setdiff_new if o['oid'] not in ann_oids]
 
-		if len([o for o in self.orderlist if o['ordertype'] == 'absorder']) == 0:
+		if len([o for o in oldorders if o['ordertype'] == 'absorder']) == 0:
+			#if absorder was not in the oldorders, announce it
 			absorders = [o for o in myorders if o['ordertype'] == 'absorder']
 			if len(absorders) > 0:
 				ann_orders = [absorders[0]] + ann_orders
 
-		debug('can_orders = ' + str(cancel_orders))
+		debug('can_orders = \n' + '\n'.join([str(o) for o in can_orders]))
 		debug('ann_orders = \n' + '\n'.join([str(o) for o in ann_orders]))
 		return (cancel_orders, ann_orders)
 
