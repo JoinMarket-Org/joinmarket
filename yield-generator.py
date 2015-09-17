@@ -192,7 +192,7 @@ class YieldGenerator(Maker):
 			if len(absorders) > 0:
 				ann_orders = [absorders[0]] + ann_orders
 
-		debug('can_orders = \n' + '\n'.join([str(o) for o in can_orders]))
+		debug('can_orders = \n' + '\n'.join([str(o) for o in cancel_orders]))
 		debug('ann_orders = \n' + '\n'.join([str(o) for o in ann_orders]))
 		return (cancel_orders, ann_orders)
 
