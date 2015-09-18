@@ -34,6 +34,8 @@ def calc_order_size_data(db):
 
 def create_depth_chart(db, cj_amount):
 	try:
+		import matplotlib
+                matplotlib.use('Agg')
 		import matplotlib.pyplot as plt
 	except ImportError:
 		return 'Install matplotlib to see graphs'
@@ -56,6 +58,8 @@ def create_depth_chart(db, cj_amount):
 
 def create_size_histogram(db, args):
 	try:
+		import matplotlib
+                matplotlib.use('Agg')
 		import matplotlib.pyplot as plt
 	except ImportError:
 		return 'Install matplotlib to see graphs'
