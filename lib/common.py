@@ -117,7 +117,7 @@ def rand_norm_array(mu, sigma, n):
 
 def rand_exp_array(lamda, n):
 	#'lambda' is reserved (in case you are triggered by spelling errors)
-	return [random.expovariate(lamda) for i in range(n)]
+	return [random.expovariate(1.0 / lamda) for i in range(n)]
 
 def rand_pow_array(power, n):
 	#rather crude in that uses a uniform sample which is a multiple of 1e-4
