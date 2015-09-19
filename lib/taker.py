@@ -353,7 +353,11 @@ class Taker(OrderbookWatch):
 		# that some other guy doesnt send you confusing stuff
 
 	def get_crypto_box_from_nick(self, nick):
-		return self.cjtx.crypto_boxes[nick][1] #libsodium encryption object
+		if nick in self.cjtx.crypto_boxes:
+			return self.cjtx.crypto_boxes[nick][1] #libsodium encryption object
+		else:
+			debug('something wrong, no crypto object, nick=' + nick + ', message will be dropped')
+			return None
 
 	def start_cj(self, wallet, cj_amount, orders, input_utxos, my_cj_addr, my_change_addr,
 			my_txfee, finishcallback=None, choose_orders_recover=None):
