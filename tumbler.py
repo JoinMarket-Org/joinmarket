@@ -179,7 +179,7 @@ class TumblerThread(threading.Thread):
             total_amount = cj_amount + total_cj_fee + self.taker.txfee
             debug('total amount spent = ' + str(total_amount))
             utxos = self.taker.wallet.select_utxos(self.tx['srcmixdepth'],
-                                                   cj_amount)
+                                                   total_amount)
             choose_orders_recover = self.tumbler_choose_orders
 
         self.taker.start_cj(self.taker.wallet, cj_amount, orders, utxos,
