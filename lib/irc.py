@@ -175,9 +175,13 @@ class IRCMessageChannel(MessageChannel):
     def __privmsg(self, nick, cmd, message):
         debug('>>privmsg ' + 'nick=' + nick + ' cmd=' + cmd + ' msg=' + message)
         #should we encrypt?
-        box = self.__get_encryption_box(cmd, nick)
+        box, encrypt = self.__get_encryption_box(cmd, nick)
         #encrypt before chunking
-        if box:
+        if encrypt:
+            if not box:
+                debug('error, dont have encryption box object for ' + nick +
+                      ', dropping message')
+                return
             message = enc_wrapper.encrypt_encode(message, box)
 
         header = "PRIVMSG " + nick + " :"
@@ -322,9 +326,9 @@ class IRCMessageChannel(MessageChannel):
 		to check which command strings correspond to which
 		type of object (maker/taker).''' #old doc, dont trust
         if cmd in plaintext_commands:
-            return None
+            return None, False
         else:
-            return self.cjpeer.get_crypto_box_from_nick(nick)
+            return self.cjpeer.get_crypto_box_from_nick(nick), True
 
     def __handle_privmsg(self, source, target, message):
         nick = get_irc_nick(source)
@@ -351,16 +355,26 @@ class IRCMessageChannel(MessageChannel):
                 self.built_privmsg[nick] = [cmd_string, message[:-2]]
             else:
                 self.built_privmsg[nick][1] += message[:-2]
-            box = self.__get_encryption_box(self.built_privmsg[nick][0], nick)
+            box, encrypt = self.__get_encryption_box(
+                self.built_privmsg[nick][0], nick)
             if message[-1] == ';':
                 self.waiting[nick] = True
             elif message[-1] == '~':
                 self.waiting[nick] = False
-                if box:
+                if encrypt:
+                    if not box:
+                        debug('error, dont have encryption box object for ' +
+                              nick + ', dropping message')
+                        return
                     #need to decrypt everything after the command string
                     to_decrypt = ''.join(self.built_privmsg[nick][1].split(' ')[
                         1])
-                    decrypted = enc_wrapper.decode_decrypt(to_decrypt, box)
+                    try:
+                        decrypted = enc_wrapper.decode_decrypt(to_decrypt, box)
+                    except ValueError as e:
+                        debug('valueerror when decrypting, skipping: ' + repr(
+                            e))
+                        return
                     parsed = self.built_privmsg[nick][1].split(' ')[
                         0] + ' ' + decrypted
                 else:
