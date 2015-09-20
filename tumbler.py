@@ -118,12 +118,14 @@ class TumblerThread(threading.Thread):
             orders, total_cj_fee = choose_orders(
                 self.taker.db, cj_amount, makercount, weighted_order_choose,
                 self.ignored_makers + active_nicks)
-            cj_fee = 1.0 * total_cj_fee / makercount / cj_amount
-            debug('average fee = ' + str(cj_fee))
+            abs_cj_fee = 1.0 * total_cj_fee / makercount
+            rel_cj_fee = abs_cj_fee / cj_amount
+            debug('rel/abs average fee = ' + str(rel_cj_fee) + ' / ' + str(
+                abs_cj_fee))
 
-            if cj_fee > self.taker.maxcjfee:
-                debug('cj fee higher than maxcjfee at ' + str(cj_fee) +
-                      ', waiting 60 seconds')
+            if rel_cj_fee > self.taker.maxcjfee[
+                    0] and abs_cj_fee > self.taker.maxcjfee[1]:
+                debug('cj fee higher than maxcjfee, waiting 60 seconds')
                 time.sleep(60)
                 continue
             if orders == None:
@@ -157,12 +159,14 @@ class TumblerThread(threading.Thread):
                         'waiting for liquidity 1min, hopefully more orders should come in')
                     time.sleep(60)
                     continue
-                cj_fee = 1.0 * (
-                    total_value - cj_amount) / self.tx['makercount'] / cj_amount
-                debug('average fee = ' + str(cj_fee))
-                if cj_fee > self.taker.maxcjfee:
-                    print 'cj fee higher than maxcjfee at ' + str(
-                        cj_fee) + ', waiting 60 seconds'
+                abs_cj_fee = 1.0 * (
+                    total_value - cj_amount) / self.tx['makercount']
+                rel_cj_fee = abs_cj_fee / cj_amount
+                debug('rel/abs average fee = ' + str(rel_cj_fee) + ' / ' + str(
+                    abs_cj_fee))
+                if rel_cj_fee > self.taker.maxcjfee[
+                        0] and abs_cj_fee > self.taker.maxcjfee[1]:
+                    debug('cj fee higher than maxcjfee, waiting 60 seconds')
                     time.sleep(60)
                     continue
                 break
@@ -301,9 +305,11 @@ def main():
         '--maxcjfee',
         type='float',
         dest='maxcjfee',
-        default=0.01,
-        help=
-        'maximum coinjoin fee the tumbler is willing to pay to a single market maker. default=0.01 (1%)')
+        nargs=2,
+        default=(0.01, 10000),
+        help='maximum coinjoin fee and bitcoin value the tumbler is '
+        'willing to pay to a single market maker. Both values need to be exceeded, so if '
+        'the fee is 30% but only 500satoshi is paid the tx will go ahead. default=0.01, 10000 (1%, 10000satoshi)')
     parser.add_option(
         '-a',
         '--addrask',
@@ -335,11 +341,11 @@ def main():
         type='float',
         nargs=2,
         dest='txcountparams',
-        default=(5, 1),
+        default=(4, 1),
         help=
         'The number of transactions to take coins from one mixing depth to the next, it is'
         ' randomly chosen following a normal distribution. Should be similar to --addrask. '
-        'This option controlls the parameters of that normal curve. (mean, standard deviation). default=(3, 1)')
+        'This option controlls the parameters of that normal curve. (mean, standard deviation). default=(4, 1)')
     parser.add_option(
         '--amountpower',
         type='float',
