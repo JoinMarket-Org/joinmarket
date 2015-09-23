@@ -239,8 +239,7 @@ class AbstractWallet(object):
 			elif config.get("POLICY", "merge_algorithm") != "default":
 				raise Exception("Unknown merge algorithm")
 		except NoSectionError:
-			debug("Please add the new [POLICY] section to your config")
-			debug("Set therein thine merge_algorithm as default or gradual")
+			pass
 
 	def get_key_from_addr(self, addr):
 		return None

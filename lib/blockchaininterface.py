@@ -436,7 +436,7 @@ class BitcoinCoreInterface(BlockchainInterface):
 		for addr in addr_list:
 			self.rpc('importaddress', [addr, wallet_name, False])
 		if common.config.get("BLOCKCHAIN", "blockchain_source") != 'regtest': 
-			print 'now restart bitcoind with -rescan'
+			print 'now restart bitcoind with -rescan, unless you\'re sure the wallet is completely empty and unused'
 			sys.exit(0)
 
 	def sync_addresses(self, wallet):

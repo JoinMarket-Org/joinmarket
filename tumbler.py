@@ -45,12 +45,9 @@ def generate_tumbler_tx(destaddrs, options):
 				'srcmixdepth': m + options.mixdepthsrc, 'makercount': makercount, 'destination': 'internal'}
 			tx_list.append(tx)
 
-	total_dest_addr = len(destaddrs) + options.addrask
-	external_dest_addrs = ['addrask']*options.addrask + destaddrs
-	if total_dest_addr > options.mixdepthcount:
-		print 'not enough mixing depths to pay to all destination addresses'
-		return None
-	for mix_offset in range(total_dest_addr):
+	addrask = options.addrcount - len(destaddrs)
+	external_dest_addrs = ['addrask']*addrask + destaddrs
+	for mix_offset in range(options.addrcount):
 		srcmix = options.mixdepthsrc + options.mixdepthcount - mix_offset - 1
 		for tx in reversed(tx_list):
 			if tx['srcmixdepth'] == srcmix:
@@ -193,6 +190,9 @@ class TumblerThread(threading.Thread):
 		sqlorders = self.taker.db.execute('SELECT cjfee, ordertype FROM orderbook;').fetchall()
 		orders = [o['cjfee'] for o in sqlorders if o['ordertype'] == 'relorder']
 		orders = sorted(orders)
+		if len(orders) == 0:
+			debug('There are no orders at all in the orderbook! Is the bot connecting to the right server?')
+			return
 		relorder_fee = float(orders[0])
 		debug('relorder fee = ' + str(relorder_fee))
 		maker_count = sum([tx['makercount'] for tx in self.taker.tx_list])
@@ -259,9 +259,9 @@ def main():
 		default=(0.01, 10000), help='maximum coinjoin fee and bitcoin value the tumbler is '
 		'willing to pay to a single market maker. Both values need to be exceeded, so if '
 		'the fee is 30% but only 500satoshi is paid the tx will go ahead. default=0.01, 10000 (1%, 10000satoshi)')
-	parser.add_option('-a', '--addrask', type='int', dest='addrask',
-		default=2, help='How many more addresses to ask for in the terminal. Should '
-			'be similar to --txcountparams. default=2')
+	parser.add_option('-a', '--addrcount', type='int', dest='addrcount',
+		default=3, help='How many destination addresses in total should be used. If not enough are given'
+			' as command line arguments, the script will ask for more, default=3')
 	parser.add_option('-N', '--makercountrange', type='float', nargs=2, action='store',
 		dest='makercountrange',
 		help='Input the mean and spread of number of makers to use. e.g. 3 1.5 will be a normal distribution '
@@ -297,8 +297,13 @@ def main():
 		if not addr_valid:
 			print 'ERROR: Address ' + addr + ' invalid. ' + errormsg
 			return
-	
-	if len(destaddrs) + options.addrask <= 1:
+
+	if len(destaddrs) > options.addrcount:
+		options.addrcount = len(destaddrs)
+	if options.addrcount+1 > options.mixdepthcount:
+		print 'not enough mixing depths to pay to all destination addresses, increasing mixdepthcount'
+		options.mixdepthcount = options.addrcount+1
+	if options.addrcount <= 1:
 		print '='*50
 		print 'WARNING: You are only using one destination address'
 		print 'this is very bad for privacy'
@@ -324,6 +329,7 @@ def main():
 	pprint(dbg_tx_list)
 
 	total_wait = sum([tx['wait'] for tx in tx_list])
+	print 'creates ' + str(len(tx_list)) + ' transactions in total'
 	print 'waits in total for ' + str(len(tx_list)) + ' blocks and ' + str(total_wait) + ' minutes'
 	total_block_and_wait = len(tx_list)*10 + total_wait
 	print('estimated time taken ' + str(total_block_and_wait) +
