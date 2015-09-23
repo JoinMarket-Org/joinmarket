@@ -96,7 +96,8 @@ class JsonRpc(object):
         except JsonRpcConnectionError as exc:
             raise exc
         except Exception as exc:
-            raise JsonRpcConnectionError("JSON-RPC connection failed")
+            raise JsonRpcConnectionError("JSON-RPC connection failed. Err:" +
+                                         repr(exc))
 
     def call(self, method, params):
         """

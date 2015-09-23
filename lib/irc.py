@@ -445,9 +445,9 @@ class IRCMessageChannel(MessageChannel):
             self.send_raw('MODE ' + self.nick + ' -R'
                          )  #allows unreg'd private messages
         elif chunks[1] == '366':  #end of names list
+            debug('Connected to IRC and joined channel')
             if self.on_welcome:
                 self.on_welcome()
-            debug('Connected to IRC and joined channel')
         elif chunks[1] == '332' or chunks[1] == 'TOPIC':  #channel topic
             topic = get_irc_text(line)
             self.on_set_topic(topic)
