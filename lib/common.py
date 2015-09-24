@@ -19,6 +19,7 @@ debug_file_lock = threading.Lock()
 debug_file_handle = None
 core_alert = None
 joinmarket_alert = None
+debug_silence = False
 
 config = SafeConfigParser()
 config_location = 'joinmarket.cfg'
@@ -98,11 +99,12 @@ def debug(msg):
 		if nickname and not debug_file_handle: 
 			debug_file_handle = open(os.path.join('logs', nickname+'.log'),'ab',1)
 		outmsg = datetime.datetime.now().strftime("[%Y/%m/%d %H:%M:%S] ") + msg
-		if core_alert:
-			print 'Core Alert Message: ' + core_alert
-		if joinmarket_alert:
-			print 'JoinMarket Alert Message: ' + joinmarket_alert
-		print outmsg
+		if not debug_silence:
+			if core_alert:
+				print 'Core Alert Message: ' + core_alert
+			if joinmarket_alert:
+				print 'JoinMarket Alert Message: ' + joinmarket_alert
+			print outmsg
 		if nickname: #debugs before creating bot nick won't be handled like this
 			debug_file_handle.write(outmsg + '\r\n')
 			
