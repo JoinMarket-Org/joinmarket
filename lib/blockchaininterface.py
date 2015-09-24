@@ -422,6 +422,7 @@ class BitcoinCoreInterface(BlockchainInterface):
 
 		self.notifythread = None
 		self.txnotify_fun = []
+		self.wallet_synced = False
 
 	def get_wallet_name(self, wallet):
 		return 'joinmarket-wallet-' + btc.dbl_sha256(wallet.keys[0][0])[:6]
@@ -500,6 +501,7 @@ class BitcoinCoreInterface(BlockchainInterface):
 				wallet_addr_list += [wallet.get_new_addr(mix_depth, forchange) for i in range(addr_req_count*3)]
 			self.add_watchonly_addresses(wallet_addr_list, wallet_name)
 			return
+		self.wallet_synced = True
 
 	def sync_unspent(self, wallet):
 		if isinstance(wallet, common.BitcoinCoreWallet):
