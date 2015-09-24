@@ -192,12 +192,14 @@ class TumblerThread(threading.Thread):
         if tx['destination'] == 'internal':
             destaddr = self.taker.wallet.get_receive_addr(tx['srcmixdepth'] + 1)
         elif tx['destination'] == 'addrask':
+            common.debug_silence = True
             while True:
                 destaddr = raw_input('insert new address: ')
                 addr_valid, errormsg = validate_address(destaddr)
                 if addr_valid:
                     break
                 print 'Address ' + destaddr + ' invalid. ' + errormsg + ' try again'
+            common.debug_silence = False
         else:
             destaddr = tx['destination']
         self.sweep = sweep
