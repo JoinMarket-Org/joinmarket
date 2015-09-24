@@ -401,6 +401,13 @@ class Wallet(AbstractWallet):
         self.addr_cache[addr] = (mixing_depth, forchange, index[forchange])
         index[forchange] += 1
         #self.update_cache_index()
+        if isinstance(bc_interface, blockchaininterface.BitcoinCoreInterface):
+            if bc_interface.wallet_synced:  #do not import in the middle of sync_wallet()
+                if bc_interface.rpc('getaccount', [addr]) == '':
+                    debug('importing address ' + addr + ' to bitcoin core')
+                    bc_interface.rpc('importaddress',
+                                     [addr, bc_interface.get_wallet_name(self),
+                                      False])
         return addr
 
     def get_receive_addr(self, mixing_depth):
