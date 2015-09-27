@@ -148,7 +148,13 @@ def get_network():
 	'''Returns network name'''
 	return config.get("BLOCKCHAIN","network")
 
-def get_addr_vbyte():
+def get_p2sh_vbyte():
+	if get_network() == 'testnet':
+		return 0xc4
+	else:
+		return 0x05
+
+def get_p2pk_vbyte():
 	if get_network() == 'testnet':
 		return 0x6f
 	else:
@@ -159,7 +165,7 @@ def validate_address(addr):
 		ver = btc.get_version_byte(addr)
 	except AssertionError:
 		return False, 'Checksum wrong. Typo in address?'
-	if ver != get_addr_vbyte():
+	if ver != get_p2pk_vbyte() and ver != get_p2sh_vbyte():
 		return False, 'Wrong address version. Testnet/mainnet confused?'
 	return True, 'address validated'
 
@@ -358,7 +364,7 @@ class Wallet(AbstractWallet):
 		return btc.bip32_extract_key(btc.bip32_ckd(self.keys[mixing_depth][forchange], i))
 
 	def get_addr(self, mixing_depth, forchange, i):
-		return btc.privtoaddr(self.get_key(mixing_depth, forchange, i), get_addr_vbyte())
+		return btc.privtoaddr(self.get_key(mixing_depth, forchange, i), get_p2pk_vbyte())
 
 	def get_new_addr(self, mixing_depth, forchange):
 		index = self.index[mixing_depth]
@@ -395,7 +401,7 @@ class Wallet(AbstractWallet):
 	def add_new_utxos(self, tx, txid):
 		added_utxos = {}
 		for index, outs in enumerate(tx['outs']):
-			addr = btc.script_to_address(outs['script'], get_addr_vbyte())
+			addr = btc.script_to_address(outs['script'], get_p2pk_vbyte())
 			if addr not in self.addr_cache:
 				continue
 			addrdict = {'address': addr, 'value': outs['value']}

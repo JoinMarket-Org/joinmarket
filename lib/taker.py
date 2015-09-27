@@ -90,7 +90,7 @@ class CoinJoinTX(object):
 			total_input - self.cj_amount - order['txfee'] + real_cjfee})
 		debug('fee breakdown for %s totalin=%d cjamount=%d txfee=%d realcjfee=%d' % (nick,
 			total_input, self.cj_amount, order['txfee'], real_cjfee))
-		cj_addr = btc.pubtoaddr(cj_pub, get_addr_vbyte())
+		cj_addr = btc.pubtoaddr(cj_pub, get_p2pk_vbyte())
 		self.outputs.append({'address': cj_addr, 'value': self.cj_amount})
 		self.cjfee_total += real_cjfee
 		self.nonrespondants.remove(nick)

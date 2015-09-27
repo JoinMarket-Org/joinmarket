@@ -200,7 +200,7 @@ class BlockrInterface(BlockchainInterface):
 				self.confirmfun = confirmfun
 				self.tx_output_set = set([(sv['script'], sv['value']) for sv in txd['outs']])
 				self.output_addresses = [btc.script_to_address(scrval[0],
-					common.get_addr_vbyte()) for scrval in self.tx_output_set]
+					common.get_p2pk_vbyte()) for scrval in self.tx_output_set]
 				common.debug('txoutset=' + pprint.pformat(self.tx_output_set))
 				common.debug('outaddrs=' + ','.join(self.output_addresses))
 
@@ -526,7 +526,7 @@ class BitcoinCoreInterface(BlockchainInterface):
 			self.notifythread.start()
 		one_addr_imported = False
 		for outs in txd['outs']:
-			addr = btc.script_to_address(outs['script'], common.get_addr_vbyte())
+			addr = btc.script_to_address(outs['script'], common.get_p2pk_vbyte())
 			if self.rpc('getaccount', [addr]) != '':
 				one_addr_imported = True
 				break
