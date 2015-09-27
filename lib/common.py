@@ -477,13 +477,12 @@ def weighted_order_choose(orders, n, feekey):
 	else:
 		phi = feekey(orders[-1]) - minfee
 	fee = [feekey(o) for o in orders]
-	debug('phi=' + str(phi) + ' fee=' + ','.join([str(f) for f in fee]))
 	if phi > 0:
-		weight = [exp(-(1.0*f - minfee)/phi) for f in fee]
+		weight = [exp(-(1.0*f - minfee) / phi) for f in fee]
 	else:
 		weight = [1.0]*len(fee)
 	weight = [x/sum(weight) for x in weight]
-	debug('randomly choosing orders with weighting\n' + pprint.pformat(zip(orders, weight)))
+	debug('phi=' + str(phi) + ' weights = ' + str(weight))
 	chosen_order_index = rand_weighted_choice(len(orders), weight)
 	return orders[chosen_order_index]
 
@@ -526,7 +525,7 @@ def choose_orders(db, cj_amount, n, chooseOrdersBy, ignored_makers=[]):
 			% (n, len(counterparties), cj_amount, len(orders)))
 		return None, 0 #TODO handle not enough liquidity better, maybe an Exception
 	orders = sorted(orders, key=lambda k: k[2]) #sort from smallest to biggest cj fee
-	debug('considered orders = ' + str(orders))
+	debug('considered orders = \n' + '\n'.join([str(o) for o in orders]))
 	total_cj_fee = 0
 	chosen_orders = []
 	for i in range(n):
@@ -534,11 +533,11 @@ def choose_orders(db, cj_amount, n, chooseOrdersBy, ignored_makers=[]):
 		orders = [o for o in orders if o[0] != chosen_order[0]] #remove all orders from that same counterparty
 		chosen_orders.append(chosen_order)
 		total_cj_fee += chosen_order[2]
-	debug('chosen orders = ' + str(chosen_orders))
+	debug('chosen orders = \n' + '\n'.join([str(o) for o in chosen_orders]))
 	chosen_orders = [o[:2] for o in chosen_orders]
 	return dict(chosen_orders), total_cj_fee
 
-def choose_sweep_orders(db, my_total_input, my_tx_fee, n, chooseOrdersBy, ignored_makers=[]):
+def choose_sweep_orders(db, total_input_value, my_tx_fee, n, chooseOrdersBy, ignored_makers=[]):
 	'''
 	choose an order given that we want to be left with no change
 	i.e. sweep an entire group of utxos
@@ -553,45 +552,47 @@ def choose_sweep_orders(db, my_total_input, my_tx_fee, n, chooseOrdersBy, ignore
 		sumabsfee = 0
 		sumrelfee = Decimal('0')
 		for order in ordercombo:
-			if order['ordertype'] == 'absorder':
-				sumabsfee += int(order['cjfee'])
-			elif order['ordertype'] == 'relorder':
-				sumrelfee += Decimal(order['cjfee'])
+			if order[0]['ordertype'] == 'absorder':
+				sumabsfee += int(order[0]['cjfee'])
+			elif order[0]['ordertype'] == 'relorder':
+				sumrelfee += Decimal(order[0]['cjfee'])
 			else:
-				raise RuntimeError('unknown order type: ' + str(ordertype))
-		cjamount = (my_total_input - my_tx_fee - sumabsfee) / (1 + sumrelfee)
+				raise RuntimeError('unknown order type: ' + str(order[0]['ordertype']))
+		cjamount = (total_input_value - my_tx_fee - sumabsfee) / (1 + sumrelfee)
 		cjamount = int(cjamount.quantize(Decimal(1)))
 		return cjamount, int(sumabsfee + sumrelfee*cjamount)
 
-	def is_amount_in_range(ordercombo, cjamount):
-		for order in ordercombo:
-			if cjamount >= order['maxsize'] or cjamount <= order['minsize']:
-				return False
-		return True
-
-	sqlorders = db.execute('SELECT * FROM orderbook;').fetchall()
+	sqlorders = db.execute('SELECT * FROM orderbook WHERE minsize <= ?;', (total_input_value,)).fetchall()
 	orderkeys = ['counterparty', 'oid', 'ordertype', 'minsize', 'maxsize', 'txfee', 'cjfee']
 	orderlist = [dict([(k, o[k]) for k in orderkeys]) for o in sqlorders
 		if o['counterparty'] not in ignored_makers]
+	#orderlist = sqlorders #uncomment this and comment previous two lines for faster runtime but less readable output
+	debug('orderlist = \n' + '\n'.join([str(o) for o in orderlist]))
 
-	ordercombos = [combo for combo in itertools.combinations(orderlist, n)]
-
-	ordercombos = [(c, calc_zero_change_cj_amount(c)) for c in ordercombos]
-	ordercombos = [oc for oc in ordercombos if is_amount_in_range(oc[0], oc[1][0])]
-	ordercombos = sorted(ordercombos, key=lambda k: k[1][0], reverse=True)
-	dbgprint = [([(o['counterparty'], o['oid']) for o in oc[0]], oc[1]) for oc in ordercombos]
-	debug('considered order combinations')
-	debug(pprint.pformat(dbgprint))
-
-	if len(ordercombos) == 0:
-		debug('ERROR not enough liquidity in the orderbook')
-		return None, 0 #TODO handle not enough liquidity better, maybe an Exception
-		
-	ordercombo = chooseOrdersBy(ordercombos, n, lambda k: k[1][1]) #index [1][1] = cjfee	
-	orders = dict([(o['counterparty'], o['oid']) for o in ordercombo[0]])
-	cjamount =  ordercombo[1][0]
-	debug('chosen orders = ' + str(orders))
-	debug('cj amount = ' + str(cjamount))
-	return orders, cjamount
-
+	#choose N amount of orders
+	available_orders = [(o, calc_cj_fee(o['ordertype'], o['cjfee'], total_input_value))
+		for o in orderlist]
+	available_orders = sorted(available_orders, key=lambda k: k[1]) #sort from smallest to biggest cj fee
+	chosen_orders = []
+	while len(chosen_orders) < n:
+		if len(available_orders) < n - len(chosen_orders):
+			debug('ERROR not enough liquidity in the orderbook')
+			return None, 0 #TODO handle not enough liquidity better, maybe an Exception
+		for i in range(n - len(chosen_orders)):
+			chosen_order = chooseOrdersBy(available_orders, n, lambda k: k[1])
+			debug('chosen = ' + str(chosen_order))
+			#remove all orders from that same counterparty
+			available_orders = [o for o in available_orders if o[0]['counterparty'] != chosen_order[0]['counterparty']]
+			chosen_orders.append(chosen_order)
+		#calc cj_amount and check its in range
+		cj_amount, total_fee = calc_zero_change_cj_amount(chosen_orders)
+		for c in list(chosen_orders):
+			minsize = c[0]['minsize']
+			maxsize = c[0]['maxsize']
+			if cj_amount > maxsize or cj_amount < minsize:
+				chosen_orders.remove(c)
+	debug('chosen orders = \n' + '\n'.join([str(o) for o in chosen_orders]))
+	result = dict([(o[0]['counterparty'], o[0]['oid']) for o in chosen_orders])
+	debug('cj amount = ' + str(cj_amount))
+	return result, cj_amount
 
