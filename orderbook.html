@@ -30,7 +30,47 @@
 			.tftable tr {background-color:#2f2f2f;}
 			.tftable td {font-size:12px;border-width: 1px;padding: 8px;border-style: solid;border-color: #686767;}
 			.tftable tr:hover {background-color:#171515;}
+			.tftable tr.selected {background-color:#171515;}
 		</style>
+
+
+                <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+                <script>
+
+                  function myboolean(value) {
+                    return !(value=="false" || value=="" || value==null);
+                  }
+                  function getOrderKey(tr) {
+                    var row = $(tr).find("td");
+                    if(row.length==0){ return null; }
+                    return $(row[1]).text().replace(/_*$/g,"")+"/"+$(row[2]).text();
+                  }
+
+                  var selected;
+                  $(document).ready(function(){
+                    var rows = $("table.tftable tr");
+                    var i;
+                    /*for(i=1 ; i<rows.length ; i++){
+                      $($(rows[i]).find("td")[1]).css( "background-color", "red" );
+                    }*/
+                    for(i=1 ; i<rows.length ; i++) {
+                      var key = getOrderKey(rows[i]);
+                        if(key!=null && myboolean(localStorage.getItem(key))){
+                          $(rows[i]).addClass("selected");
+                        }
+                    }
+
+
+                  $(".tftable tr").click(function(){
+                    $(this).toggleClass("selected");
+                    var element = getOrderKey(this);
+                    // toggle:
+                    localStorage.setItem(element,String(!myboolean(localStorage.getItem(element))));
+                  });
+
+                  });
+                  </script>
+		
 	</head>
 
 
