@@ -117,8 +117,9 @@ class PaymentThread(threading.Thread):
                 100.0 * total_fee_pc))) + '%')
             check_high_fee(total_fee_pc)
             if raw_input('send with these orders? (y/n):')[0] != 'y':
+                debug('ending')
                 self.taker.msgchan.shutdown()
-                return
+                return None, -1
         return orders, total_cj_fee
 
     def run(self):
