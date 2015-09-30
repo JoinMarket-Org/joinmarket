@@ -21,7 +21,7 @@ core_alert = None
 joinmarket_alert = None
 debug_silence = False
 
-config = SafeConfigParser()
+config = SafeConfigParser({'txfee' : '1000', 'cjfee' : '0.002', 'mix_levels' : '5', 'minsize' : '0'})
 config_location = 'joinmarket.cfg'
 # FIXME: Add rpc_* options here in the future!
 required_options = {'BLOCKCHAIN':['blockchain_source', 'network'],
@@ -57,6 +57,14 @@ maker_timeout_sec = 30
 [POLICY]
 #for dust sweeping, try merge_algorithm = gradual
 merge_algorithm = default
+
+[YIELDGEN]
+txfee = 1000
+cjfee = 0.002
+nickname = ''
+nickserv_password = ''
+mix_levels = 5
+minsize = 0
 """
 
 def load_program_config():
