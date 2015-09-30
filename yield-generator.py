@@ -12,21 +12,19 @@ import common, blockchaininterface
 
 from socket import gethostname
 
+load_program_config()
+if not config.has_section('YIELDGEN'):
+	config.add_section('YIELDGEN')
+
 txfee = config.getint('YIELDGEN', 'txfee')
-cjfee = config.getfloat('YIELDGEN', 'cjfee') # 0.2% fee
-nickname = config.get('YIELDGEN', 'nickname');
-nickserv_password = config.get('YIELDGEN', 'nickserv_password');
-minsize = config.getint('YIELDGEN', 'minsize');
-mix_levels = config.getint('YIELDGEN', 'mix_levels');
-
-if not minsize:
-	minsize = int(1.2 * txfee / float(cjfee)) #minimum size is such that you always net profit at least 20% of the miner fee
-if not nickname:
-	nickname = random_nick()
+cjfee = config.getfloat('YIELDGEN', 'cjfee')
+nickname = config.get('YIELDGEN', 'nickname') or random_nick()
+nickserv_password = config.get('YIELDGEN', 'nickserv_password')
+minsize = config.getint('YIELDGEN', 'minsize') or int(1.2 * txfee / float(cjfee))
+mix_levels = config.getint('YIELDGEN', 'mix_levels')
 
 
 
-#is a maker for the purposes of generating a yield from held
 # bitcoins without ruining privacy for the taker, the taker could easily check
 # the history of the utxos this bot sends, so theres not much incentive
 # to ruin the privacy for barely any more yield

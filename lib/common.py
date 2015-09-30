@@ -21,7 +21,7 @@ core_alert = None
 joinmarket_alert = None
 debug_silence = False
 
-config = SafeConfigParser({'txfee' : '1000', 'cjfee' : '0.002', 'mix_levels' : '5', 'minsize' : '0'})
+config = SafeConfigParser({'txfee' : '1000', 'cjfee' : '0.002', 'mix_levels' : '5', 'minsize' : '0', 'nickname' : '', 'nickserv_password': ''})
 config_location = 'joinmarket.cfg'
 # FIXME: Add rpc_* options here in the future!
 required_options = {'BLOCKCHAIN':['blockchain_source', 'network'],
@@ -61,8 +61,8 @@ merge_algorithm = default
 [YIELDGEN]
 txfee = 1000
 cjfee = 0.002
-nickname = ''
-nickserv_password = ''
+nickname = 
+nickserv_password = 
 mix_levels = 5
 minsize = 0
 """
