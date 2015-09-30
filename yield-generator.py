@@ -24,7 +24,7 @@ minsize = config.getint('YIELDGEN', 'minsize') or int(1.2 * txfee / float(cjfee)
 mix_levels = config.getint('YIELDGEN', 'mix_levels')
 
 
-
+#is a maker for the purposes of generating a yield from held
 # bitcoins without ruining privacy for the taker, the taker could easily check
 # the history of the utxos this bot sends, so theres not much incentive
 # to ruin the privacy for barely any more yield
