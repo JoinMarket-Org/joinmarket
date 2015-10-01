@@ -125,14 +125,13 @@ class CoinJoinTX(object):
 		debug('obtained tx\n' + pprint.pformat(btc.deserialize(tx)))
 		self.msgchan.send_tx(self.active_orders.keys(), tx)
 
-		#now sign it ourselves here
-		for index, ins in enumerate(btc.deserialize(tx)['ins']):
+		self.latest_tx = btc.deserialize(tx)
+		for index, ins in enumerate(self.latest_tx['ins']):
 			utxo = ins['outpoint']['hash'] + ':' + str(ins['outpoint']['index'])
 			if utxo not in self.input_utxos.keys():
 				continue
-			addr = self.input_utxos[utxo]['address']
-			tx = btc.sign(tx, index, self.wallet.get_key_from_addr(addr))
-		self.latest_tx = btc.deserialize(tx)
+			#placeholders required
+			ins['script'] = 'deadbeef'
 
 	def add_signature(self, nick, sigb64):
 		if nick not in self.nonrespondants:
@@ -183,19 +182,27 @@ class CoinJoinTX(object):
 		self.all_responded = True
 		with self.timeout_lock:
 			self.timeout_lock.notify()
-		debug('the entire tx is signed, ready to pushtx()')
-		txhex = btc.serialize(self.latest_tx)
-		debug('\n' + txhex)
-		self.txid = btc.txhash(txhex)
-		debug('pushing tx ' + self.txid)
-
+		debug('all makers have sent their signatures')
 		if self.finishcallback != None:
 			self.finishcallback(self)
+
+	def self_sign_and_push(self):
+		#now sign it ourselves
+		tx = btc.serialize(self.latest_tx)
+		for index, ins in enumerate(self.latest_tx['ins']):
+			utxo = ins['outpoint']['hash'] + ':' + str(ins['outpoint']['index'])
+			if utxo not in self.input_utxos.keys():
+				continue
+			addr = self.input_utxos[utxo]['address']
+			tx = btc.sign(tx, index, self.wallet.get_key_from_addr(addr))
+		txhex = btc.serialize(self.latest_tx)
+		debug('\n' + txhex)
+		debug('txid = ' + btc.txhash(tx))
 		#TODO send to a random maker or push myself
+		#TODO need to check whether the other party sent it
 		#self.msgchan.push_tx(self.active_orders.keys()[0], txhex)	
-		ret = None
-		ret = common.bc_interface.pushtx(txhex)
-		if ret == None:
+		self.txid = common.bc_interface.pushtx(tx)
+		if self.txid == None:
 			debug('unable to pushtx')
 
 	def recover_from_nonrespondants(self):
@@ -228,7 +235,7 @@ class CoinJoinTX(object):
 			self.end_timeout_thread = True
 			if self.finishcallback != None:
 				self.finishcallback(self)
-			#finishcallback will check if self.txid is None and will know it came from here
+			#finishcallback will check if self.all_responded is True and will know it came from here
 
 	class TimeoutThread(threading.Thread):
 		def __init__(self, cjtx):
