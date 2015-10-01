@@ -85,7 +85,8 @@ class TumblerThread(threading.Thread):
 		self.lockcond.release()
 
 	def finishcallback(self, coinjointx):
-		if coinjointx.txid:
+		if coinjointx.all_responded:
+			coinjointx.self_sign_and_push()
 			common.bc_interface.add_tx_notify(coinjointx.latest_tx,
 				self.unconfirm_callback, self.confirm_callback, coinjointx.my_cj_addr)
 			self.taker.wallet.remove_old_utxos(coinjointx.latest_tx)
