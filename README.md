@@ -1,10 +1,10 @@
 ##What is JoinMarket ?
 
-The idea behind JoinMarket is that holders of bitcoin will allow their coins to be mixed with in return for a fee. The mixing will happen in coinjoin transactions. They form a kind of smart contract which means your private keys will never leave your computer so there is no risk of loss (barring malware or bug*)
+The idea behind JoinMarket is to allow users to have their bitcoins mixed with other JoinMarket users in return for a fee. A form of smart contract is created, meaning the private keys will never be broadcasted outside of your computer, resulting in virtually zero risk of loss (aside from malware or bugs).
 
-Put simply, JoinMarket allows you to improve the privacy of your bitcoin transactions for low fees in a decentralized fashion Because of the fee paid, owners of bitcoin will be able to earn an income using JoinMarket.
+Simply put, JoinMarket allows its users to improve the privacy of their bitcoin transactions (and therefore maintaining or even restoring fungibility) in a decentralized fashion. On the other side, there are the JoinMarket operators who provide access to their bitcoins for others to use in mixing transactions. Their incentive is in the form of a fee in return for the provision of their bitcoins, meaning JoinMarket could become a form of passive income. 
 
-As the risk is very low, the reward will also be low because of competition between fee-earners. It means that you will be eventually able to do a coinjoin very cheaply. We already see that holders of bitcoin are willing to earn very small amounts per day by lending on the bitfinex exchange, and that contains a substantial risk that bitfinex will go disappear.
+As a result of free-market forces (i.e. anyone with bitcoins can become a JoinMarket operator), the fees will eventually be next to nothing. 
 
 ##Installation
 
