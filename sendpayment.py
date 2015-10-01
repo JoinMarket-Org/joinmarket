@@ -86,7 +86,8 @@ class PaymentThread(threading.Thread):
                             self.finishcallback, choose_orders_recover)
 
     def finishcallback(self, coinjointx):
-        if coinjointx.txid:
+        if coinjointx.all_responded:
+            coinjointx.self_sign_and_push()
             debug('created fully signed tx, ending')
             self.taker.msgchan.shutdown()
             return
