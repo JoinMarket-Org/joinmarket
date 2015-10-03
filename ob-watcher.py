@@ -127,15 +127,29 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
 		if desc:
 			orderby_cmp_wrapper = orderby_cmp
 			orderby_cmp = lambda x,y: orderby_cmp_wrapper(y,x)
+		order_keys_display = (('ordertype', ordertype_display), ('counterparty', do_nothing),
+			('oid', order_str), ('cjfee', cjfee_display), ('txfee', satoshi_to_unit),
+			('minsize', satoshi_to_unit), ('maxsize', satoshi_to_unit))
+
 		for o in sorted(rows,cmp=orderby_cmp):
 			result += ' <tr>\n'
-			order_keys_display = (('ordertype', ordertype_display), ('counterparty', do_nothing),
-				 ('oid', order_str), ('cjfee', cjfee_display), ('txfee', satoshi_to_unit),
-				 ('minsize', satoshi_to_unit), ('maxsize', satoshi_to_unit))
 			for key, displayer in order_keys_display:
 				result += '  <td>' + displayer(o[key], o) + '</td>\n'
 			result += ' </tr>\n'
 		return len(rows), result
+
+	def create_orderbook_obj(self):
+		rows = self.taker.db.execute('SELECT * FROM orderbook;').fetchall()
+		if not rows:
+			return []
+
+		result = []
+		for row in rows:
+			o = dict(row)
+			if 'cjfee' in o:
+				o['cjfee'] = int(o['cjfee']) if o['ordertype']=='absorder' else float(o['cjfee'])
+			result.append(o)
+		return result
 
 	def get_counterparty_count(self):
 		counterparties = self.taker.db.execute('SELECT DISTINCT counterparty FROM orderbook;').fetchall()
@@ -146,7 +160,7 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
 		#print 'httpd received ' + self.path + ' request'
 		self.path, query = self.path.split('?',1) if '?' in self.path else (self.path,'')
 		args = urllib2.urlparse.parse_qs(query)
-		pages = ['/', '/ordersize', '/depth']
+		pages = ['/', '/ordersize', '/depth', '/orderbook.json']
 		if self.path not in pages:
 			return
 		fd = open('orderbook.html', 'r')
@@ -182,11 +196,17 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
 				'SECONDHEADING': 'Orderbook Depth' + alert_msg,
 				'MAINBODY': '<br />'.join(mainbody)
 			}
+		elif self.path == '/orderbook.json':
+			replacements = {}
+			orderbook_fmt = json.dumps(self.create_orderbook_obj())
 		orderbook_page = orderbook_fmt
 		for key, rep in replacements.iteritems():
 			orderbook_page = orderbook_page.replace(key, rep)
 		self.send_response(200)
-		self.send_header('Content-Type', 'text/html')
+		if self.path.endswith('.json'):
+			self.send_header('Content-Type', 'application/json')
+		else:
+			self.send_header('Content-Type', 'text/html')
 		self.send_header('Content-Length', len(orderbook_page))
 		self.end_headers()
 		self.wfile.write(orderbook_page)
