@@ -81,7 +81,7 @@ class Join2PTests(unittest.TestCase):
         #run a single sendpayment call with wallet2
         amt = n * 100000000  #in satoshis
         dest_address = btc.privkey_to_address(
-            os.urandom(32), common.get_addr_vbyte())
+            os.urandom(32), common.get_p2pk_vbyte())
         try:
             for i in range(m):
                 sp_proc = local_command(['python','sendpayment.py','--yes','-N','1', self.wallets[1]['seed'],\
@@ -139,7 +139,7 @@ class JoinNPTests(unittest.TestCase):
         #run a single sendpayment call
         amt = 100000000  #in satoshis
         dest_address = btc.privkey_to_address(
-            os.urandom(32), common.get_addr_vbyte())
+            os.urandom(32), common.get_p2pk_vbyte())
         try:
             sp_proc = local_command(['python','sendpayment.py','--yes','-N', str(self.n),\
                                      self.wallets[self.n]['seed'], str(amt), dest_address])
