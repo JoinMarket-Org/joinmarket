@@ -10,7 +10,7 @@ import sqlite3, base64, threading, time, random, pprint
 class CoinJoinTX(object):
 	#soon the taker argument will be removed and just be replaced by wallet or some other interface
 	def __init__(self, msgchan, wallet, db, cj_amount, orders, input_utxos, my_cj_addr,
-		my_change_addr, my_txfee, finishcallback, choose_orders_recover):
+		my_change_addr, my_txfee, finishcallback, choose_orders_recover, auth_addr=None):
 		'''
 		if my_change is None then there wont be a change address
 		thats used if you want to entirely coinjoin one utxo with no change left over
@@ -29,6 +29,7 @@ class CoinJoinTX(object):
 		self.my_cj_addr = my_cj_addr
 		self.my_change_addr = my_change_addr
 		self.choose_orders_recover = choose_orders_recover
+		self.auth_addr = auth_addr
 		self.timeout_lock = threading.Condition() #used to wait() and notify()
 		#used to restrict access to certain variables across threads
 		self.timeout_thread_lock = threading.Condition()
@@ -54,7 +55,10 @@ class CoinJoinTX(object):
 		self.crypto_boxes[nick] = [maker_pk, enc_wrapper.as_init_encryption(\
 		                        self.kp, enc_wrapper.init_pubkey(maker_pk))]
 		#send authorisation request
-		my_btc_addr = self.input_utxos.itervalues().next()['address']
+		if self.auth_addr:
+			my_btc_addr = self.auth_addr
+		else:
+			my_btc_addr = self.input_utxos.itervalues().next()['address']
 		my_btc_priv = self.wallet.get_key_from_addr(my_btc_addr)
 		my_btc_pub = btc.privtopub(my_btc_priv)
 		my_btc_sig = btc.ecdsa_sign(self.kp.hex_pk(), my_btc_priv)
@@ -183,10 +187,14 @@ class CoinJoinTX(object):
 		with self.timeout_lock:
 			self.timeout_lock.notify()
 		debug('all makers have sent their signatures')
+		for index, ins in enumerate(self.latest_tx['ins']):
+			#remove placeholders
+			if ins['script'] == 'deadbeef':
+				ins['script'] = ''
 		if self.finishcallback != None:
 			self.finishcallback(self)
 
-	def self_sign_and_push(self):
+	def self_sign(self):
 		#now sign it ourselves
 		tx = btc.serialize(self.latest_tx)
 		for index, ins in enumerate(self.latest_tx['ins']):
@@ -195,8 +203,11 @@ class CoinJoinTX(object):
 				continue
 			addr = self.input_utxos[utxo]['address']
 			tx = btc.sign(tx, index, self.wallet.get_key_from_addr(addr))
-		txhex = btc.serialize(self.latest_tx)
-		debug('\n' + txhex)
+		self.latest_tx = btc.deserialize(tx)
+
+	def push(self, txd):
+		tx = btc.serialize(txd)
+		debug('\n' + tx)
 		debug('txid = ' + btc.txhash(tx))
 		#TODO send to a random maker or push myself
 		#TODO need to check whether the other party sent it
@@ -204,6 +215,10 @@ class CoinJoinTX(object):
 		self.txid = common.bc_interface.pushtx(tx)
 		if self.txid == None:
 			debug('unable to pushtx')
+
+	def self_sign_and_push(self):
+		self.self_sign()
+		self.push(self.latest_tx)
 
 	def recover_from_nonrespondants(self):
 		debug('nonresponding makers = ' + str(self.nonrespondants))
@@ -221,7 +236,7 @@ class CoinJoinTX(object):
 			debug('nonresponse to !fill')
 			for nr in self.nonrespondants:
 				del self.active_orders[nr]
-			new_orders, new_makers_fee = self.choose_orders_recover(self.cj_amount,
+			new_orders, new_makers_fee = self.choose_orders_recover(self, self.cj_amount,
 				len(self.nonrespondants), self.nonrespondants, self.active_orders.keys())
 			for nick, order in new_orders.iteritems():
 				self.active_orders[nick] = order
@@ -367,10 +382,10 @@ class Taker(OrderbookWatch):
 			return None
 
 	def start_cj(self, wallet, cj_amount, orders, input_utxos, my_cj_addr, my_change_addr,
-			my_txfee, finishcallback=None, choose_orders_recover=None):
+			my_txfee, finishcallback=None, choose_orders_recover=None, auth_addr=None):
 		self.cjtx = CoinJoinTX(self.msgchan, wallet, self.db, cj_amount, orders,
 			input_utxos, my_cj_addr, my_change_addr, my_txfee, finishcallback,
-			choose_orders_recover)
+			choose_orders_recover, auth_addr)
 
 	def on_error(self):
 		pass #TODO implement
