@@ -281,19 +281,21 @@ class AbstractWallet(object):
 		return mix_balance
 
 class Wallet(AbstractWallet):
-	def __init__(self, seedarg, max_mix_depth=2, gaplimit=6):
+	def __init__(self, seedarg, max_mix_depth, gaplimit=6, extend_mixdepth=False):
 		super(Wallet, self).__init__()
 		self.max_mix_depth = max_mix_depth
-		self.gaplimit = gaplimit
 		self.seed = self.get_seed(seedarg)
+		if extend_mixdepth and len(self.index_cache) > max_mix_depth:
+			self.max_mix_depth = len(self.index_cache)
+		self.gaplimit = gaplimit
 		master = btc.bip32_master_key(self.seed)
 		m_0 = btc.bip32_ckd(master, 0)
-		mixing_depth_keys = [btc.bip32_ckd(m_0, c) for c in range(max_mix_depth)]
+		mixing_depth_keys = [btc.bip32_ckd(m_0, c) for c in range(self.max_mix_depth)]
 		self.keys = [(btc.bip32_ckd(m, 0), btc.bip32_ckd(m, 1)) for m in mixing_depth_keys]
 
 		#self.index = [[0, 0]]*max_mix_depth
 		self.index = []
-		for i in range(max_mix_depth):
+		for i in range(self.max_mix_depth):
 			self.index.append([0, 0])
 
 		#example
