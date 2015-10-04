@@ -37,7 +37,6 @@ parser.add_option('-m',
                   action='store',
                   type='int',
                   dest='maxmixdepth',
-                  default=5,
                   help='maximum mixing depth to look for, default=5')
 parser.add_option('-g',
                   '--gap-limit',
@@ -47,6 +46,13 @@ parser.add_option('-g',
                   help='gap limit for wallet, default=6',
                   default=6)
 (options, args) = parser.parse_args()
+
+#if the index_cache stored in wallet.json is longer than the default
+#then set maxmixdepth to the length of index_cache
+maxmixdepth_configured = True
+if not options.maxmixdepth:
+    maxmixdepth_configured = False
+    options.maxmixdepth = 5
 
 noseed_methods = ['generate', 'recover']
 methods = ['display', 'displayall', 'summary'] + noseed_methods
@@ -61,7 +67,10 @@ if args[0] in noseed_methods:
 else:
     seed = args[0]
     method = ('display' if len(args) == 1 else args[1].lower())
-    wallet = Wallet(seed, options.maxmixdepth, options.gaplimit)
+    wallet = Wallet(seed,
+                    options.maxmixdepth,
+                    options.gaplimit,
+                    extend_mixdepth=not maxmixdepth_configured)
     if method != 'showseed':
         common.bc_interface.sync_wallet(wallet)
 
