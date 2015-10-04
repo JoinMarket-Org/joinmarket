@@ -129,7 +129,7 @@ class CoinJoinOrder(object):
 		if None in input_utxo_data:
 			return False, 'some utxos already spent or not confirmed yet'
 		input_addresses = [u['address'] for u in input_utxo_data]
-		if btc.pubtoaddr(self.i_utxo_pubkey, get_addr_vbyte())\
+		if btc.pubtoaddr(self.i_utxo_pubkey, get_p2pk_vbyte())\
 			not in input_addresses:
 		        return False, "authenticating bitcoin address is not contained"
 		my_utxo_set = set(self.utxos.keys())
@@ -146,7 +146,7 @@ class CoinJoinOrder(object):
 		times_seen_cj_addr = 0
 		times_seen_change_addr = 0
 		for outs in txd['outs']:
-			addr = btc.script_to_address(outs['script'], get_addr_vbyte())
+			addr = btc.script_to_address(outs['script'], get_p2pk_vbyte())
 			if addr == self.cj_addr:
 				times_seen_cj_addr += 1
 				if outs['value'] != self.cj_amount:
@@ -314,7 +314,7 @@ class Maker(CoinJoinerPeer):
 	def on_tx_confirmed(self, cjorder, confirmations, txid):
 		to_announce = []
 		for i, out in enumerate(cjorder.tx['outs']):
-			addr = btc.script_to_address(out['script'], get_addr_vbyte())
+			addr = btc.script_to_address(out['script'], get_p2pk_vbyte())
 			if addr == cjorder.change_addr:
 				neworder = {'oid': self.get_next_oid(), 'ordertype': 'absorder', 'minsize': 12000,
 					'maxsize': out['value'], 'txfee': 10000, 'cjfee': 100000,

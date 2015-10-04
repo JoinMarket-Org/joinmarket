@@ -5,7 +5,7 @@ from math import factorial, exp
 import sys, datetime, json, time, pprint, threading, getpass
 import random
 import blockchaininterface, slowaes
-from ConfigParser import SafeConfigParser, NoSectionError
+from ConfigParser import SafeConfigParser, NoSectionError, NoOptionError
 import os, io, itertools
 
 JM_VERSION = 2
@@ -13,11 +13,13 @@ nickname = ''
 DUST_THRESHOLD = 546
 bc_interface = None
 ordername_list = ["absorder", "relorder"]
+maker_timeout_sec = 30
 
 debug_file_lock = threading.Lock()
 debug_file_handle = None
 core_alert = None
 joinmarket_alert = None
+debug_silence = False
 
 config = SafeConfigParser()
 config_location = 'joinmarket.cfg'
@@ -50,6 +52,7 @@ socks5_port = 9050
 #port = 6697
 #usessl = true
 #socks5 = true
+maker_timeout_sec = 30
 
 [POLICY]
 #for dust sweeping, try merge_algorithm = gradual
@@ -73,7 +76,13 @@ def load_program_config():
 		for o in v:
 			if o not in config.options(k):
 				raise Exception("Config file does not contain the required option: "+o)
-			
+
+	try:
+		global maker_timeout_sec
+		maker_timeout_sec = config.getint('MESSAGING', 'maker_timeout_sec')
+	except NoOptionError:
+		debug('maker_timeout_sec not found in .cfg file, using default value')
+	
 	#configure the interface to the blockchain on startup
 	global bc_interface
 	bc_interface = blockchaininterface.get_blockchain_interface_instance(config)
@@ -90,11 +99,12 @@ def debug(msg):
 		if nickname and not debug_file_handle: 
 			debug_file_handle = open(os.path.join('logs', nickname+'.log'),'ab',1)
 		outmsg = datetime.datetime.now().strftime("[%Y/%m/%d %H:%M:%S] ") + msg
-		if core_alert:
-			print 'Core Alert Message: ' + core_alert
-		if joinmarket_alert:
-			print 'JoinMarket Alert Message: ' + joinmarket_alert
-		print outmsg
+		if not debug_silence:
+			if core_alert:
+				print 'Core Alert Message: ' + core_alert
+			if joinmarket_alert:
+				print 'JoinMarket Alert Message: ' + joinmarket_alert
+			print outmsg
 		if nickname: #debugs before creating bot nick won't be handled like this
 			debug_file_handle.write(outmsg + '\r\n')
 			
@@ -109,7 +119,7 @@ def rand_norm_array(mu, sigma, n):
 
 def rand_exp_array(lamda, n):
 	#'lambda' is reserved (in case you are triggered by spelling errors)
-	return [random.expovariate(lamda) for i in range(n)]
+	return [random.expovariate(1.0 / lamda) for i in range(n)]
 
 def rand_pow_array(power, n):
 	#rather crude in that uses a uniform sample which is a multiple of 1e-4
@@ -138,7 +148,13 @@ def get_network():
 	'''Returns network name'''
 	return config.get("BLOCKCHAIN","network")
 
-def get_addr_vbyte():
+def get_p2sh_vbyte():
+	if get_network() == 'testnet':
+		return 0xc4
+	else:
+		return 0x05
+
+def get_p2pk_vbyte():
 	if get_network() == 'testnet':
 		return 0x6f
 	else:
@@ -149,7 +165,7 @@ def validate_address(addr):
 		ver = btc.get_version_byte(addr)
 	except AssertionError:
 		return False, 'Checksum wrong. Typo in address?'
-	if ver != get_addr_vbyte():
+	if ver != get_p2pk_vbyte() and ver != get_p2sh_vbyte():
 		return False, 'Wrong address version. Testnet/mainnet confused?'
 	return True, 'address validated'
 
@@ -265,19 +281,21 @@ class AbstractWallet(object):
 		return mix_balance
 
 class Wallet(AbstractWallet):
-	def __init__(self, seedarg, max_mix_depth=2, gaplimit=6):
+	def __init__(self, seedarg, max_mix_depth, gaplimit=6, extend_mixdepth=False):
 		super(Wallet, self).__init__()
 		self.max_mix_depth = max_mix_depth
-		self.gaplimit = gaplimit
 		self.seed = self.get_seed(seedarg)
+		if extend_mixdepth and len(self.index_cache) > max_mix_depth:
+			self.max_mix_depth = len(self.index_cache)
+		self.gaplimit = gaplimit
 		master = btc.bip32_master_key(self.seed)
 		m_0 = btc.bip32_ckd(master, 0)
-		mixing_depth_keys = [btc.bip32_ckd(m_0, c) for c in range(max_mix_depth)]
+		mixing_depth_keys = [btc.bip32_ckd(m_0, c) for c in range(self.max_mix_depth)]
 		self.keys = [(btc.bip32_ckd(m, 0), btc.bip32_ckd(m, 1)) for m in mixing_depth_keys]
 
 		#self.index = [[0, 0]]*max_mix_depth
 		self.index = []
-		for i in range(max_mix_depth):
+		for i in range(self.max_mix_depth):
 			self.index.append([0, 0])
 
 		#example
@@ -348,7 +366,7 @@ class Wallet(AbstractWallet):
 		return btc.bip32_extract_key(btc.bip32_ckd(self.keys[mixing_depth][forchange], i))
 
 	def get_addr(self, mixing_depth, forchange, i):
-		return btc.privtoaddr(self.get_key(mixing_depth, forchange, i), get_addr_vbyte())
+		return btc.privtoaddr(self.get_key(mixing_depth, forchange, i), get_p2pk_vbyte())
 
 	def get_new_addr(self, mixing_depth, forchange):
 		index = self.index[mixing_depth]
@@ -385,7 +403,7 @@ class Wallet(AbstractWallet):
 	def add_new_utxos(self, tx, txid):
 		added_utxos = {}
 		for index, outs in enumerate(tx['outs']):
-			addr = btc.script_to_address(outs['script'], get_addr_vbyte())
+			addr = btc.script_to_address(outs['script'], get_p2pk_vbyte())
 			if addr not in self.addr_cache:
 				continue
 			addrdict = {'address': addr, 'value': outs['value']}
@@ -399,7 +417,6 @@ class Wallet(AbstractWallet):
 		'''
 		returns a list of utxos sorted by different mix levels
 		'''
-		debug('get_utxos_by_mixdepth wallet.unspent = \n' + pprint.pformat(self.unspent))
 		mix_utxo_list = {}
 		for m in range(self.max_mix_depth):
 			mix_utxo_list[m] = {}
@@ -408,6 +425,7 @@ class Wallet(AbstractWallet):
 			if mixdepth not in mix_utxo_list:
 				mix_utxo_list[mixdepth] = {}
 			mix_utxo_list[mixdepth][utxo] = addrvalue
+		debug('get_utxos_by_mixdepth = \n' + pprint.pformat(mix_utxo_list))
 		return mix_utxo_list
 
 class BitcoinCoreWallet(AbstractWallet):
@@ -467,13 +485,12 @@ def weighted_order_choose(orders, n, feekey):
 	else:
 		phi = feekey(orders[-1]) - minfee
 	fee = [feekey(o) for o in orders]
-	debug('phi=' + str(phi) + ' fee=' + ','.join([str(f) for f in fee]))
 	if phi > 0:
-		weight = [exp(-(1.0*f - minfee)/phi) for f in fee]
+		weight = [exp(-(1.0*f - minfee) / phi) for f in fee]
 	else:
 		weight = [1.0]*len(fee)
 	weight = [x/sum(weight) for x in weight]
-	debug('randomly choosing orders with weighting\n' + pprint.pformat(zip(orders, weight)))
+	debug('phi=' + str(phi) + ' weights = ' + str(weight))
 	chosen_order_index = rand_weighted_choice(len(orders), weight)
 	return orders[chosen_order_index]
 
@@ -505,17 +522,18 @@ def pick_order(orders, n, feekey):
 		pickedOrderIndex = -1
 		
 
-def choose_order(db, cj_amount, n, chooseOrdersBy):
+def choose_orders(db, cj_amount, n, chooseOrdersBy, ignored_makers=[]):
 	sqlorders = db.execute('SELECT * FROM orderbook;').fetchall()
 	orders = [(o['counterparty'], o['oid'],	calc_cj_fee(o['ordertype'], o['cjfee'], cj_amount), o['txfee'])
-		for o in sqlorders if cj_amount >= o['minsize'] and cj_amount <= o['maxsize']]
+		for o in sqlorders if cj_amount >= o['minsize'] and cj_amount <= o['maxsize'] and o['counterparty']
+		not in ignored_makers]
 	counterparties = set([o[0] for o in orders])
 	if n > len(counterparties):
 		debug('ERROR not enough liquidity in the orderbook n=%d suitable-counterparties=%d amount=%d totalorders=%d'
 			% (n, len(counterparties), cj_amount, len(orders)))
 		return None, 0 #TODO handle not enough liquidity better, maybe an Exception
 	orders = sorted(orders, key=lambda k: k[2]) #sort from smallest to biggest cj fee
-	debug('considered orders = ' + str(orders))
+	debug('considered orders = \n' + '\n'.join([str(o) for o in orders]))
 	total_cj_fee = 0
 	chosen_orders = []
 	for i in range(n):
@@ -523,11 +541,11 @@ def choose_order(db, cj_amount, n, chooseOrdersBy):
 		orders = [o for o in orders if o[0] != chosen_order[0]] #remove all orders from that same counterparty
 		chosen_orders.append(chosen_order)
 		total_cj_fee += chosen_order[2]
-	debug('chosen orders = ' + str(chosen_orders))
+	debug('chosen orders = \n' + '\n'.join([str(o) for o in chosen_orders]))
 	chosen_orders = [o[:2] for o in chosen_orders]
 	return dict(chosen_orders), total_cj_fee
 
-def choose_sweep_order(db, my_total_input, my_tx_fee, n, chooseOrdersBy):
+def choose_sweep_orders(db, total_input_value, my_tx_fee, n, chooseOrdersBy, ignored_makers=[]):
 	'''
 	choose an order given that we want to be left with no change
 	i.e. sweep an entire group of utxos
@@ -542,43 +560,47 @@ def choose_sweep_order(db, my_total_input, my_tx_fee, n, chooseOrdersBy):
 		sumabsfee = 0
 		sumrelfee = Decimal('0')
 		for order in ordercombo:
-			if order['ordertype'] == 'absorder':
-				sumabsfee += int(order['cjfee'])
-			elif order['ordertype'] == 'relorder':
-				sumrelfee += Decimal(order['cjfee'])
+			if order[0]['ordertype'] == 'absorder':
+				sumabsfee += int(order[0]['cjfee'])
+			elif order[0]['ordertype'] == 'relorder':
+				sumrelfee += Decimal(order[0]['cjfee'])
 			else:
-				raise RuntimeError('unknown order type: ' + str(ordertype))
-		cjamount = (my_total_input - my_tx_fee - sumabsfee) / (1 + sumrelfee)
+				raise RuntimeError('unknown order type: ' + str(order[0]['ordertype']))
+		cjamount = (total_input_value - my_tx_fee - sumabsfee) / (1 + sumrelfee)
 		cjamount = int(cjamount.quantize(Decimal(1)))
 		return cjamount, int(sumabsfee + sumrelfee*cjamount)
 
-	def is_amount_in_range(ordercombo, cjamount):
-		for order in ordercombo:
-			if cjamount >= order['maxsize'] or cjamount <= order['minsize']:
-				return False
-		return True
-
-	sqlorders = db.execute('SELECT * FROM orderbook;').fetchall()
+	sqlorders = db.execute('SELECT * FROM orderbook WHERE minsize <= ?;', (total_input_value,)).fetchall()
 	orderkeys = ['counterparty', 'oid', 'ordertype', 'minsize', 'maxsize', 'txfee', 'cjfee']
-	orderlist = [dict([(k, o[k]) for k in orderkeys]) for o in sqlorders]
+	orderlist = [dict([(k, o[k]) for k in orderkeys]) for o in sqlorders
+		if o['counterparty'] not in ignored_makers]
+	#orderlist = sqlorders #uncomment this and comment previous two lines for faster runtime but less readable output
+	debug('orderlist = \n' + '\n'.join([str(o) for o in orderlist]))
 
-	ordercombos = [combo for combo in itertools.combinations(orderlist, n)]
-
-	ordercombos = [(c, calc_zero_change_cj_amount(c)) for c in ordercombos]
-	ordercombos = [oc for oc in ordercombos if is_amount_in_range(oc[0], oc[1][0])]
-	ordercombos = sorted(ordercombos, key=lambda k: k[1][0], reverse=True)
-	dbgprint = [([(o['counterparty'], o['oid']) for o in oc[0]], oc[1]) for oc in ordercombos]
-	debug('considered order combinations')
-	debug(pprint.pformat(dbgprint))
-
-	if len(ordercombos) == 0:
-		debug('ERROR not enough liquidity in the orderbook')
-		return None, 0 #TODO handle not enough liquidity better, maybe an Exception
-		
-	ordercombo = chooseOrdersBy(ordercombos, n, lambda k: k[1][1]) #index [1][1] = cjfee	
-	orders = dict([(o['counterparty'], o['oid']) for o in ordercombo[0]])
-	cjamount =  ordercombo[1][0]
-	debug('chosen orders = ' + str(orders))
-	debug('cj amount = ' + str(cjamount))
-	return orders, cjamount
+	#choose N amount of orders
+	available_orders = [(o, calc_cj_fee(o['ordertype'], o['cjfee'], total_input_value))
+		for o in orderlist]
+	available_orders = sorted(available_orders, key=lambda k: k[1]) #sort from smallest to biggest cj fee
+	chosen_orders = []
+	while len(chosen_orders) < n:
+		if len(available_orders) < n - len(chosen_orders):
+			debug('ERROR not enough liquidity in the orderbook')
+			return None, 0 #TODO handle not enough liquidity better, maybe an Exception
+		for i in range(n - len(chosen_orders)):
+			chosen_order = chooseOrdersBy(available_orders, n, lambda k: k[1])
+			debug('chosen = ' + str(chosen_order))
+			#remove all orders from that same counterparty
+			available_orders = [o for o in available_orders if o[0]['counterparty'] != chosen_order[0]['counterparty']]
+			chosen_orders.append(chosen_order)
+		#calc cj_amount and check its in range
+		cj_amount, total_fee = calc_zero_change_cj_amount(chosen_orders)
+		for c in list(chosen_orders):
+			minsize = c[0]['minsize']
+			maxsize = c[0]['maxsize']
+			if cj_amount > maxsize or cj_amount < minsize:
+				chosen_orders.remove(c)
+	debug('chosen orders = \n' + '\n'.join([str(o) for o in chosen_orders]))
+	result = dict([(o[0]['counterparty'], o[0]['oid']) for o in chosen_orders])
+	debug('cj amount = ' + str(cj_amount))
+	return result, cj_amount
 

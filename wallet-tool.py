@@ -6,7 +6,7 @@ data_dir = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(data_dir, 'lib'))
 
 import bitcoin as btc
-from common import Wallet, load_program_config, get_addr_vbyte
+from common import Wallet, load_program_config, get_p2pk_vbyte
 import common
 import old_mnemonic, slowaes
 
@@ -31,10 +31,17 @@ parser = OptionParser(usage='usage: %prog [options] [wallet file] [method]',
 parser.add_option('-p', '--privkey', action='store_true', dest='showprivkey',
 	help='print private key along with address, default false')
 parser.add_option('-m', '--maxmixdepth', action='store', type='int', dest='maxmixdepth',
-	default=5, help='maximum mixing depth to look for, default=5')
+	help='maximum mixing depth to look for, default=5')
 parser.add_option('-g', '--gap-limit', type="int", action='store', dest='gaplimit',
 	help='gap limit for wallet, default=6', default=6)
 (options, args) = parser.parse_args()
+
+#if the index_cache stored in wallet.json is longer than the default
+#then set maxmixdepth to the length of index_cache
+maxmixdepth_configured = True
+if not options.maxmixdepth:
+	maxmixdepth_configured = False
+	options.maxmixdepth = 5
 
 noseed_methods = ['generate', 'recover']
 methods = ['display', 'displayall', 'summary'] + noseed_methods
@@ -49,7 +56,7 @@ if args[0] in noseed_methods:
 else:
 	seed = args[0]
 	method = ('display' if len(args) == 1 else args[1].lower())
-	wallet = Wallet(seed, options.maxmixdepth, options.gaplimit)
+	wallet = Wallet(seed, options.maxmixdepth, options.gaplimit, extend_mixdepth=not maxmixdepth_configured)
 	if method != 'showseed':
 		common.bc_interface.sync_wallet(wallet)
 
@@ -70,7 +77,7 @@ if method == 'display' or method == 'displayall':
 				balance_depth += balance
 				used = ('used' if k < wallet.index[m][forchange] else ' new')
 				privkey = btc.encode_privkey(wallet.get_key(m, forchange, k), 'wif_compressed',
-					get_addr_vbyte()) if options.showprivkey else ''
+					get_p2pk_vbyte()) if options.showprivkey else ''
 				if method == 'displayall' or  balance > 0 or (used == ' new' and forchange==0):
 					print '  m/0/%d/%d/%03d %-35s%s %.8f btc %s' % (m, forchange, k, addr, used, balance/1e8, privkey)
 		print 'for mixdepth=%d balance=%.8fbtc' % (m, balance_depth/1e8)

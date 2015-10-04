@@ -200,7 +200,7 @@ class BlockrInterface(BlockchainInterface):
 				self.confirmfun = confirmfun
 				self.tx_output_set = set([(sv['script'], sv['value']) for sv in txd['outs']])
 				self.output_addresses = [btc.script_to_address(scrval[0],
-					common.get_addr_vbyte()) for scrval in self.tx_output_set]
+					common.get_p2pk_vbyte()) for scrval in self.tx_output_set]
 				common.debug('txoutset=' + pprint.pformat(self.tx_output_set))
 				common.debug('outaddrs=' + ','.join(self.output_addresses))
 
@@ -384,18 +384,21 @@ class BitcoinCoreNotifyThread(threading.Thread):
 		self.btcinterface = btcinterface
 
 	def run(self):
+		notify_host = 'localhost'
+		notify_port = 62602 #defaults
+		if 'notify_host' in common.config.options("BLOCKCHAIN"):
+			notify_host = common.config.get("BLOCKCHAIN", "notify_host").strip()
 		if 'notify_port' in common.config.options("BLOCKCHAIN"):
-			notify_port = int(common.config.get("BLOCKCHAIN","notify_port"))
-		else:
-			notify_port = 62602 #default
+			notify_port = int(common.config.get("BLOCKCHAIN", "notify_port"))
 		for inc in range(10):
-			hostport = ('localhost', notify_port + inc)
+			hostport = (notify_host, notify_port + inc)
 			try:
 				httpd = BaseHTTPServer.HTTPServer(hostport, NotifyRequestHeader)
 			except Exception:
 				continue
 			httpd.btcinterface = self.btcinterface
-			common.debug('started bitcoin core notify listening thread, port=' + str(hostport[1]))
+			common.debug('started bitcoin core notify listening thread, host='
+				+ str(notify_host) + ' port=' + str(hostport[1]))
 			httpd.serve_forever()
 		common.debug('failed to bind for bitcoin core notify listening')
 
@@ -523,7 +526,7 @@ class BitcoinCoreInterface(BlockchainInterface):
 			self.notifythread.start()
 		one_addr_imported = False
 		for outs in txd['outs']:
-			addr = btc.script_to_address(outs['script'], common.get_addr_vbyte())
+			addr = btc.script_to_address(outs['script'], common.get_p2pk_vbyte())
 			if self.rpc('getaccount', [addr]) != '':
 				one_addr_imported = True
 				break
