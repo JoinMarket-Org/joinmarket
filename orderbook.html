@@ -95,9 +95,36 @@
 
 		<div style="text-align:center; margin:0px auto;">
 			<h1>MAINHEADING</h1>
+			
+		        CoinJoin Blockchain Examples:<BR>
+        		<a href="https://blockchain.info/tx/da1a2259be752dd6b5162221989181b7334bd0acbbc1bca31596e5bc32375770" title"3-Party CoinJoin for 25 BTC" target="_blank">3-Party CoinJoin</a> ~
+        		<a href="https://blockchain.info/tx/665a9d7848cc0d28869ef866ca9a1117f20358e1e372dbbb01f1b75054584e70" title"3-Party CoinJoin Example" target="_blank">3-Party CoinJoin</a><BR>
+        		<a href="https://blockchain.info/tx/b85a3b563474ca98ba1809460e61a50053899c21f9869afb6a3a6d4b4cb00b7c" title"4-Party CoinJoin Example" target="_blank">4-Party CoinJoin</a> ~
+        		<a href="https://blockchain.info/tx/601d9c15bc1edd2fe3e5c853ed111d11e9c0a5fb66c75571c7f10fa0d8ab23bb" title"5-Party CoinJoin Example" target="_blank">5-Party CoinJoin</a><BR><BR>
+			<h4>Using JoinMarket to send coins via CoinJoin</h4>
+        		<div style="width: 75%;">
+        		(1) <a href="https://github.com/chris-belcher/joinmarket/wiki/Using-the-JoinMarket-internal-wallet" title="Using the JoinMarket internal wallet" target="_blank">Setup and fund a joinmarket wallet</a>.<BR><BR>
+        		(2) <a href="https://github.com/chris-belcher/joinmarket/wiki/Sending-payments-with-CoinJoin" title="Sending payments with CoinJoin" target="_blank">Use the sendpayment or patientsendpayment bots to create a CoinJoin request</a>.<BR><BR>
+        		(3) You will receive bitcoins which have been mixed with other user's bitcoins for privacy.<BR>Only YOU will know which input(s) and output(s) are yours!<BR><BR>
+        		</div>
+
 			<h2>SECONDHEADING</h2>
 
 			MAINBODY
+			
+		        <div style="width: 75%;">
+		        <h5>JoinMarket Notes</h5>
+        		PRIVACY: Use the -N flag to increase the default (2) amount of parties involved in your coinjoin order.  The more parties, the less likely any coins can be traced to any one party or address.  Fees are paid to each party involved in the coinjoin action.
+        		<BR><BR>
+        		Miner Fees: Be sure to include enough miner fees when sending payments (use the -f flag, in satoshis, default=10000 / 0.0001 BTC).  This will ensure that your transaction is accepted and relayed by the bitcoin network.  Maker's will contribute some portion of miner's fee, as shown in the JoinMarket orderbook.
+        		<BR><BR>
+        		Example: To send 12345678 satoshi (0.12345678 BTC), from the joinmarket-wallet wallet.json, to the btc address shown, using 5 coinjoin parties.
+        		<BR><BR>
+        		<code>python sendpayment.py -N 5 wallet.json 12345678 BTCAddress</code>
+        		<BR><BR>
+        		Read the Wiki and wallet help options before sending payments to ensure BTC are sent to the correct address(es) with proper configuration!<BR>
+        		</div>
+
 			<br>
 		</div>
 	</body>
