@@ -130,6 +130,20 @@ def main():
 			'wallet. Requires blockchain_source=json-rpc')
 	(options, args) = parser.parse_args()
 
+        if options.makercount < 2:
+                print '\nWARN: UNSAFE makercount (below two)!\nSetting only one maker may expose your inputs and outputs to the maker filling your order.\n'
+                safemakers = raw_input('Are you sure you want to send this payment with only one counterparty? (y/n):')
+                if safemakers[0] == 'y':
+                        print '\nSending with only ONE maker!\n\n'
+                else:
+                        print '\nDone, no payments sent.\nUse -N 3 or higher, or do not set -N to use default (2) makers.\nsendpayment.py --help for more help.\n'
+                        sys.exit(0)
+        else:
+                if options.makercount == 2:
+                        print 'Sending with N=2 (default) makers.  Use --makercount=N for increased privacy (addl maker fees).  See sendpayment.py --help for info.\n'
+                else:
+                        print 'Makercount = ' + str(options.makercount) + '. High makercount provides better privacy at a cost of additional maker fees.\n'
+
 	if len(args) < 3:
 		parser.error('Needs a wallet, amount and destination address')
 		sys.exit(0)
