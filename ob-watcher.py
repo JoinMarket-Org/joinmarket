@@ -112,6 +112,7 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
 
 	def create_orderbook_table(self, orderby, desc):
 		result = ''
+		totalMaxSize = 0.0
 		rows = self.taker.db.execute('SELECT * FROM orderbook;').fetchall()
 		if not rows:
 			return 0, result
@@ -135,7 +136,10 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
 			result += ' <tr>\n'
 			for key, displayer in order_keys_display:
 				result += '  <td>' + displayer(o[key], o) + '</td>\n'
+				if key == "maxsize":
+					totalMaxSize += float(displayer(o[key], o))
 			result += ' </tr>\n'
+		result += ' <tfoot><tr><td colspan="6" style="font-weight:bold;text-align:right;">Total</td> <td>' + str(totalMaxSize) + '</td></tr></tfoot>\n'
 		return len(rows), result
 
 	def create_orderbook_obj(self):
