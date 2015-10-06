@@ -54,7 +54,10 @@ socks5_port = 9050
 maker_timeout_sec = 30
 
 [POLICY]
-#for dust sweeping, try merge_algorithm = gradual
+# for dust sweeping, try merge_algorithm = gradual
+# for more rapid dust sweeping, try merge_algorithm = greedy
+# for most rapid dust sweeping, try merge_algorithm = greediest
+# but don't forget to bump your miner fees!
 merge_algorithm = default
 """
 
@@ -229,7 +232,32 @@ def select_gradual(unspent, value):
 
 def select_greedy(unspent, value):
     '''
-	UTXO selection algorithm for rapid dust reduction
+	UTXO selection algorithm for greedy dust reduction, but leaves out
+	extraneous utxos, preferring to keep multiple small ones.
+	'''
+    value, key, cursor = int(value), lambda u: u['value'], 0
+    utxos, picked = sorted(unspent, key=key), []
+    for utxo in utxos:  # find the smallest consecutive sum >= value
+        value -= key(utxo)
+        if value == 0:  # perfect match! (skip dilution stage)
+            return utxos[0:cursor + 1]  # end is non-inclusive
+        elif value < 0:  # overshot
+            picked += [utxo]  # definitely need this utxo
+            break  # proceed to dilution
+        cursor += 1
+    for utxo in utxos[cursor - 1::-1]:  # dilution loop
+        value += key(utxo)  # see if we can skip this one
+        if value > 0:  # no, that drops us below the target
+            picked += [utxo]  # so we need this one too
+            value -= key(utxo)  # 'backtrack' the counter
+    if len(picked) > 0:
+        return picked
+    raise Exception('Not enough funds')  # if all else fails, we do too
+
+
+def select_greediest(unspent, value):
+    '''
+	UTXO selection algorithm for speediest dust reduction
 	Combines the shortest run of utxos (sorted by size, from smallest) which
 	exceeds the target value; if the target value is larger than the sum of
 	all smaller utxos, uses the smallest utxo larger than the target value.
@@ -264,6 +292,8 @@ class AbstractWallet(object):
                 self.utxo_selector = select_gradual
             elif config.get("POLICY", "merge_algorithm") == "greedy":
                 self.utxo_selector = select_greedy
+            elif config.get("POLICY", "merge_algorithm") == "greediest":
+                self.utxo_selector = select_greediest
             elif config.get("POLICY", "merge_algorithm") != "default":
                 raise Exception("Unknown merge algorithm")
         except NoSectionError:
