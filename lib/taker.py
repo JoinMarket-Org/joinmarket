@@ -267,8 +267,8 @@ class CoinJoinTX(object):
             for nr in self.nonrespondants:
                 del self.active_orders[nr]
             new_orders, new_makers_fee = self.choose_orders_recover(
-                self, self.cj_amount, len(self.nonrespondants),
-                self.nonrespondants, self.active_orders.keys())
+                self.cj_amount, len(self.nonrespondants), self.nonrespondants,
+                self.active_orders.keys())
             for nick, order in new_orders.iteritems():
                 self.active_orders[nick] = order
             self.nonrespondants = list(new_orders.keys())
