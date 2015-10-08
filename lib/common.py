@@ -570,6 +570,7 @@ def choose_sweep_orders(db, total_input_value, my_tx_fee, n, chooseOrdersBy, ign
 		cjamount = int(cjamount.quantize(Decimal(1)))
 		return cjamount, int(sumabsfee + sumrelfee*cjamount)
 
+	debug('choosing sweep orders for total_input_value = ' + str(total_input_value))
 	sqlorders = db.execute('SELECT * FROM orderbook WHERE minsize <= ?;', (total_input_value,)).fetchall()
 	orderkeys = ['counterparty', 'oid', 'ordertype', 'minsize', 'maxsize', 'txfee', 'cjfee']
 	orderlist = [dict([(k, o[k]) for k in orderkeys]) for o in sqlorders
