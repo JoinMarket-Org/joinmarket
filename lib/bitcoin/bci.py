@@ -46,7 +46,7 @@ def bci_unspent(*args):
     u = []
     for a in addrs:
         try:
-            data = make_request('http://blockchain.info/unspent?address='+a)
+            data = make_request('https://blockchain.info/unspent?address='+a)
         except Exception as e:
             if str(e) == 'No free outputs to spend':
                 continue
@@ -74,9 +74,9 @@ def blockr_unspent(*args):
     network, addr_args = parse_addr_args(*args)
 
     if network == 'testnet':
-        blockr_url = 'http://tbtc.blockr.io/api/v1/address/unspent/'
+        blockr_url = 'https://tbtc.blockr.io/api/v1/address/unspent/'
     elif network == 'btc':
-        blockr_url = 'http://btc.blockr.io/api/v1/address/unspent/'
+        blockr_url = 'https://btc.blockr.io/api/v1/address/unspent/'
     else:
         raise Exception(
             'Unsupported network {0} for blockr_unspent'.format(network))
@@ -153,7 +153,7 @@ def history(*args):
         offset = 0
         while 1:
             data = make_request(
-                'http://blockchain.info/address/%s?format=json&offset=%s' %
+                'https://blockchain.info/address/%s?format=json&offset=%s' %
                 (addr, offset))
             try:
                 jsonobj = json.loads(data)
@@ -185,11 +185,11 @@ def history(*args):
     return [outs[k] for k in outs]
 
 
-# Pushes a transaction to the network using http://blockchain.info/pushtx
+# Pushes a transaction to the network using https://blockchain.info/pushtx
 def bci_pushtx(tx):
     if not re.match('^[0-9a-fA-F]*$', tx):
         tx = tx.encode('hex')
-    return make_request('http://blockchain.info/pushtx', 'tx='+tx)
+    return make_request('https://blockchain.info/pushtx', 'tx='+tx)
 
 
 def eligius_pushtx(tx):
@@ -207,9 +207,9 @@ def eligius_pushtx(tx):
 
 def blockr_pushtx(tx, network='btc'):
     if network == 'testnet':
-        blockr_url = 'http://tbtc.blockr.io/api/v1/tx/push'
+        blockr_url = 'https://tbtc.blockr.io/api/v1/tx/push'
     elif network == 'btc':
-        blockr_url = 'http://btc.blockr.io/api/v1/tx/push'
+        blockr_url = 'https://btc.blockr.io/api/v1/tx/push'
     else:
         raise Exception(
             'Unsupported network {0} for blockr_pushtx'.format(network))
@@ -238,7 +238,7 @@ def pushtx(*args, **kwargs):
 
 
 def last_block_height():
-    data = make_request('http://blockchain.info/latestblock')
+    data = make_request('https://blockchain.info/latestblock')
     jsonobj = json.loads(data)
     return jsonobj["height"]
 
@@ -247,15 +247,15 @@ def last_block_height():
 def bci_fetchtx(txhash):
     if not re.match('^[0-9a-fA-F]*$', txhash):
         txhash = txhash.encode('hex')
-    data = make_request('http://blockchain.info/rawtx/'+txhash+'?format=hex')
+    data = make_request('https://blockchain.info/rawtx/'+txhash+'?format=hex')
     return data
 
 
 def blockr_fetchtx(txhash, network='btc'):
     if network == 'testnet':
-        blockr_url = 'http://tbtc.blockr.io/api/v1/tx/raw/'
+        blockr_url = 'https://tbtc.blockr.io/api/v1/tx/raw/'
     elif network == 'btc':
-        blockr_url = 'http://btc.blockr.io/api/v1/tx/raw/'
+        blockr_url = 'https://btc.blockr.io/api/v1/tx/raw/'
     else:
         raise Exception(
             'Unsupported network {0} for blockr_fetchtx'.format(network))
@@ -317,14 +317,14 @@ def fetchtx(*args, **kwargs):
 
 def firstbits(address):
     if len(address) >= 25:
-        return make_request('http://blockchain.info/q/getfirstbits/'+address)
+        return make_request('https://blockchain.info/q/getfirstbits/'+address)
     else:
         return make_request(
-            'http://blockchain.info/q/resolvefirstbits/'+address)
+            'https://blockchain.info/q/resolvefirstbits/'+address)
 
 
 def get_block_at_height(height):
-    j = json.loads(make_request("http://blockchain.info/block-height/" +
+    j = json.loads(make_request("https://blockchain.info/block-height/" +
                    str(height)+"?format=json"))
     for b in j['blocks']:
         if b['main_chain'] is True:
@@ -337,7 +337,7 @@ def _get_block(inp):
         return get_block_at_height(inp)
     else:
         return json.loads(make_request(
-                          'http://blockchain.info/rawblock/'+inp))
+                          'https://blockchain.info/rawblock/'+inp))
 
 
 def get_block_header_data(inp):
@@ -360,5 +360,5 @@ def get_txs_in_block(inp):
 
 
 def get_block_height(txhash):
-    j = json.loads(make_request('http://blockchain.info/rawtx/'+txhash))
+    j = json.loads(make_request('https://blockchain.info/rawtx/'+txhash))
     return j['block_height']
