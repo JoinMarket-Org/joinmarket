@@ -28,7 +28,7 @@ class CoinJoinTX(object):
 		thats used if you want to entirely coinjoin one utxo with no change left over
 		orders is the orders you want to fill {'counterpartynick': oid, 'cp2': oid2}
 		'''
-        debug('starting cj to ' + my_cj_addr + ' with change at ' + str(
+        debug('starting cj to ' + str(my_cj_addr) + ' with change at ' + str(
             my_change_addr))
         #parameters
         self.msgchan = msgchan
@@ -56,7 +56,7 @@ class CoinJoinTX(object):
         self.latest_tx = None
         self.utxos = {None:
                       self.input_utxos.keys()}  #None means they belong to me
-        self.outputs = [{'address': self.my_cj_addr, 'value': self.cj_amount}]
+        self.outputs = []
         #create DH keypair on the fly for this Tx object
         self.kp = enc_wrapper.init_keypair()
         self.crypto_boxes = {}
@@ -133,7 +133,8 @@ class CoinJoinTX(object):
             my_total_in += va['value']
         #my_total_in = sum([va['value'] for u, va in self.input_utxos.iteritems()])
 
-        my_change_value = my_total_in - self.cj_amount - self.cjfee_total - self.my_txfee
+        my_change_value = (
+            my_total_in - self.cj_amount - self.cjfee_total - self.my_txfee)
         debug(
             'fee breakdown for me totalin=%d txfee=%d cjfee_total=%d => changevalue=%d'
             % (my_total_in, self.my_txfee, self.cjfee_total, my_change_value))
@@ -146,10 +147,13 @@ class CoinJoinTX(object):
         else:
             self.outputs.append({'address': self.my_change_addr,
                                  'value': my_change_value})
-        utxo_tx = [dict([('output', u)]) for u in sum(self.utxos.values(), [])]
-        random.shuffle(utxo_tx)
+        self.utxo_tx = [dict([('output', u)])
+                        for u in sum(self.utxos.values(), [])]
+        self.outputs.append({'address': self.coinjoin_address(),
+                             'value': self.cj_amount})
+        random.shuffle(self.utxo_tx)
         random.shuffle(self.outputs)
-        tx = btc.mktx(utxo_tx, self.outputs)
+        tx = btc.mktx(self.utxo_tx, self.outputs)
         debug('obtained tx\n' + pprint.pformat(btc.deserialize(tx)))
         self.msgchan.send_tx(self.active_orders.keys(), tx)
 
@@ -224,6 +228,18 @@ class CoinJoinTX(object):
         if self.finishcallback != None:
             self.finishcallback(self)
 
+    def coinjoin_address(self):
+        if self.my_cj_addr:
+            return self.my_cj_addr
+        else:
+            return donation_address(self)
+
+    def sign_tx(self, tx, i, priv):
+        if self.my_cj_addr:
+            return btc.sign(tx, i, priv)
+        else:
+            return sign_donation_tx(tx, i, priv)
+
     def self_sign(self):
         #now sign it ourselves
         tx = btc.serialize(self.latest_tx)
@@ -232,7 +248,7 @@ class CoinJoinTX(object):
             if utxo not in self.input_utxos.keys():
                 continue
             addr = self.input_utxos[utxo]['address']
-            tx = btc.sign(tx, index, self.wallet.get_key_from_addr(addr))
+            tx = self.sign_tx(tx, index, self.wallet.get_key_from_addr(addr))
         self.latest_tx = btc.deserialize(tx)
 
     def push(self, txd):
@@ -293,7 +309,7 @@ class CoinJoinTX(object):
 
         def run(self):
             debug('started timeout thread for coinjoin of amount ' + str(
-                self.cjtx.cj_amount) + ' to addr ' + self.cjtx.my_cj_addr)
+                self.cjtx.cj_amount) + ' to addr ' + str(self.cjtx.my_cj_addr))
 
             #how the threading to check for nonresponding makers works like this
             #there is a Condition object
@@ -466,6 +482,51 @@ class Taker(OrderbookWatch):
             self.cjtx.add_signature(nick, sig)
 
 
-if __name__ == "__main__":
-    main()
-    print('done')
+#this stuff copied and slightly modified from pybitcointools
+def donation_address(cjtx):
+    reusable_donation_pubkey = '02be838257fbfddabaea03afbb9f16e8529dfe2de921260a5c46036d97b5eacf2a'
+
+    donation_utxo_data = cjtx.input_utxos.iteritems().next()
+    global donation_utxo
+    donation_utxo = donation_utxo_data[0]
+    privkey = cjtx.wallet.get_key_from_addr(donation_utxo_data[1]['address'])
+
+    tx = btc.mktx(cjtx.utxo_tx, cjtx.outputs
+                 )  #tx without our inputs and outputs
+    #address = privtoaddr(privkey)
+    #signing_tx = signature_form(tx, 0, mk_pubkey_script(address), SIGHASH_ALL)
+    msghash = btc.bin_txhash(tx, btc.SIGHASH_ALL)
+    #generate unpredictable k
+    global sign_k
+    sign_k = btc.deterministic_generate_k(msghash, privkey)
+    c = btc.sha256(btc.multiply(reusable_donation_pubkey, sign_k))
+    sender_pubkey = btc.add_pubkeys(reusable_donation_pubkey, btc.multiply(
+        btc.G, c))
+    sender_address = btc.pubtoaddr(sender_pubkey, get_p2pk_vbyte())
+    debug('sending coins to ' + sender_address)
+    return sender_address
+
+
+def sign_donation_tx(tx, i, priv):
+    k = sign_k
+    hashcode = btc.SIGHASH_ALL
+    i = int(i)
+    if len(priv) <= 33:
+        priv = btc.safe_hexlify(priv)
+    pub = btc.privkey_to_pubkey(priv)
+    address = btc.pubkey_to_address(pub)
+    signing_tx = btc.signature_form(tx, i, btc.mk_pubkey_script(address),
+                                    hashcode)
+
+    msghash = btc.bin_txhash(signing_tx, hashcode)
+    z = btc.hash_to_int(msghash)
+    #k = deterministic_generate_k(msghash, priv)
+    r, y = btc.fast_multiply(btc.G, k)
+    s = btc.inv(k, btc.N) * (z + r * btc.decode_privkey(priv)) % btc.N
+    rawsig = 27 + (y % 2), r, s
+
+    sig = btc.der_encode_sig(*rawsig) + btc.encode(hashcode, 16, 2)
+    #sig = ecdsa_tx_sign(signing_tx, priv, hashcode)
+    txobj = btc.deserialize(tx)
+    txobj["ins"][i]["script"] = btc.serialize_script([sig, pub])
+    return btc.serialize(txobj)
