@@ -38,6 +38,10 @@ def generate_tumbler_tx(destaddrs, options):
 		#number of makers to use follows a normal distribution
 		makercounts = rand_norm_array(options.makercountrange[0], options.makercountrange[1], txcount)
 		makercounts = lower_bounded_int(makercounts, options.minmakercount)
+		if m == options.mixdepthcount - options.addrcount and options.donateamount:
+			tx_list.append({'amount_fraction': 0, 'wait': round(waits[0], 2),
+				'srcmixdepth': m + options.mixdepthsrc, 'makercount': makercounts[0],
+				'destination': 'internal'})
 		for amount_fraction, wait, makercount in zip(amount_fractions, waits, makercounts):
 			tx = {'amount_fraction': amount_fraction, 'wait': round(wait, 2),
 				'srcmixdepth': m + options.mixdepthsrc, 'makercount': makercount, 'destination': 'internal'}
@@ -84,10 +88,10 @@ class TumblerThread(threading.Thread):
 
 	def finishcallback(self, coinjointx):
 		if coinjointx.all_responded:
-			coinjointx.self_sign_and_push()
 			common.bc_interface.add_tx_notify(coinjointx.latest_tx,
 				self.unconfirm_callback, self.confirm_callback, coinjointx.my_cj_addr)
 			self.taker.wallet.remove_old_utxos(coinjointx.latest_tx)
+			coinjointx.self_sign_and_push()
 		else:
 			self.ignored_makers += coinjointx.nonrespondants
 			debug('recreating the tx, ignored_makers=' + str(self.ignored_makers))
@@ -141,7 +145,11 @@ class TumblerThread(threading.Thread):
 					continue
 				break
 		else:
-			cj_amount = int(self.tx['amount_fraction'] * self.balance)
+			if self.tx['amount_fraction'] == 0:
+				cj_amount = int(self.balance * self.taker.options.donateamount / 100.0)
+				self.destaddr = None
+			else:
+				cj_amount = int(self.tx['amount_fraction'] * self.balance)
 			if cj_amount < self.taker.options.mincjamount:
 				debug('cj amount too low, bringing up')
 				cj_amount = self.taker.options.mincjamount
@@ -275,6 +283,8 @@ def main():
 		'This option controls the parameters of the normal distribution curve. (mean, standard deviation). default=(4, 1)')
 	parser.add_option('--mintxcount', type='int', dest='mintxcount', default=1,
 		help='The minimum transaction count per mixing level, default=1')
+	parser.add_option('--donateamount', type='float', dest='donateamount', default=1.5,
+		help='percent of funds to donate to joinmarket development, or zero to opt out')
 	parser.add_option('--amountpower', type='float', dest='amountpower', default=100.0,
 		help='The output amounts follow a power law distribution, this is the power, default=100.0')
 	parser.add_option('-l', '--timelambda', type='float', dest='timelambda', default=30,
