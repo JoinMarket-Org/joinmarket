@@ -312,21 +312,27 @@ class AbstractWallet(object):
 
 class Wallet(AbstractWallet):
 
-    def __init__(self, seedarg, max_mix_depth=2, gaplimit=6):
+    def __init__(self,
+                 seedarg,
+                 max_mix_depth,
+                 gaplimit=6,
+                 extend_mixdepth=False):
         super(Wallet, self).__init__()
         self.max_mix_depth = max_mix_depth
-        self.gaplimit = gaplimit
         self.seed = self.get_seed(seedarg)
+        if extend_mixdepth and len(self.index_cache) > max_mix_depth:
+            self.max_mix_depth = len(self.index_cache)
+        self.gaplimit = gaplimit
         master = btc.bip32_master_key(self.seed)
         m_0 = btc.bip32_ckd(master, 0)
         mixing_depth_keys = [btc.bip32_ckd(m_0, c)
-                             for c in range(max_mix_depth)]
+                             for c in range(self.max_mix_depth)]
         self.keys = [(btc.bip32_ckd(m, 0), btc.bip32_ckd(m, 1))
                      for m in mixing_depth_keys]
 
         #self.index = [[0, 0]]*max_mix_depth
         self.index = []
-        for i in range(max_mix_depth):
+        for i in range(self.max_mix_depth):
             self.index.append([0, 0])
 
         #example
@@ -591,8 +597,19 @@ def choose_orders(db, cj_amount, n, chooseOrdersBy, ignored_makers=[]):
             'ERROR not enough liquidity in the orderbook n=%d suitable-counterparties=%d amount=%d totalorders=%d'
             % (n, len(counterparties), cj_amount, len(orders)))
         return None, 0  #TODO handle not enough liquidity better, maybe an Exception
-    orders = sorted(orders,
-                    key=lambda k: k[2])  #sort from smallest to biggest cj fee
+    #restrict to one order per counterparty, choose the one with the lowest cjfee
+    #this is done in advance of the order selection algo, so applies to all of them.
+    #however, if orders are picked manually, allow duplicates.
+    if chooseOrdersBy != pick_order:
+        orders = dict((v[0], v)
+                      for v in sorted(orders,
+                                      key=lambda k: k[2],
+                                      reverse=True)).values()
+    else:
+        orders = sorted(orders,
+                        key=lambda k: k[2]
+                       )  #sort from smallest to biggest cj fee
+
     debug('considered orders = \n' + '\n'.join([str(o) for o in orders]))
     total_cj_fee = 0
     chosen_orders = []
@@ -639,6 +656,8 @@ def choose_sweep_orders(db,
         cjamount = int(cjamount.quantize(Decimal(1)))
         return cjamount, int(sumabsfee + sumrelfee * cjamount)
 
+    debug('choosing sweep orders for total_input_value = ' + str(
+        total_input_value))
     sqlorders = db.execute('SELECT * FROM orderbook WHERE minsize <= ?;',
                            (total_input_value,)).fetchall()
     orderkeys = ['counterparty', 'oid', 'ordertype', 'minsize', 'maxsize',
