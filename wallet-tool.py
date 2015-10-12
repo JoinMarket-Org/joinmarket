@@ -5,7 +5,7 @@ data_dir = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(data_dir, 'lib'))
 
 import bitcoin as btc
-from common import Wallet, load_program_config, get_addr_vbyte
+from common import Wallet, load_program_config, get_p2pk_vbyte
 import common
 import old_mnemonic, slowaes
 
@@ -85,7 +85,7 @@ if method == 'display' or method == 'displayall':
                 used = ('used' if k < wallet.index[m][forchange] else ' new')
                 privkey = btc.encode_privkey(
                     wallet.get_key(m, forchange, k), 'wif_compressed',
-                    get_addr_vbyte()) if options.showprivkey else ''
+                    get_p2pk_vbyte()) if options.showprivkey else ''
                 if method == 'displayall' or balance > 0 or (used == ' new' and
                                                              forchange == 0):
                     print '  m/0/%d/%d/%03d %-35s%s %.8f btc %s' % (

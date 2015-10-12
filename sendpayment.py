@@ -58,8 +58,9 @@ class PaymentThread(threading.Thread):
                 self.taker.makercount, self.taker.chooseOrdersFunc,
                 self.ignored_makers)
             if not self.taker.answeryes:
-                debug('total cj fee = ' + str(total_value - cjamount))
-                total_fee_pc = 1.0 * (total_value - cjamount) / cjamount
+                total_cj_fee = total_value - cjamount - self.taker.txfee
+                debug('total cj fee = ' + str(total_cj_fee))
+                total_fee_pc = 1.0 * total_cj_fee / cjamount
                 debug('total coinjoin fee = ' + str(float('%.3g' % (
                     100.0 * total_fee_pc))) + '%')
                 check_high_fee(total_fee_pc)
