@@ -264,6 +264,10 @@ def main():
 	parser.add_option('-a', '--addrcount', type='int', dest='addrcount',
 		default=3, help='How many destination addresses in total should be used. If not enough are given'
 			' as command line arguments, the script will ask for more, default=3')
+	parser.add_option('-x', '--maxcjfee', type='float', dest='maxcjfee', nargs=2,
+		default=(0.01, 10000), help='maximum coinjoin fee and bitcoin value the tumbler is '
+		'willing to pay to a single market maker. Both values need to be exceeded, so if '
+		'the fee is 30% but only 500satoshi is paid the tx will go ahead. default=0.01, 10000 (1%, 10000satoshi)')
 	parser.add_option('-N', '--makercountrange', type='float', nargs=2, action='store',
 		dest='makercountrange',
 		help='Input the mean and spread of number of makers to use. e.g. 3 1.5 will be a normal distribution '

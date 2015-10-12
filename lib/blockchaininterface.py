@@ -422,6 +422,7 @@ class BitcoinCoreInterface(BlockchainInterface):
 
 		self.notifythread = None
 		self.txnotify_fun = []
+		self.wallet_synced = False
 
 	def get_wallet_name(self, wallet):
 		return 'joinmarket-wallet-' + btc.dbl_sha256(wallet.keys[0][0])[:6]
@@ -438,8 +439,9 @@ class BitcoinCoreInterface(BlockchainInterface):
 		common.debug('importing ' + str(len(addr_list)) + ' addresses into account ' + wallet_name)
 		for addr in addr_list:
 			self.rpc('importaddress', [addr, wallet_name, False])
-		if common.config.get("BLOCKCHAIN", "blockchain_source") != 'regtest': 
-			print 'now restart bitcoind with -rescan, unless you\'re sure the wallet is completely empty and unused'
+		if common.config.get("BLOCKCHAIN", "blockchain_source") != 'regtest':
+			print 'restart Bitcoin Core with -rescan if you\'re recovering an existing wallet from backup seed'
+			print ' otherwise just restart this joinmarket script'
 			sys.exit(0)
 
 	def sync_addresses(self, wallet):
@@ -447,7 +449,7 @@ class BitcoinCoreInterface(BlockchainInterface):
 			return
 		common.debug('requesting wallet history')
 		wallet_name = self.get_wallet_name(wallet)
-		addr_req_count = 50
+		addr_req_count = 81
 		wallet_addr_list = []
 		for mix_depth in range(wallet.max_mix_depth):
 			for forchange in [0, 1]:
@@ -500,6 +502,7 @@ class BitcoinCoreInterface(BlockchainInterface):
 				wallet_addr_list += [wallet.get_new_addr(mix_depth, forchange) for i in range(addr_req_count*3)]
 			self.add_watchonly_addresses(wallet_addr_list, wallet_name)
 			return
+		self.wallet_synced = True
 
 	def sync_unspent(self, wallet):
 		if isinstance(wallet, common.BitcoinCoreWallet):
