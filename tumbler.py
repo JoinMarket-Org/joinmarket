@@ -99,11 +99,12 @@ class TumblerThread(threading.Thread):
 		while True:
 			orders, total_cj_fee = choose_orders(self.taker.db, cj_amount,
 				makercount, weighted_order_choose, self.ignored_makers + active_nicks)
-			cj_fee = 1.0*total_cj_fee / makercount / cj_amount
-			debug('average fee = ' + str(cj_fee))
+			abs_cj_fee = 1.0*total_cj_fee / makercount
+			rel_cj_fee = abs_cj_fee / cj_amount
+			debug('rel/abs average fee = ' + str(rel_cj_fee) + ' / ' + str(abs_cj_fee))
 
-			if cj_fee > self.taker.maxcjfee:
-				debug('cj fee higher than maxcjfee at ' + str(cj_fee) + ', waiting 60 seconds')
+			if rel_cj_fee > self.taker.maxcjfee[0] and abs_cj_fee > self.taker.maxcjfee[1]:
+				debug('cj fee higher than maxcjfee, waiting 60 seconds')
 				time.sleep(60)
 				continue
 			if orders == None:
@@ -132,10 +133,11 @@ class TumblerThread(threading.Thread):
 					debug('waiting for liquidity 1min, hopefully more orders should come in')
 					time.sleep(60)
 					continue
-				cj_fee = 1.0*(total_value - cj_amount) / self.tx['makercount'] / cj_amount
-				debug('average fee = ' + str(cj_fee))
-				if cj_fee > self.taker.maxcjfee:
-					print 'cj fee higher than maxcjfee at ' + str(cj_fee) + ', waiting 60 seconds'
+				abs_cj_fee = 1.0*(total_value - cj_amount) / self.tx['makercount']
+				rel_cj_fee = abs_cj_fee / cj_amount
+				debug('rel/abs average fee = ' + str(rel_cj_fee) + ' / ' + str(abs_cj_fee))
+				if rel_cj_fee > self.taker.maxcjfee[0] and abs_cj_fee > self.taker.maxcjfee[1]:
+					debug('cj fee higher than maxcjfee, waiting 60 seconds')
 					time.sleep(60)
 					continue
 				break
@@ -253,21 +255,23 @@ def main():
 		help='mixing depth to spend from, default=0', default=0)
 	parser.add_option('-f', '--txfee', type='int', dest='txfee',
 		default=10000, help='miner fee contribution, in satoshis, default=10000')
-	parser.add_option('-x', '--maxcjfee', type='float', dest='maxcjfee',
-		default=0.01, help='maximum coinjoin fee the tumbler is willing to pay to a single market maker. default=0.01 (1%)')
 	parser.add_option('-a', '--addrcount', type='int', dest='addrcount',
 		default=3, help='How many destination addresses in total should be used. If not enough are given'
 			' as command line arguments, the script will ask for more, default=3')
+	parser.add_option('-x', '--maxcjfee', type='float', dest='maxcjfee', nargs=2,
+		default=(0.01, 10000), help='maximum coinjoin fee and bitcoin value the tumbler is '
+		'willing to pay to a single market maker. Both values need to be exceeded, so if '
+		'the fee is 30% but only 500satoshi is paid the tx will go ahead. default=0.01, 10000 (1%, 10000satoshi)')
 	parser.add_option('-N', '--makercountrange', type='float', nargs=2, action='store',
 		dest='makercountrange',
 		help='Input the mean and spread of number of makers to use. e.g. 3 1.5 will be a normal distribution '
 		'with mean 3 and standard deveation 1.5 inclusive, default=3 1.5', default=(3, 1.5))
 	parser.add_option('-M', '--mixdepthcount', type='int', dest='mixdepthcount',
 		help='How many mixing depths to mix through', default=4)
-	parser.add_option('-c', '--txcountparams', type='float', nargs=2, dest='txcountparams', default=(5, 1),
+	parser.add_option('-c', '--txcountparams', type='float', nargs=2, dest='txcountparams', default=(4, 1),
 		help='The number of transactions to take coins from one mixing depth to the next, it is'
-		' randomly chosen following a normal distribution. Should be greater than --addrcount. '
-		'This option controlls the parameters of that normal curve. (mean, standard deviation). default=(3, 1)')
+		' randomly chosen following a normal distribution. Should be similar to --addrask. '
+		'This option controlls the parameters of that normal curve. (mean, standard deviation). default=(4, 1)')
 	parser.add_option('--amountpower', type='float', dest='amountpower', default=100.0,
 		help='The output amounts follow a power law distribution, this is the power, default=100.0')
 	parser.add_option('-l', '--timelambda', type='float', dest='timelambda', default=20,
