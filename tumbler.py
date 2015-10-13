@@ -320,16 +320,6 @@ def main():
                       default=10000,
                       help='miner fee contribution, in satoshis, default=10000')
     parser.add_option(
-        '-x',
-        '--maxcjfee',
-        type='float',
-        dest='maxcjfee',
-        nargs=2,
-        default=(0.01, 10000),
-        help='maximum coinjoin fee and bitcoin value the tumbler is '
-        'willing to pay to a single market maker. Both values need to be exceeded, so if '
-        'the fee is 30% but only 500satoshi is paid the tx will go ahead. default=0.01, 10000 (1%, 10000satoshi)')
-    parser.add_option(
         '-a',
         '--addrcount',
         type='int',
