@@ -532,6 +532,7 @@ def choose_orders(db, cj_amount, n, chooseOrdersBy, ignored_makers=[]):
 	orders = [(o['counterparty'], o['oid'],	calc_cj_fee(o['ordertype'], o['cjfee'], cj_amount), o['txfee'])
 		for o in sqlorders if cj_amount >= o['minsize'] and cj_amount <= o['maxsize'] and o['counterparty']
 		not in ignored_makers]
+	feekey = lambda o: o[2] # function that returns the fee for a given order
 	counterparties = set([o[0] for o in orders])
 	if n > len(counterparties):
 		debug('ERROR not enough liquidity in the orderbook n=%d suitable-counterparties=%d amount=%d totalorders=%d'
@@ -541,15 +542,15 @@ def choose_orders(db, cj_amount, n, chooseOrdersBy, ignored_makers=[]):
 	#this is done in advance of the order selection algo, so applies to all of them.
 	#however, if orders are picked manually, allow duplicates.
 	if chooseOrdersBy != pick_order:
-		orders = dict((v[0],v) for v in sorted(orders, key=lambda k: k[2], reverse=True)).values()
+		orders = sorted(dict((v[0],v) for v in orders).values(), key=feekey)
 	else:
-		orders = sorted(orders, key=lambda k: k[2]) #sort from smallest to biggest cj fee	
+		orders = sorted(orders, key=feekey) #sort from smallest to biggest cj fee	
 
 	debug('considered orders = \n' + '\n'.join([str(o) for o in orders]))
 	total_cj_fee = 0
 	chosen_orders = []
 	for i in range(n):
-		chosen_order = chooseOrdersBy(orders, n, lambda k: k[2])
+		chosen_order = chooseOrdersBy(orders, n, feekey)
 		orders = [o for o in orders if o[0] != chosen_order[0]] #remove all orders from that same counterparty
 		chosen_orders.append(chosen_order)
 		total_cj_fee += chosen_order[2]
@@ -593,14 +594,15 @@ def choose_sweep_orders(db, total_input_value, my_tx_fee, n, chooseOrdersBy, ign
 	#choose N amount of orders
 	available_orders = [(o, calc_cj_fee(o['ordertype'], o['cjfee'], total_input_value))
 		for o in orderlist]
-	available_orders = sorted(available_orders, key=lambda k: k[1]) #sort from smallest to biggest cj fee
+	feekey = lambda o: o[1] # function that returns the fee for a given order
+	available_orders = sorted(available_orders, key=feekey) #sort from smallest to biggest cj fee
 	chosen_orders = []
 	while len(chosen_orders) < n:
 		if len(available_orders) < n - len(chosen_orders):
 			debug('ERROR not enough liquidity in the orderbook')
 			return None, 0 #TODO handle not enough liquidity better, maybe an Exception
 		for i in range(n - len(chosen_orders)):
-			chosen_order = chooseOrdersBy(available_orders, n, lambda k: k[1])
+			chosen_order = chooseOrdersBy(available_orders, n, feekey)
 			debug('chosen = ' + str(chosen_order))
 			#remove all orders from that same counterparty
 			available_orders = [o for o in available_orders if o[0]['counterparty'] != chosen_order[0]['counterparty']]
