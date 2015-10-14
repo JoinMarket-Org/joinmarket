@@ -539,7 +539,10 @@ class BitcoinCoreInterface(BlockchainInterface):
 		self.txnotify_fun.append((tx_output_set, unconfirmfun, confirmfun))
 
 	def pushtx(self, txhex):
-		return self.rpc('sendrawtransaction', [txhex])
+		try:
+			return self.rpc('sendrawtransaction', [txhex])
+		except JsonRpcConnectionError:
+			return None
 
 	def query_utxo_set(self, txout):
 		if not isinstance(txout, list):
