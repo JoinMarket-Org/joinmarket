@@ -9,6 +9,15 @@ from irc import IRCMessageChannel, random_nick
 from common import *
 import common
 
+#https://stackoverflow.com/questions/2801882/generating-a-png-with-matplotlib-when-display-is-undefined
+try:
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+except ImportError:
+    print 'Install matplotlib to see run orderbook watcher'
+    sys.exit(0)
+
 # ['counterparty', 'oid', 'ordertype', 'minsize', 'maxsize', 'txfee', 'cjfee']
 col = '  <th>{1}</th>\n'  # .format(field,label)
 
@@ -34,10 +43,6 @@ def calc_order_size_data(db):
 
 
 def create_depth_chart(db, cj_amount):
-    try:
-        import matplotlib.pyplot as plt
-    except ImportError:
-        return 'Install matplotlib to see graphs'
     sqlorders = db.execute('SELECT * FROM orderbook;').fetchall()
     orderfees = [calc_cj_fee(o['ordertype'], o['cjfee'], cj_amount) / 1e8
                  for o in sqlorders
@@ -62,10 +67,6 @@ def create_depth_chart(db, cj_amount):
 
 
 def create_size_histogram(db, args):
-    try:
-        import matplotlib.pyplot as plt
-    except ImportError:
-        return 'Install matplotlib to see graphs'
     rows = db.execute('SELECT maxsize FROM orderbook;').fetchall()
     ordersizes = sorted([r['maxsize'] / 1e8 for r in rows])
 
