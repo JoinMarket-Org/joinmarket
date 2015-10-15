@@ -122,10 +122,23 @@ elif method == 'generate' or method == 'recover':
 	walletname = raw_input('Input wallet file name (default: wallet.json): ')
 	if len(walletname) == 0:
 		walletname = 'wallet.json'
-	fd = open(os.path.join('wallets', walletname), 'w')
-	fd.write(walletfile)
-	fd.close()
-	print 'saved to ' + walletname
+	walletpath = os.path.join('wallets', walletname)
+	if os.path.isfile(walletpath):
+		print walletpath + ' already exists. Do you want to overwrite it? (y/n)'
+		print 'Bitcoins from the overwritten wallet will be lost!'
+		answer = raw_input()
+		if answer == 'y':
+			fd = open(walletpath, 'w')
+			fd.write(walletfile)
+			fd.close()	
+			print 'saved to ' + walletname
+		else:
+			print 'Wallet not overwritten.'
+	else:
+		fd = open(walletpath, 'w')
+		fd.write(walletfile)
+		fd.close()
+		print 'saved to ' + walletname
 elif method == 'showseed':
 	hexseed = wallet.seed
 	print 'hexseed = ' + hexseed
