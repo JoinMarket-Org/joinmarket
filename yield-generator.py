@@ -186,11 +186,16 @@ class YieldGenerator(Maker):
 			ann_oids = [o['oid'] for o in ann_orders]
 			cancel_orders = [o['oid'] for o in old_setdiff_new if o['oid'] not in ann_oids]
 
-		if len([o for o in oldorders if o['ordertype'] == 'absorder']) == 0:
-			#if absorder was not in the oldorders, announce it
-			absorders = [o for o in myorders if o['ordertype'] == 'absorder']
-			if len(absorders) > 0:
-				ann_orders = [absorders[0]] + ann_orders
+		#check if the absorder has changed, or if it needs to be newly announced
+		new_abs = [o for o in myorders if o['ordertype'] == 'absorder']
+		old_abs = [o for o in oldorders if o['ordertype'] == 'absorder']
+		if len(new_abs) > len(old_abs):
+			#announce an absorder where there wasnt one before
+			ann_orders = [new_abs[0]] + ann_orders
+		elif len(new_abs) == len(old_abs):
+			#maxsize is the only thing that changes, except cjfee but that changes at the same time
+			if new_abs[0]['maxsize'] != old_abs[0]['maxsize']:
+				ann_orders = [new_abs[0]] + ann_orders
 
 		debug('can_orders = \n' + '\n'.join([str(o) for o in cancel_orders]))
 		debug('ann_orders = \n' + '\n'.join([str(o) for o in ann_orders]))
@@ -198,6 +203,7 @@ class YieldGenerator(Maker):
 
 	def on_tx_confirmed(self, cjorder, confirmations, txid):
 		confirm_time = int(time.time()) - self.tx_unconfirm_timestamp[cjorder.cj_addr]
+		del self.tx_unconfirm_timestamp[cjorder.cj_addr]
 		timestamp = datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
 		self.log_statement([timestamp, cjorder.cj_amount, len(cjorder.utxos),
 			sum([av['value'] for av in cjorder.utxos.values()]), cjorder.real_cjfee,
