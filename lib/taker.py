@@ -10,7 +10,7 @@ import sqlite3, base64, threading, time, random, pprint
 class CoinJoinTX(object):
 	#soon the taker argument will be removed and just be replaced by wallet or some other interface
 	def __init__(self, msgchan, wallet, db, cj_amount, orders, input_utxos, my_cj_addr,
-		my_change_addr, my_txfee, finishcallback, choose_orders_recover, auth_addr=None):
+		my_change_addr, total_txfee, finishcallback, choose_orders_recover, auth_addr=None):
 		'''
 		if my_change is None then there wont be a change address
 		thats used if you want to entirely coinjoin one utxo with no change left over
@@ -25,7 +25,7 @@ class CoinJoinTX(object):
 		self.active_orders = dict(orders)
 		self.input_utxos = input_utxos
 		self.finishcallback = finishcallback
-		self.my_txfee = my_txfee
+		self.total_txfee = total_txfee
 		self.my_cj_addr = my_cj_addr
 		self.my_change_addr = my_change_addr
 		self.choose_orders_recover = choose_orders_recover
@@ -38,6 +38,7 @@ class CoinJoinTX(object):
 		#state variables
 		self.txid = None
 		self.cjfee_total = 0
+		self.maker_txfee_contributions = 0
 		self.nonrespondants = list(self.active_orders.keys())
 		self.all_responded = False
 		self.latest_tx = None
@@ -97,6 +98,7 @@ class CoinJoinTX(object):
 		cj_addr = btc.pubtoaddr(cj_pub, get_p2pk_vbyte())
 		self.outputs.append({'address': cj_addr, 'value': self.cj_amount})
 		self.cjfee_total += real_cjfee
+		self.maker_txfee_contributions += order['txfee']
 		self.nonrespondants.remove(nick)
 		if len(self.nonrespondants) > 0:
 			debug('nonrespondants = ' + str(self.nonrespondants))
@@ -104,17 +106,14 @@ class CoinJoinTX(object):
 		self.all_responded = True
 		with self.timeout_lock:
 			self.timeout_lock.notify()
-		debug('got all parts, enough to build a tx cjfeetotal=' + str(self.cjfee_total))
+		debug('got all parts, enough to build a tx')
 		self.nonrespondants = list(self.active_orders.keys())
 
-		my_total_in = 0
-		for u, va in self.input_utxos.iteritems():
-			my_total_in += va['value']
-		#my_total_in = sum([va['value'] for u, va in self.input_utxos.iteritems()])
-
-		my_change_value = (my_total_in - self.cj_amount - self.cjfee_total - self.my_txfee)
-		debug('fee breakdown for me totalin=%d txfee=%d cjfee_total=%d => changevalue=%d' % (my_total_in, 
-			self.my_txfee, self.cjfee_total, my_change_value))
+		my_total_in = sum([va['value'] for u, va in self.input_utxos.iteritems()])
+		my_txfee = max(self.total_txfee - self.maker_txfee_contributions, 0)
+		my_change_value = (my_total_in - self.cj_amount - self.cjfee_total - my_txfee)
+		debug('fee breakdown for me totalin=%d my_txfee=%d makers_txfee=%d cjfee_total=%d => changevalue=%d' % (my_total_in, 
+			my_txfee, self.maker_txfee_contributions, self.cjfee_total, my_change_value))
 		if self.my_change_addr == None:
 			if my_change_value != 0 and abs(my_change_value) != 1:
 				#seems you wont always get exactly zero because of integer rounding
@@ -395,9 +394,9 @@ class Taker(OrderbookWatch):
 			return None
 
 	def start_cj(self, wallet, cj_amount, orders, input_utxos, my_cj_addr, my_change_addr,
-			my_txfee, finishcallback=None, choose_orders_recover=None, auth_addr=None):
+			total_txfee, finishcallback=None, choose_orders_recover=None, auth_addr=None):
 		self.cjtx = CoinJoinTX(self.msgchan, wallet, self.db, cj_amount, orders,
-			input_utxos, my_cj_addr, my_change_addr, my_txfee, finishcallback,
+			input_utxos, my_cj_addr, my_change_addr, total_txfee, finishcallback,
 			choose_orders_recover, auth_addr)
 
 	def on_error(self):
