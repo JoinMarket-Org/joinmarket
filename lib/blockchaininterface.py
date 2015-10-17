@@ -489,13 +489,19 @@ class BitcoinCoreInterface(BlockchainInterface):
             return
         common.debug('requesting wallet history')
         wallet_name = self.get_wallet_name(wallet)
-        addr_req_count = 81
+        addr_req_count = 20
         wallet_addr_list = []
         for mix_depth in range(wallet.max_mix_depth):
             for forchange in [0, 1]:
                 wallet_addr_list += [wallet.get_new_addr(mix_depth, forchange)
                                      for i in range(addr_req_count)]
                 wallet.index[mix_depth][forchange] = 0
+        #makes more sense to add these in an account called "joinmarket-imported" but its much
+        # simpler to add to the same account here
+        for privkey_list in wallet.imported_privkeys.values():
+            for privkey in privkey_list:
+                imported_addr = btc.privtoaddr(privkey, common.get_p2pk_vbyte())
+                wallet_addr_list.append(imported_addr)
         imported_addr_list = self.rpc('getaddressesbyaccount', [wallet_name])
         if not set(wallet_addr_list).issubset(set(imported_addr_list)):
             self.add_watchonly_addresses(wallet_addr_list, wallet_name)
@@ -508,6 +514,9 @@ class BitcoinCoreInterface(BlockchainInterface):
             buf = self.rpc('listtransactions', [wallet_name, 1000, len(txs),
                                                 True])
             txs += buf
+        #TODO check whether used_addr_list can be a set, may be faster (if its a hashset) and allows 
+        # using issubset() here and setdiff() for finding which addresses need importing
+        #TODO also check the fastest way to build up python lists, i suspect using += is slow
         used_addr_list = [tx['address']
                           for tx in txs if tx['category'] == 'receive']
         too_few_addr_mix_change = []
@@ -548,6 +557,7 @@ class BitcoinCoreInterface(BlockchainInterface):
                                      for i in range(addr_req_count * 3)]
             self.add_watchonly_addresses(wallet_addr_list, wallet_name)
             return
+
         self.wallet_synced = True
 
     def sync_unspent(self, wallet):
