@@ -467,7 +467,7 @@ class BitcoinCoreInterface(BlockchainInterface):
         return 'joinmarket-wallet-' + btc.dbl_sha256(wallet.keys[0][0])[:6]
 
     def rpc(self, method, args):
-        if method != 'importaddress':
+        if method not in ['importaddress', 'walletpassphrase']:
             common.debug('rpc: ' + method + " " + str(args))
         res = self.jsonRpc.call(method, args)
         if isinstance(res, unicode):
