@@ -281,10 +281,17 @@ class AbstractWallet(object):
 		return mix_balance
 
 class Wallet(AbstractWallet):
-	def __init__(self, seedarg, max_mix_depth, gaplimit=6, extend_mixdepth=False):
+	def __init__(self, seedarg, max_mix_depth=2, gaplimit=6, extend_mixdepth=False, storepassword=False):
 		super(Wallet, self).__init__()
 		self.max_mix_depth = max_mix_depth
-		self.seed = self.get_seed(seedarg)
+		self.storepassword = storepassword
+		#key is address, value is (mixdepth, forchange, index)
+		#if mixdepth = -1 it's an imported key and index refers to imported_privkeys
+		self.addr_cache = {}
+		self.unspent = {}
+		self.spent_utxos = []
+		self.imported_privkeys = {}
+		self.seed = self.read_wallet_file_data(seedarg)
 		if extend_mixdepth and len(self.index_cache) > max_mix_depth:
 			self.max_mix_depth = len(self.index_cache)
 		self.gaplimit = gaplimit
@@ -298,25 +305,16 @@ class Wallet(AbstractWallet):
 		for i in range(self.max_mix_depth):
 			self.index.append([0, 0])
 
-		#example
-		#index = self.index[mixing_depth]
-		#key = btc.bip32_ckd(self.keys[mixing_depth][index[0]], index[1])
-
-		self.addr_cache = {}
-		self.unspent = {}
-		self.spent_utxos = []
-
-	def get_seed(self, seedarg):
+	def read_wallet_file_data(self, filename):
 		self.path = None
 		self.index_cache = [[0, 0]]*self.max_mix_depth
-		path = os.path.join('wallets', seedarg)
+		path = os.path.join('wallets', filename)
 		if not os.path.isfile(path):
 			if get_network() == 'testnet':
-				debug('seedarg interpreted as seed, only available in testnet because this probably has lower entropy')
-				return seedarg
+				debug('filename interpreted as seed, only available in testnet because this probably has lower entropy')
+				return filename
 			else:
 				raise IOError('wallet file not found')
-		#debug('seedarg interpreted as wallet file name')
 		self.path = path
 		fd = open(path, 'r')
 		walletfile = fd.read()
@@ -345,6 +343,19 @@ class Wallet(AbstractWallet):
 			except ValueError:
 				print 'Incorrect password'
 				decrypted = False
+		if self.storepassword:
+			self.password_key = password_key
+			self.walletdata = walletdata
+		if 'imported_keys' in walletdata:
+			for epk_m in walletdata['imported_keys']:
+				privkey = slowaes.decryptData(password_key, epk_m['encrypted_privkey']
+					.decode('hex')).encode('hex')
+				privkey = btc.encode_privkey(privkey, 'hex_compressed')
+				if epk_m['mixdepth'] not in self.imported_privkeys:
+					self.imported_privkeys[epk_m['mixdepth']] = []
+				self.addr_cache[btc.privtoaddr(privkey, get_p2pk_vbyte())] = (epk_m['mixdepth'],
+					-1, len(self.imported_privkeys[epk_m['mixdepth']]))
+				self.imported_privkeys[epk_m['mixdepth']].append(privkey)
 		return decrypted_seed
 
 	def update_cache_index(self):
@@ -388,10 +399,13 @@ class Wallet(AbstractWallet):
 		return self.get_new_addr(mixing_depth, True)
 
 	def get_key_from_addr(self, addr):
-		if addr in self.addr_cache:
-			return self.get_key(*self.addr_cache[addr])
-		else:
+		if addr not in self.addr_cache:
 			return None
+		ac = self.addr_cache[addr]
+		if ac[1] >= 0:
+			return self.get_key(*ac)
+		else:
+			return self.imported_privkeys[ac[0]][ac[2]]
 
 	def remove_old_utxos(self, tx):
 		removed_utxos = {}
