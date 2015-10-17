@@ -61,7 +61,7 @@ else:
 	seed = args[0]
 	method = ('display' if len(args) == 1 else args[1].lower())
 	wallet = Wallet(seed, options.maxmixdepth, options.gaplimit,
-		storepassword=(method=='importprivkey'))
+		extend_mixdepth=not maxmixdepth_configured, storepassword=(method=='importprivkey'))
 	if method not in noscan_methods:
 		common.bc_interface.sync_wallet(wallet)
 
