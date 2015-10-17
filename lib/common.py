@@ -619,7 +619,11 @@ def choose_orders(db, cj_amount, n, chooseOrdersBy, ignored_makers=[]):
     #this is done in advance of the order selection algo, so applies to all of them.
     #however, if orders are picked manually, allow duplicates.
     if chooseOrdersBy != pick_order:
-        orders = sorted(dict((v[0], v) for v in orders).values(), key=feekey)
+        orders = sorted(
+            dict((v[0], v) for v in sorted(orders,
+                                           key=feekey,
+                                           reverse=True)).values(),
+            key=feekey)
     else:
         orders = sorted(orders,
                         key=feekey)  #sort from smallest to biggest cj fee
