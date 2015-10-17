@@ -80,6 +80,7 @@ else:
     wallet = Wallet(seed,
                     options.maxmixdepth,
                     options.gaplimit,
+                    extend_mixdepth=not maxmixdepth_configured,
                     storepassword=(method == 'importprivkey'))
     if method not in noscan_methods:
         common.bc_interface.sync_wallet(wallet)
