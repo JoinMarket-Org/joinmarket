@@ -27,7 +27,7 @@ parser = OptionParser(
     ' generate - generates a new wallet.' +
     ' recover - recovers a wallet from the 12 word recovery seed.' +
     ' showseed - shows the wallet recovery seed and hex seed.' +
-    ' importprivkey - adds a privkey to this wallet')
+    ' importprivkey - adds privkeys to this wallet (privkeys are spaces or commas separated)')
 parser.add_option('-p',
                   '--privkey',
                   action='store_true',
@@ -177,29 +177,36 @@ elif method == 'importprivkey':
         +
         'behaviour and loss of funds.\n  Recommended instead is to use the \'sweep\' feature of sendpayment.py'
     )
-    privkey = raw_input('Enter private key to import: ')
-    #TODO is there any point in only accepting wif format? check what other wallets do
-    privkey_format = btc.get_privkey_format(privkey)
-    if privkey_format not in ['wif', 'wif_compressed']:
-        print 'ERROR: privkey not in wallet import format'
-        sys.exit(0)
-    if privkey_format == 'wif':
-        #TODO if they actually use an unc privkey, make sure the unc address is used
-        #r = raw_input('WARNING: Using uncompressed private key, the vast ' +
-        #	'majority of JoinMarket transactions use compressed keys\n' +
-        #		'being so unusual is bad for privacy. Continue? (y/n):')
-        #if r != 'y': 
-        #	sys.exit(0)
-        print 'Uncompressed privkeys not supported (yet)'
-        sys.exit(0)
-    privkey_bin = btc.encode_privkey(privkey, 'hex').decode('hex')
-    encrypted_privkey = slowaes.encryptData(wallet.password_key, privkey_bin)
-    if 'imported_keys' not in wallet.walletdata:
-        wallet.walletdata['imported_keys'] = []
-    wallet.walletdata['imported_keys'].append(
-        {'encrypted_privkey': encrypted_privkey.encode('hex'),
-         'mixdepth': options.mixdepth})
-    fd = open(wallet.path, 'w')
-    fd.write(json.dumps(wallet.walletdata))
-    fd.close()
-    print 'Private key successfully imported'
+    privkeys = raw_input('Enter private key(s) to import: ')
+    privkeys = privkeys.split(',') if ',' in privkeys else privkeys.split()
+    # TODO read also one key for each line
+    for privkey in privkeys:
+        #TODO is there any point in only accepting wif format? check what other wallets do
+        privkey_format = btc.get_privkey_format(privkey)
+        if privkey_format not in ['wif', 'wif_compressed']:
+            print 'ERROR: privkey not in wallet import format'
+            print privkey, 'skipped'
+            continue
+        if privkey_format == 'wif':
+            #TODO if they actually use an unc privkey, make sure the unc address is used
+            #r = raw_input('WARNING: Using uncompressed private key, the vast ' +
+            #   'majority of JoinMarket transactions use compressed keys\n' +
+            #       'being so unusual is bad for privacy. Continue? (y/n):')
+            #if r != 'y': 
+            #   sys.exit(0)
+            print 'Uncompressed privkeys not supported (yet)'
+            print privkey, 'skipped'
+            continue
+        privkey_bin = btc.encode_privkey(privkey, 'hex').decode('hex')
+        encrypted_privkey = slowaes.encryptData(wallet.password_key,
+                                                privkey_bin)
+        if 'imported_keys' not in wallet.walletdata:
+            wallet.walletdata['imported_keys'] = []
+        wallet.walletdata['imported_keys'].append(
+            {'encrypted_privkey': encrypted_privkey.encode('hex'),
+             'mixdepth': options.mixdepth})
+    if wallet.walletdata['imported_keys']:
+        fd = open(wallet.path, 'w')
+        fd.write(json.dumps(wallet.walletdata))
+        fd.close()
+        print 'Private key(s) successfully imported'
