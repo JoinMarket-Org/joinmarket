@@ -4,7 +4,7 @@ from decimal import Decimal, InvalidOperation
 from math import factorial, exp
 import sys, datetime, json, time, pprint, threading, getpass
 import random
-import blockchaininterface, slowaes
+import blockchaininterface, jsonrpc, slowaes
 from ConfigParser import SafeConfigParser, NoSectionError, NoOptionError
 import os, io, itertools
 
@@ -456,6 +456,7 @@ class BitcoinCoreWallet(AbstractWallet):
 		self.max_mix_depth = 1
 
 	def get_key_from_addr(self, addr):
+		self.ensure_wallet_unlocked()
 		return bc_interface.rpc('dumpprivkey', [addr])
 
 	def get_utxos_by_mixdepth(self):
@@ -472,6 +473,22 @@ class BitcoinCoreWallet(AbstractWallet):
 
 	def get_change_addr(self, mixing_depth):
 		return bc_interface.rpc('getrawchangeaddress', [])
+
+	def ensure_wallet_unlocked(self):
+		wallet_info = bc_interface.rpc('getwalletinfo', [])
+		if 'unlocked_until' in wallet_info and wallet_info['unlocked_until'] <= 0:
+			while True:
+				password = getpass.getpass('Enter passphrase to unlock wallet: ')
+				if password == '':
+					raise RuntimeError('Aborting wallet unlock')
+				try:
+					#TODO cleanly unlock wallet after use, not with arbitrary timeout
+					bc_interface.rpc('walletpassphrase', [password, 10])
+					break
+				except jsonrpc.JsonRpcError as exc:
+					if exc.code != -14:
+						raise exc
+					# Wrong passphrase, try again.
 
 def calc_cj_fee(ordertype, cjfee, cj_amount):
 	real_cjfee = None
