@@ -608,7 +608,7 @@ def choose_orders(db, cj_amount, n, chooseOrdersBy, ignored_makers=[]):
               for o in sqlorders
               if cj_amount >= o['minsize'] and cj_amount <= o['maxsize'] and o[
                   'counterparty'] not in ignored_makers]
-    feekey = lambda o: o[2]  # function that returns the fee for a given order
+    feekey = lambda o: o[2] - o[3]  # function that returns the fee for a given order
     counterparties = set([o[0] for o in orders])
     if n > len(counterparties):
         debug(
@@ -644,7 +644,7 @@ def choose_orders(db, cj_amount, n, chooseOrdersBy, ignored_makers=[]):
 
 def choose_sweep_orders(db,
                         total_input_value,
-                        my_tx_fee,
+                        total_txfee,
                         n,
                         chooseOrdersBy,
                         ignored_makers=[]):
@@ -654,7 +654,7 @@ def choose_sweep_orders(db,
 
 	solve for cjamount when mychange = 0
 	for an order with many makers, a mixture of absorder and relorder
-	mychange = totalin - cjamount - mytxfee - sum(absfee) - sum(relfee*cjamount)
+	mychange = totalin - cjamount - total_txfee - sum(absfee) - sum(relfee*cjamount)
 	=> 0 = totalin - mytxfee - sum(absfee) - cjamount*(1 + sum(relfee))
 	=> cjamount = (totalin - mytxfee - sum(absfee)) / (1 + sum(relfee))
 	'''
@@ -662,7 +662,9 @@ def choose_sweep_orders(db,
     def calc_zero_change_cj_amount(ordercombo):
         sumabsfee = 0
         sumrelfee = Decimal('0')
+        sumtxfee_contribution = 0
         for order in ordercombo:
+            sumtxfee_contribution += order[0]['txfee']
             if order[0]['ordertype'] == 'absorder':
                 sumabsfee += int(order[0]['cjfee'])
             elif order[0]['ordertype'] == 'relorder':
@@ -670,7 +672,8 @@ def choose_sweep_orders(db,
             else:
                 raise RuntimeError('unknown order type: ' + str(order[0][
                     'ordertype']))
-        cjamount = (total_input_value - my_tx_fee - sumabsfee) / (1 + sumrelfee)
+        my_txfee = max(total_txfee - sumtxfee_contribution, 0)
+        cjamount = (total_input_value - my_txfee - sumabsfee) / (1 + sumrelfee)
         cjamount = int(cjamount.quantize(Decimal(1)))
         return cjamount, int(sumabsfee + sumrelfee * cjamount)
 
@@ -686,11 +689,10 @@ def choose_sweep_orders(db,
     debug('orderlist = \n' + '\n'.join([str(o) for o in orderlist]))
 
     #choose N amount of orders
-    available_orders = [
-        (o, calc_cj_fee(o['ordertype'], o['cjfee'], total_input_value))
-        for o in orderlist
-    ]
-    feekey = lambda o: o[1]  # function that returns the fee for a given order
+    available_orders = [(o, calc_cj_fee(o['ordertype'], o['cjfee'],
+                                        total_input_value), o['txfee'])
+                        for o in orderlist]
+    feekey = lambda o: o[1] - o[2]  # function that returns the fee for a given order
     available_orders = sorted(available_orders,
                               key=feekey)  #sort from smallest to biggest cj fee
     chosen_orders = []

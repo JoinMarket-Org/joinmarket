@@ -318,7 +318,7 @@ def main():
                       type='int',
                       dest='txfee',
                       default=10000,
-                      help='miner fee contribution, in satoshis, default=10000')
+                      help='total miner fee in satoshis, default=10000')
     parser.add_option(
         '-a',
         '--addrcount',
