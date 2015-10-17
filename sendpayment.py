@@ -58,7 +58,7 @@ class PaymentThread(threading.Thread):
 				debug('total coinjoin fee = ' + str(float('%.3g' % (100.0 * total_fee_pc))) + '%')
 				check_high_fee(total_fee_pc)
 				if raw_input('send with these orders? (y/n):')[0] != 'y':
-					self.finishcallback(None)
+					self.taker.msgchan.shutdown()
 					return
 		else:
 			orders, total_cj_fee = self.sendpayment_choose_orders(self.taker.amount,
@@ -137,7 +137,7 @@ def main():
 			'wallet to an given address using coinjoin and then switches off. Also sends from bitcoinqt. ' +
 			'Setting amount to zero will do a sweep, where the entire mix depth is emptied')
 	parser.add_option('-f', '--txfee', action='store', type='int', dest='txfee',
-		default=10000, help='miner fee contribution, in satoshis, default=10000')
+		default=10000, help='total miner fee in satoshis, default=10000')
 	parser.add_option('-w', '--wait-time', action='store', type='float', dest='waittime',
 		help='wait time in seconds to allow orders to arrive, default=5', default=5)
 	parser.add_option('-N', '--makercount', action='store', type='int', dest='makercount',

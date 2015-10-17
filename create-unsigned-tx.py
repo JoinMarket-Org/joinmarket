@@ -135,7 +135,7 @@ def main():
 			' encrypted messages. For this reason you must pass auth utxo and the corresponding private key')
 	#for cjamount=0 do a sweep, and ignore change address
 	parser.add_option('-f', '--txfee', action='store', type='int', dest='txfee',
-		default=10000, help='miner fee contribution, in satoshis, default=10000')
+		default=10000, help='total miner fee in satoshis, default=10000')
 	parser.add_option('-w', '--wait-time', action='store', type='float', dest='waittime',
 		help='wait time in seconds to allow orders to arrive, default=5', default=5)
 	parser.add_option('-N', '--makercount', action='store', type='int', dest='makercount',
