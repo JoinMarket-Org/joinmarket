@@ -18,22 +18,14 @@ except ImportError:
 	print 'Install matplotlib to see run orderbook watcher'
 	sys.exit(0)
 
-# ['counterparty', 'oid', 'ordertype', 'minsize', 'maxsize', 'txfee', 'cjfee']
-col = '  <th>{1}</th>\n' # .format(field,label)
-
-tableheading = '<table class="tftable sortable" border="1">\n <tr>' + ''.join([
-	col.format('ordertype','Type'),
-	col.format('counterparty','Counterparty'),
-	col.format('oid','Order ID'),
-	col.format('cjfee','Fee'),
-	col.format('txfee','Miner Fee Contribution'),
-	col.format('minsize','Minimum Size'),
-	col.format('maxsize','Maximum Size')]) + ' </tr>'
-
 shutdownform = '<form action="shutdown" method="post"><input type="submit" value="Shutdown" /></form>'
 shutdownpage = '<html><body><center><h1>Successfully Shut down</h1></center></body></html>'
 
 refresh_orderbook_form = '<form action="refreshorderbook" method="post"><input type="submit" value="Check for timed-out counterparties" /></form>'
+sorted_units = ('BTC', 'mBTC', '&#956;BTC', 'satoshi')
+unit_to_power = {'BTC':8, 'mBTC':5, '&#956;BTC': 2, 'satoshi': 0}
+sorted_rel_units = ('%', '&#8241;', 'ppm')
+rel_unit_to_factor = {'%': 100, '&#8241;': 1e4, 'ppm': 1e6}
 
 def calc_depth_data(db, value):
 	pass
@@ -86,58 +78,75 @@ def get_graph_html(fig):
 	b64 = base64.b64encode(imbuf.getvalue())
 	return '<img src="data:image/png;base64,' + b64 + '" />'
 
-def do_nothing(arg, order):
+#callback functions for displaying order data
+def do_nothing(arg, order, btc_unit, rel_unit):
 	return arg
 
-def ordertype_display(ordertype, order):
+def ordertype_display(ordertype, order, btc_unit, rel_unit):
 	ordertypes = {'absorder': 'Absolute Fee', 'relorder': 'Relative Fee'}
 	return ordertypes[ordertype]
 
-def cjfee_display(cjfee, order):
+def cjfee_display(cjfee, order, btc_unit, rel_unit):
 	if order['ordertype'] == 'absorder':
-		return satoshi_to_unit(cjfee, order)
+		return satoshi_to_unit(cjfee, order, btc_unit, rel_unit)
 	elif order['ordertype'] == 'relorder':
-		return str(float(cjfee) * 100) + '%'
+		return str(float(cjfee) * rel_unit_to_factor[rel_unit]) + rel_unit
 
-def satoshi_to_unit(sat, order):
-	return "%.8f" % float(Decimal(sat) / Decimal(1e8))
+def satoshi_to_unit(sat, order, btc_unit, rel_unit):
+	power = unit_to_power[btc_unit]
+	return ("%." + str(power) + "f") % float(Decimal(sat) / Decimal(10**power))
 
-def order_str(s, order):
+def order_str(s, order, btc_unit, rel_unit):
 	return str(s)
+
+def create_orderbook_table(db, btc_unit, rel_unit):
+	result = ''
+	rows = db.execute('SELECT * FROM orderbook;').fetchall()
+	if not rows:
+		return 0, result
+	order_keys_display = (('ordertype', ordertype_display), ('counterparty', do_nothing),
+		('oid', order_str), ('cjfee', cjfee_display), ('txfee', satoshi_to_unit),
+		('minsize', satoshi_to_unit), ('maxsize', satoshi_to_unit))
+
+	#somewhat complex sorting to sort by cjfee but with absorders on top
+	orderby_cmp = lambda x, y: cmp(Decimal(x['cjfee']), Decimal(y['cjfee'])) if x['ordertype'] == y['ordertype'] \
+		else cmp(common.ordername_list.index(x['ordertype']), common.ordername_list.index(y['ordertype']))
+	for o in sorted(rows, cmp=orderby_cmp):
+		result += ' <tr>\n'
+		for key, displayer in order_keys_display:
+			result += '  <td>' + displayer(o[key], o, btc_unit, rel_unit) + '</td>\n'
+		result += ' </tr>\n'
+	return len(rows), result
+
+def create_table_heading(btc_unit, rel_unit):
+
+	col = '  <th>{1}</th>\n' # .format(field,label)
+	tableheading = '<table class="tftable sortable" border="1">\n <tr>' + ''.join([
+		col.format('ordertype', 'Type'),
+		col.format('counterparty', 'Counterparty'),
+		col.format('oid', 'Order ID'),
+		col.format('cjfee', 'Fee'),
+		col.format('txfee', 'Miner Fee Contribution / ' + btc_unit),
+		col.format('minsize', 'Minimum Size / ' + btc_unit),
+		col.format('maxsize', 'Maximum Size / ' + btc_unit)]) + ' </tr>'
+	return tableheading
+
+def create_choose_units_form(selected_btc, selected_rel):
+	choose_units_form = ('<form method="get" action="">' +
+				'<select name="btcunit" onchange="this.form.submit();">' +
+				''.join(('<option>' + u + ' </option>' for u in sorted_units)) + 
+				'</select><select name="relunit" onchange="this.form.submit();">' +
+				''.join(('<option>' + u + ' </option>' for u in sorted_rel_units)) + 
+				'</select></form>')
+	choose_units_form = choose_units_form.replace('<option>' + selected_btc, '<option selected="selected">' + selected_btc)
+	choose_units_form = choose_units_form.replace('<option>' + selected_rel, '<option selected="selected">' + selected_rel)
+	return choose_units_form
 
 class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
 	def __init__(self, request, client_address, base_server):
 		self.taker = base_server.taker
 		self.base_server = base_server
 		SimpleHTTPServer.SimpleHTTPRequestHandler.__init__(self, request, client_address, base_server)
-
-	def create_orderbook_table(self, orderby, desc):
-		result = ''
-		rows = self.taker.db.execute('SELECT * FROM orderbook;').fetchall()
-		if not rows:
-			return 0, result
-		if orderby:
-			orderby = orderby[0]
-		ordersorder = ['absorder','relorder']
-		if orderby not in rows[0].keys() or orderby == 'cjfee':
-			orderby = 'cjfee'
-			orderby_cmp = lambda x,y: cmp(Decimal(x['cjfee']),Decimal(y['cjfee'])) if x['ordertype']==y['ordertype'] \
-				else cmp(ordersorder.index(x['ordertype']),ordersorder.index(y['ordertype']))
-		else:
-			orderby_cmp = lambda x,y: cmp(x[orderby],y[orderby])
-		if desc:
-			orderby_cmp_wrapper = orderby_cmp
-			orderby_cmp = lambda x,y: orderby_cmp_wrapper(y,x)
-		order_keys_display = (('ordertype', ordertype_display), ('counterparty', do_nothing),
-			('oid', order_str), ('cjfee', cjfee_display), ('txfee', satoshi_to_unit),
-			('minsize', satoshi_to_unit), ('maxsize', satoshi_to_unit))
-
-		for o in sorted(rows,cmp=orderby_cmp):
-			result += ' <tr>\n'
-			for key, displayer in order_keys_display:
-				result += '  <td>' + displayer(o[key], o) + '</td>\n'
-			result += ' </tr>\n'
-		return len(rows), result
 
 	def create_orderbook_obj(self):
 		rows = self.taker.db.execute('SELECT * FROM orderbook;').fetchall()
@@ -171,13 +180,22 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
 		if common.joinmarket_alert:
 			alert_msg = '<br />JoinMarket Alert Message:<br />' + common.joinmarket_alert
 		if self.path == '/':
-			ordercount, ordertable = self.create_orderbook_table(args.get('orderby'),'desc' in args)
+			btc_unit = args['btcunit'][0] if 'btcunit' in args else sorted_units[0]
+			rel_unit = args['relunit'][0] if 'relunit' in args else sorted_rel_units[0]
+			if btc_unit not in sorted_units:
+				btc_unit = sorted_units[0]
+			if rel_unit not in sorted_rel_units:
+				rel_unit = sorted_rel_units[0]
+			ordercount, ordertable = create_orderbook_table(self.taker.db, btc_unit, rel_unit)
+			choose_units_form = create_choose_units_form(btc_unit, rel_unit)
+			table_heading = create_table_heading(btc_unit, rel_unit)
 			replacements = {
 				'PAGETITLE': 'JoinMarket Browser Interface',
 				'MAINHEADING': 'JoinMarket Orderbook',
 				'SECONDHEADING': (str(ordercount) + ' orders found by '
 					+ self.get_counterparty_count() + ' counterparties' + alert_msg),
-				'MAINBODY': refresh_orderbook_form + shutdownform + tableheading + ordertable + '</table>\n'
+				'MAINBODY': (shutdownform + refresh_orderbook_form +
+					choose_units_form + table_heading + ordertable + '</table>\n')
 			}
 		elif self.path == '/ordersize':
 			replacements = {
