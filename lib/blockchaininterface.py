@@ -45,6 +45,13 @@ class CliJsonRpc(object):
             return res.strip()
 
 
+def is_index_ahead_of_cache(wallet, mix_depth, forchange):
+    if mix_depth >= len(wallet.index_cache):
+        return True
+    return wallet.index[mix_depth][forchange] >= wallet.index_cache[mix_depth][
+        forchange]
+
+
 def get_blockchain_interface_instance(config):
     source = config.get("BLOCKCHAIN", "blockchain_source")
     network = common.get_network()
@@ -130,8 +137,8 @@ class BlockrInterface(BlockchainInterface):
             for forchange in [0, 1]:
                 unused_addr_count = 0
                 last_used_addr = ''
-                while unused_addr_count < wallet.gaplimit or\
-                  wallet.index[mix_depth][forchange] <= wallet.index_cache[mix_depth][forchange]:
+                while unused_addr_count < wallet.gaplimit or not is_index_ahead_of_cache(
+                        wallet, mix_depth, forchange):
                     addrs = [wallet.get_new_addr(mix_depth, forchange)
                              for i in range(self.BLOCKR_MAX_ADDR_REQ_COUNT)]
 
@@ -527,7 +534,7 @@ class BitcoinCoreInterface(BlockchainInterface):
                 breakloop = False
                 while not breakloop:
                     if unused_addr_count >= wallet.gaplimit and\
-                      wallet.index[mix_depth][forchange] >= wallet.index_cache[mix_depth][forchange]:
+                      is_index_ahead_of_cache(wallet, mix_depth, forchange):
                         break
                     mix_change_addrs = [wallet.get_new_addr(
                         mix_depth, forchange) for i in range(addr_req_count)]
