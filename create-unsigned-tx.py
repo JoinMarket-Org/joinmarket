@@ -183,7 +183,7 @@ def main():
 	for utxo, data in zip(all_utxos, query_result):
 		utxo_data[utxo] = {'address': data['address'], 'value': data['value']}
 	auth_privkey = raw_input('input private key for ' + utxo_data[auth_utxo]['address'] + ' :')
-	if utxo_data[auth_utxo]['address'] != btc.privtoaddr(auth_privkey, common.get_p2pk_vbyte()):
+	if utxo_data[auth_utxo]['address'] != btc.privtoaddr(auth_privkey, magicbyte=common.get_p2pk_vbyte()):
 		print 'ERROR: privkey does not match auth utxo'
 		return
 
@@ -201,7 +201,7 @@ def main():
 	class UnsignedTXWallet(common.AbstractWallet):
 		def get_key_from_addr(self, addr):
 			debug('getting privkey of ' + addr)
-			if btc.privtoaddr(auth_privkey, common.get_p2pk_vbyte()) != addr:
+			if btc.privtoaddr(auth_privkey, magicbyte=common.get_p2pk_vbyte()) != addr:
 				raise RuntimeError('privkey doesnt match given address')
 			return auth_privkey
 
