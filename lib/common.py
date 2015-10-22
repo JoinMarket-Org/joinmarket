@@ -10,7 +10,7 @@ import os, io, itertools
 
 JM_VERSION = 2
 nickname = ''
-DUST_THRESHOLD = 546
+DUST_THRESHOLD = 2730
 bc_interface = None
 ordername_list = ["absorder", "relorder"]
 maker_timeout_sec = 30
