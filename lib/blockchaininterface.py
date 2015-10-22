@@ -144,7 +144,7 @@ class BlockrInterface(BlockchainInterface):
 
                     #TODO send a pull request to pybitcointools
                     # because this surely should be possible with a function from it
-                    blockr_url = 'http://' + self.blockr_domain + '.blockr.io/api/v1/address/txs/'
+                    blockr_url = 'https://' + self.blockr_domain + '.blockr.io/api/v1/address/txs/'
                     #print 'downloading, lastusedaddr = ' + last_used_addr + ' unusedaddrcount= ' + str(unused_addr_count)
                     res = btc.make_request(blockr_url + ','.join(addrs))
                     data = json.loads(res)['data']
@@ -187,7 +187,7 @@ class BlockrInterface(BlockchainInterface):
             # unspent() doesnt tell you which address, you get a bunch of utxos
             # but dont know which privkey to sign with
 
-            blockr_url = 'http://' + self.blockr_domain + '.blockr.io/api/v1/address/unspent/'
+            blockr_url = 'https://' + self.blockr_domain + '.blockr.io/api/v1/address/unspent/'
             res = btc.make_request(blockr_url + ','.join(req))
             data = json.loads(res)['data']
             if 'unspent' in data:
@@ -235,7 +235,7 @@ class BlockrInterface(BlockchainInterface):
                     if int(time.time()) - st > unconfirm_timeout:
                         common.debug('checking for unconfirmed tx timed out')
                         return
-                    blockr_url = 'http://' + self.blockr_domain + '.blockr.io/api/v1/address/unspent/'
+                    blockr_url = 'https://' + self.blockr_domain + '.blockr.io/api/v1/address/unspent/'
                     random.shuffle(self.output_addresses
                                   )  #seriously weird bug with blockr.io
                     data = json.loads(btc.make_request(blockr_url + ','.join(
@@ -254,7 +254,7 @@ class BlockrInterface(BlockchainInterface):
                     time.sleep(
                         2
                     )  #here for some race condition bullshit with blockr.io
-                    blockr_url = 'http://' + self.blockr_domain + '.blockr.io/api/v1/tx/raw/'
+                    blockr_url = 'https://' + self.blockr_domain + '.blockr.io/api/v1/tx/raw/'
                     data = json.loads(btc.make_request(blockr_url + ','.join(
                         shared_txid)))['data']
                     if not isinstance(data, list):
@@ -280,7 +280,7 @@ class BlockrInterface(BlockchainInterface):
                     if int(time.time()) - st > confirm_timeout:
                         common.debug('checking for confirmed tx timed out')
                         return
-                    blockr_url = 'http://' + self.blockr_domain + '.blockr.io/api/v1/address/txs/'
+                    blockr_url = 'https://' + self.blockr_domain + '.blockr.io/api/v1/address/txs/'
                     data = json.loads(btc.make_request(blockr_url + ','.join(
                         self.output_addresses)))['data']
                     shared_txid = None
@@ -294,7 +294,7 @@ class BlockrInterface(BlockchainInterface):
                     common.debug('sharedtxid = ' + str(shared_txid))
                     if len(shared_txid) == 0:
                         continue
-                    blockr_url = 'http://' + self.blockr_domain + '.blockr.io/api/v1/tx/raw/'
+                    blockr_url = 'https://' + self.blockr_domain + '.blockr.io/api/v1/tx/raw/'
                     data = json.loads(btc.make_request(blockr_url + ','.join(
                         shared_txid)))['data']
                     if not isinstance(data, list):
@@ -337,7 +337,7 @@ class BlockrInterface(BlockchainInterface):
             txids = [txids]
         data = []
         for ids in txids:
-            blockr_url = 'http://' + self.blockr_domain + '.blockr.io/api/v1/tx/info/'
+            blockr_url = 'https://' + self.blockr_domain + '.blockr.io/api/v1/tx/info/'
             blockr_data = json.loads(btc.make_request(blockr_url + ','.join(
                 ids)))['data']
             if not isinstance(blockr_data, list):
