@@ -318,6 +318,9 @@ def main():
 	if options.addrcount+1 > options.mixdepthcount:
 		print 'not enough mixing depths to pay to all destination addresses, increasing mixdepthcount'
 		options.mixdepthcount = options.addrcount+1
+	if options.donateamount > 10.0:
+		#fat finger probably, or misunderstanding
+		options.donateamount = 0.9
 
 	print str(options)
 	tx_list = generate_tumbler_tx(destaddrs, options)
