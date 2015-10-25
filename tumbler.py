@@ -284,7 +284,7 @@ def main():
 	parser.add_option('--mintxcount', type='int', dest='mintxcount', default=1,
 		help='The minimum transaction count per mixing level, default=1')
 	parser.add_option('--donateamount', type='float', dest='donateamount', default=1.5,
-		help='percent of funds to donate to joinmarket development, or zero to opt out')
+		help='percent of funds to donate to joinmarket development, default=1.5 or zero to opt out')
 	parser.add_option('--amountpower', type='float', dest='amountpower', default=100.0,
 		help='The output amounts follow a power law distribution, this is the power, default=100.0')
 	parser.add_option('-l', '--timelambda', type='float', dest='timelambda', default=30,
