@@ -555,7 +555,7 @@ class BitcoinCoreInterface(BlockchainInterface):
 	def pushtx(self, txhex):
 		try:
 			return self.rpc('sendrawtransaction', [txhex])
-		except JsonRpcConnectionError:
+		except jsonrpc.JsonRpcConnectionError:
 			return None
 
 	def query_utxo_set(self, txout):
