@@ -98,7 +98,6 @@ class Join2PTests(unittest.TestCase):
 	return True
     	
     def test_simple_send(self):
-	return True
         self.failUnless(self.run_simple_send(2, 2))
 	
 

@@ -35,12 +35,15 @@ class TestWalletCreation(unittest.TestCase):
 	    p = pexpect.spawn('python wallet-tool.py generate', logfile=testlog)
 	    commontest.interact(p, test_in, expected)
 	    p.expect('saved to')
-	    #time.sleep(2)
+	    time.sleep(1)
 	    p.close()
 	    testlog.close()
 	    #anything to check in the log? 
+	    with open(os.path.join('test','testlog-'+pwd)) as f:
+		print f.read()
 	    if p.exitstatus != 0:
 		print 'failed due to exit status: '+str(p.exitstatus)
+		print 'signal status is:'+str(p.signalstatus)
 		return False
 	    #check the wallet exists (and contains appropriate json?)
 	    if not os.path.isfile('wallets/testwallet.json'):
@@ -75,9 +78,12 @@ class TestWalletRecovery(unittest.TestCase):
 	    test_in = [seed, 'abc123', 'abc123', 'test_recover_wallet.json']
 	    commontest.interact(p, test_in, expected)
 	    p.expect('saved to')
+	    time.sleep(1)
 	    p.close()
 	    testlog.close()
 	    #anything to check in the log? 
+	    with open(os.path.join('test_recover')) as f:
+		print f.read()
 	    if p.exitstatus != 0:
 		print 'failed due to exit status: '+str(p.exitstatus)
 		return False

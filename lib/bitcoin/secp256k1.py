@@ -4,9 +4,13 @@ import hashlib
 from _libsecp256k1 import ffi, lib
 import _noncefunc
 
+EC_COMPRESSED = lib.SECP256K1_EC_COMPRESSED
+EC_UNCOMPRESSED = lib.SECP256K1_EC_UNCOMPRESSED
+
 FLAG_SIGN = lib.SECP256K1_CONTEXT_SIGN
 FLAG_VERIFY = lib.SECP256K1_CONTEXT_VERIFY
 ALL_FLAGS = FLAG_SIGN | FLAG_VERIFY
+NO_FLAGS = lib.SECP256K1_CONTEXT_NONE
 
 HAS_RECOVERABLE = hasattr(lib, 'secp256k1_ecdsa_sign_recoverable')
 HAS_SCHNORR = hasattr(lib, 'secp256k1_schnorr_sign')
@@ -18,7 +22,7 @@ class Base(object):
     def __init__(self, ctx, flags):
         self._destroy = None
         if ctx is None:
-            assert flags in (0, FLAG_SIGN, FLAG_VERIFY, ALL_FLAGS)
+            assert flags in (NO_FLAGS, FLAG_SIGN, FLAG_VERIFY, ALL_FLAGS)
             ctx = lib.secp256k1_context_create(flags)
             self._destroy = lib.secp256k1_context_destroy
 
@@ -54,6 +58,47 @@ class ECDSA:  # Use as a mixin; instance.ctx is assumed to exist.
         assert res == 1
 
         return raw_sig
+
+    def ecdsa_serialize_compact(self, raw_sig):
+        len_sig = 64
+        output = ffi.new('unsigned char[%d]' % len_sig)
+
+        res = lib.secp256k1_ecdsa_signature_serialize_compact(
+            self.ctx, output, raw_sig)
+        assert res == 1
+
+        return bytes(ffi.buffer(output, len_sig))
+
+    def ecdsa_deserialize_compact(self, ser_sig):
+        if len(ser_sig) != 64:
+            raise Exception("invalid signature length")
+
+        raw_sig = ffi.new('secp256k1_ecdsa_signature *')
+        res = lib.secp256k1_ecdsa_signature_parse_compact(
+            self.ctx, raw_sig, ser_sig)
+        assert res == 1
+
+        return raw_sig
+
+    def ecdsa_signature_normalize(self, raw_sig, check_only=False):
+        """
+        Check and optionally convert a signature to a normalized lower-S form.
+        If check_only is True then the normalized signature is not returned.
+
+        This function always return a tuple containing a boolean (True if
+        not previously normalized or False if signature was already
+        normalized), and the normalized signature. When check_only is True,
+        the normalized signature returned is always None.
+        """
+        if check_only:
+            sigout = ffi.NULL
+        else:
+            sigout = ffi.new('secp256k1_ecdsa_signature *')
+
+        result = lib.secp256k1_ecdsa_signature_normalize(
+            self.ctx, sigout, raw_sig)
+
+        return (bool(result), sigout if sigout != ffi.NULL else None)
 
     def ecdsa_recover(self, msg, recover_sig, raw=False, digest=hashlib.sha256):
         if not HAS_RECOVERABLE:
@@ -141,6 +186,8 @@ class Schnorr:  # Use as a mixin; instance.ctx is assumed to exist.
         for sig in schnorr_sigs:
             if not isinstance(sig, bytes):
                 raise TypeError('expected bytes, got {}'.format(type(sig)))
+            if len(sig) != 64:
+                raise Exception('invalid signature length')
             sig64sin.append(ffi.new('char []', sig))
 
         res = lib.secp256k1_schnorr_partial_combine(
@@ -174,9 +221,10 @@ class PublicKey(Base, ECDSA, Schnorr):
         len_compressed = 33 if compressed else 65
         res_compressed = ffi.new('char [%d]' % len_compressed)
         outlen = ffi.new('size_t *', len_compressed)
+	compflag = EC_COMPRESSED if compressed else EC_UNCOMPRESSED
 
         serialized = lib.secp256k1_ec_pubkey_serialize(
-            self.ctx, res_compressed, outlen, self.public_key, int(compressed))
+            self.ctx, res_compressed, outlen, self.public_key, compflag)
         assert serialized == 1
 
         return bytes(ffi.buffer(res_compressed, len_compressed))
@@ -210,8 +258,10 @@ class PublicKey(Base, ECDSA, Schnorr):
 
         self.public_key = outpub
         return outpub
-    
-    def multiply(self, scalar):
+
+    def tweak_mul(self, scalar):
+        '''Multiply pubkey by 32 byte scalar.
+        Return new public key object.'''
         assert self.public_key, "No public key defined."
         if not isinstance(scalar, bytes) or len(scalar) != 32:
             raise TypeError('scalar must be composed of 32 bytes')
@@ -293,8 +343,8 @@ class PrivateKey(Base, ECDSA, Schnorr):
             raise Exception("invalid private key")
         self.private_key = privkey
         self._update_public_key()
-    
-    def add_privkey(self, scalar):
+
+    def tweak_add(self, scalar):
         '''Add a 32 byte scalar to this private key and return the
         result, ensuring that the result is a valid private key also.
         Result is returned as 32 byte raw/scalar.'''
@@ -304,30 +354,24 @@ class PrivateKey(Base, ECDSA, Schnorr):
         res = lib.secp256k1_ec_privkey_tweak_add(self.ctx, newpriv, scalar)
         if not res:
             raise Exception("Failed to add private keys")
-        #TODO Fairly sure this is unnecessary, remove once sure.
         if not lib.secp256k1_ec_seckey_verify(self.ctx, newpriv):
-                    raise Exception("invalid private key resulted from addition.")        
+            raise Exception("invalid private key resulted from addition.")        
         return bytes(ffi.buffer(newpriv,32))
-        
+    
     def serialize(self, compressed=True):
-        privser = ffi.new('char [279]')
-        keylen = ffi.new('size_t *')
-
-        res = lib.secp256k1_ec_privkey_export(
-            self.ctx, privser, keylen, self.private_key, int(compressed))
-        assert res == 1
-
-        return bytes(ffi.buffer(privser, keylen[0]))
+	hexkey = binascii.hexlify(self.private_key)
+	if compressed:
+		hexkey += '01'
+        return hexkey.decode('utf8') 
 
     def deserialize(self, privkey_ser):
-        privkey = ffi.new('char [32]')
-
-        res = lib.secp256k1_ec_privkey_import(
-            self.ctx, privkey, privkey_ser, len(privkey_ser))
-        if not res:
+        if len(privkey_ser) not in [64,66]:
             raise Exception("invalid private key")
-
-        rawkey = bytes(ffi.buffer(privkey, 32))
+	if len(privkey_ser)==66:
+		if privkey_ser[-2:] != '01':
+			raise Exception("invalid private key")
+		privkey_ser = privkey_ser[:-2]
+        rawkey = binascii.unhexlify(privkey_ser) 
         self.set_raw_privkey(rawkey)
         return self.private_key
 
@@ -342,12 +386,13 @@ class PrivateKey(Base, ECDSA, Schnorr):
     def ecdsa_sign(self, msg, raw=False, digest=hashlib.sha256, randnonce=None):
         msg32 = _hash32(msg, raw, digest)
         raw_sig = ffi.new('secp256k1_ecdsa_signature *')
-        if randnonce:            
-            nf = ffi.addressof(_noncefunc.lib, "nonce_function_rand")
-            ndata = ffi.new("char[32]",randnonce)
-        else:
-            nf = ffi.NULL
-            ndata = ffi.NULL
+	if randnonce:
+	    nf = ffi.addressof(_noncefunc.lib, "nonce_function_rand")
+	    ndata = ffi.new("char [32]", randnonce)
+	else:
+	    nf = ffi.NULL
+	    ndata = ffi.NULL
+
         signed = lib.secp256k1_ecdsa_sign(
             self.ctx, raw_sig, msg32, self.private_key, nf, ndata)
         assert signed == 1
