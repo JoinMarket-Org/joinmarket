@@ -1,7 +1,6 @@
 #!/usr/bin/python
 import binascii, re, json, copy, sys
 from bitcoin.main import *
-from ec_ecdsa import *
 from _functools import reduce
 import secp256k1
 import os
@@ -177,7 +176,12 @@ def ecdsa_tx_sign(tx, priv, hashcode=SIGHASH_ALL, usenonce=None):
 
 
 def ecdsa_tx_verify(tx, sig, pub, hashcode=SIGHASH_ALL):
-    return ecdsa_raw_verify(txhash(tx, hashcode), pub, sig, True, rawmsg=True)
+    return ecdsa_raw_verify(
+        txhash(tx, hashcode),
+        pub,
+        sig[:-2],
+        True,
+        rawmsg=True)
 
 # Scripts
 

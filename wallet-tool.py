@@ -106,10 +106,8 @@ if method == 'display' or method == 'displayall' or method == 'summary':
                         balance += addrvalue['value']
                 balance_depth += balance
                 used = ('used' if k < wallet.index[m][forchange] else ' new')
-                #TODO: currently prints 33 byte compressed raw privkey instead 
-                #of WIF compressed; should probably re-instate WIF.
-                privkey = wallet.get_key(m, forchange,
-                                         k) if options.showprivkey else ''
+                privkey = btc.wif_compressed_privkey(wallet.get_key(
+                    m, forchange, k)) if options.showprivkey else ''
                 if method == 'displayall' or balance > 0 or (used == ' new' and
                                                              forchange == 0):
                     printd('  m/0/%d/%d/%03d %-35s%s %.8f btc %s' % (
@@ -124,9 +122,8 @@ if method == 'display' or method == 'displayall' or method == 'summary':
                         balance += addrvalue['value']
                 used = (' used' if balance > 0.0 else 'empty')
                 balance_depth += balance
-                wip_privkey = btc.encode_privkey(
-                    privkey, 'wif_compressed',
-                    get_p2pk_vbyte()) if options.showprivkey else ''
+                wip_privkey = btc.wif_compressed_privkey(
+                    privkey, get_p2pk_vbyte()) if options.showprivkey else ''
                 printd(' ' * 13 + '%-35s%s %.8f btc %s' % (addr, used, balance /
                                                            1e8, wip_privkey))
         total_balance += balance_depth

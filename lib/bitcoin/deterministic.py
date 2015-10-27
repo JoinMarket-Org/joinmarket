@@ -1,5 +1,4 @@
 from bitcoin.main import *
-from ec_ecdsa import *
 import hmac
 import hashlib
 from binascii import hexlify
