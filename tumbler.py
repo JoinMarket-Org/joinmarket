@@ -384,9 +384,9 @@ def main():
         '--donateamount',
         type='float',
         dest='donateamount',
-        default=1.5,
+        default=0,
         help=
-        'percent of funds to donate to joinmarket development, or zero to opt out')
+        'percent of funds to donate to joinmarket development, or zero to opt out (default=0%)')
     parser.add_option(
         '--amountpower',
         type='float',
