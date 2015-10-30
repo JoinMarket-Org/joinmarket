@@ -125,7 +125,7 @@ if method == 'display' or method == 'displayall' or method == 'summary':
                 balance_depth += balance
                 wip_privkey = btc.encode_privkey(
                     privkey, 'wif_compressed',
-                    get_addr_vbyte()) if options.showprivkey else ''
+                    get_p2pk_vbyte()) if options.showprivkey else ''
                 printd(' ' * 13 + '%-35s%s %.8f btc %s' % (addr, used, balance /
                                                            1e8, wip_privkey))
         total_balance += balance_depth
