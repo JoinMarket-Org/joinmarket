@@ -18,3 +18,7 @@
 	path = deps/secp256k1
 	url = git://github.com/bitcoin/secp256k1.git
 	branch = master
+[submodule "deps/ptyprocess"]
+	path = deps/ptyprocess
+	url = https://github.com/pexpect/ptyprocess.git
+	branch = 0.5
