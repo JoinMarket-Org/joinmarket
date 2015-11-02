@@ -1,0 +1,20 @@
+[submodule "deps/libffi"]
+	path = deps/libffi
+	url = https://github.com/atgreen/libffi.git
+	branch = f22ab3c6877cbdd07f058b68816b0086b1cb0e1e
+[submodule "deps/pexpect"]
+	path = deps/pexpect
+	url = https://github.com/pexpect/pexpect.git
+	branch = 4.0.1
+[submodule "deps/pycparser"]
+	path = deps/pycparser
+	url = https://github.com/eliben/pycparser.git
+	branch = release_v2.14
+[submodule "deps/libsodium"]
+	path = deps/libsodium
+	url = git://github.com/jedisct1/libsodium.git
+	branch = 1.0.6
+[submodule "deps/secp256k1"]
+	path = deps/secp256k1
+	url = git://github.com/bitcoin/secp256k1.git
+	branch = master
