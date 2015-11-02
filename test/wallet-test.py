@@ -38,12 +38,12 @@ class TestWalletCreation(unittest.TestCase):
 	    time.sleep(1)
 	    p.close()
 	    testlog.close()
-	    #anything to check in the log? 
+	    #anything to check in the log?
 	    with open(os.path.join('test','testlog-'+pwd)) as f:
-		print f.read()
+		print f.read() 
 	    if p.exitstatus != 0:
 		print 'failed due to exit status: '+str(p.exitstatus)
-		print 'signal status is:'+str(p.signalstatus)
+		print 'signal status is: '+str(p.signalstatus)
 		return False
 	    #check the wallet exists (and contains appropriate json?)
 	    if not os.path.isfile('wallets/testwallet.json'):
@@ -81,9 +81,9 @@ class TestWalletRecovery(unittest.TestCase):
 	    time.sleep(1)
 	    p.close()
 	    testlog.close()
-	    #anything to check in the log? 
+	    #anything to check in the log?
 	    with open(os.path.join('test_recover')) as f:
-		print f.read()
+		print f.read() 	    
 	    if p.exitstatus != 0:
 		print 'failed due to exit status: '+str(p.exitstatus)
 		return False
