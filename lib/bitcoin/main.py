@@ -218,6 +218,13 @@ def legacy_ecdsa_verify_convert(sig):
     if not len(s) == 32:
         #signature is invalid.
         return False
+    #legacy code can produce high S. Need to reintroduce N ::cry::
+    N = 115792089237316195423570985008687907852837564279074904382605163141518161494337
+    s_int = decode(s, 256)
+    # note // is integer division operator in both 2.7 and 3
+    s_int = N - s_int if s_int > N // 2 else s_int  #enforce low S.
+    s = encode(s_int, 256, minlen=32)
+
     #canonicalize r and s
     r, s = ['\x00' + x if ord(x[0]) > 127 else x for x in [r, s]]
     rlen = chr(len(r))
