@@ -515,14 +515,3 @@ class IRCMessageChannel(MessageChannel):
 				time.sleep(30)
 		debug('ending irc')
 		self.give_up = True
-
-def irc_privmsg_size_throttle(irc, target, lines, prefix=''):
-	line = ''
-	for l in lines:
-		line += l
-		if len(line) > MAX_PRIVMSG_LEN:
-			irc.privmsg(target, prefix + line)
-			line = ''
-	if len(line) > 0:
-		irc.privmsg(target, prefix + line)
-
