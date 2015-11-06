@@ -177,6 +177,8 @@ def debug_dump_object(obj, skip_fields=[]):
 	for k, v in obj.__dict__.iteritems():
 		if k in skip_fields:
 			continue
+		if k == 'password' or k == 'given_password':
+			continue
 		debug('key=' + k)
 		if isinstance(v, str):
 			debug('string: len:' + str(len(v)))
