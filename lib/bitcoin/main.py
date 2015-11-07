@@ -185,23 +185,33 @@ def legacy_ecdsa_sign_convert(dersig):
     #note there is no sanity checking of DER format (e.g. leading length byte)
     dersig = dersig[2:]  #e.g. 3045
     rlen = ord(dersig[1])  #ignore leading 02
-    if rlen == 32:
-        r = dersig[2:34]
-        ssig = dersig[34:]
-    elif rlen == 33:
-        r = dersig[3:35]  #leading 00 in canonical DER stripped
-        ssig = dersig[35:]
-    else:
+    #length of r and s: ALWAYS <=33, USUALLY >=32 but can be shorter
+    if rlen > 33:
         raise Exception("Incorrectly formatted DER sig:" + binascii.hexlify(
             dersig))
+    if dersig[2] == '\x00':
+        r = dersig[3:2 + rlen]
+        ssig = dersig[2 + rlen:]
+    else:
+        r = dersig[2:2 + rlen]
+        ssig = dersig[2 + rlen:]
+
     slen = ord(ssig[1])  #ignore leading 02
-    if slen == 32:
-        s = ssig[2:34]
-    elif slen == 33:
-        s = ssig[3:35]  #leading 00 in canonical DER stripped
-    else:
+    if slen > 33:
         raise Exception("Incorrectly formatted DER sig:" + binascii.hexlify(
             dersig))
+    if len(ssig) != 2 + slen:
+        raise Exception("Incorrectly formatted DER sig:" + binascii.hexlify(
+            dersig))
+    if ssig[2] == '\x00':
+        s = ssig[3:2 + slen]
+    else:
+        s = ssig[2:2 + slen]
+
+        #the legacy version requires padding of r and s to 32 bytes with leading zeros
+    r = '\x00' * (32 - len(r)) + r
+    s = '\x00' * (32 - len(s)) + s
+
     #note: in the original pybitcointools implementation, 
     #verification ignored the leading byte (it's only needed for pubkey recovery)
     #so we just ignore parity here.
@@ -223,7 +233,14 @@ def legacy_ecdsa_verify_convert(sig):
     s_int = decode(s, 256)
     # note // is integer division operator in both 2.7 and 3
     s_int = N - s_int if s_int > N // 2 else s_int  #enforce low S.
-    s = encode(s_int, 256, minlen=32)
+
+    #on re-encoding, don't use the minlen parameter, because
+    #DER does not used fixed (32 byte) length values, so we
+    #don't prepend zero bytes to shorter numbers.
+    s = encode(s_int, 256)
+
+    #as above, remove any front zero padding from r.
+    r = encode(decode(r, 256), 256)
 
     #canonicalize r and s
     r, s = ['\x00' + x if ord(x[0]) > 127 else x for x in [r, s]]
