@@ -192,7 +192,7 @@ class YieldGenerator(Maker):
 		if len(new_abs) > len(old_abs):
 			#announce an absorder where there wasnt one before
 			ann_orders = [new_abs[0]] + ann_orders
-		elif len(new_abs) == len(old_abs):
+		elif len(new_abs) == len(old_abs) and len(old_abs) > 0:
 			#maxsize is the only thing that changes, except cjfee but that changes at the same time
 			if new_abs[0]['maxsize'] != old_abs[0]['maxsize']:
 				ann_orders = [new_abs[0]] + ann_orders
