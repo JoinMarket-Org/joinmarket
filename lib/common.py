@@ -595,19 +595,22 @@ def choose_orders(db, cj_amount, n, chooseOrdersBy, ignored_makers=[]):
 		for o in sqlorders if cj_amount >= o['minsize'] and cj_amount <= o['maxsize'] and o['counterparty']
 		not in ignored_makers]
 	feekey = lambda o: o[2] - o[3] # function that returns the fee for a given order
+
+	#restrict to one order per counterparty, choose the one with the lowest cjfee
+	#this is done in advance of the order selection algo, so applies to all of them.
+	#however, if orders are picked manually, allow duplicates.
+	if chooseOrdersBy != pick_order:
+		# indexed by hostmask, as it's harder to fake than the nick
+		orders = sorted(dict(((v[0])[v[0].find('!')+1:],v) for v in sorted(orders, key=feekey, reverse=True)).values(), key=feekey)
+	else:
+		orders = sorted(orders, key=feekey) #sort from smallest to biggest cj fee
+
+	# after deduplication, ensure there are enough counterparties
 	counterparties = set([o[0] for o in orders])
 	if n > len(counterparties):
 		debug('ERROR not enough liquidity in the orderbook n=%d suitable-counterparties=%d amount=%d totalorders=%d'
 			% (n, len(counterparties), cj_amount, len(orders)))
 		return None, 0 #TODO handle not enough liquidity better, maybe an Exception
-	#restrict to one order per counterparty, choose the one with the lowest cjfee
-	#this is done in advance of the order selection algo, so applies to all of them.
-	#however, if orders are picked manually, allow duplicates.
-	if chooseOrdersBy != pick_order:
-		orders = sorted(dict((v[0],v) for v in sorted(orders, key=feekey, reverse=True)).values(), key=feekey)
-	else:
-		orders = sorted(orders, key=feekey) #sort from smallest to biggest cj fee	
-
 	debug('considered orders = \n' + '\n'.join([str(o) for o in orders]))
 	total_cj_fee = 0
 	chosen_orders = []

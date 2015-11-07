@@ -38,8 +38,8 @@ def random_nick(nick_len=9):
 def get_irc_text(line):
 	return line[line[1:].find(':') + 2:]
 	
-def get_irc_nick(source):
-	return source[1:source.find('!')]
+def get_irc_nick(source): # includes the hostmask, to annoy sybils
+	return source[1:source.find('!')+1] + source[source.find('@')+1:]
 
 class PingThread(threading.Thread):
 	def __init__(self, irc):
@@ -164,7 +164,7 @@ class IRCMessageChannel(MessageChannel):
 				return
 			message = enc_wrapper.encrypt_encode(message, box)
 
-		header = "PRIVMSG " + nick + " :"
+		header = "PRIVMSG " + nick[:nick.find('!')] + " :"
 		max_chunk_len = MAX_PRIVMSG_LEN - len(header) - len(cmd) - 4
 		#1 for command prefix 1 for space 2 for trailer
 		if len(message) > max_chunk_len:
