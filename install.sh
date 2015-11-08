@@ -109,11 +109,11 @@ make install
 cd ${joinmarket_home}/lib/bitcoin
 
 export C_INCLUDE_PATH=${libsodium_root}/include:${secp256k1_root}/include:${C_INCLUDE_PATH}
-export LIBRARY_PATH=${libsodiom_root}/lib:${secp256k1_root}/lib:${LIBRARY_PATH}
+export LIBRARY_PATH=${libsodium_root}/lib:${secp256k1_root}/lib:${LIBRARY_PATH}
+export LD_LIBRARY_PATH=${LIBRARY_PATH}:${LD_LIBRARY_PATH}
 export PYTHONPATH=${pycparser_root}/lib/python2.7/site-packages:${cffi_root}/lib/python2.7/site-packages/:${pexpect_root}/lib/python2.7/site-packages/:${ptyprocess_root}/lib/python2.7/site-packages/:${PYTHONPATH}
 python build.py
 python noncefunc_build.py
 
 cd ${joinmarket_home}/lib
-export LD_LIBRARY_PATH=${libsodium_root}/lib:${secp256k1_root}/lib:${LD_LIBRARY_PATH}
 python enc_wrapper.py
