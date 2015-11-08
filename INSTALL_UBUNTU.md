@@ -40,6 +40,7 @@ $ echo "export joinmarket_home=$(pwd)" >> ~/.bashrc
 
 Add these lines to your `~/.bashrc` file, underneath `export joinmarket_home ...`
 ```m
+export libffi_root=${joinmarket_home}/deps/build/libffi
 export ptyprocess_root=${joinmarket_home}/deps/build/ptyprocess
 export pexpect_root=${joinmarket_home}/deps/build/pexpect
 export pycparser_root=${joinmarket_home}/deps/build/pycparser
@@ -47,7 +48,7 @@ export cffi_root=${joinmarket_home}/deps/build/cffi
 export libsodium_root=${joinmarket_home}/deps/build/libsodium
 export secp256k1_root=${joinmarket_home}/deps/build/secp256k1
 export PYTHONPATH=${pycparser_root}/lib/python2.7/site-packages:${cffi_root}/lib/python2.7/site-packages/:${pexpect_root}/lib/python2.7/site-packages/:${ptyprocess_root}/lib/python2.7/site-packages:${PYTHONPATH}
-export LD_LIBRARY_PATH=${libsodium_root}/lib:${secp256k1_root}/lib:${LD_LIBRARY_PATH}
+export LD_LIBRARY_PATH=${libsodium_root}/lib:${secp256k1_root}/lib:${libffi_root}/lib:${LD_LIBRARY_PATH}
 ```
 
 Finally, source the  `~/.bashrc`
