@@ -14,8 +14,7 @@ txfee = 1000
 cjfee = '0.002'  # 0.2% fee
 nickname = random_nick()
 nickserv_password = ''
-minsize = int(
-    1.2 * txfee / float(cjfee))  # minimum size is such that you always net profit at least 20% of the miner fee
+minsize = int(1.2 * txfee / float(cjfee))  # minimum size is such that you always net profit at least 20% of the miner fee
 mix_levels = 5
 
 '''
