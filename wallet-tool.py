@@ -22,13 +22,14 @@ import old_mnemonic, slowaes
 
 parser = OptionParser(usage='usage: %prog [options] [wallet file] [method]',
 	description='Does useful little tasks involving your bip32 wallet. The'
-	+ ' method is one of the following: display- shows addresses and balances.'
+	+ ' method is one of the following: display - shows addresses and balances.'
 	+ ' displayall - shows ALL addresses and balances.'
 	+ ' summary - shows a summary of mixing depth balances.' 
 	+ ' generate - generates a new wallet.'
 	+ ' recover - recovers a wallet from the 12 word recovery seed.'
 	+ ' showseed - shows the wallet recovery seed and hex seed.'
-	+ ' importprivkey - adds privkeys to this wallet (privkeys are spaces or commas separated)')
+	+ ' importprivkey - adds privkeys to this wallet (privkeys are spaces or commas separated)'
+	+ ' listwallets - lists all wallets with creator and timestamp')
 parser.add_option('-p', '--privkey', action='store_true', dest='showprivkey',
 	help='print private key along with address, default false')
 parser.add_option('-m', '--maxmixdepth', action='store', type='int', dest='maxmixdepth',
@@ -46,7 +47,7 @@ if not options.maxmixdepth:
 	maxmixdepth_configured = False
 	options.maxmixdepth = 5
 
-noseed_methods = ['generate', 'recover']
+noseed_methods = ['generate', 'recover', 'listwallets']
 methods = ['display', 'displayall', 'summary', 'showseed', 'importprivkey'] + noseed_methods
 noscan_methods = ['showseed', 'importprivkey']
 
@@ -130,10 +131,16 @@ elif method == 'generate' or method == 'recover':
 	walletname = raw_input('Input wallet file name (default: wallet.json): ')
 	if len(walletname) == 0:
 		walletname = 'wallet.json'
-	fd = open(os.path.join('wallets', walletname), 'w')
-	fd.write(walletfile)
-	fd.close()
-	print 'saved to ' + walletname
+	walletpath = os.path.join('wallets', walletname)
+	# Does a wallet with the same name exist?
+	if os.path.isfile(walletpath):
+		print 'ERROR: ' + walletpath + ' already exists. Aborting.'
+		sys.exit(0)
+	else:
+		fd = open(walletpath, 'w')
+		fd.write(walletfile)
+		fd.close()
+		print 'saved to ' + walletname
 elif method == 'showseed':
 	hexseed = wallet.seed
 	print 'hexseed = ' + hexseed
@@ -174,3 +181,32 @@ elif method == 'importprivkey':
 		fd.write(json.dumps(wallet.walletdata))
 		fd.close()
 		print 'Private key(s) successfully imported'
+elif method == 'listwallets':
+	# Fetch list of wallets
+	wallets = []
+	for (dirpath, dirnames, filenames) in os.walk('wallets'):
+		wallets.extend(filenames)
+		# Breaking as we only want the top dir, not subdirs
+		break
+
+	i = 1
+	print ' '
+	# For each wallet file
+	for wallet in wallets:
+		fd = open(os.path.join('wallets', wallet), 'r')
+		try:
+			
+			walletfile = fd.read()
+			walletjson = json.loads(walletfile)
+			print 'Wallet #' + str(i) + ' (' + wallet + '):'
+			print 'Creation time:\t' + walletjson['creation_time']
+			print 'Creator:\t' + walletjson['creator']
+			print 'Network:\t' + walletjson['network']
+			print ' '
+
+			i += 1
+		except ValueError:
+			pass
+
+	print ' '
+	print str(i-1) + ' Wallets have been found.'
