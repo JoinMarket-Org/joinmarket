@@ -124,6 +124,11 @@ class YieldGenerator(Maker):
         return ([], [neworders[0]])
 
     def on_tx_confirmed(self, cjorder, confirmations, txid):
+        if cjorder.cj_addr in self.tx_unconfirm_timestamp:
+            confirm_time = int(time.time()) - self.tx_unconfirm_timestamp[
+                cjorder.cj_addr]
+        else:
+            confirm_time = 0
         confirm_time = int(time.time()) - self.tx_unconfirm_timestamp[
             cjorder.cj_addr]
         timestamp = datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
