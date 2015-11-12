@@ -33,18 +33,33 @@ def calc_depth_data(db, value):
 def calc_order_size_data(db):
 	return ordersizes
 
-def create_depth_chart(db, cj_amount):
+def create_depth_chart(db, cj_amount, args = {}):
 	sqlorders = db.execute('SELECT * FROM orderbook;').fetchall()
-	orderfees = [calc_cj_fee(o['ordertype'], o['cjfee'], cj_amount)/1e8
-		for o in sqlorders if cj_amount >= o['minsize'] and cj_amount <= o['maxsize']]
+	orderfees = sorted([calc_cj_fee(o['ordertype'], o['cjfee'], cj_amount)/1e8
+		for o in sqlorders if cj_amount >= o['minsize'] and cj_amount <= o['maxsize']])
 
 	if len(orderfees) == 0:
 		return 'No orders at amount ' + str(cj_amount/1e8)
 	fig = plt.figure()
-	if len(orderfees) == 1:
-		plt.hist(orderfees, 30, rwidth=0.8, range=(orderfees[0]/2, orderfees[0]*2))
+	scale = args.get("scale")
+	if (scale is not None) and (scale[0] == "log"):
+		orderfees = [float(fee) for fee in orderfees]
+		if orderfees[0] > 0:
+			ratio = orderfees[-1] / orderfees[0]
+			step = ratio ** 0.0333               # 1/30
+			bins = [orderfees[0] * (step ** i) for i in range(30)]
+		else:
+			ratio = orderfees[-1] / 1e-8 # single satoshi placeholder
+			step = ratio ** 0.0333       # 1/30
+			bins = [1e-8 * (step ** i) for i in range(30)]
+			bins[0] = orderfees[0] # replace placeholder
+		plt.xscale('log')
 	else:
-		plt.hist(orderfees, 30, rwidth=0.8)
+		bins = 30
+	if len(orderfees) == 1: # these days we have liquidity, but just in case...
+		plt.hist(orderfees, bins, rwidth=0.8, range=(0, orderfees[0]*2))
+	else:
+		plt.hist(orderfees, bins, rwidth=0.8)
 	plt.grid()
 	plt.title('CoinJoin Orderbook Depth Chart for amount=' + str(cj_amount/1e8) + 'btc')
 	plt.xlabel('CoinJoin Fee / btc')
@@ -207,8 +222,11 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
 		elif self.path.startswith('/depth'):
 			#if self.path[6] == '?':
 			#	quantity = 
-			cj_amounts = [10**cja for cja in range(4, 10, 1)]
-			mainbody = [create_depth_chart(self.taker.db, cja) for cja in cj_amounts]
+			cj_amounts = [10**cja for cja in range(4, 12, 1)]
+			mainbody = [create_depth_chart(self.taker.db, cja, args)  \
+				for cja in cj_amounts] +                           \
+				["<br/><a href='?'>linear</a>" if args.get("scale") \
+				else "<br/><a href='?scale=log'>log scale</a>"]
 			replacements = {
 				'PAGETITLE': 'JoinMarket Browser Interface',
 				'MAINHEADING': 'Depth Chart',
