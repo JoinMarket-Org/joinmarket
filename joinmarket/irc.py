@@ -54,8 +54,8 @@ def get_irc_text(line):
     return line[line[1:].find(':') + 2:]
 
 
-def get_irc_nick(source):
-    return source[1:source.find('!')]
+def get_irc_nick(source):       # Sybil annoyance through hostmask inclusion
+    return source[1:source.find('!') + 1] + source[source.find('@') + 1:]
 
 
 class PingThread(threading.Thread):
@@ -143,8 +143,9 @@ class IRCMessageChannel(MessageChannel):
     def announce_orders(self, orderlist, nick=None):
         # nick=None means announce publicly
         order_keys = ['oid', 'minsize', 'maxsize', 'txfee', 'cjfee']
-        header = 'PRIVMSG ' + (nick if nick else self.channel) + ' :'
-        orderlines = []
+        target = nick[:nick.find('!')] if nick else self.channel # same header
+        header = 'PRIVMSG ' + target + ' :' # works for both pit announcements
+        orderlines = []                     # and PM replies to !orderbook
         for i, order in enumerate(orderlist):
             orderparams = COMMAND_PREFIX + order['ordertype'] + \
                           ' ' + ' '.join([str(order[k]) for k in order_keys])
@@ -192,7 +193,7 @@ class IRCMessageChannel(MessageChannel):
                 return
             message = encrypt_encode(message, box)
 
-        header = "PRIVMSG " + nick + " :"
+        header = "PRIVMSG " + nick[:nick.find('!')] + " :" # remove hostmask
         max_chunk_len = MAX_PRIVMSG_LEN - len(header) - len(cmd) - 4
         # 1 for command prefix 1 for space 2 for trailer
         if len(message) > max_chunk_len:

@@ -107,14 +107,12 @@ def get_graph_html(fig):
 
 
 # callback functions for displaying order data
-def do_nothing(arg, order, btc_unit, rel_unit):
-    return arg
-
+def trim_host(nickhost, order, btc_unit, rel_unit):
+    return nickhost[nickhost.find('!')+1:]
 
 def ordertype_display(ordertype, order, btc_unit, rel_unit):
     ordertypes = {'absorder': 'Absolute Fee', 'relorder': 'Relative Fee'}
     return ordertypes[ordertype]
-
 
 def cjfee_display(cjfee, order, btc_unit, rel_unit):
     if order['ordertype'] == 'absorder':
@@ -122,12 +120,10 @@ def cjfee_display(cjfee, order, btc_unit, rel_unit):
     elif order['ordertype'] == 'relorder':
         return str(float(cjfee) * rel_unit_to_factor[rel_unit]) + rel_unit
 
-
 def satoshi_to_unit(sat, order, btc_unit, rel_unit):
     power = unit_to_power[btc_unit]
     return ("%." + str(power) + "f") % float(
         Decimal(sat) / Decimal(10 ** power))
-
 
 def order_str(s, order, btc_unit, rel_unit):
     return str(s)
@@ -139,7 +135,7 @@ def create_orderbook_table(db, btc_unit, rel_unit):
     if not rows:
         return 0, result
     order_keys_display = (('ordertype', ordertype_display),
-                          ('counterparty', do_nothing), ('oid', order_str),
+                          ('counterparty', trim_host), ('oid', order_str),
                           ('cjfee', cjfee_display), ('txfee', satoshi_to_unit),
                           ('minsize', satoshi_to_unit),
                           ('maxsize', satoshi_to_unit))

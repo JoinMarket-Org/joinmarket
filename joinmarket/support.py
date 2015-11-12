@@ -235,6 +235,14 @@ def pick_order(orders, n, feekey):
             return orders[pickedOrderIndex]
         pickedOrderIndex = -1
 
+def offer_profit(offer):
+    """
+    Calculates the net profit to the maker of the given offer.
+    Expects an offer in the form (counterparty, oid, cjfee, txfee)
+    where cjfee and txfee are integer amounts of satoshi.
+    """
+    return offer[2] - offer[3]
+
 
 def choose_orders(db, cj_amount, n, chooseOrdersBy, ignored_makers=None):
     if ignored_makers is None:
@@ -246,10 +254,20 @@ def choose_orders(db, cj_amount, n, chooseOrdersBy, ignored_makers=None):
               if o['minsize'] <= cj_amount <= o['maxsize'] and o[
                   'counterparty'] not in ignored_makers]
 
-    # function that returns the fee for a given order
-    def feekey(o):
-        return o[2] - o[3]
+    """
+    restrict to one order per counterparty, choose the one with the lowest
+    cjfee this is done in advance of the order selection algo, so applies to
+    all of them. however, if orders are picked manually, allow duplicates.
+    """
+    if chooseOrdersBy != pick_order:
+        orders = sorted(        # index by hostmask only, as it's harder to
+            dict(((v[0])[v[0].find('!')+1:], v) # spoof than the nick field
+                 for v in sorted(orders, key=offer_profit,
+                                 reverse=True)).values(), key=offer_profit)
+    else:
+        orders = sorted(orders, key=offer_profit) # sort by increasing cjfee
 
+    # after deduplication, ensure we have enough distinct counterparties
     counterparties = set([o[0] for o in orders])
     if n > len(counterparties):
         log.debug(('ERROR not enough liquidity in the orderbook n=%d '
@@ -258,24 +276,11 @@ def choose_orders(db, cj_amount, n, chooseOrdersBy, ignored_makers=None):
         # TODO handle not enough liquidity better, maybe an Exception
         return None, 0
 
-    """
-    restrict to one order per counterparty, choose the one with the lowest
-    cjfee this is done in advance of the order selection algo, so applies to
-    all of them. however, if orders are picked manually, allow duplicates.
-    """
-    if chooseOrdersBy != pick_order:
-        orders = sorted(
-                dict((v[0], v) for v in sorted(
-                        orders, key=feekey, reverse=True)).values(), key=feekey)
-    else:
-        orders = sorted(orders,
-                        key=feekey)  # sort from smallest to biggest cj fee
-
     log.debug('considered orders = \n' + '\n'.join([str(o) for o in orders]))
     total_cj_fee = 0
     chosen_orders = []
     for i in range(n):
-        chosen_order = chooseOrdersBy(orders, n, feekey)
+        chosen_order = chooseOrdersBy(orders, n, offer_profit)
         orders = [o for o in orders if o[0] != chosen_order[0]
                   ]  # remove all orders from that same counterparty
         chosen_orders.append(chosen_order)
@@ -302,7 +307,7 @@ def choose_sweep_orders(db,
     => cjamount = (totalin - mytxfee - sum(absfee)) / (1 + sum(relfee))
     """
     total_txfee = txfee*n
-    
+
     if ignored_makers is None:
         ignored_makers = []
 
@@ -344,11 +349,8 @@ def choose_sweep_orders(db,
                                                   total_input_value), o['txfee'])
                         for o in orderlist]
 
-    def feekey(o):
-        return o[2] - o[3]
-
     # sort from smallest to biggest cj fee
-    available_orders = sorted(available_orders, key=feekey)
+    available_orders = sorted(available_orders, key=offer_profit)
     chosen_orders = []
     while len(chosen_orders) < n:
         if len(available_orders) < n - len(chosen_orders):
@@ -356,7 +358,7 @@ def choose_sweep_orders(db,
             # TODO handle not enough liquidity better, maybe an Exception
             return None, 0
         for i in range(n - len(chosen_orders)):
-            chosen_order = chooseOrdersBy(available_orders, n, feekey)
+            chosen_order = chooseOrdersBy(available_orders, n, offer_profit)
             log.debug('chosen = ' + str(chosen_order))
             # remove all orders from that same counterparty
             available_orders = [
