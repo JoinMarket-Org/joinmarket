@@ -202,7 +202,10 @@ class YieldGenerator(Maker):
 		return (cancel_orders, ann_orders)
 
 	def on_tx_confirmed(self, cjorder, confirmations, txid):
-		confirm_time = int(time.time()) - self.tx_unconfirm_timestamp[cjorder.cj_addr]
+		if cjorder.cj_addr in self.tx_unconfirm_timestamp:
+			confirm_time = int(time.time()) - self.tx_unconfirm_timestamp[cjorder.cj_addr]
+		else:
+			confirm_time = 0
 		del self.tx_unconfirm_timestamp[cjorder.cj_addr]
 		timestamp = datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
 		self.log_statement([timestamp, cjorder.cj_amount, len(cjorder.utxos),
