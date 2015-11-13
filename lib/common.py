@@ -9,7 +9,7 @@ from ConfigParser import SafeConfigParser, NoSectionError, NoOptionError
 import os, io, itertools
 
 JM_VERSION = 2
-nickname = ''
+nickname = None
 DUST_THRESHOLD = 2730
 bc_interface = None
 ordername_list = ["absorder", "relorder"]
