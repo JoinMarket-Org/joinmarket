@@ -219,30 +219,32 @@ elif method == 'importprivkey':
         print 'Private key(s) successfully imported'
 elif method == 'listwallets':
     # Fetch list of wallets
-    wallets = []
+    possible_wallets = []
     for (dirpath, dirnames, filenames) in os.walk('wallets'):
-        wallets.extend(filenames)
+        possible_wallets.extend(filenames)
         # Breaking as we only want the top dir, not subdirs
         break
-
-    i = 1
-    print ' '
-    # For each wallet file
-    for wallet in wallets:
-        fd = open(os.path.join('wallets', wallet), 'r')
+    # For each possible wallet file, read json to list
+    walletjsons = []
+    for possible_wallet in possible_wallets:
+        fd = open(os.path.join('wallets', possible_wallet), 'r')
         try:
-
             walletfile = fd.read()
             walletjson = json.loads(walletfile)
-            print 'Wallet #' + str(i) + ' (' + wallet + '):'
-            print 'Creation time:\t' + walletjson['creation_time']
-            print 'Creator:\t' + walletjson['creator']
-            print 'Network:\t' + walletjson['network']
-            print ' '
-
-            i += 1
+            #Add filename to json format
+            walletjson['filename'] = possible_wallet
+            walletjsons.append(walletjson)
         except ValueError:
             pass
-
+    # Sort wallets by date
+    walletjsons.sort(key=lambda r: r['creation_time'])
+    i = 1
     print ' '
+    for walletjson in walletjsons:
+        print 'Wallet #' + str(i) + ' (' + walletjson['filename'] + '):'
+        print 'Creation time:\t' + walletjson['creation_time']
+        print 'Creator:\t' + walletjson['creator']
+        print 'Network:\t' + walletjson['network']
+        print ' '
+        i += 1
     print str(i - 1) + ' Wallets have been found.'
