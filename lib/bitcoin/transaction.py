@@ -2,9 +2,8 @@
 import binascii, re, json, copy, sys
 from bitcoin.main import *
 from _functools import reduce
-
-### Hex to bin converter and vice versa for objects
-
+import secp256k1
+import os
 
 def json_is_base(obj, base):
     if not is_python2 and isinstance(obj, bytes):
@@ -147,31 +146,6 @@ def signature_form(tx, i, script, hashcode=SIGHASH_ALL):
         pass
     return newtx
 
-# Making the actual signatures
-
-
-def der_encode_sig(v, r, s):
-    """Takes (vbyte, r, s) as ints and returns hex der encode sig"""
-    #See https://github.com/vbuterin/pybitcointools/issues/89
-    #See https://github.com/simcity4242/pybitcointools/
-    s = N-s if s>N//2 else s    # BIP62 low s
-    b1, b2 = encode(r, 256), encode(s, 256)
-    if bytearray(b1)[0] & 0x80:     # add null bytes if leading byte interpreted as negative
-        b1 = b'\x00' + b1
-    if bytearray(b2)[0] & 0x80:
-        b2 = b'\x00' + b2
-    left  = b'\x02' + encode(len(b1), 256, 1) + b1
-    right = b'\x02' + encode(len(b2), 256, 1) + b2
-    return safe_hexlify(b'\x30' + encode(len(left+right), 256, 1) + left + right) 
-
-def der_decode_sig(sig):
-    leftlen = decode(sig[6:8], 16)*2
-    left = sig[8:8+leftlen]
-    rightlen = decode(sig[10+leftlen:12+leftlen], 16)*2
-    right = sig[12+leftlen:12+leftlen+rightlen]
-    return (None, decode(left, 16), decode(right, 16))
-
-
 def txhash(tx, hashcode=None):
     if isinstance(tx, str) and re.match('^[0-9a-fA-F]*$', tx):
         tx = changebase(tx, 16, 256)
@@ -184,25 +158,14 @@ def txhash(tx, hashcode=None):
 def bin_txhash(tx, hashcode=None):
     return binascii.unhexlify(txhash(tx, hashcode))
 
-
-def ecdsa_tx_sign(tx, priv, hashcode=SIGHASH_ALL):
-    rawsig = ecdsa_raw_sign(bin_txhash(tx, hashcode), priv)
-    return der_encode_sig(*rawsig)+encode(hashcode, 16, 2)
-
+def ecdsa_tx_sign(tx, priv, hashcode=SIGHASH_ALL, usenonce=None):
+    sig = ecdsa_raw_sign(txhash(tx, hashcode), priv, True, rawmsg=True, usenonce=usenonce)
+    return sig+encode(hashcode, 16, 2)
 
 def ecdsa_tx_verify(tx, sig, pub, hashcode=SIGHASH_ALL):
-    return ecdsa_raw_verify(bin_txhash(tx, hashcode), der_decode_sig(sig), pub)
-
-
-def ecdsa_tx_recover(tx, sig, hashcode=SIGHASH_ALL):
-    z = bin_txhash(tx, hashcode)
-    _, r, s = der_decode_sig(sig)
-    left = ecdsa_raw_recover(z, (0, r, s))
-    right = ecdsa_raw_recover(z, (1, r, s))
-    return (encode_pubkey(left, 'hex'), encode_pubkey(right, 'hex'))
+    return ecdsa_raw_verify(txhash(tx, hashcode), pub, sig[:-2], True, rawmsg=True)
 
 # Scripts
-
 
 def mk_pubkey_script(addr):
     # Keep the auxiliary functions around for altcoins' sake
@@ -322,27 +285,30 @@ def mk_multisig_script(*args):  # [pubs],k or pub1,pub2...pub[n],k
 
 
 def verify_tx_input(tx, i, script, sig, pub):
+    print 'using script: '+script
+    print 'using sig: '+sig
+    print 'using pub: '+pub
     if re.match('^[0-9a-fA-F]*$', tx):
         tx = binascii.unhexlify(tx)
     if re.match('^[0-9a-fA-F]*$', script):
         script = binascii.unhexlify(script)
     if not re.match('^[0-9a-fA-F]*$', sig):
         sig = safe_hexlify(sig)
+    if not re.match('^[0-9a-fA-F]*$', pub):
+        pub = safe_hexlify(pub)
     hashcode = decode(sig[-2:], 16)
     modtx = signature_form(tx, int(i), script, hashcode)
     return ecdsa_tx_verify(modtx, sig, pub, hashcode)
 
 
-def sign(tx, i, priv, hashcode=SIGHASH_ALL):
+def sign(tx, i, priv, hashcode=SIGHASH_ALL, usenonce=None):
     i = int(i)
     if (not is_python2 and isinstance(re, bytes)) or not re.match('^[0-9a-fA-F]*$', tx):
         return binascii.unhexlify(sign(safe_hexlify(tx), i, priv))
-    if len(priv) <= 33:
-        priv = safe_hexlify(priv)
-    pub = privkey_to_pubkey(priv)
+    pub = privkey_to_pubkey(priv, True)
     address = pubkey_to_address(pub)
     signing_tx = signature_form(tx, i, mk_pubkey_script(address), hashcode)
-    sig = ecdsa_tx_sign(signing_tx, priv, hashcode)
+    sig = ecdsa_tx_sign(signing_tx, priv, hashcode, usenonce=usenonce)
     txobj = deserialize(tx)
     txobj["ins"][i]["script"] = serialize_script([sig, pub])
     return serialize(txobj)

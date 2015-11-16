@@ -6,6 +6,7 @@ from taker import CoinJoinerPeer
 import bitcoin as btc
 import base64, pprint, threading
 import enc_wrapper
+import binascii
 
 class CoinJoinOrder(object):
 	def __init__(self, maker, nick, oid, amount, taker_pk):
@@ -59,7 +60,7 @@ class CoinJoinOrder(object):
 	def auth_counterparty(self, nick, i_utxo_pubkey, btc_sig):
 		self.i_utxo_pubkey = i_utxo_pubkey
 		
-		if not btc.ecdsa_verify(self.taker_pk, btc_sig, self.i_utxo_pubkey):
+		if not btc.ecdsa_verify(self.taker_pk, btc_sig, binascii.unhexlify(self.i_utxo_pubkey)):
 			print 'signature didnt match pubkey and message'
 			return False
 		#authorisation of taker passed 
@@ -67,8 +68,8 @@ class CoinJoinOrder(object):
 		#Send auth request to taker
 		#TODO the next 2 lines are a little inefficient.
 		btc_key = self.maker.wallet.get_key_from_addr(self.cj_addr)
-		btc_pub = btc.privtopub(btc_key)
-		btc_sig = btc.ecdsa_sign(self.kp.hex_pk(), btc_key)
+		btc_pub = btc.privtopub(btc_key, True)
+		btc_sig = btc.ecdsa_sign(self.kp.hex_pk(), binascii.unhexlify(btc_key))
 		self.maker.msgchan.send_ioauth(nick, self.utxos.keys(), btc_pub, self.change_addr, btc_sig)
 		return True
 	
