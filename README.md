@@ -22,10 +22,11 @@ As a result of free-market forces (i.e. anyone with bitcoins can become a JoinMa
 
 ###DEBIAN / UBUNTU QUICK INSTALL:
 
-1. `sudo apt-get update -y && sudo apt-get upgrade -y && sudo apt-get install python libsodium-dev -y`
+1. `sudo apt-get update -y && sudo apt-get upgrade`
 2. `sudo apt-get install python-matplotlib -y` (optional)
 3. `git clone https://github.com/chris-belcher/joinmarket.git`
-4. Generating your first wallet will populate the configuration file: `joinmarket.cfg`.
+4. Follow the instructions in INSTALL_UBUNTU.md (works also for Debian)
+5. Generating your first wallet will populate the configuration file: `joinmarket.cfg`.
    Check if the default settings suit your needs.
 
 ###[WIKI PAGES FOR DETAILED ARTICLES/GUIDES](https://github.com/chris-belcher/joinmarket/wiki)
