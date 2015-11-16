@@ -12,6 +12,8 @@ FLAG_VERIFY = lib.SECP256K1_CONTEXT_VERIFY
 ALL_FLAGS = FLAG_SIGN | FLAG_VERIFY
 NO_FLAGS = lib.SECP256K1_CONTEXT_NONE
 
+gctx = lib.secp256k1_context_create(ALL_FLAGS)
+
 HAS_RECOVERABLE = hasattr(lib, 'secp256k1_ecdsa_sign_recoverable')
 HAS_SCHNORR = hasattr(lib, 'secp256k1_schnorr_sign')
 HAS_ECDH = hasattr(lib, 'secp256k1_ecdh')
@@ -23,19 +25,11 @@ class Base(object):
         self._destroy = None
         if ctx is None:
             assert flags in (NO_FLAGS, FLAG_SIGN, FLAG_VERIFY, ALL_FLAGS)
-            ctx = lib.secp256k1_context_create(flags)
+            ctx = gctx
             self._destroy = lib.secp256k1_context_destroy
 
         self.flags = flags
         self.ctx = ctx
-
-    def __del__(self):
-        if not hasattr(self, '_destroy'):
-            return
-
-        if self._destroy and self.ctx:
-            self._destroy(self.ctx)
-            self.ctx = None
 
 
 class ECDSA:  # Use as a mixin; instance.ctx is assumed to exist.

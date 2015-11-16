@@ -70,7 +70,7 @@ class TumblerTests(unittest.TestCase):
 	    yigen_procs.append(ygp)
 	
 	#A significant delay is needed to wait for the yield generators to sync 
-	time.sleep(60)
+	time.sleep(10)
 	
 	#start a tumbler
 	amt = amt*1e8 #in satoshis
@@ -82,7 +82,7 @@ class TumblerTests(unittest.TestCase):
 	    expected = ['tumble with these tx']
 	    test_in = ['y']
 	    p = pexpect.spawn('python',['tumbler.py', '-N', '2', '0', #2 is basic case, could increase
-	                             '-a', '0', '-M', '5', '-l', '0.5', #drastically shorten waits 
+	                             '-a', '0', '-M', '5', '-w', '3', '-l', '0.2', #drastically shorten waits 
 	                             self.wallets[6]['seed'], dest_address])
 	    interact(p, test_in, expected)
 	    p.expect(pexpect.EOF, timeout=100000)
