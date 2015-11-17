@@ -76,7 +76,7 @@ class Join2PTests(unittest.TestCase):
 	
 	#run a single sendpayment call with wallet2
 	amt = n*100000000 #in satoshis
-	dest_address = btc.privkey_to_address(os.urandom(32), from_hex=False, magicbyte=common.get_p2pk_vbyte())
+	dest_address = btc.privkey_to_address(os.urandom(32), common.get_p2pk_vbyte())
 	try:
 	    for i in range(m):
 		sp_proc = local_command(['python','sendpayment.py','--yes','-N','1', self.wallets[1]['seed'],\
@@ -104,20 +104,20 @@ class Join2PTests(unittest.TestCase):
 class JoinNPTests(unittest.TestCase):
 	
     def setUp(self):
-	self.n = 4
+	self.n = 2
         #create n+1 new random wallets.
         #put 10 coins into the first receive address
         #to allow that bot to start.
-	wallet_structures = [[2,2,2,0,0]]*(self.n+1)
-	self.wallets = commontest.make_wallets(self.n+1, wallet_structures=wallet_structures,
-	                                       mean_amt=3.0, sdev_amt=1.0)
+	wallet_structures = [[1,0,0,0,0]]*3
+	self.wallets = commontest.make_wallets(3, wallet_structures=wallet_structures,
+	                                       mean_amt=10)
 	#the sender is wallet (n+1), i.e. index wallets[n]
     
 	
     def test_n_partySend(self):
-	self.failUnless(self.run_3party_join())
+	self.failUnless(self.run_nparty_join())
 	
-    def run_3party_join(self):
+    def run_nparty_join(self):
 	yigen_procs = []
 	for i in range(self.n):
 	    ygp = local_command(['python','yield-generator.py',\
@@ -130,9 +130,9 @@ class JoinNPTests(unittest.TestCase):
 	
 	#run a single sendpayment call
 	amt = 100000000 #in satoshis
-	dest_address = btc.privkey_to_address(os.urandom(32), from_hex=False, magicbyte=common.get_p2pk_vbyte())
+	dest_address = btc.privkey_to_address(os.urandom(32), common.get_p2pk_vbyte())
 	try:
-	    sp_proc = local_command(['python','sendpayment.py','--yes','-N', '3',\
+	    sp_proc = local_command(['python','sendpayment.py','--yes','-N', str(self.n),\
 	                             self.wallets[self.n]['seed'], str(amt), dest_address])
 	except subprocess.CalledProcessError, e:
 	    for ygp in yigen_procs:

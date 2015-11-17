@@ -70,19 +70,19 @@ class TumblerTests(unittest.TestCase):
 	    yigen_procs.append(ygp)
 	
 	#A significant delay is needed to wait for the yield generators to sync 
-	time.sleep(10)
+	time.sleep(60)
 	
 	#start a tumbler
 	amt = amt*1e8 #in satoshis
 	#send to any old address
-	dest_address = btc.privkey_to_address(os.urandom(32), from_hex=False, magicbyte=common.get_p2pk_vbyte())	
+	dest_address = btc.privkey_to_address(os.urandom(32), common.get_addr_vbyte())	
 	try:
 	    #default mixdepth source is zero, so will take coins from m 0.
 	    #see tumbler.py --h for details
 	    expected = ['tumble with these tx']
 	    test_in = ['y']
-	    p = pexpect.spawn('python',['tumbler.py', '-N', '2', '0', #2 is basic case, could increase
-	                             '-a', '0', '-M', '5', '-w', '3', '-l', '0.2', #drastically shorten waits 
+	    p = pexpect.spawn('python',['tumbler.py', '-N', '1', '0',
+	                             '-a', '0', '-M', '5', 
 	                             self.wallets[6]['seed'], dest_address])
 	    interact(p, test_in, expected)
 	    p.expect(pexpect.EOF, timeout=100000)
