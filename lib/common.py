@@ -452,8 +452,7 @@ class Wallet(AbstractWallet):
 
     def get_addr(self, mixing_depth, forchange, i):
         return btc.privtoaddr(
-            self.get_key(mixing_depth, forchange, i),
-            magicbyte=get_p2pk_vbyte())
+            self.get_key(mixing_depth, forchange, i), get_p2pk_vbyte())
 
     def get_new_addr(self, mixing_depth, forchange):
         index = self.index[mixing_depth]
