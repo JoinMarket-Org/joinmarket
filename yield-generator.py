@@ -117,7 +117,7 @@ class YieldGenerator(Maker):
 			#for the absolute fee order, take from the lowest balance higher than dust
 			mix_balance = self.wallet.get_balance_by_mixdepth()
 			filtered_mix_balance = dict([(m, b) for m, b in mix_balance.iteritems() if b > common.DUST_THRESHOLD])
-			filtered_mix_balance = sorted(list(mix_balance.iteritems()), key=lambda a: a[1], reverse=True)
+			filtered_mix_balance = sorted(list(mix_balance.iteritems()), key=lambda a: a[1])
 			mixdepth = filtered_mix_balance[0][0]
 		debug('filling order, mixdepth=' + str(mixdepth))
 
