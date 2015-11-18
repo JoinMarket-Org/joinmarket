@@ -150,7 +150,7 @@ class CoinJoinOrder(object):
 			if addr == self.cj_addr:
 				times_seen_cj_addr += 1
 				if outs['value'] != self.cj_amount:
-					return False, 'Wrong cj_amount. I expect ' + str(cj_amount)
+					return False, 'Wrong cj_amount. I expect ' + str(self.cj_amount)
 			if addr == self.change_addr:
 				times_seen_change_addr += 1
 				if outs['value'] != expected_change_value:
