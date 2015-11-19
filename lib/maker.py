@@ -57,16 +57,32 @@ class CoinJoinOrder(object):
 		# orders to find out which addresses you use
 		self.maker.msgchan.send_pubkey(nick, self.kp.hex_pk())
 		
-	def auth_counterparty(self, nick, i_utxo_pubkey, btc_sig):
+	def auth_counterparty(self, nick, i_utxo_pubkey, btc_sig, i_utxo, p2, s, e):
 		self.i_utxo_pubkey = i_utxo_pubkey
-		
+		#check the btc signature of the encryption pubkey
 		if not btc.ecdsa_verify(self.taker_pk, btc_sig, binascii.unhexlify(self.i_utxo_pubkey)):
-			print 'signature didnt match pubkey and message'
+			common.debug("signature from nick: " + nick + "didnt match pubkey and message")
 			return False
+		
+		if all([i_utxo, p2, s, e]):
+			#check the validity of the proof of discrete log equivalence
+			if not btc.verify_podle(self.i_utxo_pubkey, p2, s, e, self.maker.commit):
+				common.debug("PODLE verification failed; counterparty utxo is not verified.")
+				return False		
+			#finally, check that the proffered utxo is real, 
+			#and corresponds to the pubkey
+			res = common.bc_interface.query_utxo_set([i_utxo])
+			if len(res) != 1:
+				common.debug("Input utxo: "+str(i_utxo)+" from nick: "+nick+" is not valid.")
+				return False
+			real_utxo = res[0]
+			if real_utxo['address'] != btc.pubkey_to_address(i_utxo_pubkey, common.get_p2pk_vbyte()):
+				return False
+			#TODO: could add check for coin age and value here
+			#(need to edit query_utxo_set if we want coin age)
+		
 		#authorisation of taker passed 
-		#(but input utxo pubkey is checked in verify_unsigned_tx).
 		#Send auth request to taker
-		#TODO the next 2 lines are a little inefficient.
 		btc_key = self.maker.wallet.get_key_from_addr(self.cj_addr)
 		btc_pub = btc.privtopub(btc_key, True)
 		btc_sig = btc.ecdsa_sign(self.kp.hex_pk(), binascii.unhexlify(btc_key))
@@ -189,22 +205,30 @@ class Maker(CoinJoinerPeer):
 	def on_orderbook_requested(self, nick):
 		self.msgchan.announce_orders(self.orderlist, nick)
 
-	def on_order_fill(self, nick, oid, amount, taker_pubkey):
+	def on_order_fill(self, nick, oid, amount, taker_pubkey, commit = None):
 		if nick in self.active_orders and self.active_orders[nick] != None:
 			self.active_orders[nick] = None
 			debug('had a partially filled order but starting over now')
+		if commit:
+			self.commit = commit
+			if not common.check_utxo_blacklist(self.commit):
+				common.debug("Taker utxo commitment is in blacklist, having been used "\
+				+ common.config.get("LIMITS","taker_utxo_retries")+ " times, rejecting.")
+				return			
+			
 		self.wallet_unspent_lock.acquire()
 		try:
 			self.active_orders[nick] = CoinJoinOrder(self, nick, oid, amount, taker_pubkey)
 		finally:
 			self.wallet_unspent_lock.release()
 
-	def on_seen_auth(self, nick, pubkey, sig):
+	def on_seen_auth(self, nick, pubkey, sig, i_utxo, p2, s, e_val):
 		if nick not in self.active_orders or self.active_orders[nick] == None:
 			self.msgchan.send_error(nick, 'No open order from this nick')
-		self.active_orders[nick].auth_counterparty(nick, pubkey, sig)
-		#TODO if auth_counterparty returns false, remove this order from active_orders
-		# and send an error
+		if not self.active_orders[nick].auth_counterparty(nick, pubkey,
+		                                sig, i_utxo, p2, s, e_val):
+			self.active_orders[nick]=None
+			self.msgchan.send_error(nick, "Authorisation failed.")
 
 	def on_seen_tx(self, nick, txhex):
 		if nick not in self.active_orders or self.active_orders[nick] == None:

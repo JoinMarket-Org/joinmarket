@@ -4,4 +4,5 @@ from bitcoin.main import *
 from bitcoin.transaction import *
 from bitcoin.deterministic import *
 from bitcoin.bci import *
+from bitcoin.podle import *
 
