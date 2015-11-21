@@ -120,13 +120,26 @@ class YieldGenerator(Maker):
 	def create_my_orders(self):
                 if custom_offers:
                     debug('custom_offers = \n' + '\n'.join([str(o) for o in custom_offers]))
+                    #make sure custom offers dont create a negative net
+		    for offer in custom_offers:
+			if offer['ordertype'] == 'absorder':
+			    profit = offer['cjfee']
+                            needed = 'make txfee be less then the cjfee'
+			elif offer['ordertype'] == 'relorder':
+			    profit = calc_cj_fee(offer['ordertype'], offer['cjfee'], offer['minsize']) 
+                            if float(offer['cjfee']) > 0:
+                                needed = 'set minsize to ' + str(int(int(offer['txfee'] / float(offer['cjfee']))))
+			if int(offer['txfee']) > profit:
+                            print("ALERT: negative yield")
+			    print '-> ' + str(offer)
+                            print needed
+			    sys.exit() #if you really wanted to, you could comment out this line.     
                     return custom_offers
 
 		mix_balance = self.wallet.get_balance_by_mixdepth()
 		debug('mix_balance = ' + str(mix_balance))
 		mix_balance = sorted(list(mix_balance.iteritems()), key=lambda a: a[1]) #sort by size
 
-                #randomly generate offer levels
                 offer_low = max(min_offer_size, min_output_size)
                 if max_offer_size:
                     offer_high = min(max_offer_size, mix_balance[-1][1] - min_output_size)
@@ -140,7 +153,7 @@ class YieldGenerator(Maker):
                         (offer_high - offer_low) / (num_offers - 1))) + [offer_high]
 		elif offer_spread == 'random':
                     offer_levels = sorted([random.randrange(offer_low, offer_high) 
-                        for n in range(num_offers-1)]) + [offer_high]
+                        for n in range(num_offers-1)] + [random.randrange(offer_high - (offer_high / num_offers), offer_high)])
                 else:
 		    debug('invalid offer_spread = ' + str(offer_spread))
                     sys.exit()
@@ -195,18 +208,31 @@ class YieldGenerator(Maker):
 
         def oid_to_order(self, cjorder, oid, amount):
                 mix_balance = self.wallet.get_balance_by_mixdepth()
-                #sort smallest to largest amount
-                filtered_mix_balance = sorted(list(mix_balance.iteritems()), key= lambda x: x[1]) 
                 #remove mix depths that do not have enough
                 filtered_mix_balance = [m for m in mix_balance.iteritems() if m[1] >= amount] 
+                debug('have enough, filtered_mix_balance = ' + str(filtered_mix_balance))
 
                 #when we have more then one usable mix depth, and the max mix depth is one of them
                 #then remove it so that coins keep moving down the mix depths
                 if len(filtered_mix_balance) > 1 and self.wallet.max_mix_depth in [x[0] for x in filtered_mix_balance]:
                     filtered_mix_balance = [x for x in filtered_mix_balance if x[0] != self.wallet.max_mix_depth]
+                    debug('excluding the max mix depth, ' + str(self.wallet.max_mix_depth))
 
-                mixdepth = filtered_mix_balance[0][0] #use smallest amount mixdepth that has enough coins
-                #mixdepth = random.choice(filtered_mix_balance)[0] #random usable mixdepth. note, could expose more txos
+                #use mix depth with the most coins, 
+                #creates a more even distribution across mix depths
+                #and a more diverse txo selection in each depth
+                filtered_mix_balance = sorted(filtered_mix_balance, key= lambda x: x[1], reverse=True) #sort largest to smallest amount
+
+                #use mix depth that has the closest amount of coins to what this transaction needs
+                #keeps coins moving through mix depths more quickly
+                #and its more likely to use txos of a similiar size to this transaction
+                #filtered_mix_balance = sorted(filtered_mix_balance, key= lambda x: x[1]) #sort smallest to largest usable amount
+
+                #use a random usable mixdepth. 
+                #warning, could expose more txos to malicous taker requests
+                #filtered_mix_balanace = random.choice(filtered_mix_balance)
+
+                mixdepth = filtered_mix_balance[0][0]
 
                 debug('filling offer, mixdepth=' + str(mixdepth))
 
