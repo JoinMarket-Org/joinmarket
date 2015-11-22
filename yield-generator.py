@@ -32,7 +32,6 @@ txfee = random.randrange(500, 5000) #random
 # minimum cjfee you require for your offers
 min_cjfee = random.randrange(txfee, txfee * 5) #random
 #min_cjfee = int(1.5 * txfee) # 50% net revenue
-#min_cjfee = 3000
 #min_cjfee = 0 #no profit required
 
 #spread types
@@ -42,15 +41,14 @@ min_cjfee = random.randrange(txfee, txfee * 5) #random
 
 # percent fees for mix levels.
 cjfee_spread = 'fibonacci' #fibonacci, evenly, random
-cjfee_low  = random.uniform(0, 0.001) 
-cjfee_high = random.uniform(0.01, 0.5) 
-#cjfee_low  = 0.001
-#cjfee_high = 0.01
+cjfee_low  = random.uniform(0, 0.0001) 
+cjfee_high = random.uniform(0.001, 0.009) 
 
 # min and max offer sizes
 offer_spread = 'fibonacci' #fibonacci, evenly, random
 min_offer_size = None  #when None, min_output_size will be used
 max_offer_size = None  #when None, size of largest mix depth will be used
+#max_offer_size = random.randrange(2500000000, 3000000000)
 
 # You can overwrite the above autogenerate options 
 custom_offers = None  #comment this line if using below
@@ -161,13 +159,13 @@ class YieldGenerator(Maker):
                 cjfee_lowx, cjfee_highx = cjfee_low / 100, cjfee_high / 100
 		if cjfee_spread == 'fibonacci':
                     cjfee_levels = fib_seq(cjfee_lowx, cjfee_highx, num_offers) + [cjfee_highx]
-                    cjfee_levels = ["%0.6f" % x for x in cjfee_levels]
+                    cjfee_levels = ["%0.7f" % x for x in cjfee_levels]
 		elif cjfee_spread == 'evenly':
                     cjfee_levels = drange(((cjfee_highx-cjfee_lowx)/num_offers), cjfee_highx, 
                         (cjfee_highx - cjfee_lowx) / (num_offers - 1)) #evenly spaced
-                    cjfee_levels = ["%0.6f" % x for x in cjfee_levels] + [cjfee_highx]
+                    cjfee_levels = ["%0.7f" % x for x in cjfee_levels] + [cjfee_highx]
 		elif cjfee_spread == 'random':
-                    cjfee_levels = sorted(["%0.6f" % random.uniform(cjfee_lowx, cjfee_highx) 
+                    cjfee_levels = sorted(["%0.7f" % random.uniform(cjfee_lowx, cjfee_highx) 
                         for n in range(num_offers)]) #randomly spaced
                 else:
 		    debug('invalid cjfee_spread = ' + str(cjfee_spread))
@@ -197,9 +195,10 @@ class YieldGenerator(Maker):
                         offer = {'oid': oid, 'ordertype': 'relorder', 'minsize': min_needed,
                                 'maxsize': upper, 'txfee': txfee, 'cjfee': fee}
 		    elif min_needed >= upper:
-                        #just create a single absolute offer
+                        #just create an absolute offer
                         offer = {'oid': oid, 'ordertype': 'absorder', 'minsize': lower,
                                 'maxsize': upper, 'txfee': txfee, 'cjfee': min_cjfee}
+                        #todo: combine neighboring absorders into a single one
                     oid += 1
                     offers.append(offer)
 
