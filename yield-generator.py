@@ -131,7 +131,7 @@ class YieldGenerator(Maker):
                             print("ALERT: negative yield")
 			    print '-> ' + str(offer)
                             print needed
-			    sys.exit() #if you really wanted to, you could comment out this line.     
+			    sys.exit(0) #if you really wanted to, you could comment out this line.     
                     return custom_offers
 
 		mix_balance = self.wallet.get_balance_by_mixdepth()
@@ -154,7 +154,7 @@ class YieldGenerator(Maker):
                         for n in range(num_offers-1)] + [random.randrange(offer_high - (offer_high / num_offers), offer_high)])
                 else:
 		    debug('invalid offer_spread = ' + str(offer_spread))
-                    sys.exit()
+                    sys.exit(0)
 
                 cjfee_lowx, cjfee_highx = cjfee_low / 100, cjfee_high / 100
 		if cjfee_spread == 'fibonacci':
@@ -169,7 +169,7 @@ class YieldGenerator(Maker):
                         for n in range(num_offers)]) #randomly spaced
                 else:
 		    debug('invalid cjfee_spread = ' + str(cjfee_spread))
-                    sys.exit()
+                    sys.exit(0)
 
 		debug('offer_levels = ' + str(offer_levels))
                 lower_bound_balances = [offer_low] + [x for x in offer_levels[:-1]]
