@@ -18,6 +18,8 @@ class TestWalletCreation(unittest.TestCase):
 	#testing a variety of passwords
 	self.failUnless(self.run_generate('abc123'))
 	self.failUnless(self.run_generate('dddddddddddddddddddddddddddddddddddddddddddd'))
+	#silly length
+	self.failUnless(self.run_generate('abc8'*1000))
 	#null password is accepted
 	self.failUnless(self.run_generate(''))
 	#binary password is accepted; good luck with that!
@@ -31,7 +33,7 @@ class TestWalletCreation(unittest.TestCase):
 	    expected = ['Enter wallet encryption passphrase:',
 		        'Reenter wallet encryption passphrase:',
 		        'Input wallet file name']
-	    testlog = open('test/testlog-'+pwd, 'wb')
+	    testlog = open('test/testlog-'+pwd[:25], 'wb')
 	    p = pexpect.spawn('python wallet-tool.py generate', logfile=testlog)
 	    commontest.interact(p, test_in, expected)
 	    p.expect('saved to')
@@ -39,7 +41,7 @@ class TestWalletCreation(unittest.TestCase):
 	    p.close()
 	    testlog.close()
 	    #anything to check in the log?
-	    with open(os.path.join('test','testlog-'+pwd)) as f:
+	    with open(os.path.join('test','testlog-'+pwd[:25])) as f:
 		print f.read()
 	    if p.exitstatus != 0:
 		print 'failed due to exit status: '+str(p.exitstatus)
@@ -50,7 +52,8 @@ class TestWalletCreation(unittest.TestCase):
 		print 'failed due to wallet missing'
 		return False
 	    os.remove('wallets/testwallet.json')
-	except:
+	except Exception as e:
+	    print 'try except failed with error: '+repr(e)
 	    return False
 	return True	
 

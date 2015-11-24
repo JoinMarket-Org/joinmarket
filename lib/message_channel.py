@@ -59,8 +59,8 @@ class MessageChannel(object):
 		self.on_pubkey = on_pubkey
 		self.on_ioauth = on_ioauth
 		self.on_sig = on_sig
-	def fill_orders(self, nickoid_dict, cj_amount, taker_pubkey): pass
-	def send_auth(self, nick, pubkey, sig): pass
+	def fill_orders(self, nickoid_dict, cj_amount, taker_pubkey, commitment=None): pass
+	def send_auth(self, nick, pubkey, sig, utxo=None, P2=None, s=None, e=None): pass
 	def send_tx(self, nick_list, txhex): pass
 	def push_tx(self, nick, txhex): pass
 

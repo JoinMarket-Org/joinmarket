@@ -1,6 +1,6 @@
 import os
 import hashlib
-
+import binascii
 from _libsecp256k1 import ffi, lib
 import _noncefunc
 

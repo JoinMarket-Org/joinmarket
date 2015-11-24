@@ -25,7 +25,8 @@ config = SafeConfigParser()
 config_location = 'joinmarket.cfg'
 # FIXME: Add rpc_* options here in the future!
 required_options = {'BLOCKCHAIN':['blockchain_source', 'network'],
-                    'MESSAGING':['host','channel','port']}
+                    'MESSAGING':['host','channel','port'],
+                    'LIMITS':['taker_utxo_retries']}
 
 defaultconfig =\
 """
@@ -188,6 +189,33 @@ def debug_dump_object(obj, skip_fields=[]):
 		else:
 			debug(str(v))
 
+def check_utxo_blacklist(utxo):
+	#write/read the file here; could be inferior
+	#performance-wise; should cache. TODO
+	#there also needs to be formatting error checking here,
+	#but not a high priority TODO
+	blacklist = {}
+	if os.path.isfile("logs/blacklist"):
+		with open("logs/blacklist","rb") as f:
+			blacklist_lines = f.readlines()
+	else:
+		blacklist_lines = []
+	for bl in blacklist_lines:
+		ut, ct = bl.split(',')
+		ut = ut.strip()
+		ct = int(ct.strip())
+		blacklist[ut]=ct
+	if utxo in blacklist.keys():
+		blacklist[utxo] += 1
+		if blacklist[utxo] >= config.getint("LIMITS","taker_utxo_retries"):
+			return False
+	else:
+		blacklist[utxo]=1
+	with open("logs/blacklist","wb") as f:
+		for k,v in blacklist.iteritems():
+			f.write(k+' , '+str(v)+'\n')
+	return True
+		
 def select_gradual(unspent, value):
 	'''
 	UTXO selection algorithm for gradual dust reduction

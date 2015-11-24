@@ -95,13 +95,18 @@ class IRCMessageChannel(MessageChannel):
 		self.__pubmsg(COMMAND_PREFIX + 'orderbook')
 
 	#Taker callbacks
-	def fill_orders(self, nickoid_dict, cj_amount, taker_pubkey):
+	def fill_orders(self, nickoid_dict, cj_amount, taker_pubkey, commitment=None):
 		for c, oid in nickoid_dict.iteritems():
 			msg = str(oid) + ' ' + str(cj_amount) + ' ' + taker_pubkey
+			if commitment:
+				msg += ' '+commitment
 			self.__privmsg(c, 'fill', msg)
 
-	def send_auth(self, nick, pubkey, sig):
-		message = pubkey + ' ' + sig
+	def send_auth(self, nick, pubkey, sig, utxo=None, P2=None, s=None, e=None):
+		fields = [pubkey, sig]
+		if all([utxo, P2, s, e]):
+			fields += [utxo, P2, s, e]
+		message = ' '.join(fields)
 		self.__privmsg(nick, 'auth', message)	
 
 	def send_tx(self, nick_list, txhex):
@@ -240,18 +245,35 @@ class IRCMessageChannel(MessageChannel):
 						oid = int(chunks[1])
 						amount = int(chunks[2])
 						taker_pk = chunks[3]
+						if len(chunks)>4:
+							commit = chunks[4]
+						else:
+							commit = None
 					except (ValueError, IndexError) as e:
 						self.send_error(nick, str(e))
 					if self.on_order_fill:
-						self.on_order_fill(nick, oid, amount, taker_pk)
+						self.on_order_fill(nick, oid, amount, 
+						                   taker_pk, commit)
 				elif chunks[0] == 'auth':
 					try:
 						i_utxo_pubkey = chunks[1]
 						btc_sig = chunks[2]
+						if len(chunks)>3:
+							i_utxo = chunks[3]
+							p2 = chunks[4]
+							sig = chunks[5]
+							e_val = chunks[6]
+						else:
+							i_utxo = None
+							p2 = None
+							sig = None
+							e_val = None
 					except (ValueError, IndexError) as e:
 						self.send_error(nick, str(e))
 					if self.on_seen_auth:
-						self.on_seen_auth(nick, i_utxo_pubkey, btc_sig)
+						self.on_seen_auth(nick, i_utxo_pubkey, 
+						                  btc_sig, i_utxo,
+						                  p2, sig, e_val)
 				elif chunks[0] == 'tx':
 					b64tx = chunks[1]
 					try:
