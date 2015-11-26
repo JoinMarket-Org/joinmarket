@@ -309,7 +309,6 @@ class YieldGenerator(Maker):
 		debug('can_orders = \n' + '\n'.join([str(o) for o in cancel_orders]))
 		debug('ann_orders = \n' + '\n'.join([str(o) for o in ann_orders]))
 
-                #Todo: make cancel_orders be order objects like ann_orders is (not oids), in lib/maker.py, def modify_orders
 		return (cancel_orders, ann_orders)
 
 	def on_tx_confirmed(self, cjorder, confirmations, txid):
