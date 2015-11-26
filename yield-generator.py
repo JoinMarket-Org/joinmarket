@@ -11,6 +11,7 @@ import bitcoin as btc
 import common, blockchaininterface
 
 from socket import gethostname
+from decimal import Decimal
 import random
 
 
@@ -39,7 +40,7 @@ min_cjfee = random.randrange(txfee, txfee * 5) #random
 #fibonacci- will gradually increase at the rate of the fibonacci sequence
 #evenly- will be evenly spaced 
 #random- random amounts between the high and the low
-#custom- (for fees) use cjfee_custom to set your fees per offer
+#custom- use _custom to set it directly
 #bymixdepth- (for offers), make offer amounts equal to mixdepths
 #note, when using bymixdepth, set 'num_offers = mix_levels' above
 
@@ -47,13 +48,14 @@ min_cjfee = random.randrange(txfee, txfee * 5) #random
 cjfee_spread = 'fibonacci' #fibonacci, evenly, random, custom
 cjfee_low  = random.uniform(0.0001, 0.001) 
 cjfee_high = random.uniform(0.01, 0.015) 
-#cjfee_custom = ['0.011', '0.012', '0.013', '0.014', '0.015'] #from smallest to largest
+#custom_cjfees = [0.011, 0.012, 0.013, 0.014, 0.015] #from smallest to largest
 
 # min and max offer sizes
-offer_spread = 'fibonacci' #fibonacci, evenly, random, bymixdepth
+offer_spread = 'fibonacci' #fibonacci, evenly, random, bymixdepth, custom
 min_offer_size = None  #when None, min_output_size will be used
 max_offer_size = None  #when None, size of largest mix depth will be used
 #max_offer_size = random.randrange(2500000000, 3000000000)
+#custom_offers_levels = [1, 1.5, 10, 100] #in bitcoins
 
 # You can overwrite the above autogenerate options 
 custom_offers = None  #comment this line if using below
@@ -161,11 +163,17 @@ class YieldGenerator(Maker):
                         for n in range(num_offers-1)] + [random.randrange(offer_high - (offer_high / num_offers), offer_high)])
 		elif offer_spread == 'bymixdepth':
                     offer_levels = [m[1] for m in filtered_mix_balance if m[1] < offer_high] + [offer_high] #already sorted by size above
+		elif offer_spread == 'custom':
+                    offer_levels = [int((Decimal(str(x)) * 100000000).quantize(0)) for x in sorted(custom_offers_levels)] #convert btc to satoshi
+                    if offer_levels[-1] > offer_high:
+                        debug('ALERT: Your custom offers exceeds you max offer size.')
+                        debug('offer = ' + str(offer_levels[-1]) + ' offer_high = ' + str(offer_high))
+                        sys.exit(0)
                 else:
 		    debug('invalid offer_spread = ' + str(offer_spread))
                     sys.exit(0)
 
-                cjfee_lowx, cjfee_highx = cjfee_low / 100, cjfee_high / 100
+                cjfee_lowx, cjfee_highx = Decimal(str(cjfee_low)) / 100, Decimal(str(cjfee_high)) / 100
 		if cjfee_spread == 'fibonacci':
                     cjfee_levels = fib_seq(cjfee_lowx, cjfee_highx, num_offers) + [cjfee_highx]
                     cjfee_levels = ["%0.7f" % x for x in cjfee_levels]
@@ -177,7 +185,7 @@ class YieldGenerator(Maker):
                     cjfee_levels = sorted(["%0.7f" % random.uniform(cjfee_lowx, cjfee_highx) 
                         for n in range(num_offers)]) #randomly spaced
 		elif cjfee_spread == 'custom':
-                    cjfee_levels = cjfee_custom
+                    cjfee_levels = [str(Decimal(str(x)) / 100) for x in custom_cjfees]
 		    leftout = num_offers - len(cjfee_levels)
 		    while leftout > 0:
 		        debug('ALERT: cjfee_custom has too few items')
