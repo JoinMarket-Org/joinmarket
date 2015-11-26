@@ -25,6 +25,7 @@ min_output_size = random.randrange(15000, 300000) #random
 
 #num_offers = 8 # number of offers to autogenerate
 num_offers = random.randrange(6, 11) #random
+#num_offers = mix_levels
 
 #txfee = 3000 # miner fee contribution in satoshis
 txfee = random.randrange(500, 5000) #random
@@ -38,14 +39,18 @@ min_cjfee = random.randrange(txfee, txfee * 5) #random
 #fibonacci- will gradually increase at the rate of the fibonacci sequence
 #evenly- will be evenly spaced 
 #random- random amounts between the high and the low
+#custom- (for fees) use cjfee_custom to set your fees per offer
+#bymixdepth- (for offers), make offer amounts equal to mixdepths
+#note, when using bymixdepth, set 'num_offers = mix_levels' above
 
 # percent fees for mix levels.
-cjfee_spread = 'fibonacci' #fibonacci, evenly, random
+cjfee_spread = 'fibonacci' #fibonacci, evenly, random, custom
 cjfee_low  = random.uniform(0, 0.0001) 
 cjfee_high = random.uniform(0.001, 0.009) 
+#cjfee_custom = ['0.00011', '0.00012', '0.00013', '0.00014', '0.00015'] #from smallest to largest
 
 # min and max offer sizes
-offer_spread = 'fibonacci' #fibonacci, evenly, random
+offer_spread = 'fibonacci' #fibonacci, evenly, random, bymixdepth
 min_offer_size = None  #when None, min_output_size will be used
 max_offer_size = None  #when None, size of largest mix depth will be used
 #max_offer_size = random.randrange(2500000000, 3000000000)
@@ -136,13 +141,15 @@ class YieldGenerator(Maker):
 
 		mix_balance = self.wallet.get_balance_by_mixdepth()
 		debug('mix_balance = ' + str(mix_balance))
-		mix_balance = sorted(list(mix_balance.iteritems()), key=lambda a: a[1]) #sort by size
+		filtered_mix_balance = sorted(list(mix_balance.iteritems()), key=lambda a: a[1]) #sort by size
 
                 offer_low = max(min_offer_size, min_output_size)
                 if max_offer_size:
-                    offer_high = min(max_offer_size, mix_balance[-1][1] - min_output_size)
+                    offer_high = min(max_offer_size, filtered_mix_balance[-1][1] - min_output_size)
                 else:
-                    offer_high = mix_balance[-1][1] - min_output_size
+                    offer_high = filtered_mix_balance[-1][1] - min_output_size
+                    #note, subtracting mix_output_size here to make minimum size change
+                    #todo, make an offer for exactly the max size with no change
 
 		if offer_spread == 'fibonacci':
                     offer_levels = fib_seq(offer_low, offer_high, num_offers) + [offer_high]
@@ -152,6 +159,9 @@ class YieldGenerator(Maker):
 		elif offer_spread == 'random':
                     offer_levels = sorted([random.randrange(offer_low, offer_high) 
                         for n in range(num_offers-1)] + [random.randrange(offer_high - (offer_high / num_offers), offer_high)])
+		elif offer_spread == 'bymixdepth':
+                    offer_levels = [m[1] for m in filtered_mix_balance if m[1] < offer_high] + [offer_high] #already sorted by size above
+                    #num_offers = len(offer_levels)
                 else:
 		    debug('invalid offer_spread = ' + str(offer_spread))
                     sys.exit(0)
@@ -167,6 +177,13 @@ class YieldGenerator(Maker):
 		elif cjfee_spread == 'random':
                     cjfee_levels = sorted(["%0.7f" % random.uniform(cjfee_lowx, cjfee_highx) 
                         for n in range(num_offers)]) #randomly spaced
+		elif cjfee_spread == 'custom':
+                    cjfee_levels = cjfee_custom
+		    leftout = num_offers - len(cjfee_levels)
+		    while leftout > 0:
+		        debug('ALERT: cjfee_custom has too few items')
+			cjfee_levels.append(cjfee_levels[-1])
+			leftout -= 1
                 else:
 		    debug('invalid cjfee_spread = ' + str(cjfee_spread))
                     sys.exit(0)
@@ -217,10 +234,19 @@ class YieldGenerator(Maker):
                     filtered_mix_balance = [x for x in filtered_mix_balance if x[0] != self.wallet.max_mix_depth]
                     debug('excluding the max mix depth, ' + str(self.wallet.max_mix_depth))
 
+                #clump into the largest mixdepth 
+                #use the lowest num usable mixdepth which is before the mixdepth with the largest amount
+                #the largest amount of coins are available to join with (since joins always come from a single depth)
+                #the maker commands a higher fee for the larger amounts 
+                #note, no need to consider max_offer_size here
+                largest_mixdepth = sorted(filtered_mix_balance, key= lambda x: x[1], reverse=True)[0][0] #find largest amount
+                filtered_mix_balance = [m for m in mix_balance.iteritems() if m[0] <= largest_mixdepth] #use mixdepths before and including the largest
+                filtered_mix_balance = sorted(filtered_mix_balance, key= lambda x: x[0]) #make sure we are in seq of mixdepth num
+
                 #use mix depth with the most coins, 
                 #creates a more even distribution across mix depths
                 #and a more diverse txo selection in each depth
-                filtered_mix_balance = sorted(filtered_mix_balance, key= lambda x: x[1], reverse=True) #sort largest to smallest amount
+                #filtered_mix_balance = sorted(filtered_mix_balance, key= lambda x: x[1], reverse=True) #sort largest to smallest amount
 
                 #use mix depth that has the closest amount of coins to what this transaction needs
                 #keeps coins moving through mix depths more quickly
