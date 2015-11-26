@@ -45,9 +45,9 @@ min_cjfee = random.randrange(txfee, txfee * 5) #random
 
 # percent fees for mix levels.
 cjfee_spread = 'fibonacci' #fibonacci, evenly, random, custom
-cjfee_low  = random.uniform(0, 0.0001) 
-cjfee_high = random.uniform(0.001, 0.009) 
-#cjfee_custom = ['0.00011', '0.00012', '0.00013', '0.00014', '0.00015'] #from smallest to largest
+cjfee_low  = random.uniform(0.0001, 0.001) 
+cjfee_high = random.uniform(0.01, 0.015) 
+#cjfee_custom = ['0.011', '0.012', '0.013', '0.014', '0.015'] #from smallest to largest
 
 # min and max offer sizes
 offer_spread = 'fibonacci' #fibonacci, evenly, random, bymixdepth
