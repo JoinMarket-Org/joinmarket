@@ -161,7 +161,6 @@ class YieldGenerator(Maker):
                         for n in range(num_offers-1)] + [random.randrange(offer_high - (offer_high / num_offers), offer_high)])
 		elif offer_spread == 'bymixdepth':
                     offer_levels = [m[1] for m in filtered_mix_balance if m[1] < offer_high] + [offer_high] #already sorted by size above
-                    #num_offers = len(offer_levels)
                 else:
 		    debug('invalid offer_spread = ' + str(offer_spread))
                     sys.exit(0)
@@ -235,7 +234,7 @@ class YieldGenerator(Maker):
                     debug('excluding the max mix depth, ' + str(self.wallet.max_mix_depth))
 
                 #clump into the largest mixdepth 
-                #use the lowest num usable mixdepth which is before the mixdepth with the largest amount
+                #use the first usable mixdepth that is before the mixdepth with the largest amount
                 #the largest amount of coins are available to join with (since joins always come from a single depth)
                 #the maker commands a higher fee for the larger amounts 
                 #note, no need to consider max_offer_size here
