@@ -288,35 +288,12 @@ class YieldGenerator(Maker):
 
 	def on_tx_unconfirmed(self, cjorder, txid, removed_utxos):
 		self.tx_unconfirm_timestamp[cjorder.cj_addr] = int(time.time())
-
 		'''
-		case 0
-		the absorder will basically never get changed, unless there are no utxos left, when neworders==[]
-		case 1
-		a single coin is split into two coins across levels
-		must announce a new order, plus modify the old order
-		case 2
-		two existing mixdepths get modified
-		announce the modified new orders
-		case 3
-		one existing mixdepth gets emptied into another
-		cancel it, modify the place it went
-
-		algorithm
-		find all the orders which have changed, the length of that list tells us which case
+		algorithm - find all the orders which have changed
 		'''
 
-		myorders = self.create_my_orders()
+		neworders = self.create_my_orders()
 		oldorders = self.orderlist
-		if len(myorders) == 0:
-			return ([o['oid'] for o in oldorders], [])
-
-		cancel_orders = []
-		ann_orders = []
-
-		neworders = [o for o in myorders if o['ordertype'] == 'relorder']
-		oldorders = [o for o in oldorders if o['ordertype'] == 'relorder']
-		#new_setdiff_old = The relative complement of `new` in `old` = members in `new` which are not in `old`
 		new_setdiff_old = [o for o in neworders if o not in oldorders]
 		old_setdiff_new = [o for o in oldorders if o not in neworders]
 
@@ -324,28 +301,15 @@ class YieldGenerator(Maker):
 		debug('oldorders = \n' + '\n'.join([str(o) for o in oldorders]))
 		debug('new_setdiff_old = \n' + '\n'.join([str(o) for o in new_setdiff_old]))
 		debug('old_setdiff_new = \n' + '\n'.join([str(o) for o in old_setdiff_new]))
-		if len(neworders) == len(oldorders):
-			ann_orders = new_setdiff_old
-		elif len(neworders) > len(oldorders):
-			ann_orders = new_setdiff_old
-		elif len(neworders) < len(oldorders):
-			ann_orders = new_setdiff_old
-			ann_oids = [o['oid'] for o in ann_orders]
-			cancel_orders = [o['oid'] for o in old_setdiff_new if o['oid'] not in ann_oids]
 
-		#check if the absorder has changed, or if it needs to be newly announced
-		new_abs = [o for o in myorders if o['ordertype'] == 'absorder']
-		old_abs = [o for o in oldorders if o['ordertype'] == 'absorder']
-		if len(new_abs) > len(old_abs):
-			#announce an absorder where there wasnt one before
-			ann_orders = [new_abs[0]] + ann_orders
-		elif len(new_abs) == len(old_abs) and len(old_abs) > 0:
-			#maxsize is the only thing that changes, except cjfee but that changes at the same time
-			if new_abs[0]['maxsize'] != old_abs[0]['maxsize']:
-				ann_orders = [new_abs[0]] + ann_orders
+		ann_orders = new_setdiff_old
+		ann_oids = [o['oid'] for o in ann_orders]
+		cancel_orders = [o['oid'] for o in old_setdiff_new if o['oid'] not in ann_oids]
 
 		debug('can_orders = \n' + '\n'.join([str(o) for o in cancel_orders]))
 		debug('ann_orders = \n' + '\n'.join([str(o) for o in ann_orders]))
+
+                #Todo: make cancel_orders be order objects like ann_orders is (not oids), in lib/maker.py, def modify_orders
 		return (cancel_orders, ann_orders)
 
 	def on_tx_confirmed(self, cjorder, confirmations, txid):
