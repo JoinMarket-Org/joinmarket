@@ -113,6 +113,12 @@ class BlockchainInterface(object):
 		otherwise returns value in satoshis, address and output script
 		'''
 		#address and output script contain the same information btw
+	
+	@abc.abstractmethod
+	def estimate_fee_per_kb(self, N):
+	    '''Use the blockchain interface to 
+	    get an estimate of the transaction fee per kb
+	    required for inclusion in the next N blocks.'''
 
 class BlockrInterface(BlockchainInterface):
 	BLOCKR_MAX_ADDR_REQ_COUNT = 20
@@ -321,7 +327,22 @@ class BlockrInterface(BlockchainInterface):
 				result.append({'value': int(Decimal(vout['amount'])*Decimal('1e8')),
 					'address': vout['address'], 'script': vout['extras']['script']})
 		return result
-
+	    
+	def estimate_fee_per_kb(self, N):
+	    #hardcoded ugliness ahead, but blockr do not expose
+	    #fee estimates AFAIK
+	    cointape_fee_estimate_url = 'http://api.cointape.com/v1/fees/recommended'
+	    cointape_data = json.loads(btc.make_request(cointape_fee_estimate_url))
+	    common.debug("Got cointape result: "+pprint.pformat(cointape_data))
+	    if N <=2:
+		fee_per_byte = cointape_data["fastestFee"]
+	    elif N <= 4:
+		fee_per_byte = cointape_data["halfHourFee"]
+	    else:
+		fee_per_byte = cointape_data["hourFee"]
+	    
+	    return fee_per_byte * 1000
+	    
 		
 class NotifyRequestHeader(BaseHTTPServer.BaseHTTPRequestHandler):
 	def __init__(self, request, client_address, base_server):
@@ -570,6 +591,15 @@ class BitcoinCoreInterface(BlockchainInterface):
 				result.append({'value': int(Decimal(str(ret['value']))*Decimal('1e8')),
 					'address': ret['scriptPubKey']['addresses'][0], 'script': ret['scriptPubKey']['hex']})
 		return result
+	
+	def estimate_fee_per_kb(self, N):
+	    estimate = Decimal(1e8)*Decimal(self.rpc('estimatefee', [N]))
+	    if estimate < 0:
+		#This occurs when Core has insufficient data to estimate.
+		#TODO anything better than a hardcoded default?
+		return 30000 
+	    else:
+		return estimate
 
 
 #class for regtest chain access
@@ -595,7 +625,7 @@ class RegtestBitcoinCoreInterface(BitcoinCoreInterface):
 	def tick_forward_chain(self, n):
 		'''Special method for regtest only;
 		instruct to mine n blocks.'''
-		self.rpc('setgenerate', [True, n])
+		self.rpc('generate', [n])
 
 	def grab_coins(self, receiving_addr, amt=50):
 		'''

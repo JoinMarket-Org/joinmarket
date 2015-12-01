@@ -66,15 +66,21 @@ class PaymentThread(threading.Thread):
 			if not orders:
 				debug('ERROR not enough liquidity in the orderbook, exiting')
 				return
-			total_amount = self.taker.amount + total_cj_fee + self.taker.txfee
-			print 'total amount spent = ' + str(total_amount)
-			utxos = self.taker.wallet.select_utxos(self.taker.mixdepth, total_amount)
+			total_amount = self.taker.amount + total_cj_fee + self.taker.txfee*self.taker.makercount
+			print 'total estimated amount spent = ' + str(total_amount)
+			#adjust the required amount upwards to anticipate a tripling of transaction
+			#fee after re-estimation; this is sufficiently conservative to make failures
+			#unlikely while keeping the occurence of failure to find sufficient utxos
+			#extremely rare. Indeed, a tripling of 'normal' txfee indicates undesirable
+			#behaviour on maker side anyway.
+			utxos = self.taker.wallet.select_utxos(self.taker.mixdepth, 
+			                                total_amount+2*self.taker.txfee*self.taker.makercount)
 			cjamount = self.taker.amount
 			change_addr = self.taker.wallet.get_change_addr(self.taker.mixdepth)
 			choose_orders_recover = self.sendpayment_choose_orders
 
 		self.taker.start_cj(self.taker.wallet, cjamount, orders, utxos,
-			self.taker.destaddr, change_addr, self.taker.txfee,
+			self.taker.destaddr, change_addr, self.taker.makercount*self.taker.txfee,
 			self.finishcallback, choose_orders_recover)
 
 	def finishcallback(self, coinjointx):
@@ -137,7 +143,10 @@ def main():
 			'wallet to an given address using coinjoin and then switches off. Also sends from bitcoinqt. ' +
 			'Setting amount to zero will do a sweep, where the entire mix depth is emptied')
 	parser.add_option('-f', '--txfee', action='store', type='int', dest='txfee',
-		default=10000, help='total miner fee in satoshis, default=10000')
+		default=5000, help='number of satoshis per participant to use as the initial estimate for '+
+	        'the total transaction fee, default=5000, note that this is adjusted based on the '+
+	        'estimated fee calculated after tx construction, based on policy set in joinmarket.cfg.' +
+	        ' However, in the case of a sweep this amount will NOT be adjusted.')
 	parser.add_option('-w', '--wait-time', action='store', type='float', dest='waittime',
 		help='wait time in seconds to allow orders to arrive, default=5', default=5)
 	parser.add_option('-N', '--makercount', action='store', type='int', dest='makercount',
