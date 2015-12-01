@@ -25,7 +25,8 @@ config = SafeConfigParser()
 config_location = 'joinmarket.cfg'
 # FIXME: Add rpc_* options here in the future!
 required_options = {'BLOCKCHAIN':['blockchain_source', 'network'],
-                    'MESSAGING':['host','channel','port']}
+                    'MESSAGING':['host','channel','port'],
+                    'POLICY':['merge_algorithm','tx_fees']}
 
 defaultconfig =\
 """
@@ -60,6 +61,13 @@ maker_timeout_sec = 30
 # for most rapid dust sweeping, try merge_algorithm = greediest
 # but don't forget to bump your miner fees!
 merge_algorithm = default
+# the fee estimate is based on a projection of how many satoshis
+# per kB are needed to get in one of the next N blocks, N set here
+# as the value of 'tx_fees'. This estimate can be extremely high
+# if you set N=1, so we choose N=3 for a more reasonable figure,
+# as our default. Note that for clients not using a local blockchain
+# instance, we retrieve an estimate from the API at cointape.com, currently.
+tx_fees = 3
 """
 
 def load_program_config():
@@ -620,7 +628,7 @@ def choose_orders(db, cj_amount, n, chooseOrdersBy, ignored_makers=[]):
 	chosen_orders = [o[:2] for o in chosen_orders]
 	return dict(chosen_orders), total_cj_fee
 
-def choose_sweep_orders(db, total_input_value, total_txfee, n, chooseOrdersBy, ignored_makers=[]):
+def choose_sweep_orders(db, total_input_value, txfee, n, chooseOrdersBy, ignored_makers=[]):
 	'''
 	choose an order given that we want to be left with no change
 	i.e. sweep an entire group of utxos
@@ -631,6 +639,8 @@ def choose_sweep_orders(db, total_input_value, total_txfee, n, chooseOrdersBy, i
 	=> 0 = totalin - mytxfee - sum(absfee) - cjamount*(1 + sum(relfee))
 	=> cjamount = (totalin - mytxfee - sum(absfee)) / (1 + sum(relfee))
 	'''
+	total_txfee = txfee*n
+	
 	def calc_zero_change_cj_amount(ordercombo):
 		sumabsfee = 0
 		sumrelfee = Decimal('0')

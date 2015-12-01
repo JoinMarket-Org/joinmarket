@@ -110,10 +110,40 @@ class CoinJoinTX(object):
 		self.nonrespondants = list(self.active_orders.keys())
 
 		my_total_in = sum([va['value'] for u, va in self.input_utxos.iteritems()])
+		if self.my_change_addr:
+			#Estimate fee per choice of next/3/6 blocks targetting.
+			fee_per_kb = common.bc_interface.estimate_fee_per_kb(common.config.getint("POLICY","tx_fees"))
+			
+			#Estimate transaction size.
+			#Assuming p2pkh:
+			#out: 8+1+3+2+20=34, in: 1+32+4+1+1+~73+1+1+33=147, 
+			#ver:4,seq:4, +2 (len in,out)
+			#total ~= 34*len_out + 147*len_in + 10 (sig sizes vary slightly)			
+			tx_estimated_bytes = 10 + len(sum(self.utxos.values(),[]))*147 +34*(len(self.outputs)+2)
+			debug("got estimated tx bytes: "+str(tx_estimated_bytes))
+			estimated_fee = int((tx_estimated_bytes * fee_per_kb)/Decimal(1000.0)) 
+			debug("Based on initial guess: "+str(self.total_txfee)+", we estimated a fee of: "+str(estimated_fee))
+			#reset total
+			self.total_txfee = estimated_fee
+		
 		my_txfee = max(self.total_txfee - self.maker_txfee_contributions, 0)
 		my_change_value = (my_total_in - self.cj_amount - self.cjfee_total - my_txfee)
+		
+		#Since we could not predict the maker's inputs, we may end up needing too much
+		#such that the change value is negative or small. Note that we have tried to avoid
+		#this based on over-estimating the needed amount in SendPayment.create_tx(), but it
+		#is still a possibility if one maker uses a *lot* of inputs.
+		if self.my_change_addr and my_change_value <= 0:
+			raise ValueError("Calculated transaction fee of: "+str(self.total_txfee)+
+			" is too large for our inputs;Please try again.")
+		elif self.my_change_addr and my_change_value <= common.DUST_THRESHOLD:
+			debug("Dynamically calculated change lower than dust: "+str(my_change_value)+"; dropping.")
+			self.my_change_addr = None
+			my_change_value = 0
+			
 		debug('fee breakdown for me totalin=%d my_txfee=%d makers_txfee=%d cjfee_total=%d => changevalue=%d' % (my_total_in, 
 			my_txfee, self.maker_txfee_contributions, self.cjfee_total, my_change_value))
+		
 		if self.my_change_addr == None:
 			if my_change_value != 0 and abs(my_change_value) != 1:
 				#seems you wont always get exactly zero because of integer rounding
@@ -121,11 +151,12 @@ class CoinJoinTX(object):
 				debug('WARNING CHANGE NOT BEING USED\nCHANGEVALUE = ' + str(my_change_value))
 		else:
 			self.outputs.append({'address': self.my_change_addr, 'value': my_change_value})
+		
 		self.utxo_tx = [dict([('output', u)]) for u in sum(self.utxos.values(), [])]
 		self.outputs.append({'address': self.coinjoin_address(), 'value': self.cj_amount})
 		random.shuffle(self.utxo_tx)
 		random.shuffle(self.outputs)
-		tx = btc.mktx(self.utxo_tx, self.outputs)	
+		tx = btc.mktx(self.utxo_tx, self.outputs)
 		debug('obtained tx\n' + pprint.pformat(btc.deserialize(tx)))
 		self.msgchan.send_tx(self.active_orders.keys(), tx)
 
