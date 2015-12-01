@@ -169,8 +169,11 @@ def main():
 		return
 
 	chooseOrdersFunc = None
-	if options.pickorders and amount != 0: #cant use for sweeping
+	if options.pickorders:
 		chooseOrdersFunc = pick_order
+		if amount == 0:
+			print 'WARNING: You may have to pick orders multiple times'
+			print 'WARNING: due to manual order picking while sweeping'
 	elif options.choosecheapest:
 		chooseOrdersFunc = cheapest_order_choose
 	else: #choose randomly (weighted)
