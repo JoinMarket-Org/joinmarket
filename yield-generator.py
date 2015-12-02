@@ -12,11 +12,15 @@ import common, blockchaininterface
 
 from socket import gethostname
 
-txfee = 1000
-cjfee = '0.002' # 0.2% fee
+#txfee = 1000
+# tx fees for available mix levels from max to min amounts. mix_levels is max. 
+txfee = [1000,1000,100,100]
+# fees for available mix levels from max to min amounts. mix_levels is max
+cjfee = ['0.0009','0.0008', '0.0007','0.0006']
 nickname = random_nick()
 nickserv_password = ''
-minsize = int(1.2 * txfee / float(cjfee)) #minimum size is such that you always net profit at least 20% of the miner fee
+# minsize is dynamic and defined during orders creation in create_my_orders
+#minsize = int(1.2 * txfee / float(cjfee)) #minimum size is such that you always net profit at least 20% of the miner fee
 mix_levels = 5
 
 
@@ -60,18 +64,30 @@ class YieldGenerator(Maker):
 
 	def create_my_orders(self):
 		mix_balance = self.wallet.get_balance_by_mixdepth()
-		if len([b for m, b in mix_balance.iteritems() if b > 0]) == 0:
+		if len([b for m, b in mix_balance.iteritems() if b > common.DUST_THRESHOLD]) == 0:
 			debug('do not have any coins left')
 			return []
 
-		#print mix_balance
-		max_mix = max(mix_balance, key=mix_balance.get)
-		order = {'oid': 0, 'ordertype': 'relorder', 'minsize': minsize,
-			'maxsize': mix_balance[max_mix] - common.DUST_THRESHOLD, 'txfee': txfee, 'cjfee': cjfee}
-		return [order]
+                orders=[]
+                oid=0
+                for cj in cjfee:
+                          max_mix = max(mix_balance, key=mix_balance.get)
+			  minsize = int(1.2 * txfee[oid] / float(cj))
+                          if  mix_balance[max_mix] - common.DUST_THRESHOLD > 0 and minsize < mix_balance[max_mix] - common.DUST_THRESHOLD:
+                                    order = {'oid': oid, 'ordertype': 'relorder', 'minsize': minsize,
+                                            'maxsize': mix_balance[max_mix] - common.DUST_THRESHOLD, 'txfee': txfee[oid], 'cjfee': cj}
+                                    orders.append(order)
+                                    oid+=1
+                                    del mix_balance[max_mix]
+                          else:
+				    break
+		return orders
 
 	def oid_to_order(self, cjorder, oid, amount):
-		mix_balance = self.wallet.get_balance_by_mixdepth()
+		#mix_balance = self.wallet.get_balance_by_mixdepth()
+		#getting balances and removing unpaid mix levels from the list
+		orders=self.orderlist
+		mix_balance={key: value for key, value in self.wallet.get_balance_by_mixdepth().items() if value-common.DUST_THRESHOLD <= filter(lambda orders: orders['oid'] == oid, orders)[0]['maxsize']}
 		max_mix = max(mix_balance, key=mix_balance.get)
 
 		#algo attempts to make the largest-balance mixing depth get an even larger balance
@@ -101,16 +117,18 @@ class YieldGenerator(Maker):
 
 	def on_tx_unconfirmed(self, cjorder, txid, removed_utxos):
 		self.tx_unconfirm_timestamp[cjorder.cj_addr] = int(time.time())
-		#if the balance of the highest-balance mixing depth change then reannounce it
-		oldorder = self.orderlist[0] if len(self.orderlist) > 0 else None	
 		neworders = self.create_my_orders()
-		if len(neworders) == 0:
-			return ([0], []) #cancel old order
-		if oldorder: #oldorder may not exist when this is called from on_tx_confirmed
-			if oldorder['maxsize'] == neworders[0]['maxsize']:
-				return ([], []) #change nothing
-		#announce new order, replacing the old order
-		return ([], [neworders[0]])
+		oldorders=self.orderlist
+		cancelOrders=[]
+		if len(oldorders) != len(neworders):
+			#announce all new orders and cancel old one
+			cancelOrders=[k['oid']for k in filter(lambda oldorders: oldorders['oid'] not in [i['oid'] for i, j in zip(sorted(neworders),sorted(oldorders)) if i != j], oldorders)]
+			annOrders=neworders
+		else:
+			#announce only diff
+			annOrders=[i for i, j in zip(sorted(neworders),sorted(oldorders)) if i != j]
+		#announce new orders, replacing the old orders
+		return (cancelOrders, annOrders)
 
 	def on_tx_confirmed(self, cjorder, confirmations, txid):
 		if cjorder.cj_addr in self.tx_unconfirm_timestamp:
