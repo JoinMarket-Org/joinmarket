@@ -66,8 +66,14 @@ class YieldGenerator(Maker):
 
 		#print mix_balance
 		max_mix = max(mix_balance, key=mix_balance.get)
-		order = {'oid': 0, 'ordertype': 'relorder', 'minsize': minsize,
-			'maxsize': mix_balance[max_mix] - common.DUST_THRESHOLD, 'txfee': txfee, 'cjfee': cjfee}
+		order = {
+				'oid': 0,
+				'ordertype': 'relorder',
+				'minsize': minsize,
+				'maxsize': mix_balance[max_mix] - common.DUST_THRESHOLD,
+				'txfee': txfee,
+				'cjfee': cjfee,
+			}
 		return [order]
 
 	def oid_to_order(self, cjorder, oid, amount):
@@ -102,7 +108,7 @@ class YieldGenerator(Maker):
 	def on_tx_unconfirmed(self, cjorder, txid, removed_utxos):
 		self.tx_unconfirm_timestamp[cjorder.cj_addr] = int(time.time())
 		#if the balance of the highest-balance mixing depth change then reannounce it
-		oldorder = self.orderlist[0] if len(self.orderlist) > 0 else None	
+		oldorder = self.orderlist[0] if len(self.orderlist) > 0 else None
 		neworders = self.create_my_orders()
 		if len(neworders) == 0:
 			return ([0], []) #cancel old order
@@ -139,7 +145,7 @@ def main():
 
 	wallet = Wallet(seed, max_mix_depth = mix_levels)
 	common.bc_interface.sync_wallet(wallet)
-	
+
 	common.nickname = nickname
 	debug('starting yield generator')
 	irc = IRCMessageChannel(common.nickname, realname='btcint=' + common.config.get("BLOCKCHAIN", "blockchain_source"),
