@@ -131,9 +131,31 @@ class CoinJoinTX(object):
 
         my_total_in = sum([va['value'] for u, va in self.input_utxos.iteritems()
                           ])
+        if self.my_change_addr:
+            #Estimate fee per choice of next/3/6 blocks targetting.
+            estimated_fee = common.estimate_tx_fee(len(sum(
+                self.utxos.values(),[])), len(self.outputs)+2)
+            debug("Based on initial guess: "+str(
+                self.total_txfee)+", we estimated a fee of: "+str(estimated_fee))
+            #reset total
+            self.total_txfee = estimated_fee
         my_txfee = max(self.total_txfee - self.maker_txfee_contributions, 0)
         my_change_value = (
             my_total_in - self.cj_amount - self.cjfee_total - my_txfee)
+        #Since we could not predict the maker's inputs, we may end up needing
+        #too much such that the change value is negative or small. Note that 
+        #we have tried to avoid this based on over-estimating the needed amount
+        #in SendPayment.create_tx(), but it is still a possibility if one maker
+        #uses a *lot* of inputs.
+        if self.my_change_addr and my_change_value <= 0:
+            raise ValueError("Calculated transaction fee of: "+str(
+                self.total_txfee)+" is too large for our inputs;Please try again.")
+        elif self.my_change_addr and my_change_value <= common.DUST_THRESHOLD:
+            debug("Dynamically calculated change lower than dust: "+str(
+                my_change_value)+"; dropping.")
+            self.my_change_addr = None
+            my_change_value = 0
+            
         debug(
             'fee breakdown for me totalin=%d my_txfee=%d makers_txfee=%d cjfee_total=%d => changevalue=%d'
             % (my_total_in, my_txfee, self.maker_txfee_contributions,
@@ -141,7 +163,7 @@ class CoinJoinTX(object):
         if self.my_change_addr == None:
             if my_change_value != 0 and abs(my_change_value) != 1:
                 #seems you wont always get exactly zero because of integer rounding
-                # so 1 satoshi extra or fewer being spent as miner fees is acceptable
+                #so 1satoshi extra or fewer being spent as miner fees is acceptable
                 debug('WARNING CHANGE NOT BEING USED\nCHANGEVALUE = ' + str(
                     my_change_value))
         else:
