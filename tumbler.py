@@ -1,6 +1,6 @@
 import datetime, threading, binascii, sys, os, copy
 data_dir = os.path.dirname(os.path.realpath(__file__))
-sys.path.insert(0, os.path.join(data_dir, 'lib'))
+sys.path.insert(0, os.path.join(data_dir, 'joinmarket'))
 
 import taker as takermodule
 import common
