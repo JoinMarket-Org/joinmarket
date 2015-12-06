@@ -1,7 +1,7 @@
 import sys
 import os, time
 data_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-sys.path.insert(0, os.path.join(data_dir, 'lib'))
+sys.path.insert(0, os.path.join(data_dir, 'joinmarket'))
 import subprocess
 import unittest
 import common
@@ -56,8 +56,8 @@ def local_command(command, bg=False, redirect=''):
 class Join2PTests(unittest.TestCase):
     '''This test case intends to simulate
     a single join with a single counterparty. In that sense,
-    it's not realistic, because nobody (should) do joins with only 1 maker, 
-    but this test has the virtue of being the simplest possible thing 
+    it's not realistic, because nobody (should) do joins with only 1 maker,
+    but this test has the virtue of being the simplest possible thing
     that JoinMarket can do. '''
 
     def setUp(self):

@@ -3,7 +3,7 @@
 from optparse import OptionParser
 import threading, pprint, sys, os
 data_dir = os.path.dirname(os.path.realpath(__file__))
-sys.path.insert(0, os.path.join(data_dir, 'lib'))
+sys.path.insert(0, os.path.join(data_dir, 'joinmarket'))
 
 from common import *
 import common

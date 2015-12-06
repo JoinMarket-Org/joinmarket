@@ -2,7 +2,7 @@ import BaseHTTPServer, SimpleHTTPServer, threading
 import urllib2
 import io, base64, time, sys, os
 data_dir = os.path.dirname(os.path.realpath(__file__))
-sys.path.insert(0, os.path.join(data_dir, 'lib'))
+sys.path.insert(0, os.path.join(data_dir, 'joinmarket'))
 
 import taker
 from irc import IRCMessageChannel, random_nick
