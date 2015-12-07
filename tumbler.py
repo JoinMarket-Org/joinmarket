@@ -1,10 +1,19 @@
-import datetime, threading, binascii, sys, os, copy
+import copy
+import logging
+import os
+import sys
+import threading
+
+import time
+
+from logging import debug
+
 data_dir = os.path.dirname(os.path.realpath(__file__))
-sys.path.insert(0, os.path.join(data_dir, 'lib'))
+sys.path.insert(0, os.path.join(data_dir, 'joinmarket'))
 
 import taker as takermodule
 import common
-from common import *
+# from common import *
 from irc import IRCMessageChannel, random_nick
 
 from optparse import OptionParser
@@ -24,21 +33,22 @@ def generate_tumbler_tx(destaddrs, options):
 
     #txcounts for going completely from one mixdepth to the next
     # follows a normal distribution
-    txcounts = rand_norm_array(options.txcountparams[0],
-                               options.txcountparams[1], options.mixdepthcount)
+    txcounts = common.rand_norm_array(options.txcountparams[0],
+                                      options.txcountparams[1],
+                                      options.mixdepthcount)
     txcounts = lower_bounded_int(txcounts, options.mintxcount)
     tx_list = []
     for m, txcount in enumerate(txcounts):
         #assume that the sizes of outputs will follow a power law
-        amount_fractions = rand_pow_array(options.amountpower, txcount)
+        amount_fractions = common.rand_pow_array(options.amountpower, txcount)
         amount_fractions = [1.0 - x for x in amount_fractions]
         amount_fractions = [x / sum(amount_fractions) for x in amount_fractions]
         #transaction times are uncorrelated
         #time between events in a poisson process followed exp
-        waits = rand_exp_array(options.timelambda, txcount)
+        waits = common.rand_exp_array(options.timelambda, txcount)
         #number of makers to use follows a normal distribution
-        makercounts = rand_norm_array(options.makercountrange[0],
-                                      options.makercountrange[1], txcount)
+        makercounts = common.rand_norm_array(
+            options.makercountrange[0], options.makercountrange[1], txcount)
         makercounts = lower_bounded_int(makercounts, options.minmakercount)
         if m == options.mixdepthcount - options.addrcount and options.donateamount:
             tx_list.append({'amount_fraction': 0,
@@ -86,10 +96,15 @@ class TumblerThread(threading.Thread):
         self.taker = taker
         self.ignored_makers = []
         self.sweeping = False
+        self.destaddr = None
+        self.sweep, self.balance, self.tx = None, None, None
+        self.lockcond = None
+        self.balance_by_mixdepth = None
+        self.current_tx = 0
 
     def unconfirm_callback(self, txd, txid):
-        debug('that was %d tx out of %d' %
-              (self.current_tx + 1, len(self.taker.tx_list)))
+        logging.debug('that was %d tx out of %d' %
+                      (self.current_tx + 1, len(self.taker.tx_list)))
 
     def confirm_callback(self, txd, txid, confirmations):
         self.taker.wallet.add_new_utxos(txd, txid)
@@ -106,40 +121,46 @@ class TumblerThread(threading.Thread):
             coinjointx.self_sign_and_push()
         else:
             self.ignored_makers += coinjointx.nonrespondants
-            debug('recreating the tx, ignored_makers=' + str(
+            logging.debug('recreating the tx, ignored_makers=' + str(
                 self.ignored_makers))
             self.create_tx()
 
     def tumbler_choose_orders(self,
                               cj_amount,
                               makercount,
-                              nonrespondants=[],
-                              active_nicks=[]):
+                              nonrespondants=None,
+                              active_nicks=None):
+        if active_nicks is None:
+            active_nicks = []
+        if nonrespondants is None:
+            nonrespondants = []
         self.ignored_makers += nonrespondants
+        orders, total_cj_fee = None, None
         while True:
-            orders, total_cj_fee = choose_orders(
-                self.taker.db, cj_amount, makercount, weighted_order_choose,
+            orders, total_cj_fee = common.choose_orders(
+                self.taker.db, cj_amount, makercount,
+                common.weighted_order_choose,
                 self.ignored_makers + active_nicks)
             abs_cj_fee = 1.0 * total_cj_fee / makercount
             rel_cj_fee = abs_cj_fee / cj_amount
-            debug('rel/abs average fee = ' + str(rel_cj_fee) + ' / ' + str(
-                abs_cj_fee))
+            logging.debug('rel/abs average fee = ' + str(rel_cj_fee) + ' / ' +
+                          str(abs_cj_fee))
 
             if rel_cj_fee > self.taker.options.maxcjfee[
                     0] and abs_cj_fee > self.taker.options.maxcjfee[1]:
-                debug('cj fee higher than maxcjfee, waiting ' + str(
+                logging.debug('cj fee higher than maxcjfee, waiting ' + str(
                     self.taker.options.liquiditywait) + ' seconds')
                 time.sleep(self.taker.options.liquiditywait)
                 continue
-            if orders == None:
-                debug('waiting for liquidity ' + str(
+            if orders is None:
+                logging.debug('waiting for liquidity ' + str(
                     self.taker.options.liquiditywait) +
-                      'secs, hopefully more orders should come in')
+                              'secs, hopefully more orders should come in')
                 time.sleep(self.taker.options.liquiditywait)
                 continue
             break
-        debug('chosen orders to fill ' + str(orders) + ' totalcjfee=' + str(
-            total_cj_fee))
+        logging.debug('chosen orders to fill ' + str(orders) + ' totalcjfee=' +
+                      str(total_cj_fee))
         return orders, total_cj_fee
 
     def create_tx(self):
@@ -149,29 +170,29 @@ class TumblerThread(threading.Thread):
         change_addr = None
         choose_orders_recover = None
         if self.sweep:
-            debug('sweeping')
+            logging.debug('sweeping')
             utxos = self.taker.wallet.get_utxos_by_mixdepth()[self.tx[
                 'srcmixdepth']]
             total_value = sum([addrval['value'] for addrval in utxos.values()])
             while True:
-                orders, cj_amount = choose_sweep_orders(
+                orders, cj_amount = common.choose_sweep_orders(
                     self.taker.db, total_value, self.taker.options.txfee,
-                    self.tx['makercount'], weighted_order_choose,
+                    self.tx['makercount'], common.weighted_order_choose,
                     self.ignored_makers)
-                if orders == None:
-                    debug('waiting for liquidity ' + str(
+                if orders is None:
+                    logging.debug('waiting for liquidity ' + str(
                         self.taker.options.liquiditywait) +
-                          'secs, hopefully more orders should come in')
+                                  'secs, hopefully more orders should come in')
                     time.sleep(self.taker.options.liquiditywait)
                     continue
                 abs_cj_fee = 1.0 * (
                     total_value - cj_amount) / self.tx['makercount']
                 rel_cj_fee = abs_cj_fee / cj_amount
-                debug('rel/abs average fee = ' + str(rel_cj_fee) + ' / ' + str(
-                    abs_cj_fee))
+                logging.debug('rel/abs average fee = ' + str(rel_cj_fee) + ' / '
+                              + str(abs_cj_fee))
                 if rel_cj_fee > self.taker.options.maxcjfee[
                         0] and abs_cj_fee > self.taker.options.maxcjfee[1]:
-                    debug('cj fee higher than maxcjfee, waiting ' + str(
+                    logging.debug('cj fee higher than maxcjfee, waiting ' + str(
                         self.taker.options.liquiditywait) + ' seconds')
                     time.sleep(self.taker.options.liquiditywait)
                     continue
@@ -184,15 +205,15 @@ class TumblerThread(threading.Thread):
             else:
                 cj_amount = int(self.tx['amount_fraction'] * self.balance)
             if cj_amount < self.taker.options.mincjamount:
-                debug('cj amount too low, bringing up')
+                logging.debug('cj amount too low, bringing up')
                 cj_amount = self.taker.options.mincjamount
             change_addr = self.taker.wallet.get_change_addr(self.tx[
                 'srcmixdepth'])
-            debug('coinjoining ' + str(cj_amount) + ' satoshi')
+            logging.debug('coinjoining ' + str(cj_amount) + ' satoshi')
             orders, total_cj_fee = self.tumbler_choose_orders(
                 cj_amount, self.tx['makercount'])
             total_amount = cj_amount + total_cj_fee + self.taker.options.txfee
-            debug('total amount spent = ' + str(total_amount))
+            logging.debug('total amount spent = ' + str(total_amount))
             utxos = self.taker.wallet.select_utxos(self.tx['srcmixdepth'],
                                                    total_amount)
             choose_orders_recover = self.tumbler_choose_orders
@@ -209,11 +230,12 @@ class TumblerThread(threading.Thread):
         elif tx['destination'] == 'addrask':
             common.debug_silence = True
             while True:
-                destaddr = raw_input('insert new address: ')
-                addr_valid, errormsg = validate_address(destaddr)
+                destaddr = input('insert new address: ')
+                addr_valid, errormsg = common.validate_address(destaddr)
                 if addr_valid:
                     break
-                print 'Address ' + destaddr + ' invalid. ' + errormsg + ' try again'
+                print('Address ' + destaddr + ' invalid. ' + errormsg +
+                      ' try again')
             common.debug_silence = False
         else:
             destaddr = tx['destination']
@@ -225,12 +247,13 @@ class TumblerThread(threading.Thread):
         self.lockcond.acquire()
         self.lockcond.wait()
         self.lockcond.release()
-        debug('tx confirmed, waiting for ' + str(tx['wait']) + ' minutes')
+        logging.debug('tx confirmed, waiting for ' + str(tx['wait']) +
+                      ' minutes')
         time.sleep(tx['wait'] * 60)
-        debug('woken')
+        logging.debug('woken')
 
     def run(self):
-        debug('waiting for all orders to certainly arrive')
+        logging.debug('waiting for all orders to certainly arrive')
         time.sleep(self.taker.options.waittime)
 
         sqlorders = self.taker.db.execute(
@@ -434,25 +457,26 @@ def main():
         sys.exit(0)
     wallet_file = args[0]
     destaddrs = args[1:]
-    print destaddrs
+    print(destaddrs)
 
     common.load_program_config()
     for addr in destaddrs:
-        addr_valid, errormsg = validate_address(addr)
+        addr_valid, errormsg = common.validate_address(addr)
         if not addr_valid:
-            print 'ERROR: Address ' + addr + ' invalid. ' + errormsg
+            print('ERROR: Address ' + addr + ' invalid. ' + errormsg)
             return
 
     if len(destaddrs) > options.addrcount:
         options.addrcount = len(destaddrs)
     if options.addrcount + 1 > options.mixdepthcount:
-        print 'not enough mixing depths to pay to all destination addresses, increasing mixdepthcount'
+        print(
+            'not enough mixing depths to pay to all destination addresses, increasing mixdepthcount')
         options.mixdepthcount = options.addrcount + 1
     if options.donateamount > 10.0:
         #fat finger probably, or misunderstanding
         options.donateamount = 0.9
 
-    print str(options)
+    print(str(options))
     tx_list = generate_tumbler_tx(destaddrs, options)
     if not tx_list:
         return
@@ -466,25 +490,25 @@ def main():
             tx_dict[srcmixdepth] = []
         tx_dict[srcmixdepth].append(tx)
     dbg_tx_list = []
-    for srcmixdepth, txlist in tx_dict.iteritems():
+    for srcmixdepth, txlist in tx_dict.items():
         dbg_tx_list.append({'srcmixdepth': srcmixdepth, 'tx': txlist})
     debug('tumbler transaction list')
     pprint(dbg_tx_list)
 
     total_wait = sum([tx['wait'] for tx in tx_list])
-    print 'creates ' + str(len(tx_list)) + ' transactions in total'
-    print 'waits in total for ' + str(len(tx_list)) + ' blocks and ' + str(
-        total_wait) + ' minutes'
+    print('creates ' + str(len(tx_list)) + ' transactions in total')
+    print('waits in total for ' + str(len(tx_list)) + ' blocks and ' + str(
+        total_wait) + ' minutes')
     total_block_and_wait = len(tx_list) * 10 + total_wait
     print('estimated time taken ' + str(total_block_and_wait) + ' minutes or ' +
           str(round(total_block_and_wait / 60.0, 2)) + ' hours')
     if options.addrcount <= 1:
-        print '=' * 50
-        print 'WARNING: You are only using one destination address'
-        print 'this is very bad for privacy'
-        print '=' * 50
+        print('=' * 50)
+        print('WARNING: You are only using one destination address')
+        print('this is very bad for privacy')
+        print('=' * 50)
 
-    ret = raw_input('tumble with these tx? (y/n):')
+    ret = input('tumble with these tx? (y/n):')
     if ret[0] != 'y':
         return
 
@@ -501,22 +525,24 @@ def main():
     #
     #for quick testing
     #python tumbler.py -N 2 1 -c 3 0.001 -l 0.1 -M 3 -a 0 wallet_file 1xxx 1yyy
-    wallet = Wallet(wallet_file,
-                    max_mix_depth=options.mixdepthsrc + options.mixdepthcount)
+    wallet = common.Wallet(
+        wallet_file,
+        max_mix_depth=options.mixdepthsrc + options.mixdepthcount)
     common.bc_interface.sync_wallet(wallet)
 
     common.nickname = random_nick()
     debug('starting tumbler')
     irc = IRCMessageChannel(common.nickname)
     tumbler = Tumbler(irc, wallet, tx_list, options)
+    # noinspection PyBroadException
     try:
         debug('connecting to irc')
         irc.run()
     except:
         debug('CRASHING, DUMPING EVERYTHING')
-        debug_dump_object(wallet, ['addr_cache', 'keys', 'seed'])
-        debug_dump_object(tumbler)
-        debug_dump_object(tumbler.cjtx)
+        common.debug_dump_object(wallet, ['addr_cache', 'keys', 'seed'])
+        common.debug_dump_object(tumbler)
+        common.debug_dump_object(tumbler.cjtx)
         import traceback
         debug(traceback.format_exc())
 

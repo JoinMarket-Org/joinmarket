@@ -1,9 +1,14 @@
 #! /usr/bin/env python
+from __future__ import print_function
 
+import os
+import sys
 from optparse import OptionParser
-import threading, pprint, sys, os
+
+import time
+
 data_dir = os.path.dirname(os.path.realpath(__file__))
-sys.path.insert(0, os.path.join(data_dir, 'lib'))
+sys.path.insert(0, os.path.join(data_dir, 'joinmarket'))
 
 from common import *
 import common
@@ -13,7 +18,7 @@ import bitcoin as btc
 import sendpayment
 
 
-#thread which does the buy-side algorithm
+# thread which does the buy-side algorithm
 # chooses which coinjoins to initiate and when
 class PaymentThread(threading.Thread):
 
@@ -29,7 +34,7 @@ class PaymentThread(threading.Thread):
         counterparty_count = crow['COUNT(DISTINCT counterparty)']
         counterparty_count -= len(self.ignored_makers)
         if counterparty_count < self.taker.options.makercount:
-            print 'not enough counterparties to fill order, ending'
+            print('not enough counterparties to fill order, ending')
             self.taker.msgchan.shutdown()
             return
 
@@ -51,7 +56,8 @@ class PaymentThread(threading.Thread):
                 debug('total coinjoin fee = ' + str(float('%.3g' % (
                     100.0 * total_fee_pc))) + '%')
                 sendpayment.check_high_fee(total_fee_pc)
-                if raw_input('send with these orders? (y/n):')[0] != 'y':
+                if input('send with these orders? (y/n):')[0] != 'y':
+                    # noinspection PyTypeChecker
                     self.finishcallback(None)
                     return
         else:
@@ -61,7 +67,7 @@ class PaymentThread(threading.Thread):
                 debug('ERROR not enough liquidity in the orderbook, exiting')
                 return
             total_amount = self.taker.cjamount + total_cj_fee + self.taker.options.txfee
-            print 'total amount spent = ' + str(total_amount)
+            print('total amount spent = ' + str(total_amount))
             cjamount = self.taker.cjamount
             change_addr = self.taker.changeaddr
             choose_orders_recover = self.sendpayment_choose_orders
@@ -74,7 +80,7 @@ class PaymentThread(threading.Thread):
 
     def finishcallback(self, coinjointx):
         if coinjointx.all_responded:
-            #now sign it ourselves
+            # now sign it ourselves
             tx = btc.serialize(coinjointx.latest_tx)
             for index, ins in enumerate(coinjointx.latest_tx['ins']):
                 utxo = ins['outpoint']['hash'] + ':' + str(ins['outpoint'][
@@ -84,7 +90,7 @@ class PaymentThread(threading.Thread):
                 addr = coinjointx.input_utxos[utxo]['address']
                 tx = btc.sign(tx, index,
                               coinjointx.wallet.get_key_from_addr(addr))
-            print 'unsigned tx = \n\n' + tx + '\n'
+            print('unsigned tx = \n\n' + tx + '\n')
             debug('created unsigned tx, ending')
             self.taker.msgchan.shutdown()
             return
@@ -95,16 +101,20 @@ class PaymentThread(threading.Thread):
     def sendpayment_choose_orders(self,
                                   cj_amount,
                                   makercount,
-                                  nonrespondants=[],
-                                  active_nicks=[]):
+                                  nonrespondants=None,
+                                  active_nicks=None):
+        if active_nicks is None:
+            active_nicks = []
+        if nonrespondants is None:
+            nonrespondants = []
         self.ignored_makers += nonrespondants
         orders, total_cj_fee = choose_orders(
             self.taker.db, cj_amount, makercount, self.taker.chooseOrdersFunc,
             self.ignored_makers + active_nicks)
         if not orders:
             return None, 0
-        print 'chosen orders to fill ' + str(orders) + ' totalcjfee=' + str(
-            total_cj_fee)
+        print('chosen orders to fill ' + str(orders) + ' totalcjfee=' + str(
+            total_cj_fee))
         if not self.taker.options.answeryes:
             if len(self.ignored_makers) > 0:
                 noun = 'total'
@@ -114,14 +124,14 @@ class PaymentThread(threading.Thread):
             debug(noun + ' coinjoin fee = ' + str(float('%.3g' % (
                 100.0 * total_fee_pc))) + '%')
             sendpayment.check_high_fee(total_fee_pc)
-            if raw_input('send with these orders? (y/n):')[0] != 'y':
+            if input('send with these orders? (y/n):')[0] != 'y':
                 debug('ending')
                 self.taker.msgchan.shutdown()
                 return None, -1
         return orders, total_cj_fee
 
     def run(self):
-        print 'waiting for all orders to certainly arrive'
+        print('waiting for all orders to certainly arrive')
         time.sleep(self.taker.options.waittime)
         self.create_tx()
 
@@ -157,7 +167,7 @@ def main():
         ' protocol requires the taker to have a single p2pk UTXO input to use to authenticate the '
         +
         ' encrypted messages. For this reason you must pass auth utxo and the corresponding private key')
-    #for cjamount=0 do a sweep, and ignore change address
+    # for cjamount=0 do a sweep, and ignore change address
     parser.add_option('-f',
                       '--txfee',
                       action='store',
@@ -200,8 +210,8 @@ def main():
                       dest='answeryes',
                       default=False,
                       help='answer yes to everything')
-    #TODO implement
-    #parser.add_option('-n', '--no-network', action='store_true', dest='nonetwork', default=False,
+    # TODO implement
+    # parser.add_option('-n', '--no-network', action='store_true', dest='nonetwork', default=False,
     #	help='dont query the blockchain interface, instead user must supply value of UTXOs on ' +
     #		' command line in the format txid:output/value-in-satoshi')
     (options, args) = parser.parse_args()
@@ -217,38 +227,40 @@ def main():
 
     common.load_program_config()
     addr_valid1, errormsg1 = validate_address(destaddr)
-    #if amount = 0 dont bother checking changeaddr so user can write any junk
+    errormsg2 = None
+    # if amount = 0 dont bother checking changeaddr so user can write any junk
     if cjamount != 0:
         addr_valid2, errormsg2 = validate_address(changeaddr)
     else:
         addr_valid2 = True
     if not addr_valid1 or not addr_valid2:
         if not addr_valid1:
-            print 'ERROR: Address invalid. ' + errormsg1
+            print('ERROR: Address invalid. ' + errormsg1)
         else:
-            print 'ERROR: Address invalid. ' + errormsg2
+            print('ERROR: Address invalid. ' + errormsg2)
         return
 
     all_utxos = [auth_utxo] + cold_utxos
     query_result = common.bc_interface.query_utxo_set(all_utxos)
     if None in query_result:
-        print query_result
+        print(query_result)
     utxo_data = {}
     for utxo, data in zip(all_utxos, query_result):
         utxo_data[utxo] = {'address': data['address'], 'value': data['value']}
-    auth_privkey = raw_input('input private key for ' + utxo_data[auth_utxo][
+    auth_privkey = input('input private key for ' + utxo_data[auth_utxo][
         'address'] + ' :')
     if utxo_data[auth_utxo]['address'] != btc.privtoaddr(
             auth_privkey, common.get_p2pk_vbyte()):
-        print 'ERROR: privkey does not match auth utxo'
+        print('ERROR: privkey does not match auth utxo')
         return
 
-    chooseOrdersFunc = None
-    if options.pickorders and amount != 0:  #cant use for sweeping
+    # todo: this has obviously never been called.  amount is undefined
+    # if options.pickorders and amount != 0:  #cant use for sweeping
+    if options.pickorders != 0:  # cant use for sweeping
         chooseOrdersFunc = pick_order
     elif options.choosecheapest:
         chooseOrdersFunc = cheapest_order_choose
-    else:  #choose randomly (weighted)
+    else:  # choose randomly (weighted)
         chooseOrdersFunc = weighted_order_choose
 
     common.nickname = random_nick()

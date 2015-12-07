@@ -1,18 +1,14 @@
+import os
 import sys
-import os, time
+
 data_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-sys.path.insert(0, os.path.join(data_dir, 'lib'))
-import subprocess
-import unittest
-import common
+sys.path.insert(0, os.path.join(data_dir, 'joinmarket'))
 from blockchaininterface import *
-import bitcoin as btc
 import binascii
-import pexpect
 import random
 '''Some helper functions for testing'''
 '''This code is intended to provide
-subprocess startup cross-platform with 
+subprocess startup cross-platform with
 some useful options; it could do with
 some simplification/improvement.'''
 import platform
@@ -27,7 +23,7 @@ def local_command(command, bg=False, redirect=''):
         elif OS == 'Linux':
             command.extend(['>', '/dev/null', '2>&1'])
         else:
-            print "OS not recognised, quitting."
+            print("OS not recognised, quitting.")
     elif redirect:
         command.extend(['>', redirect])
 
@@ -45,13 +41,17 @@ def local_command(command, bg=False, redirect=''):
 
 
 def make_wallets(n, wallet_structures=None, mean_amt=1, sdev_amt=0):
-    '''n: number of wallets to be created
+    """n: number of wallets to be created
        wallet_structure: array of n arrays , each subarray
        specifying the number of addresses to be populated with coins
        at each depth (for now, this will only populate coins into 'receive' addresses)
        mean_amt: the number of coins (in btc units) in each address as above
        sdev_amt: if randomness in amouts is desired, specify here.
-       Returns: a dict of dicts of form {0:{'seed':seed,'wallet':Wallet object},1:..,}'''
+       Returns: a dict of dicts of form {0:{'seed':seed,'wallet':Wallet object},1:..,}
+       :param n:
+       :param wallet_structures:
+       :param mean_amt:
+       :param sdev_amt: """
     if len(wallet_structures) != n:
         raise Exception("Number of wallets doesn't match wallet structures")
     seeds = common.chunks(binascii.hexlify(os.urandom(15 * n)), n)

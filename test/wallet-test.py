@@ -1,21 +1,19 @@
+import os
 import sys
-import os, time
+
+from test import commontest
+
 data_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-sys.path.insert(0, os.path.join(data_dir, 'lib'))
-import subprocess
+sys.path.insert(0, os.path.join(data_dir, 'joinmarket'))
 import unittest
-import common
-import commontest
 from blockchaininterface import *
-import bitcoin as btc
-import binascii
 import pexpect
 
 
 class TestWalletCreation(unittest.TestCase):
 
     def test_generate(self):
-        print 'wallet generation and encryption password tests'
+        print('wallet generation and encryption password tests')
         #testing a variety of passwords
         self.failUnless(self.run_generate('abc123'))
         self.failUnless(self.run_generate(
@@ -42,14 +40,14 @@ class TestWalletCreation(unittest.TestCase):
             testlog.close()
             #anything to check in the log?
             with open(os.path.join('test', 'testlog-' + pwd)) as f:
-                print f.read()
+                print(f.read())
             if p.exitstatus != 0:
-                print 'failed due to exit status: ' + str(p.exitstatus)
-                print 'signal status is: ' + str(p.signalstatus)
+                print('failed due to exit status: ' + str(p.exitstatus))
+                print('signal status is: ' + str(p.signalstatus))
                 return False
             #check the wallet exists (and contains appropriate json?)
             if not os.path.isfile('wallets/testwallet.json'):
-                print 'failed due to wallet missing'
+                print('failed due to wallet missing')
                 return False
             os.remove('wallets/testwallet.json')
         except:
@@ -63,7 +61,7 @@ class TestWalletRecovery(unittest.TestCase):
         self.testseed = 'earth gentle mouth circle despite pocket adore student board dress blanket worthless'
 
     def test_recover(self):
-        print 'wallet recovery from seed test'
+        print('wallet recovery from seed test')
         self.failUnless(self.run_recover(self.testseed))
         #try using an invalid word list; can add more variants
         wrongseed = 'oops ' + self.testseed
@@ -85,13 +83,13 @@ class TestWalletRecovery(unittest.TestCase):
             testlog.close()
             #anything to check in the log?
             with open(os.path.join('test_recover')) as f:
-                print f.read()
+                print(f.read())
             if p.exitstatus != 0:
-                print 'failed due to exit status: ' + str(p.exitstatus)
+                print('failed due to exit status: ' + str(p.exitstatus))
                 return False
             #check the wallet exists (and contains appropriate json? todo)
             if not os.path.isfile('wallets/test_recover_wallet.json'):
-                print 'failed due to wallet missing'
+                print('failed due to wallet missing')
                 return False
             os.remove('wallets/test_recover_wallet.json')
         except:

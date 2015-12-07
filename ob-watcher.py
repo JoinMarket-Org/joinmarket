@@ -1,22 +1,29 @@
-import BaseHTTPServer, SimpleHTTPServer, threading
-import urllib2
-import io, base64, time, sys, os
+import base64
+import io
+import os
+import sys
+import threading
+import time
+from decimal import Decimal
+from http.server import HTTPServer
+from http.server import SimpleHTTPRequestHandler
+from urllib.parse import parse_qs
+
 data_dir = os.path.dirname(os.path.realpath(__file__))
-sys.path.insert(0, os.path.join(data_dir, 'lib'))
+sys.path.insert(0, os.path.join(data_dir, 'joinmarket'))
 
 import taker
 from irc import IRCMessageChannel, random_nick
-from common import *
+# from common import *
 import common
+import json
 
-#https://stackoverflow.com/questions/2801882/generating-a-png-with-matplotlib-when-display-is-undefined
-try:
-    import matplotlib
-    matplotlib.use('Agg')
-    import matplotlib.pyplot as plt
-except ImportError:
-    print 'Install matplotlib to see run orderbook watcher'
-    sys.exit(0)
+# https://stackoverflow.com/questions/2801882/generating-a-png-with-matplotlib-when-display-is-undefined
+# just let it die if matplotlib ain't around
+import matplotlib
+
+matplotlib.use('Agg')
+from matplotlib import pyplot as plt
 
 shutdownform = '<form action="shutdown" method="post"><input type="submit" value="Shutdown" /></form>'
 shutdownpage = '<html><body><center><h1>Successfully Shut down</h1></center></body></html>'
@@ -32,16 +39,20 @@ def calc_depth_data(db, value):
     pass
 
 
+# todo: ordersizes doesn't exist
 def calc_order_size_data(db):
-    return ordersizes
+    # return ordersizes
+    pass
 
 
-def create_depth_chart(db, cj_amount, args={}):
+def create_depth_chart(db, cj_amount, args=None):
+    if args is None:
+        args = {}
     sqlorders = db.execute('SELECT * FROM orderbook;').fetchall()
-    orderfees = sorted([calc_cj_fee(o['ordertype'], o['cjfee'], cj_amount) / 1e8
-                        for o in sqlorders
-                        if cj_amount >= o['minsize'] and cj_amount <= o[
-                            'maxsize']])
+    orderfees = sorted(
+        [common.calc_cj_fee(o['ordertype'], o['cjfee'], cj_amount) / 1e8
+         for o in sqlorders if o['minsize'] <= cj_amount <= o[
+             'maxsize']])
 
     if len(orderfees) == 0:
         return 'No orders at amount ' + str(cj_amount / 1e8)
@@ -102,7 +113,7 @@ def get_graph_html(fig):
     return '<img src="data:image/png;base64,' + b64 + '" />'
 
 
-#callback functions for displaying order data
+# callback functions for displaying order data
 def do_nothing(arg, order, btc_unit, rel_unit):
     return arg
 
@@ -139,10 +150,16 @@ def create_orderbook_table(db, btc_unit, rel_unit):
                           ('minsize', satoshi_to_unit),
                           ('maxsize', satoshi_to_unit))
 
-    #somewhat complex sorting to sort by cjfee but with absorders on top
-    orderby_cmp = lambda x, y: cmp(Decimal(x['cjfee']), Decimal(y['cjfee'])) if x['ordertype'] == y['ordertype'] \
-     else cmp(common.ordername_list.index(x['ordertype']), common.ordername_list.index(y['ordertype']))
-    for o in sorted(rows, cmp=orderby_cmp):
+    # somewhat complex sorting to sort by cjfee but with absorders on top
+
+    def orderby_cmp(x, y):
+        if x['ordertype'] == y['ordertype']:
+            return Decimal(x['cjfee']) < y['cjfee']
+        else:
+            return (common.errordetect_ordername_list.index(x['ordertype']) <
+                    common.errordetect_ordername_list.index(y['ordertype']))
+
+    for o in sorted(rows, key=orderby_cmp):
         result += ' <tr>\n'
         for key, displayer in order_keys_display:
             result += '  <td>' + displayer(o[key], o, btc_unit,
@@ -152,7 +169,6 @@ def create_orderbook_table(db, btc_unit, rel_unit):
 
 
 def create_table_heading(btc_unit, rel_unit):
-
     col = '  <th>{1}</th>\n'  # .format(field,label)
     tableheading = '<table class="tftable sortable" border="1">\n <tr>' + ''.join(
         [
@@ -183,13 +199,15 @@ def create_choose_units_form(selected_btc, selected_rel):
     return choose_units_form
 
 
-class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
+# noinspection PyPep8Naming
+class OrderbookPageRequestHeader(SimpleHTTPRequestHandler):
 
     def __init__(self, request, client_address, base_server):
         self.taker = base_server.taker
         self.base_server = base_server
-        SimpleHTTPServer.SimpleHTTPRequestHandler.__init__(
-            self, request, client_address, base_server)
+        self.path, self.query = None, None
+        SimpleHTTPRequestHandler.__init__(self, request, client_address,
+                                          base_server)
 
     def create_orderbook_obj(self):
         rows = self.taker.db.execute('SELECT * FROM orderbook;').fetchall()
@@ -211,11 +229,11 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
         return str(len(counterparties))
 
     def do_GET(self):
-        #SimpleHTTPServer.SimpleHTTPRequestHandler.do_GET(self)
-        #print 'httpd received ' + self.path + ' request'
+        # SimpleHTTPServer.SimpleHTTPRequestHandler.do_GET(self)
+        # print 'httpd received ' + self.path + ' request'
         self.path, query = self.path.split('?', 1) if '?' in self.path else (
             self.path, '')
-        args = urllib2.urlparse.parse_qs(query)
+        args = parse_qs(query)
         pages = ['/', '/ordersize', '/depth', '/orderbook.json']
         if self.path not in pages:
             return
@@ -223,6 +241,7 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
         orderbook_fmt = fd.read()
         fd.close()
         alert_msg = ''
+        replacements = {}
         if common.joinmarket_alert:
             alert_msg = '<br />JoinMarket Alert Message:<br />' + common.joinmarket_alert
         if self.path == '/':
@@ -256,13 +275,13 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
                 'MAINBODY': create_size_histogram(self.taker.db, args)
             }
         elif self.path.startswith('/depth'):
-            #if self.path[6] == '?':
+            # if self.path[6] == '?':
             #	quantity =
             cj_amounts = [10**cja for cja in range(4, 12, 1)]
-            mainbody = [create_depth_chart(self.taker.db, cja, args)  \
-             for cja in cj_amounts] +                           \
-             ["<br/><a href='?'>linear</a>" if args.get("scale") \
-             else "<br/><a href='?scale=log'>log scale</a>"]
+            mainbody = [create_depth_chart(self.taker.db, cja, args) \
+                        for cja in cj_amounts] + \
+                       ["<br/><a href='?'>linear</a>" if args.get("scale") \
+                            else "<br/><a href='?scale=log'>log scale</a>"]
             replacements = {
                 'PAGETITLE': 'JoinMarket Browser Interface',
                 'MAINHEADING': 'Depth Chart',
@@ -273,7 +292,7 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
             replacements = {}
             orderbook_fmt = json.dumps(self.create_orderbook_obj())
         orderbook_page = orderbook_fmt
-        for key, rep in replacements.iteritems():
+        for key, rep in replacements.items():
             orderbook_page = orderbook_page.replace(key, rep)
         self.send_response(200)
         if self.path.endswith('.json'):
@@ -305,16 +324,15 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
 
 class HTTPDThread(threading.Thread):
 
-    def __init__(self, taker, hostport):
+    def __init__(self, _taker, hostport):
         threading.Thread.__init__(self)
         self.daemon = True
-        self.taker = taker
+        self.taker = _taker
         self.hostport = hostport
 
     def run(self):
-        #hostport = ('localhost', 62601)
-        httpd = BaseHTTPServer.HTTPServer(self.hostport,
-                                          OrderbookPageRequestHeader)
+        # hostport = ('localhost', 62601)
+        httpd = HTTPServer(self.hostport, OrderbookPageRequestHeader)
         httpd.taker = self.taker
         print('\nstarted http server, visit http://{0}:{1}/\n'.format(
             *self.hostport))
@@ -333,12 +351,10 @@ class GUITaker(taker.OrderbookWatch):
 
 
 def main():
-    import bitcoin as btc
     import common
-    import binascii, os
     from optparse import OptionParser
 
-    common.nickname = random_nick()  #watcher' +binascii.hexlify(os.urandom(4))
+    common.nickname = random_nick()  # watcher' +binascii.hexlify(os.urandom(4))
     common.load_program_config()
 
     parser = OptionParser(
@@ -363,7 +379,8 @@ def main():
     hostport = (options.host, options.port)
 
     irc = IRCMessageChannel(common.nickname)
-    taker = GUITaker(irc, hostport)
+    # todo: line has no effect???
+    # taker = GUITaker(irc, hostport)
     print('starting irc')
 
     irc.run()

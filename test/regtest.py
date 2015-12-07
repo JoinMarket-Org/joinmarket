@@ -1,14 +1,13 @@
+import os
 import sys
-import os, time
+
+from test.commontest import make_wallets
+
 data_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-sys.path.insert(0, os.path.join(data_dir, 'lib'))
-import subprocess
+sys.path.insert(0, os.path.join(data_dir, 'joinmarket'))
 import unittest
-import common
-import commontest
 from blockchaininterface import *
 import bitcoin as btc
-import binascii
 ''' Just some random thoughts to motivate possible tests;
 almost none of this has really been done:
 
@@ -37,7 +36,7 @@ def local_command(command, bg=False, redirect=''):
         elif OS == 'Linux':
             command.extend(['>', '/dev/null', '2>&1'])
         else:
-            print "OS not recognised, quitting."
+            print("OS not recognised, quitting.")
     elif redirect:
         command.extend(['>', redirect])
 
@@ -54,17 +53,17 @@ def local_command(command, bg=False, redirect=''):
 
 
 class Join2PTests(unittest.TestCase):
-    '''This test case intends to simulate
+    """This test case intends to simulate
     a single join with a single counterparty. In that sense,
-    it's not realistic, because nobody (should) do joins with only 1 maker, 
-    but this test has the virtue of being the simplest possible thing 
-    that JoinMarket can do. '''
+    it's not realistic, because nobody (should) do joins with only 1 maker,
+    but this test has the virtue of being the simplest possible thing
+    that JoinMarket can do. """
 
     def setUp(self):
         #create 2 new random wallets.
         #put 10 coins into the first receive address
         #to allow that bot to start.
-        self.wallets = commontest.make_wallets(
+        self.wallets = make_wallets(
             2,
             wallet_structures=[[1, 0, 0, 0, 0], [1, 0, 0, 0, 0]],
             mean_amt=10)
@@ -84,13 +83,14 @@ class Join2PTests(unittest.TestCase):
             os.urandom(32), common.get_p2pk_vbyte())
         try:
             for i in range(m):
-                sp_proc = local_command(['python','sendpayment.py','--yes','-N','1', self.wallets[1]['seed'],\
-                                                      str(amt), dest_address])
-        except subprocess.CalledProcessError, e:
+                sp_proc = local_command(['python', 'sendpayment.py', '--yes',
+                                         '-N', '1', self.wallets[1][
+                                             'seed'], str(amt), dest_address])
+        except subprocess.CalledProcessError as e:
             if yigen_proc:
                 yigen_proc.terminate()
-            print e.returncode
-            print e.message
+            print(e.returncode)
+            print(str(e))
             raise
 
         if yigen_proc:
@@ -116,10 +116,9 @@ class JoinNPTests(unittest.TestCase):
         #put 10 coins into the first receive address
         #to allow that bot to start.
         wallet_structures = [[1, 0, 0, 0, 0]] * 3
-        self.wallets = commontest.make_wallets(
-            3,
-            wallet_structures=wallet_structures,
-            mean_amt=10)
+        self.wallets = make_wallets(3,
+                                    wallet_structures=wallet_structures,
+                                    mean_amt=10)
         #the sender is wallet (n+1), i.e. index wallets[n]
 
     def test_n_partySend(self):
@@ -128,8 +127,9 @@ class JoinNPTests(unittest.TestCase):
     def run_nparty_join(self):
         yigen_procs = []
         for i in range(self.n):
-            ygp = local_command(['python','yield-generator.py',\
-                                 str(self.wallets[i]['seed'])], bg=True)
+            ygp = local_command(
+                ['python', 'yield-generator.py', str(self.wallets[i]['seed'])],
+                bg=True)
             time.sleep(2)  #give it a chance
             yigen_procs.append(ygp)
 
@@ -141,13 +141,14 @@ class JoinNPTests(unittest.TestCase):
         dest_address = btc.privkey_to_address(
             os.urandom(32), common.get_p2pk_vbyte())
         try:
-            sp_proc = local_command(['python','sendpayment.py','--yes','-N', str(self.n),\
-                                     self.wallets[self.n]['seed'], str(amt), dest_address])
-        except subprocess.CalledProcessError, e:
+            sp_proc = local_command(['python', 'sendpayment.py', '--yes', '-N',
+                                     str(self.n), self.wallets[self.n][
+                                         'seed'], str(amt), dest_address])
+        except subprocess.CalledProcessError as e:
             for ygp in yigen_procs:
                 ygp.kill()
-            print e.returncode
-            print e.message
+            print(e.returncode)
+            print(str(e))
             raise
 
         if any(yigen_procs):

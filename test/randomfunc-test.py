@@ -1,15 +1,12 @@
 import sys, os
 data_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-sys.path.insert(0, os.path.join(data_dir, 'lib'))
+sys.path.insert(0, os.path.join(data_dir, 'joinmarket'))
 
 import common
 
-try:
-    import matplotlib.pyplot as plt
-    import numpy as np
-except ImportError:
-    print 'Install matplotlib and numpy to run this test'
-    sys.exit(0)
+# todo: executive decision... do we need to tell people to install a library?
+import matplotlib.pyplot as plt
+import numpy as np
 
 
 def test_power():
