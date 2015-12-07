@@ -314,6 +314,7 @@ class AbstractWallet(object):
 	"""
 
     def __init__(self):
+        self.max_mix_depth = 0
         self.utxo_selector = btc.select  # default fallback: upstream
         try:
             if config.get("POLICY", "merge_algorithm") == "gradual":

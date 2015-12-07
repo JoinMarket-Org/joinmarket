@@ -85,7 +85,7 @@ class TumblerTests(unittest.TestCase):
         amt *= 1e8  #in satoshis
         #send to any old address
         # todo: I can't find get_addr_vbyte
-        dest_address = btc.privkey_to_address(os.urandom(32), get_addr_vbyte())
+        dest_address = btc.privkey_to_address(os.urandom(32), common.get_p2pk_vbyte())
         try:
             #default mixdepth source is zero, so will take coins from m 0.
             #see tumbler.py --h for details

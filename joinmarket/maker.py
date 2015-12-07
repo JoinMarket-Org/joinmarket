@@ -247,7 +247,7 @@ class Maker(CoinJoinerPeer):
         debug('pushed tx ' + str(txid))
         if txid is None:
             # todo: send_error doesn't exist... on some other classes maybe
-            self.send_error(nick, 'Unable to push tx')
+            self.msgchan.send_error(nick, 'Unable to push tx')
 
     def on_welcome(self):
         self.msgchan.announce_orders(self.orderlist)

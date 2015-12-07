@@ -1,4 +1,9 @@
-from bitcoin.main import *
+# from bitcoin.main import *
+from binascii import b2a_hex, a2b_hex
+
+from bitcoin import bin_sha256, sha256
+from .py3specials import pyspecials_encode as encode
+from .py3specials import pyspecials_decode as decode
 
 
 def serialize_header(inp):
@@ -27,7 +32,8 @@ def deserialize_header(inp):
 
 
 def mk_merkle_proof(header, hashes, index):
-    nodes = [h.decode('hex')[::-1] for h in hashes]
+    # todo: this code hasn't been exercised and is likely incorrect
+    nodes = [a2b_hex(h)[::-1] for h in hashes]
     if len(nodes) % 2 and len(nodes) > 2:
         nodes.append(nodes[-1])
     layers = [nodes]
@@ -43,9 +49,8 @@ def mk_merkle_proof(header, hashes, index):
     assert nodes[0][::-1].encode('hex') == header['merkle_root']
     merkle_siblings = \
         [layers[i][(index >> i) ^ 1] for i in range(len(layers)-1)]
-    # todo: BUG - encode called on list
     return {
         "hash": hashes[index],
-        "siblings": [x[::-1].encode('hex') for x in merkle_siblings],
+        "siblings": [b2a_hex(x)[::-1] for x in merkle_siblings],
         "header": header
     }
