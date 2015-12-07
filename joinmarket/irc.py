@@ -1,12 +1,19 @@
 #
-from common import *
-from message_channel import MessageChannel
-from message_channel import CJPeerError
+# from common import *
+import base64
+import random
+import socket
+import socks
+import ssl
+import threading
+import time
+from logging import debug
 
-import string, random
-import socket, threading, time, ssl, socks
-import base64, os, re
 import enc_wrapper
+from common import chunks, errordetect_ordername_list, config, \
+    get_config_irc_channel
+from message_channel import CJPeerError
+from message_channel import MessageChannel
 
 MAX_PRIVMSG_LEN = 400
 COMMAND_PREFIX = '!'
@@ -30,7 +37,9 @@ def random_nick(nick_len=9):
                   for v in range(N)] + ['']
     ircnick = ''.join([i for sl in zip(rnd_consonants, rnd_vowels) for i in sl])
     ircnick = ircnick.capitalize()
-    print 'Generated random nickname: ' + ircnick  #not using debug because it might not know the logfile name at this point
+    print(
+        'Generated random nickname: ' + ircnick
+    )  # not using debug because it might not know the logfile name at this point
     return ircnick
     #Other ideas for random nickname generation:
     # - weight randomness by frequency of letter appearance
@@ -38,7 +47,7 @@ def random_nick(nick_len=9):
     # - generate different length nicks
     # - append two or more of these words together
     # - randomly combine phonetic sounds instead consonants, which may be two consecutive consonants
-    #  - e.g. th, dj, g, p, gr, ch, sh, kr, 
+    #  - e.g. th, dj, g, p, gr, ch, sh, kr,
     # - neutral network that generates nicks
 
 
@@ -202,16 +211,16 @@ class IRCMessageChannel(MessageChannel):
         #	debug('sendraw ' + line)
         self.sock.sendall(line + '\r\n')
 
-    def check_for_orders(self, nick, chunks):
-        if chunks[0] in ordername_list:
+    def check_for_orders(self, nick, _chunks):
+        if _chunks[0] in errordetect_ordername_list:
             try:
                 counterparty = nick
-                oid = chunks[1]
-                ordertype = chunks[0]
-                minsize = chunks[2]
-                maxsize = chunks[3]
-                txfee = chunks[4]
-                cjfee = chunks[5]
+                oid = _chunks[1]
+                ordertype = _chunks[0]
+                minsize = _chunks[2]
+                maxsize = _chunks[3]
+                txfee = _chunks[4]
+                cjfee = _chunks[5]
                 if self.on_order_seen:
                     self.on_order_seen(counterparty, oid, ordertype, minsize,
                                        maxsize, txfee, cjfee)
@@ -223,66 +232,68 @@ class IRCMessageChannel(MessageChannel):
         return False
 
     def __on_privmsg(self, nick, message):
-        '''handles the case when a private message is received'''
+        """handles the case when a private message is received"""
         if message[0] != COMMAND_PREFIX:
             return
         for command in message[1:].split(COMMAND_PREFIX):
-            chunks = command.split(" ")
+            _chunks = command.split(" ")
             #looks like a very similar pattern for all of these
             # check for a command name, parse arguments, call a function
             # maybe we need some eval() trickery to do it better
 
             try:
                 #orderbook watch commands
-                if self.check_for_orders(nick, chunks):
+                if self.check_for_orders(nick, _chunks):
                     pass
 
                 #taker commands
-                elif chunks[0] == 'pubkey':
-                    maker_pk = chunks[1]
+                elif _chunks[0] == 'pubkey':
+                    maker_pk = _chunks[1]
                     if self.on_pubkey:
                         self.on_pubkey(nick, maker_pk)
-                elif chunks[0] == 'ioauth':
-                    utxo_list = chunks[1].split(',')
-                    cj_pub = chunks[2]
-                    change_addr = chunks[3]
-                    btc_sig = chunks[4]
+                elif _chunks[0] == 'ioauth':
+                    utxo_list = _chunks[1].split(',')
+                    cj_pub = _chunks[2]
+                    change_addr = _chunks[3]
+                    btc_sig = _chunks[4]
                     if self.on_ioauth:
                         self.on_ioauth(nick, utxo_list, cj_pub, change_addr,
                                        btc_sig)
-                elif chunks[0] == 'sig':
-                    sig = chunks[1]
+                elif _chunks[0] == 'sig':
+                    sig = _chunks[1]
                     if self.on_sig:
                         self.on_sig(nick, sig)
 
                 #maker commands
-                if chunks[0] == 'fill':
+                if _chunks[0] == 'fill':
                     try:
-                        oid = int(chunks[1])
-                        amount = int(chunks[2])
-                        taker_pk = chunks[3]
+                        oid = int(_chunks[1])
+                        amount = int(_chunks[2])
+                        taker_pk = _chunks[3]
                     except (ValueError, IndexError) as e:
                         self.send_error(nick, str(e))
                     if self.on_order_fill:
+                        # todo: oid, amount, taker_pk might be unset.  Logic error
                         self.on_order_fill(nick, oid, amount, taker_pk)
-                elif chunks[0] == 'auth':
+                elif _chunks[0] == 'auth':
                     try:
-                        i_utxo_pubkey = chunks[1]
-                        btc_sig = chunks[2]
+                        i_utxo_pubkey = _chunks[1]
+                        btc_sig = _chunks[2]
                     except (ValueError, IndexError) as e:
                         self.send_error(nick, str(e))
                     if self.on_seen_auth:
+                        # todo: i_utxo_pubkey, btc_sig might be unset
                         self.on_seen_auth(nick, i_utxo_pubkey, btc_sig)
-                elif chunks[0] == 'tx':
-                    b64tx = chunks[1]
+                elif _chunks[0] == 'tx':
+                    b64tx = _chunks[1]
                     try:
                         txhex = base64.b64decode(b64tx).encode('hex')
                     except TypeError as e:
                         self.send_error(nick, 'bad base64 tx. ' + repr(e))
                     if self.on_seen_tx:
                         self.on_seen_tx(nick, txhex)
-                elif chunks[0] == 'push':
-                    b64tx = chunks[1]
+                elif _chunks[0] == 'push':
+                    b64tx = _chunks[1]
                     try:
                         txhex = base64.b64decode(b64tx).encode('hex')
                     except TypeError as e:
@@ -298,33 +309,33 @@ class IRCMessageChannel(MessageChannel):
         if message[0] != COMMAND_PREFIX:
             return
         for command in message[1:].split(COMMAND_PREFIX):
-            chunks = command.split(" ")
-            if self.check_for_orders(nick, chunks):
+            _chunks = command.split(" ")
+            if self.check_for_orders(nick, _chunks):
                 pass
-            elif chunks[0] == 'cancel':
+            elif _chunks[0] == 'cancel':
                 #!cancel [oid]
                 try:
-                    oid = int(chunks[1])
+                    oid = int(_chunks[1])
                     if self.on_order_cancel:
                         self.on_order_cancel(nick, oid)
                 except ValueError as e:
                     debug("!cancel " + repr(e))
                     return
-            elif chunks[0] == 'orderbook':
+            elif _chunks[0] == 'orderbook':
                 if self.on_orderbook_requested:
                     self.on_orderbook_requested(nick)
             else:
                 #TODO this is for testing/debugging, should be removed, see taker.py
                 if hasattr(self, 'debug_on_pubmsg_cmd'):
-                    self.debug_on_pubmsg_cmd(nick, chunks)
+                    self.debug_on_pubmsg_cmd(nick, _chunks)
 
     def __get_encryption_box(self, cmd, nick):
-        '''Establish whether the message is to be
+        """Establish whether the message is to be
 		encrypted/decrypted based on the command string.
 		If so, retrieve the appropriate crypto_box object
 		and return. Sending/receiving flag enables us
 		to check which command strings correspond to which
-		type of object (maker/taker).''' #old doc, dont trust
+		type of object (maker/taker)."""  #old doc, dont trust
         if cmd in plaintext_commands:
             return None, False
         else:
@@ -400,75 +411,75 @@ class IRCMessageChannel(MessageChannel):
             self.send_raw(line.replace('PING', 'PONG'))
             return
 
-        chunks = line.split(' ')
-        if chunks[1] == 'QUIT':
-            nick = get_irc_nick(chunks[0])
+        _chunks = line.split(' ')
+        if _chunks[1] == 'QUIT':
+            nick = get_irc_nick(_chunks[0])
             if nick == self.nick:
                 raise IOError('we quit')
             else:
                 if self.on_nick_leave:
                     self.on_nick_leave(nick)
-        elif chunks[1] == '433':  #nick in use
+        elif _chunks[1] == '433':  #nick in use
             #self.nick = random_nick()
             self.nick += '_'  #helps keep identity constant if just _ added
             self.send_raw('NICK ' + self.nick)
         if self.password:
-            if chunks[1] == 'CAP':
-                if chunks[3] != 'ACK':
+            if _chunks[1] == 'CAP':
+                if _chunks[3] != 'ACK':
                     debug('server does not support SASL, quitting')
                     self.shutdown()
                 self.send_raw('AUTHENTICATE PLAIN')
-            elif chunks[0] == 'AUTHENTICATE':
+            elif _chunks[0] == 'AUTHENTICATE':
                 self.send_raw('AUTHENTICATE ' + base64.b64encode(
                     self.nick + '\x00' + self.nick + '\x00' + self.password))
-            elif chunks[1] == '903':
+            elif _chunks[1] == '903':
                 debug('Successfully authenticated')
                 self.password = None
                 self.send_raw('CAP END')
-            elif chunks[1] == '904':
+            elif _chunks[1] == '904':
                 debug('Failed authentication, wrong password')
                 self.shutdown()
             return
 
-        if chunks[1] == 'PRIVMSG':
-            self.__handle_privmsg(chunks[0], chunks[2], get_irc_text(line))
-        if chunks[1] == 'PONG':
+        if _chunks[1] == 'PRIVMSG':
+            self.__handle_privmsg(_chunks[0], _chunks[2], get_irc_text(line))
+        if _chunks[1] == 'PONG':
             self.ping_reply = True
             self.lockcond.acquire()
             self.lockcond.notify()
             self.lockcond.release()
-        elif chunks[1] == '376':  #end of motd
+        elif _chunks[1] == '376':  #end of motd
             if self.on_connect:
                 self.on_connect()
             self.send_raw('JOIN ' + self.channel)
             self.send_raw('MODE ' + self.nick + ' +B')  #marks as bots on unreal
-            self.send_raw('MODE ' + self.nick + ' -R'
-                         )  #allows unreg'd private messages
-        elif chunks[1] == '366':  #end of names list
+            self.send_raw(
+                'MODE ' + self.nick + ' -R')  #allows unreg'd private messages
+        elif _chunks[1] == '366':  #end of names list
             debug('Connected to IRC and joined channel')
             if self.on_welcome:
                 self.on_welcome()
-        elif chunks[1] == '332' or chunks[1] == 'TOPIC':  #channel topic
+        elif _chunks[1] == '332' or _chunks[1] == 'TOPIC':  #channel topic
             topic = get_irc_text(line)
             self.on_set_topic(topic)
-        elif chunks[1] == 'KICK':
-            target = chunks[3]
-            nick = get_irc_nick(chunks[0])
+        elif _chunks[1] == 'KICK':
+            target = _chunks[3]
+            nick = get_irc_nick(_chunks[0])
             if target == self.nick:
                 self.give_up = True
-                raise IOError(get_irc_nick(chunks[
+                raise IOError(get_irc_nick(_chunks[
                     0]) + ' has kicked us from the irc channel! Reason=' +
                               get_irc_text(line))
             else:
                 if self.on_nick_leave:
                     self.on_nick_leave(target)
-        elif chunks[1] == 'PART':
-            nick = get_irc_nick(chunks[0])
+        elif _chunks[1] == 'PART':
+            nick = get_irc_nick(_chunks[0])
             if self.on_nick_leave:
                 self.on_nick_leave(nick)
-        elif chunks[1] == 'JOIN':
-            channel = chunks[2][1:]
-            nick = get_irc_nick(chunks[0])
+        elif _chunks[1] == 'JOIN':
+            channel = _chunks[2][1:]
+            nick = get_irc_nick(_chunks[0])
         '''
 		elif chunks[1] == '005':
 			self.motd_fd = open("motd.txt", "w")
@@ -534,7 +545,7 @@ class IRCMessageChannel(MessageChannel):
                         line = self.fd.readline()
                     except AttributeError as e:
                         raise IOError(repr(e))
-                    if line == None:
+                    if line is None:
                         debug('line returned null')
                         break
                     if len(line) == 0:
@@ -548,7 +559,7 @@ class IRCMessageChannel(MessageChannel):
                     self.fd.close()
                     self.sock.close()
                 except Exception as e:
-                    print repr(e)
+                    print(repr(e))
             if self.on_disconnect:
                 self.on_disconnect()
             debug('disconnected irc')

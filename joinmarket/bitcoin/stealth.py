@@ -1,5 +1,4 @@
 import bitcoin.main as main
-import bitcoin.transaction as tx
 
 # Shared secrets and uncovering pay keys
 
@@ -98,6 +97,7 @@ def mk_stealth_tx_outputs(stealth_addr,
 
     pay_pubkey = uncover_pay_pubkey_sender(scan_pubkey, spend_pubkey,
                                            ephem_privkey)
+    # todo: magic_byte_addr might be unassigned
     pay_addr = main.pubkey_to_address(pay_pubkey, magic_byte_addr)
     output1 = {'address': pay_addr, 'value': value}
 

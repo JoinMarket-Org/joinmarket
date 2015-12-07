@@ -1,10 +1,9 @@
+import os
 import sys
-import os, time, random
+
 data_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, os.path.join(data_dir, 'joinmarket'))
-import subprocess
 import unittest
-import common
 from blockchaininterface import *
 import bitcoin as btc
 import binascii
@@ -21,7 +20,7 @@ def local_command(command, bg=False, redirect=''):
         elif OS == 'Linux':
             command.extend(['>', '/dev/null', '2>&1'])
         else:
-            print "OS not recognised, quitting."
+            print("OS not recognised, quitting.")
     elif redirect:
         command.extend(['>', redirect])
 
@@ -73,8 +72,9 @@ class TumblerTests(unittest.TestCase):
     def run_tumble(self, amt):
         yigen_procs = []
         for i in range(6):
-            ygp = local_command(['python','yield-generator.py',\
-                                 str(self.wallets[i]['seed'])], bg=True)
+            ygp = local_command(
+                ['python', 'yield-generator.py', str(self.wallets[i]['seed'])],
+                bg=True)
             time.sleep(2)  #give it a chance
             yigen_procs.append(ygp)
 
@@ -82,10 +82,10 @@ class TumblerTests(unittest.TestCase):
         time.sleep(60)
 
         #start a tumbler
-        amt = amt * 1e8  #in satoshis
+        amt *= 1e8  #in satoshis
         #send to any old address
-        dest_address = btc.privkey_to_address(
-            os.urandom(32), common.get_addr_vbyte())
+        # todo: I can't find get_addr_vbyte
+        dest_address = btc.privkey_to_address(os.urandom(32), get_addr_vbyte())
         try:
             #default mixdepth source is zero, so will take coins from m 0.
             #see tumbler.py --h for details
@@ -98,16 +98,16 @@ class TumblerTests(unittest.TestCase):
             p.expect(pexpect.EOF, timeout=100000)
             p.close()
             if p.exitstatus != 0:
-                print 'failed due to exit status: ' + str(p.exitstatus)
+                print('failed due to exit status: ' + str(p.exitstatus))
                 return False
             #print('use seed: '+self.wallets[6]['seed'])
             #print('use dest addr: '+dest_address)
             #ret = raw_input('quit?')
-        except subprocess.CalledProcessError, e:
+        except subprocess.CalledProcessError as e:
             for ygp in yigen_procs:
                 ygp.kill()
-            print e.returncode
-            print e.message
+            print(e.returncode)
+            print(str(e))
             raise
 
         if any(yigen_procs):

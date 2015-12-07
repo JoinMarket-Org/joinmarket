@@ -2,10 +2,7 @@
 import json, re
 import random
 import sys
-try:
-    from urllib.request import build_opener
-except:
-    from urllib2 import build_opener
+from urllib.request import build_opener
 
 
 # Makes a request to a given URL (first arg) and optional params (second arg)
@@ -16,9 +13,13 @@ def make_request(*args):
     try:
         return opener.open(*args).read().strip()
     except Exception as e:
+        # noinspection PyBroadException
         try:
+            # todo: this is very strange code. Its wrong irrespective of functionality
+            # noinspection PyUnresolvedReferences
             p = e.read().strip()
         except:
+            # todo: BAD BAD!!!  FIX THIS
             p = e
         raise Exception(p)
 
@@ -103,13 +104,14 @@ def blockr_unspent(*args):
 
 def helloblock_unspent(*args):
     network, addrs = parse_addr_args(*args)
+    url = None
     if network == 'testnet':
         url = 'http://testnet.helloblock.io/v1/addresses/%s/unspents?limit=500&offset=%s'
     elif network == 'btc':
         url = 'http://mainnet.helloblock.io/v1/addresses/%s/unspents?limit=500&offset=%s'
     o = []
     for addr in addrs:
-        for offset in xrange(0, 10**9, 500):
+        for offset in range(0, 10**9, 500):
             res = make_request(url % (addr, offset))
             data = json.loads(res)["data"]
             if not len(data["unspents"]):

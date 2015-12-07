@@ -63,6 +63,7 @@ class JsonRpc(object):
     request should be (as object) in 'obj'.  If the call succeeds,
     the resulting JSON object is returned.  In case of an error
     with the connection (not JSON-RPC itself), an exception is raised.
+        :param obj:
     """
 
         headers = {}
@@ -102,6 +103,8 @@ class JsonRpc(object):
     def call(self, method, params):
         """
     Call a method over JSON-RPC.
+        :param method:
+        :param params:
     """
 
         currentId = self.queryId
@@ -114,7 +117,7 @@ class JsonRpc(object):
             raise JsonRpcConnectionError("invalid id returned by query")
 
         if response["error"] is not None:
-            print response["error"]
+            print(response["error"])
             raise JsonRpcError(response["error"])
 
         return response["result"]

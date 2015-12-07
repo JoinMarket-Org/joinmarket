@@ -1,6 +1,10 @@
 #! /usr/bin/env python
 
-from common import *
+# from common import *
+from logging import debug
+
+import sys
+
 import common
 from taker import CoinJoinerPeer
 import bitcoin as btc
@@ -21,8 +25,8 @@ class CoinJoinOrder(object):
         #create DH keypair on the fly for this Order object
         self.kp = enc_wrapper.init_keypair()
         #the encryption channel crypto box for this Order object
-        self.crypto_box = enc_wrapper.as_init_encryption(self.kp, \
-                                enc_wrapper.init_pubkey(taker_pk))
+        self.crypto_box = enc_wrapper.as_init_encryption(
+            self.kp, enc_wrapper.init_pubkey(taker_pk))
 
         order_s = [o for o in maker.orderlist if o['oid'] == oid]
         if len(order_s) == 0:
@@ -65,9 +69,9 @@ class CoinJoinOrder(object):
         self.i_utxo_pubkey = i_utxo_pubkey
 
         if not btc.ecdsa_verify(self.taker_pk, btc_sig, self.i_utxo_pubkey):
-            print 'signature didnt match pubkey and message'
+            print('signature didnt match pubkey and message')
             return False
-        #authorisation of taker passed 
+        #authorisation of taker passed
         #(but input utxo pubkey is checked in verify_unsigned_tx).
         #Send auth request to taker
         #TODO the next 2 lines are a little inefficient.
@@ -140,7 +144,7 @@ class CoinJoinOrder(object):
         if None in input_utxo_data:
             return False, 'some utxos already spent or not confirmed yet'
         input_addresses = [u['address'] for u in input_utxo_data]
-        if btc.pubtoaddr(self.i_utxo_pubkey, get_p2pk_vbyte())\
+        if btc.pubtoaddr(self.i_utxo_pubkey, common.get_p2pk_vbyte())\
          not in input_addresses:
             return False, "authenticating bitcoin address is not contained"
         my_utxo_set = set(self.utxos.keys())
@@ -148,8 +152,8 @@ class CoinJoinOrder(object):
             return False, 'my utxos are not contained'
 
         my_total_in = sum([va['value'] for va in self.utxos.values()])
-        self.real_cjfee = calc_cj_fee(self.ordertype, self.cjfee,
-                                      self.cj_amount)
+        self.real_cjfee = common.calc_cj_fee(self.ordertype, self.cjfee,
+                                             self.cj_amount)
         expected_change_value = (
             my_total_in - self.cj_amount - self.txfee + self.real_cjfee)
         debug('potentially earned = ' + str(self.real_cjfee - self.txfee))
@@ -158,7 +162,8 @@ class CoinJoinOrder(object):
         times_seen_cj_addr = 0
         times_seen_change_addr = 0
         for outs in txd['outs']:
-            addr = btc.script_to_address(outs['script'], get_p2pk_vbyte())
+            addr = btc.script_to_address(outs['script'],
+                                         common.get_p2pk_vbyte())
             if addr == self.cj_addr:
                 times_seen_cj_addr += 1
                 if outs['value'] != self.cj_amount:
@@ -176,7 +181,7 @@ class CoinJoinOrder(object):
         return True, None
 
 
-class CJMakerOrderError(StandardError):
+class CJMakerOrderError(Exception):
     pass
 
 
@@ -210,7 +215,7 @@ class Maker(CoinJoinerPeer):
         self.msgchan.announce_orders(self.orderlist, nick)
 
     def on_order_fill(self, nick, oid, amount, taker_pubkey):
-        if nick in self.active_orders and self.active_orders[nick] != None:
+        if nick in self.active_orders and self.active_orders[nick] is not None:
             self.active_orders[nick] = None
             debug('had a partially filled order but starting over now')
         self.wallet_unspent_lock.acquire()
@@ -221,14 +226,14 @@ class Maker(CoinJoinerPeer):
             self.wallet_unspent_lock.release()
 
     def on_seen_auth(self, nick, pubkey, sig):
-        if nick not in self.active_orders or self.active_orders[nick] == None:
+        if nick not in self.active_orders or self.active_orders[nick] is None:
             self.msgchan.send_error(nick, 'No open order from this nick')
         self.active_orders[nick].auth_counterparty(nick, pubkey, sig)
         #TODO if auth_counterparty returns false, remove this order from active_orders
         # and send an error
 
     def on_seen_tx(self, nick, txhex):
-        if nick not in self.active_orders or self.active_orders[nick] == None:
+        if nick not in self.active_orders or self.active_orders[nick] is None:
             self.msgchan.send_error(nick, 'No open order from this nick')
         self.wallet_unspent_lock.acquire()
         try:
@@ -240,7 +245,8 @@ class Maker(CoinJoinerPeer):
         debug('received txhex from ' + nick + ' to push\n' + txhex)
         txid = common.bc_interface.pushtx(txhex)
         debug('pushed tx ' + str(txid))
-        if txid == None:
+        if txid is None:
+            # todo: send_error doesn't exist... on some other classes maybe
             self.send_error(nick, 'Unable to push tx')
 
     def on_welcome(self):
@@ -280,7 +286,7 @@ class Maker(CoinJoinerPeer):
     #define the sell-side pricing algorithm of this bot
     #still might be a bad way of doing things, we'll see
     def create_my_orders(self):
-        '''
+        """
 		#tells the highest value possible made by combining all utxos
 		#fee is 0.2% of the cj amount
 		total_value = 0
@@ -290,7 +296,7 @@ class Maker(CoinJoinerPeer):
 		order = {'oid': 0, 'ordertype': 'relorder', 'minsize': 0,
 			'maxsize': total_value, 'txfee': 10000, 'cjfee': '0.002'}
 		return [order]
-		'''
+		"""
 
         #each utxo is a single absolute-fee order
         orderlist = []
@@ -312,7 +318,7 @@ class Maker(CoinJoinerPeer):
         #has to return a list of utxos and mixing depth the cj address will be in
         # the change address will be in mixing_depth-1
     def oid_to_order(self, cjorder, oid, amount):
-        '''
+        """
 		unspent = []
 		for utxo, addrvalue in self.wallet.unspent.iteritems():
 			unspent.append({'value': addrvalue['value'], 'utxo': utxo})
@@ -320,7 +326,10 @@ class Maker(CoinJoinerPeer):
 		#TODO this raises an exception if you dont have enough money, id rather it just returned None
 		mixing_depth = 1
 		return [i['utxo'] for i in inputs], mixing_depth
-		'''
+        :param cjorder:
+        :param oid:
+        :param amount:
+		"""
 
         order = [o for o in self.orderlist if o['oid'] == oid][0]
         cj_addr = self.wallet.get_receive_addr(order['mixdepth'] + 1)
@@ -334,7 +343,7 @@ class Maker(CoinJoinerPeer):
     #gets called when the tx is seen on the network
     #must return which orders to cancel or recreate
     def on_tx_unconfirmed(self, cjorder, txid, removed_utxos):
-        return ([cjorder.oid], [])
+        return [cjorder.oid], []
 
     #gets called when the tx is included in a block
     #must return which orders to cancel or recreate
@@ -343,7 +352,7 @@ class Maker(CoinJoinerPeer):
     def on_tx_confirmed(self, cjorder, confirmations, txid):
         to_announce = []
         for i, out in enumerate(cjorder.tx['outs']):
-            addr = btc.script_to_address(out['script'], get_p2pk_vbyte())
+            addr = btc.script_to_address(out['script'], common.get_p2pk_vbyte())
             if addr == cjorder.change_addr:
                 neworder = {'oid': self.get_next_oid(),
                             'ordertype': 'absorder',
@@ -362,7 +371,7 @@ class Maker(CoinJoinerPeer):
                             'cjfee': 100000,
                             'utxo': txid + ':' + str(i)}
                 to_announce.append(neworder)
-        return ([], to_announce)
+        return [], to_announce
 
 
 def main():
@@ -374,20 +383,20 @@ def main():
     ]  #btc.sha256('dont use brainwallets except for holding testnet coins')
 
     common.load_program_config()
-    wallet = Wallet(seed, max_mix_depth=5)
+    wallet = common.Wallet(seed, max_mix_depth=5)
     common.bc_interface.sync_wallet(wallet)
 
     from irc import IRCMessageChannel
     irc = IRCMessageChannel(nickname)
     maker = Maker(irc, wallet)
     try:
-        print 'connecting to irc'
+        print('connecting to irc')
         irc.run()
     except:
         debug('CRASHING, DUMPING EVERYTHING')
         debug('wallet seed = ' + seed)
-        debug_dump_object(wallet, ['addr_cache'])
-        debug_dump_object(maker)
+        common.debug_dump_object(wallet, ['addr_cache'])
+        common.debug_dump_object(maker)
         import traceback
         traceback.print_exc()
 

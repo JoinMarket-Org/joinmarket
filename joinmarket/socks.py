@@ -13,7 +13,7 @@ are permitted provided that the following conditions are met:
 3. Neither the name of Dan Haim nor the names of his contributors may be used
    to endorse or promote products derived from this software without specific
    prior written permission.
-   
+
 THIS SOFTWARE IS PROVIDED BY DAN HAIM "AS IS" AND ANY EXPRESS OR IMPLIED
 WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
 MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
@@ -124,6 +124,12 @@ def setdefaultproxy(proxytype=None,
     """setdefaultproxy(proxytype, addr[, port[, rdns[, username[, password]]]])
 	Sets a default proxy which all further socksocket objects will use,
 	unless explicitly changed.
+    :param proxytype:
+    :param addr:
+    :param port:
+    :param rdns:
+    :param username:
+    :param password:
 	"""
     global _defaultproxy
     _defaultproxy = (proxytype, addr, port, rdns, username, password)
@@ -131,7 +137,7 @@ def setdefaultproxy(proxytype=None,
 
 class socksocket(socket.socket):
     """socksocket([family[, type[, proto]]]) -> socket object
-	
+
 	Open a SOCKS enabled socket. The parameters are the same as
 	those of the standard socket init. In order for SOCKS to work,
 	you must specify family=AF_INET, type=SOCK_STREAM and proto=0.
@@ -142,8 +148,8 @@ class socksocket(socket.socket):
                  type=socket.SOCK_STREAM,
                  proto=0,
                  _sock=None):
-        _orgsocket.__init__(self, family, type, proto, _sock)
-        if _defaultproxy != None:
+        super().__init__(family=family, type=type, proto=proto, fileno=_sock)
+        if _defaultproxy is not None:
             self.__proxy = _defaultproxy
         else:
             self.__proxy = (None, None, None, None, None, None)
@@ -182,6 +188,12 @@ class socksocket(socket.socket):
 				The default is no authentication.
 		password -	Password to authenticate with to the server.
 				Only relevant when username is also provided.
+        :param proxytype:
+        :param addr:
+        :param port:
+        :param rdns:
+        :param username:
+        :param password:
 		"""
         self.__proxy = (proxytype, addr, port, rdns, username, password)
 
@@ -190,7 +202,7 @@ class socksocket(socket.socket):
 		Negotiates a connection through a SOCKS5 server.
 		"""
         # First we'll send the authentication packages we support.
-        if (self.__proxy[4] != None) and (self.__proxy[5] != None):
+        if (self.__proxy[4] is not None) and (self.__proxy[5] is not None):
             # The username/password details were supplied to the
             # setproxy method so we support the USERNAME/PASSWORD
             # authentication (in addition to the standard none).
@@ -222,7 +234,7 @@ class socksocket(socket.socket):
             if authstat[1] != "\x00":
                 # Authentication failed
                 self.close()
-                raise Socks5AuthError, ((3, _socks5autherrors[3]))
+                raise Socks5AuthError((3, _socks5autherrors[3]))
             # Authentication succeeded
         else:
             # Reaching here is always bad
@@ -240,7 +252,7 @@ class socksocket(socket.socket):
             req = req + "\x01" + ipaddr
         except socket.error:
             # Well it's not an IP number,  so it's probably a DNS name.
-            if self.__proxy[3] == True:
+            if self.__proxy[3]:
                 # Resolve remotely
                 ipaddr = None
                 req = req + "\x03" + chr(len(destaddr)) + destaddr
@@ -270,7 +282,7 @@ class socksocket(socket.socket):
             raise GeneralProxyError((1, _generalerrors[1]))
         boundport = struct.unpack(">H", self.__recvall(2))[0]
         self.__proxysockname = (boundaddr, boundport)
-        if ipaddr != None:
+        if ipaddr is not None:
             self.__proxypeername = (socket.inet_ntoa(ipaddr), destport)
         else:
             self.__proxypeername = (destaddr, destport)
@@ -304,7 +316,7 @@ class socksocket(socket.socket):
             ipaddr = socket.inet_aton(destaddr)
         except socket.error:
             # It's a DNS name. Check where it should be resolved.
-            if self.__proxy[3] == True:
+            if self.__proxy[3]:
                 ipaddr = "\x00\x00\x00\x01"
                 rmtrslv = True
             else:
@@ -312,13 +324,13 @@ class socksocket(socket.socket):
         # Construct the request packet
         req = "\x04\x01" + struct.pack(">H", destport) + ipaddr
         # The username parameter is considered userid for SOCKS4
-        if self.__proxy[4] != None:
+        if self.__proxy[4] is not None:
             req = req + self.__proxy[4]
-        req = req + "\x00"
+        req += "\x00"
         # DNS name if remote resolving is required
         # NOTE: This is actually an extension to the SOCKS4 protocol
         # called SOCKS4A and may not be supported in all cases.
-        if rmtrslv == True:
+        if rmtrslv:
             req = req + destaddr + "\x00"
         self.sendall(req)
         # Get the response from the server
@@ -337,9 +349,9 @@ class socksocket(socket.socket):
             else:
                 raise Socks4Error((94, _socks4errors[4]))
         # Get the bound address/port
-        self.__proxysockname = (socket.inet_ntoa(resp[4:]), struct.unpack(
-            ">H", resp[2:4])[0])
-        if rmtrslv != None:
+        self.__proxysockname = (socket.inet_ntoa(resp[4:]),
+                                struct.unpack(">H", resp[2:4])[0])
+        if rmtrslv is not None:
             self.__proxypeername = (socket.inet_ntoa(ipaddr), destport)
         else:
             self.__proxypeername = (destaddr, destport)
@@ -349,7 +361,7 @@ class socksocket(socket.socket):
 		Negotiates a connection through an HTTP server.
 		"""
         # If we need to resolve locally, we do this now
-        if self.__proxy[3] == False:
+        if not self.__proxy[3]:
             addr = socket.gethostbyname(destaddr)
         else:
             addr = destaddr
@@ -382,6 +394,7 @@ class socksocket(socket.socket):
 		destpar - A tuple of the IP/DNS address and the port number.
 		(identical to socket's connect).
 		To select the proxy server use setproxy().
+        :param destpair:
 		"""
         # Do a minimal input check first
         if (type(destpair) in
@@ -389,27 +402,27 @@ class socksocket(socket.socket):
                 type(destpair[0]) != str) or (type(destpair[1]) != int):
             raise GeneralProxyError((5, _generalerrors[5]))
         if self.__proxy[0] == PROXY_TYPE_SOCKS5:
-            if self.__proxy[2] != None:
+            if self.__proxy[2] is not None:
                 portnum = self.__proxy[2]
             else:
                 portnum = 1080
             _orgsocket.connect(self, (self.__proxy[1], portnum))
             self.__negotiatesocks5(destpair[0], destpair[1])
         elif self.__proxy[0] == PROXY_TYPE_SOCKS4:
-            if self.__proxy[2] != None:
+            if self.__proxy[2] is not None:
                 portnum = self.__proxy[2]
             else:
                 portnum = 1080
             _orgsocket.connect(self, (self.__proxy[1], portnum))
             self.__negotiatesocks4(destpair[0], destpair[1])
         elif self.__proxy[0] == PROXY_TYPE_HTTP:
-            if self.__proxy[2] != None:
+            if self.__proxy[2] is not None:
                 portnum = self.__proxy[2]
             else:
                 portnum = 8080
             _orgsocket.connect(self, (self.__proxy[1], portnum))
             self.__negotiatehttp(destpair[0], destpair[1])
-        elif self.__proxy[0] == None:
+        elif self.__proxy[0] is None:
             _orgsocket.connect(self, (destpair[0], destpair[1]))
         else:
             raise GeneralProxyError((4, _generalerrors[4]))

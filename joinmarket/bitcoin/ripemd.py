@@ -37,23 +37,16 @@
 ## * ftp://ftp.rsasecurity.com/pub/cryptobytes/crypto3n2.pdf
 ## */
 
-try:
-    import psyco
-    psyco.full()
-except ImportError:
-    pass
+# todo: is this really being used???
+# try:
+#     import psyco
+#     psyco.full()
+# except ImportError:
+#     pass
 
-import sys
-
-is_python2 = sys.version_info.major == 2
 #block_size = 1
 digest_size = 20
 digestsize = 20
-
-try:
-    range = xrange
-except:
-    pass
 
 
 class RIPEMD160:
@@ -68,7 +61,9 @@ class RIPEMD160:
         self.dig = None
 
     def update(self, arg):
-        """update(arg)"""
+        """update(arg)
+        :param arg:
+        """
         RMD160Update(self.ctx, arg, len(arg))
         self.dig = None
 
@@ -86,10 +81,7 @@ class RIPEMD160:
         dig = self.digest()
         hex_digest = ''
         for d in dig:
-            if (is_python2):
-                hex_digest += '%02x' % ord(d)
-            else:
-                hex_digest += '%02x' % d
+            hex_digest += '%02x' % ord(d)
         return hex_digest
 
     def copy(self):
@@ -101,7 +93,8 @@ class RIPEMD160:
 def new(arg=None):
     """Return a new RIPEMD160 object. An optional string argument
     may be provided; if present, this string will be automatically
-    hashed."""
+    hashed.
+    :param arg: """
     return RIPEMD160(arg)
 
 #
@@ -170,19 +163,16 @@ def R(a, b, c, d, e, Fj, Kj, sj, rj, X):
 
 PADDING = [0x80] + [0] * 63
 
-import sys
 import struct
+import sys
 
 
 def RMD160Transform(state, block):  #uint32 state[5], uchar block[64]
     x = [0] * 16
     if sys.byteorder == 'little':
-        if is_python2:
-            x = struct.unpack('<16L', ''.join([chr(x) for x in block[0:64]]))
-        else:
-            x = struct.unpack('<16L', bytes(block[0:64]))
+        x = struct.unpack('<16L', bytes(block[0:64]))
     else:
-        raise "Error!!"
+        raise Exception("Error!!")
     a = state[0]
     b = state[1]
     c = state[2]

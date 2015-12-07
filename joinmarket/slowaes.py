@@ -11,19 +11,22 @@
 # Licensed under the Apache License, Version 2.0
 # http://www.apache.org/licenses/
 #
-import os
-import sys
 import math
+import os
 
 
 def append_PKCS7_padding(s):
-    """return s padded to a multiple of 16-bytes by PKCS7 padding"""
+    """return s padded to a multiple of 16-bytes by PKCS7 padding
+    :param s:
+    """
     numpads = 16 - (len(s) % 16)
     return s + numpads * chr(numpads)
 
 
 def strip_PKCS7_padding(s):
-    """return s stripped of PKCS7 padding"""
+    """return s stripped of PKCS7 padding
+    :param s:
+    """
     if len(s) % 16 or not s:
         raise ValueError("String of len %d can't be PCKS7-padded" % len(s))
     numpads = ord(s[-1])
@@ -91,11 +94,15 @@ class AES(object):
              0x21, 0x0c, 0x7d]
 
     def getSBoxValue(self, num):
-        """Retrieves a given S-Box Value"""
+        """Retrieves a given S-Box Value
+        :param num:
+        """
         return self.sbox[num]
 
     def getSBoxInvert(self, num):
-        """Retrieves a given Inverted S-Box Value"""
+        """Retrieves a given Inverted S-Box Value
+        :param num:
+        """
         return self.rsbox[num]
 
     def rotate(self, word):
@@ -103,6 +110,7 @@ class AES(object):
 
         Rotate a word eight bits to the left: eg, rotate(1d2c3a4f) == 2c3a4f1d
         Word is an char list of size 4 (32 bits overall).
+        :param word:
         """
         return word[1:] + word[:1]
 
@@ -133,11 +141,16 @@ class AES(object):
             0xe8, 0xcb]
 
     def getRconValue(self, num):
-        """Retrieves a given Rcon Value"""
+        """Retrieves a given Rcon Value
+        :param num:
+        """
         return self.Rcon[num]
 
     def core(self, word, iteration):
-        """Key schedule core."""
+        """Key schedule core.
+        :param word:
+        :param iteration:
+        """
         # rotate the 32-bit word 8 bits to the left
         word = self.rotate(word)
         # apply S-Box substitution on all 4 parts of the 32-bit word
@@ -155,6 +168,9 @@ class AES(object):
 
         expandedKey is a char list of large enough size,
         key is the non-expanded key.
+        :param key:
+        :param size:
+        :param expandedKeySize:
         """
         # current expanded keySize, in bytes
         currentSize = 0
@@ -192,7 +208,10 @@ class AES(object):
         return expandedKey
 
     def addRoundKey(self, state, roundKey):
-        """Adds (XORs) the round key to the state."""
+        """Adds (XORs) the round key to the state.
+        :param state:
+        :param roundKey:
+        """
         for i in range(16):
             state[i] ^= roundKey[i]
         return state
@@ -201,6 +220,8 @@ class AES(object):
         """Create a round key.
         Creates a round key from the given expanded key and the
         position within the expanded key.
+        :param expandedKey:
+        :param roundKeyPointer:
         """
         roundKey = [0] * 16
         for i in range(4):
@@ -209,7 +230,10 @@ class AES(object):
         return roundKey
 
     def galois_multiplication(self, a, b):
-        """Galois multiplication of 8 bit characters a and b."""
+        """Galois multiplication of 8 bit characters a and b.
+        :param a:
+        :param b:
+        """
         p = 0
         for counter in range(8):
             if b & 1: p ^= a
@@ -454,7 +478,7 @@ class AESModeOfOperation(object):
         cipherOut = []
         # char firstRound
         firstRound = True
-        if stringIn != None:
+        if stringIn is not None:
             for j in range(int(math.ceil(float(len(stringIn)) / 16))):
                 start = j * 16
                 end = j * 16 + 16
@@ -534,7 +558,7 @@ class AESModeOfOperation(object):
         stringOut = ''
         # char firstRound
         firstRound = True
-        if cipherIn != None:
+        if cipherIn is not None:
             for j in range(int(math.ceil(float(len(cipherIn)) / 16))):
                 start = j * 16
                 end = j * 16 + 16
@@ -602,6 +626,9 @@ def encryptData(key, data, mode=AESModeOfOperation.modeOfOperation["CBC"]):
 
     returned cipher is a string of bytes prepended with the initialization
     vector.
+    :param key:
+    :param data:
+    :param mode:
 
     """
     key = map(ord, key)
@@ -626,6 +653,9 @@ def decryptData(key, data, mode=AESModeOfOperation.modeOfOperation["CBC"]):
 
     `data` should have the initialization vector prepended as a string of
     ordinal values.
+    :param key:
+    :param data:
+    :param mode:
 
     """
 
@@ -644,13 +674,14 @@ def decryptData(key, data, mode=AESModeOfOperation.modeOfOperation["CBC"]):
 
 def generateRandomKey(keysize):
     """Generates a key from random data of length `keysize`.
-    
+
     The returned key is a string of bytes.
-    
+    :param keysize:
+
     """
     if keysize not in (16, 24, 32):
         emsg = 'Invalid keysize, %s. Should be one of (16, 24, 32).'
-        raise ValueError, emsg % keysize
+        raise ValueError(emsg % keysize)
     return os.urandom(keysize)
 
 
@@ -664,7 +695,7 @@ if __name__ == "__main__":
     mode, orig_len, ciph = moo.encrypt(cleartext, moo.modeOfOperation["CBC"],
                                        cypherkey, moo.aes.keySize["SIZE_128"],
                                        iv)
-    print 'm=%s, ol=%s (%s), ciph=%s' % (mode, orig_len, len(cleartext), ciph)
+    print('m=%s, ol=%s (%s), ciph=%s' % (mode, orig_len, len(cleartext), ciph))
     decr = moo.decrypt(ciph, orig_len, mode, cypherkey,
                        moo.aes.keySize["SIZE_128"], iv)
-    print decr
+    print(decr)

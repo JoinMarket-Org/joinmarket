@@ -1,27 +1,32 @@
 #! /usr/bin/env python
-
+import logging
+import os
+import sys
+import threading
 from optparse import OptionParser
-import threading, pprint, sys, os
+
+import time
+
 data_dir = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(data_dir, 'joinmarket'))
 
-from common import *
+#from common import *
 import common
 import taker as takermodule
 from irc import IRCMessageChannel, random_nick
-import bitcoin as btc
 
 
 def check_high_fee(total_fee_pc):
+    # noinspection PyPep8Naming
     WARNING_THRESHOLD = 0.02  # 2%
     if total_fee_pc > WARNING_THRESHOLD:
-        print '\n'.join(['=' * 60] * 3)
-        print 'WARNING   ' * 6
-        print '\n'.join(['=' * 60] * 1)
-        print 'OFFERED COINJOIN FEE IS UNUSUALLY HIGH. DOUBLE/TRIPLE CHECK.'
-        print '\n'.join(['=' * 60] * 1)
-        print 'WARNING   ' * 6
-        print '\n'.join(['=' * 60] * 3)
+        print('\n'.join(['=' * 60] * 3))
+        print('WARNING   ' * 6)
+        print('\n'.join(['=' * 60] * 1))
+        print('OFFERED COINJOIN FEE IS UNUSUALLY HIGH. DOUBLE/TRIPLE CHECK.')
+        print('\n'.join(['=' * 60] * 1))
+        print('WARNING   ' * 6)
+        print('\n'.join(['=' * 60] * 3))
 
 
 #thread which does the buy-side algorithm
@@ -40,7 +45,7 @@ class PaymentThread(threading.Thread):
         counterparty_count = crow['COUNT(DISTINCT counterparty)']
         counterparty_count -= len(self.ignored_makers)
         if counterparty_count < self.taker.makercount:
-            print 'not enough counterparties to fill order, ending'
+            print('not enough counterparties to fill order, ending')
             self.taker.msgchan.shutdown()
             return
 
@@ -53,28 +58,29 @@ class PaymentThread(threading.Thread):
             utxos = self.taker.wallet.get_utxos_by_mixdepth()[
                 self.taker.mixdepth]
             total_value = sum([va['value'] for va in utxos.values()])
-            orders, cjamount = choose_sweep_orders(
+            orders, cjamount = common.choose_sweep_orders(
                 self.taker.db, total_value, self.taker.txfee,
                 self.taker.makercount, self.taker.chooseOrdersFunc,
                 self.ignored_makers)
             if not self.taker.answeryes:
                 total_cj_fee = total_value - cjamount - self.taker.txfee
-                debug('total cj fee = ' + str(total_cj_fee))
+                logging.debug('total cj fee = ' + str(total_cj_fee))
                 total_fee_pc = 1.0 * total_cj_fee / cjamount
-                debug('total coinjoin fee = ' + str(float('%.3g' % (
+                logging.debug('total coinjoin fee = ' + str(float('%.3g' % (
                     100.0 * total_fee_pc))) + '%')
                 check_high_fee(total_fee_pc)
-                if raw_input('send with these orders? (y/n):')[0] != 'y':
+                if input('send with these orders? (y/n):')[0] != 'y':
                     self.taker.msgchan.shutdown()
                     return
         else:
             orders, total_cj_fee = self.sendpayment_choose_orders(
                 self.taker.amount, self.taker.makercount)
             if not orders:
-                debug('ERROR not enough liquidity in the orderbook, exiting')
+                logging.debug(
+                    'ERROR not enough liquidity in the orderbook, exiting')
                 return
             total_amount = self.taker.amount + total_cj_fee + self.taker.txfee
-            print 'total amount spent = ' + str(total_amount)
+            print('total amount spent = ' + str(total_amount))
             utxos = self.taker.wallet.select_utxos(self.taker.mixdepth,
                                                    total_amount)
             cjamount = self.taker.amount
@@ -88,43 +94,48 @@ class PaymentThread(threading.Thread):
     def finishcallback(self, coinjointx):
         if coinjointx.all_responded:
             coinjointx.self_sign_and_push()
-            debug('created fully signed tx, ending')
+            logging.debug('created fully signed tx, ending')
             self.taker.msgchan.shutdown()
             return
         self.ignored_makers += coinjointx.nonrespondants
-        debug('recreating the tx, ignored_makers=' + str(self.ignored_makers))
+        logging.debug('recreating the tx, ignored_makers=' + str(
+            self.ignored_makers))
         self.create_tx()
 
     def sendpayment_choose_orders(self,
                                   cj_amount,
                                   makercount,
-                                  nonrespondants=[],
-                                  active_nicks=[]):
+                                  nonrespondants=None,
+                                  active_nicks=None):
+        if active_nicks is None:
+            active_nicks = []
+        if nonrespondants is None:
+            nonrespondants = []
         self.ignored_makers += nonrespondants
-        orders, total_cj_fee = choose_orders(
+        orders, total_cj_fee = common.choose_orders(
             self.taker.db, cj_amount, makercount, self.taker.chooseOrdersFunc,
             self.ignored_makers + active_nicks)
         if not orders:
             return None, 0
-        print 'chosen orders to fill ' + str(orders) + ' totalcjfee=' + str(
-            total_cj_fee)
+        print('chosen orders to fill ' + str(orders) + ' totalcjfee=' + str(
+            total_cj_fee))
         if not self.taker.answeryes:
             if len(self.ignored_makers) > 0:
                 noun = 'total'
             else:
                 noun = 'additional'
             total_fee_pc = 1.0 * total_cj_fee / cj_amount
-            debug(noun + ' coinjoin fee = ' + str(float('%.3g' % (
+            logging.debug(noun + ' coinjoin fee = ' + str(float('%.3g' % (
                 100.0 * total_fee_pc))) + '%')
             check_high_fee(total_fee_pc)
-            if raw_input('send with these orders? (y/n):')[0] != 'y':
-                debug('ending')
+            if input('send with these orders? (y/n):')[0] != 'y':
+                logging.debug('ending')
                 self.taker.msgchan.shutdown()
                 return None, -1
         return orders, total_cj_fee
 
     def run(self):
-        print 'waiting for all orders to certainly arrive'
+        print('waiting for all orders to certainly arrive')
         time.sleep(self.taker.waittime)
         self.create_tx()
 
@@ -224,42 +235,46 @@ def main():
     amount = int(args[1])
     destaddr = args[2]
 
-    load_program_config()
-    addr_valid, errormsg = validate_address(destaddr)
+    common.load_program_config()
+    addr_valid, errormsg = common.validate_address(destaddr)
     if not addr_valid:
-        print 'ERROR: Address invalid. ' + errormsg
+        print('ERROR: Address invalid. ' + errormsg)
         return
 
     chooseOrdersFunc = None
     if options.pickorders and amount != 0:  #cant use for sweeping
-        chooseOrdersFunc = pick_order
+        chooseOrdersFunc = common.pick_order
     elif options.choosecheapest:
-        chooseOrdersFunc = cheapest_order_choose
+        chooseOrdersFunc = common.cheapest_order_choose
     else:  #choose randomly (weighted)
-        chooseOrdersFunc = weighted_order_choose
+        chooseOrdersFunc = common.weighted_order_choose
 
     common.nickname = random_nick()
-    debug('starting sendpayment')
+    logging.debug('starting sendpayment')
 
     if not options.userpcwallet:
-        wallet = Wallet(wallet_name, options.mixdepth + 1)
+        wallet = common.Wallet(wallet_name, options.mixdepth + 1)
     else:
-        wallet = BitcoinCoreWallet(fromaccount=wallet_name)
+        wallet = common.BitcoinCoreWallet(fromaccount=wallet_name)
     common.bc_interface.sync_wallet(wallet)
 
     irc = IRCMessageChannel(common.nickname)
     taker = SendPayment(irc, wallet, destaddr, amount, options.makercount,
                         options.txfee, options.waittime, options.mixdepth,
                         options.answeryes, chooseOrdersFunc)
+
+    # todo: too broad exception
+    # noinspection PyBroadException
     try:
-        debug('starting irc')
+        logging.debug('starting irc')
         irc.run()
     except:
-        debug('CRASHING, DUMPING EVERYTHING')
-        debug_dump_object(wallet, ['addr_cache', 'keys', 'wallet_name', 'seed'])
-        debug_dump_object(taker)
+        logging.debug('CRASHING, DUMPING EVERYTHING')
+        common.debug_dump_object(wallet, ['addr_cache', 'keys', 'wallet_name',
+                                          'seed'])
+        common.debug_dump_object(taker)
         import traceback
-        debug(traceback.format_exc())
+        logging.debug(traceback.format_exc())
 
 
 if __name__ == "__main__":

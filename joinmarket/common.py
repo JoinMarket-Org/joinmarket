@@ -1,17 +1,27 @@
-import bitcoin as btc
-from decimal import Decimal, InvalidOperation
-from math import factorial, exp
-import sys, datetime, json, time, pprint, threading, getpass
+import datetime
+import getpass
+import io
+import json
+import os
+import pprint
 import random
-import blockchaininterface, jsonrpc, slowaes
-from ConfigParser import SafeConfigParser, NoSectionError, NoOptionError
-import os, io, itertools
+import sys
+import threading
+from configparser import ConfigParser, NoSectionError, NoOptionError
+from decimal import Decimal
+from functools import reduce
+from math import exp
+
+import bitcoin as btc
+import blockchaininterface
+import jsonrpc
+import slowaes
 
 JM_VERSION = 2
 nickname = None
 DUST_THRESHOLD = 2730
 bc_interface = None
-ordername_list = ["absorder", "relorder"]
+errordetect_ordername_list = ["absorder", "relorder"]
 maker_timeout_sec = 30
 
 debug_file_lock = threading.Lock()
@@ -20,7 +30,7 @@ core_alert = None
 joinmarket_alert = None
 debug_silence = False
 
-config = SafeConfigParser()
+config = ConfigParser()
 config_location = 'joinmarket.cfg'
 # FIXME: Add rpc_* options here in the future!
 required_options = {'BLOCKCHAIN': ['blockchain_source', 'network'],
@@ -29,9 +39,9 @@ required_options = {'BLOCKCHAIN': ['blockchain_source', 'network'],
 defaultconfig =\
 """
 [BLOCKCHAIN]
-blockchain_source = blockr 
+blockchain_source = blockr
 #options: blockr, bitcoin-rpc, json-rpc, regtest
-#for instructions on bitcoin-rpc read https://github.com/chris-belcher/joinmarket/wiki/Running-JoinMarket-with-Bitcoin-Core-full-node 
+#for instructions on bitcoin-rpc read https://github.com/chris-belcher/joinmarket/wiki/Running-JoinMarket-with-Bitcoin-Core-full-node
 network = mainnet
 rpc_host = localhost
 rpc_port = 8332
@@ -62,10 +72,16 @@ merge_algorithm = default
 """
 
 
+def get_ordername_list():
+    return errordetect_ordername_list
+
+
 def load_program_config():
     loadedFiles = config.read([config_location])
     #Create default config file if not found
     if len(loadedFiles) != 1:
+        # todo: apparently readfp is defunct... need to fix with parser
+        # noinspection PyDeprecation
         config.readfp(io.BytesIO(defaultconfig))
         with open(config_location, "w") as configfile:
             configfile.write(defaultconfig)
@@ -76,7 +92,7 @@ def load_program_config():
             raise Exception(
                 "Config file does not contain the required section: " + s)
     #then check for specific options
-    for k, v in required_options.iteritems():
+    for k, v in required_options.items():
         for o in v:
             if o not in config.options(k):
                 raise Exception(
@@ -109,16 +125,16 @@ def debug(msg):
         outmsg = datetime.datetime.now().strftime("[%Y/%m/%d %H:%M:%S] ") + msg
         if not debug_silence:
             if core_alert:
-                print 'Core Alert Message: ' + core_alert
+                print('Core Alert Message: ' + core_alert)
             if joinmarket_alert:
-                print 'JoinMarket Alert Message: ' + joinmarket_alert
-            print outmsg
+                print('JoinMarket Alert Message: ' + joinmarket_alert)
+            print(outmsg)
         if nickname:  #debugs before creating bot nick won't be handled like this
             debug_file_handle.write(outmsg + '\r\n')
 
 
             #Random functions - replacing some NumPy features
-            #NOTE THESE ARE NEITHER CRYPTOGRAPHICALLY SECURE 
+            #NOTE THESE ARE NEITHER CRYPTOGRAPHICALLY SECURE
             #NOR PERFORMANT NOR HIGH PRECISION!
             #Only for sampling purposes
 def rand_norm_array(mu, sigma, n):
@@ -136,31 +152,33 @@ def rand_pow_array(power, n):
     #for basis of formula, see: http://mathworld.wolfram.com/RandomNumber.html
     return [y**(1.0 / power)
             for y in [x * 0.0001 for x in random.sample(
-                xrange(10000), n)]]
+                range(10000), n)]]
 
 
 def rand_weighted_choice(n, p_arr):
-    '''Choose a value in 0..n-1
+    """Choose a value in 0..n-1
 	with the choice weighted by the probabilities
 	in the list p_arr. Note that there will be some
 	floating point rounding errors, but see the note
-	at the top of this section.'''
+	at the top of this section.
+    :param n:
+    :param p_arr: """
     if abs(sum(p_arr) - 1.0) > 1e-4:
         raise ValueError("Sum of probabilities must be 1")
     if len(p_arr) != n:
         raise ValueError("Need: " + str(n) + " probabilities.")
-    cum_pr = [sum(p_arr[:i + 1]) for i in xrange(len(p_arr))]
+    cum_pr = [sum(p_arr[:i + 1]) for i in range(len(p_arr))]
     r = random.random()
     return sorted(cum_pr + [r]).index(r)
 #End random functions
 
 
 def chunks(d, n):
-    return [d[x:x + n] for x in xrange(0, len(d), n)]
+    return [d[x:x + n] for x in range(0, len(d), n)]
 
 
 def get_network():
-    '''Returns network name'''
+    """Returns network name"""
     return config.get("BLOCKCHAIN", "network")
 
 
@@ -188,7 +206,9 @@ def validate_address(addr):
     return True, 'address validated'
 
 
-def debug_dump_object(obj, skip_fields=[]):
+def debug_dump_object(obj, skip_fields=None):
+    if skip_fields is None:
+        skip_fields = []
     debug('Class debug dump, name:' + obj.__class__.__name__)
     for k, v in obj.__dict__.iteritems():
         if k in skip_fields:
@@ -206,12 +226,14 @@ def debug_dump_object(obj, skip_fields=[]):
 
 
 def select_gradual(unspent, value):
-    '''
+    """
 	UTXO selection algorithm for gradual dust reduction
 	If possible, combines outputs, picking as few as possible of the largest
 	utxos less than the target value; if the target value is larger than the
 	sum of all smaller utxos, uses the smallest utxo larger than the value.
-	'''
+    :param unspent:
+    :param value:
+	"""
     value, key = int(value), lambda u: u["value"]
     high = sorted([u for u in unspent if key(u) >= value], key=key)
     low = sorted([u for u in unspent if key(u) < value], key=key)
@@ -233,10 +255,12 @@ def select_gradual(unspent, value):
 
 
 def select_greedy(unspent, value):
-    '''
+    """
 	UTXO selection algorithm for greedy dust reduction, but leaves out
 	extraneous utxos, preferring to keep multiple small ones.
-	'''
+    :param unspent:
+    :param value:
+	"""
     value, key, cursor = int(value), lambda u: u['value'], 0
     utxos, picked = sorted(unspent, key=key), []
     for utxo in utxos:  # find the smallest consecutive sum >= value
@@ -258,12 +282,14 @@ def select_greedy(unspent, value):
 
 
 def select_greediest(unspent, value):
-    '''
+    """
 	UTXO selection algorithm for speediest dust reduction
 	Combines the shortest run of utxos (sorted by size, from smallest) which
 	exceeds the target value; if the target value is larger than the sum of
 	all smaller utxos, uses the smallest utxo larger than the target value.
-	'''
+    :param unspent:
+    :param value:
+	"""
     value, key = int(value), lambda u: u["value"]
     high = sorted([u for u in unspent if key(u) >= value], key=key)
     low = sorted([u for u in unspent if key(u) < value], key=key)
@@ -282,10 +308,10 @@ def select_greediest(unspent, value):
 
 
 class AbstractWallet(object):
-    '''
+    """
 	Abstract wallet for use with JoinMarket
 	Mostly written with Wallet in mind, the default JoinMarket HD wallet
-	'''
+	"""
 
     def __init__(self):
         self.utxo_selector = btc.select  # default fallback: upstream
@@ -334,6 +360,7 @@ class AbstractWallet(object):
 
     def get_balance_by_mixdepth(self):
         mix_balance = {}
+        # todo: max_mix_depth might not exist
         for m in range(self.max_mix_depth):
             mix_balance[m] = 0
         for mixdepth, utxos in self.get_utxos_by_mixdepth().iteritems():
@@ -350,7 +377,7 @@ class Wallet(AbstractWallet):
                  gaplimit=6,
                  extend_mixdepth=False,
                  storepassword=False):
-        super(Wallet, self).__init__()
+        super().__init__()
         self.max_mix_depth = max_mix_depth
         self.storepassword = storepassword
         #key is address, value is (mixdepth, forchange, index)
@@ -359,6 +386,10 @@ class Wallet(AbstractWallet):
         self.unspent = {}
         self.spent_utxos = []
         self.imported_privkeys = {}
+        self.path = None
+        self.index_cache = None
+        self.password_key = None
+        self.walletdata = None
         self.seed = self.read_wallet_file_data(seedarg)
         if extend_mixdepth and len(self.index_cache) > max_mix_depth:
             self.max_mix_depth = len(self.index_cache)
@@ -392,12 +423,15 @@ class Wallet(AbstractWallet):
         fd.close()
         walletdata = json.loads(walletfile)
         if walletdata['network'] != get_network():
-            print 'wallet network(%s) does not match joinmarket configured network(%s)' % (
-                walletdata['network'], get_network())
+            print(
+                'wallet network(%s) does not match joinmarket configured network(%s)'
+                % (walletdata['network'], get_network()))
             sys.exit(0)
         if 'index_cache' in walletdata:
             self.index_cache = walletdata['index_cache']
         decrypted = False
+        # todo: logic error, password_key, decrypted seed might not be initialized
+        password_key, decrypted_seed = None, None
         while not decrypted:
             password = getpass.getpass('Enter wallet decryption passphrase: ')
             password_key = btc.bin_dbl_sha256(password)
@@ -412,7 +446,7 @@ class Wallet(AbstractWallet):
                 else:
                     raise ValueError
             except ValueError:
-                print 'Incorrect password'
+                print('Incorrect password')
                 decrypted = False
         if self.storepassword:
             self.password_key = password_key
@@ -512,13 +546,13 @@ class Wallet(AbstractWallet):
         return added_utxos
 
     def get_utxos_by_mixdepth(self):
-        '''
+        """
 		returns a list of utxos sorted by different mix levels
-		'''
+		"""
         mix_utxo_list = {}
         for m in range(self.max_mix_depth):
             mix_utxo_list[m] = {}
-        for utxo, addrvalue in self.unspent.iteritems():
+        for utxo, addrvalue in self.unspent.items():
             mixdepth = self.addr_cache[addrvalue['address']][0]
             if mixdepth not in mix_utxo_list:
                 mix_utxo_list[mixdepth] = {}
@@ -548,8 +582,8 @@ class BitcoinCoreWallet(AbstractWallet):
         for u in unspent_list:
             if not u['spendable']:
                 continue
-            if self.fromaccount and (
-                ('account' not in u) or u['account'] != self.fromaccount):
+            if self.fromaccount and (('account' not in u) or
+                                     u['account'] != self.fromaccount):
                 continue
             result[0][u['txid'] + ':' + str(u[
                 'vout'])] = {'address': u['address'],
@@ -560,7 +594,8 @@ class BitcoinCoreWallet(AbstractWallet):
     def get_change_addr(self, mixing_depth):
         return bc_interface.rpc('getrawchangeaddress', [])
 
-    def ensure_wallet_unlocked(self):
+    @staticmethod
+    def ensure_wallet_unlocked():
         wallet_info = bc_interface.rpc('getwalletinfo', [])
         if 'unlocked_until' in wallet_info and wallet_info[
                 'unlocked_until'] <= 0:
@@ -592,7 +627,7 @@ def calc_cj_fee(ordertype, cjfee, cj_amount):
 
 
 def weighted_order_choose(orders, n, feekey):
-    '''
+    """
 	Algorithm for choosing the weighting function
 	it is an exponential
 	P(f) = exp(-(f - fmin) / phi)
@@ -604,7 +639,10 @@ def weighted_order_choose(orders, n, feekey):
 	define number M, related to the number of counterparties in this coinjoin
 	phi has a value such that it contains up to the Mth order
 	unless M < orderbook size, then phi goes up to the last order
-	'''
+    :param orders:
+    :param n:
+    :param feekey:
+	"""
     minfee = feekey(orders[0])
     M = int(3 * n)
     if len(orders) > M:
@@ -623,9 +661,12 @@ def weighted_order_choose(orders, n, feekey):
 
 
 def cheapest_order_choose(orders, n, feekey):
-    '''
+    """
 	Return the cheapest order from the orders.
-	'''
+    :param orders:
+    :param n:
+    :param feekey:
+	"""
     return sorted(orders, key=feekey)[0]
 
 
@@ -641,23 +682,25 @@ def pick_order(orders, n, feekey):
         return orders[0]
     while pickedOrderIndex == -1:
         try:
-            pickedOrderIndex = int(raw_input('Pick an order between 0 and ' +
-                                             str(i) + ': '))
+            pickedOrderIndex = int(input('Pick an order between 0 and ' + str(i)
+                                         + ': '))
         except ValueError:
             pickedOrderIndex = -1
             continue
 
-        if pickedOrderIndex >= 0 and pickedOrderIndex < len(orders):
+        if 0 <= pickedOrderIndex < len(orders):
             return orders[pickedOrderIndex]
         pickedOrderIndex = -1
 
 
-def choose_orders(db, cj_amount, n, chooseOrdersBy, ignored_makers=[]):
+def choose_orders(db, cj_amount, n, chooseOrdersBy, ignored_makers=None):
+    if ignored_makers is None:
+        ignored_makers = []
     sqlorders = db.execute('SELECT * FROM orderbook;').fetchall()
-    orders = [(o['counterparty'], o['oid'], calc_cj_fee(
-        o['ordertype'], o['cjfee'], cj_amount), o['txfee'])
+    orders = [(o['counterparty'], o['oid'],
+               calc_cj_fee(o['ordertype'], o['cjfee'], cj_amount), o['txfee'])
               for o in sqlorders
-              if cj_amount >= o['minsize'] and cj_amount <= o['maxsize'] and o[
+              if o['minsize'] <= cj_amount <= o['maxsize'] and o[
                   'counterparty'] not in ignored_makers]
     feekey = lambda o: o[2] - o[3]  # function that returns the fee for a given order
     counterparties = set([o[0] for o in orders])
@@ -698,8 +741,8 @@ def choose_sweep_orders(db,
                         total_txfee,
                         n,
                         chooseOrdersBy,
-                        ignored_makers=[]):
-    '''
+                        ignored_makers=None):
+    """
 	choose an order given that we want to be left with no change
 	i.e. sweep an entire group of utxos
 
@@ -708,7 +751,16 @@ def choose_sweep_orders(db,
 	mychange = totalin - cjamount - total_txfee - sum(absfee) - sum(relfee*cjamount)
 	=> 0 = totalin - mytxfee - sum(absfee) - cjamount*(1 + sum(relfee))
 	=> cjamount = (totalin - mytxfee - sum(absfee)) / (1 + sum(relfee))
-	'''
+    :param db:
+    :param total_input_value:
+    :param total_txfee:
+    :param n:
+    :param chooseOrdersBy:
+    :param ignored_makers:
+	"""
+
+    if ignored_makers is None:
+        ignored_makers = []
 
     def calc_zero_change_cj_amount(ordercombo):
         sumabsfee = 0
@@ -747,6 +799,8 @@ def choose_sweep_orders(db,
     available_orders = sorted(available_orders,
                               key=feekey)  #sort from smallest to biggest cj fee
     chosen_orders = []
+    # todo: logic error.  cj_amount may be unset
+    cj_amount = None
     while len(chosen_orders) < n:
         if len(available_orders) < n - len(chosen_orders):
             debug('ERROR not enough liquidity in the orderbook')

@@ -1,9 +1,17 @@
-from bitcoin.main import *
-import hmac
+# from bitcoin.main import *
 import hashlib
-from binascii import hexlify
+import hmac
 
 # Electrum wallets
+import binascii
+
+from bitcoin import slowsha, privkey_to_pubkey, dbl_sha256, \
+    from_int_representation_to_bytes, add_privkeys, encode_pubkey, \
+    bin_dbl_sha256, add_pubkeys, privtopub, pubkey_to_address, subtract_privkeys, \
+    bin_hash160, compress, hash_to_int, from_int_to_byte, changebase, \
+    from_byte_to_int, from_string_to_bytes, safe_hexlify
+from .py3specials import pyspecials_encode as encode
+from .py3specials import pyspecials_decode as decode
 
 
 def electrum_stretch(seed):
@@ -87,6 +95,7 @@ def raw_bip32_ckd(rawtuple, i):
     if i >= 2**31:
         if vbytes in PUBLIC:
             raise Exception("Can't do private derivation on public key!")
+        # todo: priv might be unset
         I = hmac.new(chaincode, b'\x00' + priv[:32] + encode(i, 256, 4),
                      hashlib.sha512).digest()
     else:
@@ -100,7 +109,8 @@ def raw_bip32_ckd(rawtuple, i):
         newkey = add_pubkeys(compress(privtopub(I[:32])), key)
         fingerprint = bin_hash160(key)[:4]
 
-    return (vbytes, depth + 1, fingerprint, i, I[32:], newkey)
+    # todo: newkey might be unset
+    return vbytes, depth + 1, fingerprint, i, I[32:], newkey
 
 
 def bip32_serialize(rawtuple):
@@ -123,13 +133,13 @@ def bip32_deserialize(data):
     i = decode(dbin[9:13], 256)
     chaincode = dbin[13:45]
     key = dbin[46:78] + b'\x01' if vbytes in PRIVATE else dbin[45:78]
-    return (vbytes, depth, fingerprint, i, chaincode, key)
+    return vbytes, depth, fingerprint, i, chaincode, key
 
 
 def raw_bip32_privtopub(rawtuple):
     vbytes, depth, fingerprint, i, chaincode, key = rawtuple
     newvbytes = MAINNET_PUBLIC if vbytes == MAINNET_PRIVATE else TESTNET_PUBLIC
-    return (newvbytes, depth, fingerprint, i, chaincode, privtopub(key))
+    return newvbytes, depth, fingerprint, i, chaincode, privtopub(key)
 
 
 def bip32_privtopub(data):
@@ -172,7 +182,7 @@ def raw_crack_bip32_privkey(parent_pub, priv):
     pprivkey = subtract_privkeys(key, I[:32] + b'\x01')
 
     newvbytes = MAINNET_PRIVATE if vbytes == MAINNET_PUBLIC else TESTNET_PRIVATE
-    return (newvbytes, pdepth, pfingerprint, pi, pchaincode, pprivkey)
+    return newvbytes, pdepth, pfingerprint, pi, pchaincode, pprivkey
 
 
 def crack_bip32_privkey(parent_pub, priv):

@@ -1,15 +1,19 @@
-from optparse import OptionParser
+import os
+import sys
+import threading
 from datetime import timedelta
-import threading, time, binascii, os, sys
+from optparse import OptionParser
+import time
+from logging import debug
+
 data_dir = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(data_dir, 'joinmarket'))
 
-from common import *
+# from common import *
 import common
 import taker
 import maker
 from irc import IRCMessageChannel, random_nick
-import bitcoin as btc
 
 
 class TakerThread(threading.Thread):
@@ -32,16 +36,16 @@ class TakerThread(threading.Thread):
         time.sleep(self.tmaker.waittime)
         if self.finished:
             return
-        print 'giving up waiting'
+        print('giving up waiting')
         #cancel the remaining order
         self.tmaker.modify_orders([0], [])
-        orders, total_cj_fee = choose_orders(self.tmaker.db, self.tmaker.amount,
-                                             self.tmaker.makercount,
-                                             weighted_order_choose)
-        print 'chosen orders to fill ' + str(orders) + ' totalcjfee=' + str(
-            total_cj_fee)
+        orders, total_cj_fee = common.choose_orders(
+            self.tmaker.db, self.tmaker.amount, self.tmaker.makercount,
+            common.weighted_order_choose)
+        print('chosen orders to fill ' + str(orders) + ' totalcjfee=' + str(
+            total_cj_fee))
         total_amount = self.tmaker.amount + total_cj_fee + self.tmaker.txfee
-        print 'total amount spent = ' + str(total_amount)
+        print('total amount spent = ' + str(total_amount))
 
         utxos = self.tmaker.wallet.select_utxos(self.tmaker.mixdepth,
                                                 total_amount)
@@ -56,6 +60,7 @@ class PatientSendPayment(maker.Maker, taker.Taker):
 
     def __init__(self, msgchan, wallet, destaddr, amount, makercount, txfee,
                  cjfee, waittime, mixdepth):
+        self.takerthread = None
         self.destaddr = destaddr
         self.amount = amount
         self.makercount = makercount
@@ -101,9 +106,9 @@ class PatientSendPayment(maker.Maker, taker.Taker):
         self.amount -= cjorder.cj_amount
         if self.amount == 0:
             self.takerthread.finished = True
-            print 'finished sending, exiting..'
+            print('finished sending, exiting..')
             self.msgchan.shutdown()
-            return ([], [])
+            return [], []
         available_balance = self.wallet.get_balance_by_mixdepth()[self.mixdepth]
         if available_balance >= self.amount:
             order = {'oid': 0,
@@ -112,12 +117,12 @@ class PatientSendPayment(maker.Maker, taker.Taker):
                      'maxsize': self.amount,
                      'txfee': self.txfee,
                      'cjfee': self.cjfee}
-            return ([], [order])
+            return [], [order]
         else:
             debug('not enough money left, have to wait until tx confirms')
-            return ([0], [])
+            return [0], []
 
-    def on_tx_confirmed(self, cjorder, confirmations, txid, balance):
+    def on_tx_confirmed(self, cjorder, confirmations, txid):
         if len(self.orderlist) == 0:
             order = {'oid': 0,
                      'ordertype': 'absorder',
@@ -125,9 +130,9 @@ class PatientSendPayment(maker.Maker, taker.Taker):
                      'maxsize': self.amount,
                      'txfee': self.txfee,
                      'cjfee': self.cjfee}
-            return ([], [order])
+            return [], [order]
         else:
-            return ([], [])
+            return [], []
 
 
 def main():
@@ -195,28 +200,29 @@ def main():
     amount = int(args[1])
     destaddr = args[2]
 
-    load_program_config()
-    addr_valid, errormsg = validate_address(destaddr)
+    common.load_program_config()
+    addr_valid, errormsg = common.validate_address(destaddr)
     if not addr_valid:
-        print 'ERROR: Address invalid. ' + errormsg
+        print('ERROR: Address invalid. ' + errormsg)
         return
 
     waittime = timedelta(hours=options.waittime).total_seconds()
-    print 'txfee=%d cjfee=%d waittime=%s makercount=%d' % (
-        options.txfee, options.cjfee, str(timedelta(hours=options.waittime)),
-        options.makercount)
+    print('txfee=%d cjfee=%d waittime=%s makercount=%d' %
+          (options.txfee, options.cjfee, str(timedelta(hours=options.waittime)),
+           options.makercount))
 
     if not options.userpcwallet:
-        wallet = Wallet(wallet_name, options.mixdepth + 1)
+        wallet = common.Wallet(wallet_name, options.mixdepth + 1)
     else:
-        print 'not implemented yet'
+        print('not implemented yet')
         sys.exit(0)
-        wallet = BitcoinCoreWallet(fromaccount=wallet_name)
+
+    wallet = common.BitcoinCoreWallet(fromaccount=wallet_name)
     common.bc_interface.sync_wallet(wallet)
 
     available_balance = wallet.get_balance_by_mixdepth()[options.mixdepth]
     if available_balance < amount:
-        print 'not enough money at mixdepth=%d, exiting' % (options.mixdepth)
+        print('not enough money at mixdepth=%d, exiting' % options.mixdepth)
         return
 
     common.nickname = random_nick()
@@ -226,12 +232,13 @@ def main():
     bot = PatientSendPayment(irc, wallet, destaddr, amount, options.makercount,
                              options.txfee, options.cjfee, waittime,
                              options.mixdepth)
+    # noinspection PyBroadException
     try:
         irc.run()
     except:
         debug('CRASHING, DUMPING EVERYTHING')
-        debug_dump_object(wallet, ['addr_cache', 'keys', 'seed'])
-        debug_dump_object(taker)
+        common.debug_dump_object(wallet, ['addr_cache', 'keys', 'seed'])
+        common.debug_dump_object(taker)
         import traceback
         traceback.print_exc()
 

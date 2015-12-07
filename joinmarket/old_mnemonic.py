@@ -267,8 +267,9 @@ def mn_decode(wlist):
 if __name__ == '__main__':
     import sys
     if len(sys.argv) == 1:
-        print 'I need arguments: a hex string to encode, or a list of words to decode'
+        print(
+            'I need arguments: a hex string to encode, or a list of words to decode')
     elif len(sys.argv) == 2:
-        print ' '.join(mn_encode(sys.argv[1]))
+        print(' '.join(mn_encode(sys.argv[1])))
     else:
-        print mn_decode(sys.argv[1:])
+        print(mn_decode(sys.argv[1:]))

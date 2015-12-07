@@ -1,11 +1,11 @@
-class CJPeerError(StandardError):
+class CJPeerError(Exception):
     pass
 
 
 class MessageChannel(object):
-    '''
+    """
 	Abstract class which implements a way for bots to communicate
-	'''
+	"""
 
     def __init__(self):
         #all

@@ -1,16 +1,21 @@
 #!/usr/bin/python
-from .py2specials import *
-from .py3specials import *
+# from .py3specials import *
+import base64
 import binascii
 import hashlib
-import re
-import sys
-import os
-import base64
-import time
-import random
 import hmac
-from bitcoin.ripemd import *
+import os
+import random
+import re
+import time
+
+from bitcoin.ripemd import RIPEMD160
+from .py3specials import pyspecials_decode as decode, from_int_to_byte, \
+    from_byte_to_int, safe_from_hex, int_types, bin_to_b58check, safe_hexlify, \
+    bytes_to_hex_string, from_string_to_bytes, random_string, changebase
+from .py3specials import pyspecials_encode as encode
+
+# from bitcoin.ripemd import *
 
 # Elliptic curve parameters (secp256k1)
 
@@ -90,23 +95,23 @@ def jordan_isinf(p):
 
 
 def mulcoords(c1, c2):
-    return (c1[0] * c2[0] % P, c1[1] * c2[1] % P)
+    return c1[0] * c2[0] % P, c1[1] * c2[1] % P
 
 
 def mul_by_const(c, v):
-    return (c[0] * v % P, c[1])
+    return c[0] * v % P, c[1]
 
 
 def addcoords(c1, c2):
-    return ((c1[0] * c2[1] + c2[0] * c1[1]) % P, c1[1] * c2[1] % P)
+    return (c1[0] * c2[1] + c2[0] * c1[1]) % P, c1[1] * c2[1] % P
 
 
 def subcoords(c1, c2):
-    return ((c1[0] * c2[1] - c2[0] * c1[1]) % P, c1[1] * c2[1] % P)
+    return (c1[0] * c2[1] - c2[0] * c1[1]) % P, c1[1] * c2[1] % P
 
 
 def invcoords(c):
-    return (c[1], c[0])
+    return c[1], c[0]
 
 
 def jordan_add(a, b):
@@ -119,29 +124,29 @@ def jordan_add(a, b):
         if (a[1][0] * b[1][1] - b[1][0] * a[1][1]) % P == 0:
             return jordan_double(a)
         else:
-            return ((0, 1), (0, 1))
+            return (0, 1), (0, 1)
     xdiff = subcoords(b[0], a[0])
     ydiff = subcoords(b[1], a[1])
     m = mulcoords(ydiff, invcoords(xdiff))
     x = subcoords(subcoords(mulcoords(m, m), a[0]), b[0])
     y = subcoords(mulcoords(m, subcoords(a[0], x)), a[1])
-    return (x, y)
+    return x, y
 
 
 def jordan_double(a):
     if jordan_isinf(a):
-        return ((0, 1), (0, 1))
+        return (0, 1), (0, 1)
     num = addcoords(mul_by_const(mulcoords(a[0], a[0]), 3), (A, 1))
     den = mul_by_const(a[1], 2)
     m = mulcoords(num, invcoords(den))
     x = subcoords(mulcoords(m, m), mul_by_const(a[0], 2))
     y = subcoords(mulcoords(m, subcoords(a[0], x)), a[1])
-    return (x, y)
+    return x, y
 
 
 def jordan_multiply(a, n):
     if jordan_isinf(a) or n == 0:
-        return ((0, 0), (0, 0))
+        return (0, 0), (0, 0)
     if n == 1:
         return a
     if n < 0 or n >= N:
@@ -153,12 +158,11 @@ def jordan_multiply(a, n):
 
 
 def to_jordan(p):
-    return ((p[0], 1), (p[1], 1))
+    return (p[0], 1), (p[1], 1)
 
 
 def from_jordan(p):
-    return (p[0][0] * inv(p[0][1], P) % P, p[1][0] * inv(p[1][1], P) % P)
-    return (p[0][0] * inv(p[0][1], P) % P, p[1][0] * inv(p[1][1], P) % P)
+    return p[0][0] * inv(p[0][1], P) % P, p[1][0] * inv(p[1][1], P) % P
 
 
 def fast_multiply(a, n):
@@ -172,14 +176,9 @@ def fast_add(a, b):
 
 
 def get_pubkey_format(pub):
-    if is_python2:
-        two = '\x02'
-        three = '\x03'
-        four = '\x04'
-    else:
-        two = 2
-        three = 3
-        four = 4
+    two = 2
+    three = 3
+    four = 4
 
     if isinstance(pub, (tuple, list)): return 'decimal'
     elif len(pub) == 65 and pub[0] == four: return 'bin'
@@ -215,20 +214,20 @@ def decode_pubkey(pub, formt=None):
     if not formt: formt = get_pubkey_format(pub)
     if formt == 'decimal': return pub
     elif formt == 'bin':
-        return (decode(pub[1:33], 256), decode(pub[33:65], 256))
+        return decode(pub[1:33], 256), decode(pub[33:65], 256)
     elif formt == 'bin_compressed':
         x = decode(pub[1:33], 256)
         beta = pow(int(x * x * x + A * x + B), int((P + 1) // 4), int(P))
         y = (P - beta) if ((beta + from_byte_to_int(pub[0])) % 2) else beta
-        return (x, y)
+        return x, y
     elif formt == 'hex':
-        return (decode(pub[2:66], 16), decode(pub[66:130], 16))
+        return decode(pub[2:66], 16), decode(pub[66:130], 16)
     elif formt == 'hex_compressed':
         return decode_pubkey(safe_from_hex(pub), 'bin_compressed')
     elif formt == 'bin_electrum':
-        return (decode(pub[:32], 256), decode(pub[32:64], 256))
+        return decode(pub[:32], 256), decode(pub[32:64], 256)
     elif formt == 'hex_electrum':
-        return (decode(pub[:64], 16), decode(pub[64:128], 16))
+        return decode(pub[:64], 16), decode(pub[64:128], 16)
     else:
         raise Exception("Invalid format!")
 
@@ -508,7 +507,7 @@ def encode_sig(v, r, s):
 
     result = base64.b64encode(vb + b'\x00' * (32 - len(rb)) + rb + b'\x00' * (
         32 - len(sb)) + sb)
-    return result if is_python2 else str(result, 'utf-8')
+    return str(result, 'utf-8')
 
 
 def decode_sig(sig):

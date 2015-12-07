@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-'''
+"""
 Utilities to make secret box encryption simple
-'''
+"""
 # Import libnacl
 import libnacl
 import libnacl.utils
@@ -9,9 +9,9 @@ import libnacl.base
 
 
 class SecretBox(libnacl.base.BaseKey):
-    '''
+    """
     Manage symetric encryption using the salsa20 algorithm
-    '''
+    """
 
     def __init__(self, key=None):
         if key is None:
@@ -21,10 +21,12 @@ class SecretBox(libnacl.base.BaseKey):
         self.sk = key
 
     def encrypt(self, msg, nonce=None):
-        '''
+        """
         Encrypt the given message. If a nonce is not given it will be
         generated via the rand_nonce function
-        '''
+        :param msg:
+        :param nonce:
+        """
         if nonce is None:
             nonce = libnacl.utils.rand_nonce()
         if len(nonce) != libnacl.crypto_secretbox_NONCEBYTES:
@@ -33,10 +35,12 @@ class SecretBox(libnacl.base.BaseKey):
         return nonce + ctxt
 
     def decrypt(self, ctxt, nonce=None):
-        '''
+        """
         Decrypt the given message, if no nonce is given the nonce will be
         extracted from the message
-        '''
+        :param ctxt:
+        :param nonce:
+        """
         if nonce is None:
             nonce = ctxt[:libnacl.crypto_secretbox_NONCEBYTES]
             ctxt = ctxt[libnacl.crypto_secretbox_NONCEBYTES:]

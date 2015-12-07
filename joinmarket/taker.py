@@ -1,11 +1,16 @@
 #! /usr/bin/env python
+from _decimal import InvalidOperation
+from logging import debug
+# from common import *
+import sys
 
-from common import *
+from decimal import Decimal
+
 import common
 import enc_wrapper
 import bitcoin as btc
 
-import sqlite3, base64, threading, time, random, pprint
+import sqlite3, base64, threading, random, pprint
 
 
 class CoinJoinTX(object):
@@ -23,11 +28,11 @@ class CoinJoinTX(object):
                  finishcallback,
                  choose_orders_recover,
                  auth_addr=None):
-        '''
+        """
 		if my_change is None then there wont be a change address
 		thats used if you want to entirely coinjoin one utxo with no change left over
 		orders is the orders you want to fill {'counterpartynick': oid, 'cp2': oid2}
-		'''
+		"""
         debug('starting cj to ' + str(my_cj_addr) + ' with change at ' + str(
             my_change_addr))
         #parameters
@@ -68,8 +73,8 @@ class CoinJoinTX(object):
         if nick not in self.active_orders.keys():
             debug("Counterparty not part of this transaction. Ignoring")
             return
-        self.crypto_boxes[nick] = [maker_pk, enc_wrapper.as_init_encryption(\
-                                self.kp, enc_wrapper.init_pubkey(maker_pk))]
+        self.crypto_boxes[nick] = [maker_pk, enc_wrapper.as_init_encryption(
+            self.kp, enc_wrapper.init_pubkey(maker_pk))]
         #send authorisation request
         if self.auth_addr:
             my_btc_addr = self.auth_addr
@@ -81,9 +86,12 @@ class CoinJoinTX(object):
         self.msgchan.send_auth(nick, my_btc_pub, my_btc_sig)
 
     def auth_counterparty(self, nick, btc_sig, cj_pub):
-        '''Validate the counterpartys claim to own the btc
-		address/pubkey that will be used for coinjoining 
-		with an ecdsa verification.'''
+        """Validate the counterpartys claim to own the btc
+		address/pubkey that will be used for coinjoining
+		with an ecdsa verification.
+        :param nick:
+        :param btc_sig:
+        :param cj_pub: """
         #crypto_boxes[nick][0] = maker_pubkey
         if not btc.ecdsa_verify(self.crypto_boxes[nick][0], btc_sig, cj_pub):
             debug('signature didnt match pubkey and message')
@@ -107,15 +115,15 @@ class CoinJoinTX(object):
             #when internal reviewing of makers is created, add it here to immediately quit
             return  #ignore this message, eventually the timeout thread will recover
         total_input = sum([d['value'] for d in utxo_data])
-        real_cjfee = calc_cj_fee(order['ordertype'], order['cjfee'],
-                                 self.cj_amount)
+        real_cjfee = common.calc_cj_fee(order['ordertype'], order['cjfee'],
+                                        self.cj_amount)
         self.outputs.append({'address': change_addr,
                              'value': total_input - self.cj_amount - order[
                                  'txfee'] + real_cjfee})
         debug(
             'fee breakdown for %s totalin=%d cjamount=%d txfee=%d realcjfee=%d'
             % (nick, total_input, self.cj_amount, order['txfee'], real_cjfee))
-        cj_addr = btc.pubtoaddr(cj_pub, get_p2pk_vbyte())
+        cj_addr = btc.pubtoaddr(cj_pub, common.get_p2pk_vbyte())
         self.outputs.append({'address': cj_addr, 'value': self.cj_amount})
         self.cjfee_total += real_cjfee
         self.maker_txfee_contributions += order['txfee']
@@ -138,7 +146,7 @@ class CoinJoinTX(object):
             'fee breakdown for me totalin=%d my_txfee=%d makers_txfee=%d cjfee_total=%d => changevalue=%d'
             % (my_total_in, my_txfee, self.maker_txfee_contributions,
                self.cjfee_total, my_change_value))
-        if self.my_change_addr == None:
+        if self.my_change_addr is None:
             if my_change_value != 0 and abs(my_change_value) != 1:
                 #seems you wont always get exactly zero because of integer rounding
                 # so 1 satoshi extra or fewer being spent as miner fees is acceptable
@@ -188,8 +196,8 @@ class CoinJoinTX(object):
         utxo_data = common.bc_interface.query_utxo_set([x[1]
                                                         for x in utxo.values()])
         #insert signatures
-        for i, u in utxo.iteritems():
-            if utxo_data[i] == None:
+        for i, u in utxo.items():
+            if utxo_data[i] is None:
                 continue
             sig_good = btc.verify_tx_input(txhex, u[0], utxo_data[i]['script'],
                                            *btc.deserialize_script(sig))
@@ -225,7 +233,7 @@ class CoinJoinTX(object):
             #remove placeholders
             if ins['script'] == 'deadbeef':
                 ins['script'] = ''
-        if self.finishcallback != None:
+        if self.finishcallback is not None:
             self.finishcallback(self)
 
     def coinjoin_address(self):
@@ -259,7 +267,7 @@ class CoinJoinTX(object):
         #TODO need to check whether the other party sent it
         #self.msgchan.push_tx(self.active_orders.keys()[0], txhex)
         self.txid = common.bc_interface.pushtx(tx)
-        if self.txid == None:
+        if self.txid is None:
             debug('unable to pushtx')
 
     def self_sign_and_push(self):
@@ -273,11 +281,11 @@ class CoinJoinTX(object):
         # where simply replacing the makers wont work
         if not self.choose_orders_recover:
             self.end_timeout_thread = True
-            if self.finishcallback != None:
+            if self.finishcallback is not None:
                 self.finishcallback(self)
             return
 
-        if self.latest_tx == None:
+        if self.latest_tx is None:
             #nonresponding to !fill, recover by finding another maker
             debug('nonresponse to !fill')
             for nr in self.nonrespondants:
@@ -297,7 +305,7 @@ class CoinJoinTX(object):
             debug('nonresponse to !sig')
             #nonresponding to !sig, have to restart tx from the beginning
             self.end_timeout_thread = True
-            if self.finishcallback != None:
+            if self.finishcallback is not None:
                 self.finishcallback(self)
             #finishcallback will check if self.all_responded is True and will know it came from here
 
@@ -349,13 +357,14 @@ class CoinJoinerPeer(object):
                 min_version = int(params[0])
                 max_version = int(params[1])
                 alert = msg[msg.index(params[1]) + len(params[1]):].strip()
-            except ValueError, IndexError:
+            except (ValueError, IndexError):
                 continue
-            if min_version < common.JM_VERSION and max_version > common.JM_VERSION:
-                print '=' * 60
-                print 'JOINMARKET ALERT'
-                print alert
-                print '=' * 60
+
+            if min_version < common.JM_VERSION < max_version:
+                print('=' * 60)
+                print('JOINMARKET ALERT')
+                print(alert)
+                print('=' * 60)
                 common.joinmarket_alert = alert
 
 
@@ -379,7 +388,7 @@ class OrderbookWatch(CoinJoinerPeer):
     def on_order_seen(self, counterparty, oid, ordertype, minsize, maxsize,
                       txfee, cjfee):
         try:
-            if int(oid) < 0 or int(oid) > sys.maxint:
+            if int(oid) < 0 or int(oid) > sys.maxsize:
                 debug("Got invalid order ID: " + oid + " from " + counterparty)
                 return
             # delete orders eagerly, so in case a buggy maker sends an invalid offer,
@@ -491,8 +500,8 @@ def donation_address(cjtx):
     donation_utxo = donation_utxo_data[0]
     privkey = cjtx.wallet.get_key_from_addr(donation_utxo_data[1]['address'])
 
-    tx = btc.mktx(cjtx.utxo_tx, cjtx.outputs
-                 )  #tx without our inputs and outputs
+    tx = btc.mktx(cjtx.utxo_tx,
+                  cjtx.outputs)  #tx without our inputs and outputs
     #address = privtoaddr(privkey)
     #signing_tx = signature_form(tx, 0, mk_pubkey_script(address), SIGHASH_ALL)
     msghash = btc.bin_txhash(tx, btc.SIGHASH_ALL)
@@ -500,9 +509,9 @@ def donation_address(cjtx):
     global sign_k
     sign_k = btc.deterministic_generate_k(msghash, privkey)
     c = btc.sha256(btc.multiply(reusable_donation_pubkey, sign_k))
-    sender_pubkey = btc.add_pubkeys(reusable_donation_pubkey, btc.multiply(
-        btc.G, c))
-    sender_address = btc.pubtoaddr(sender_pubkey, get_p2pk_vbyte())
+    sender_pubkey = btc.add_pubkeys(reusable_donation_pubkey,
+                                    btc.multiply(btc.G, c))
+    sender_address = btc.pubtoaddr(sender_pubkey, common.get_p2pk_vbyte())
     debug('sending coins to ' + sender_address)
     return sender_address
 
@@ -525,7 +534,7 @@ def sign_donation_tx(tx, i, priv):
     s = btc.inv(k, btc.N) * (z + r * btc.decode_privkey(priv)) % btc.N
     rawsig = 27 + (y % 2), r, s
 
-    sig = btc.der_encode_sig(*rawsig) + btc.encode(hashcode, 16, 2)
+    sig = btc.der_encode_sig(*rawsig) + btc.pyspecials_encode(hashcode, 16, 2)
     #sig = ecdsa_tx_sign(signing_tx, priv, hashcode)
     txobj = btc.deserialize(tx)
     txobj["ins"][i]["script"] = btc.serialize_script([sig, pub])

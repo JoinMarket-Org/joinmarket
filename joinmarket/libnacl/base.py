@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-'''
+"""
 Implement the base key object for other keys to inherit convenience functions
-'''
+"""
 # Import libnacl libs
 import libnacl.encode
 
@@ -11,9 +11,9 @@ import stat
 
 
 class BaseKey(object):
-    '''
+    """
     Include methods for key management convenience
-    '''
+    """
 
     def hex_sk(self):
         if hasattr(self, 'sk'):
@@ -34,9 +34,11 @@ class BaseKey(object):
             return libnacl.encode.hex_encode(self.seed)
 
     def save(self, path, serial='json'):
-        '''
+        """
         Safely save keys with perms of 0400
-        '''
+        :param path:
+        :param serial:
+        """
         pre = {}
         sk = self.hex_sk()
         pk = self.hex_pk()
@@ -50,9 +52,11 @@ class BaseKey(object):
             pre['verify'] = vk.decode('utf-8')
         if seed:
             pre['sign'] = seed.decode('utf-8')
-        if serial == 'msgpack':
-            import msgpack
-            packaged = msgpack.dumps(pre)
+
+        # todo: executive decision - do we need msgpack embedded here?
+        # if serial == 'msgpack':
+        #     import msgpack
+        #     packaged = msgpack.dumps(pre)
         elif serial == 'json':
             import json
             packaged = json.dumps(pre)
@@ -61,6 +65,7 @@ class BaseKey(object):
         perm_group = stat.S_IXGRP | stat.S_IWGRP | stat.S_IRWXG
 
         cumask = os.umask(perm_other | perm_group)
+        # todo: packaged may be unbound
         with open(path, 'w+') as fp_:
             fp_.write(packaged)
         os.umask(cumask)

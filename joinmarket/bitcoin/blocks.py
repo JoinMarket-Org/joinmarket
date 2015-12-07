@@ -43,6 +43,7 @@ def mk_merkle_proof(header, hashes, index):
     assert nodes[0][::-1].encode('hex') == header['merkle_root']
     merkle_siblings = \
         [layers[i][(index >> i) ^ 1] for i in range(len(layers)-1)]
+    # todo: BUG - encode called on list
     return {
         "hash": hashes[index],
         "siblings": [x[::-1].encode('hex') for x in merkle_siblings],

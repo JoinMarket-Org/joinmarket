@@ -1,13 +1,24 @@
 #!/usr/bin/python
-import binascii, re, json, copy, sys
-from bitcoin.main import *
+import binascii
+import copy
+import re
+# from bitcoin.main import *
+from .py3specials import pyspecials_encode as encode
+from .py3specials import pyspecials_decode as decode
+
 from _functools import reduce
 
 ### Hex to bin converter and vice versa for objects
+from bitcoin import get_code_string, string_types, int_types, \
+    string_or_bytes_types, safe_hexlify, from_byte_to_int, num_to_var_int, N, \
+    changebase, dbl_sha256, from_string_to_bytes, bin_dbl_sha256, ecdsa_raw_sign, \
+    ecdsa_raw_verify, ecdsa_raw_recover, encode_pubkey, b58check_to_hex, \
+    bin_to_b58check, hex_to_b58check, hash160, from_int_to_byte, \
+    privkey_to_pubkey, pubkey_to_address
 
 
 def json_is_base(obj, base):
-    if not is_python2 and isinstance(obj, bytes):
+    if isinstance(obj, bytes):
         return False
 
     alpha = get_code_string(base)
@@ -109,7 +120,7 @@ def serialize(txobj):
         o.append(inp["outpoint"]["hash"][::-1])
         o.append(encode(inp["outpoint"]["index"], 256, 4)[::-1])
         o.append(num_to_var_int(len(inp["script"])) + (inp["script"] if inp[
-            "script"] or is_python2 else bytes()))
+            "script"] else bytes()))
         o.append(encode(inp["sequence"], 256, 4)[::-1])
     o.append(num_to_var_int(len(txobj["outs"])))
     for out in txobj["outs"]:
@@ -117,7 +128,7 @@ def serialize(txobj):
         o.append(num_to_var_int(len(out["script"])) + out["script"])
     o.append(encode(txobj["locktime"], 256, 4)[::-1])
 
-    return ''.join(o) if is_python2 else reduce(lambda x, y: x + y, o, bytes())
+    return reduce(lambda x, y: x + y, o, bytes())
 
 # Hashing transactions for signing
 
@@ -154,7 +165,11 @@ def signature_form(tx, i, script, hashcode=SIGHASH_ALL):
 
 
 def der_encode_sig(v, r, s):
-    """Takes (vbyte, r, s) as ints and returns hex der encode sig"""
+    """Takes (vbyte, r, s) as ints and returns hex der encode sig
+    :param v:
+    :param r:
+    :param s:
+    """
     #See https://github.com/vbuterin/pybitcointools/issues/89
     #See https://github.com/simcity4242/pybitcointools/
     s = N - s if s > N // 2 else s  # BIP62 low s
@@ -175,7 +190,7 @@ def der_decode_sig(sig):
     left = sig[8:8 + leftlen]
     rightlen = decode(sig[10 + leftlen:12 + leftlen], 16) * 2
     right = sig[12 + leftlen:12 + leftlen + rightlen]
-    return (None, decode(left, 16), decode(right, 16))
+    return None, decode(left, 16), decode(right, 16)
 
 
 def txhash(tx, hashcode=None):
@@ -206,7 +221,7 @@ def ecdsa_tx_recover(tx, sig, hashcode=SIGHASH_ALL):
     _, r, s = der_decode_sig(sig)
     left = ecdsa_raw_recover(z, (0, r, s))
     right = ecdsa_raw_recover(z, (1, r, s))
-    return (encode_pubkey(left, 'hex'), encode_pubkey(right, 'hex'))
+    return encode_pubkey(left, 'hex'), encode_pubkey(right, 'hex')
 
 # Scripts
 
@@ -303,24 +318,15 @@ def serialize_script_unit(unit):
             return from_int_to_byte(78) + encode(len(unit), 256, 4)[::-1] + unit
 
 
-if is_python2:
+def serialize_script(script):
+    if json_is_base(script, 16):
+        return safe_hexlify(serialize_script(json_changebase(
+            script, lambda x: binascii.unhexlify(x))))
 
-    def serialize_script(script):
-        if json_is_base(script, 16):
-            return binascii.hexlify(serialize_script(json_changebase(
-                script, lambda x: binascii.unhexlify(x))))
-        return ''.join(map(serialize_script_unit, script))
-else:
-
-    def serialize_script(script):
-        if json_is_base(script, 16):
-            return safe_hexlify(serialize_script(json_changebase(
-                script, lambda x: binascii.unhexlify(x))))
-
-        result = bytes()
-        for b in map(serialize_script_unit, script):
-            result += b if isinstance(b, bytes) else bytes(b, 'utf-8')
-        return result
+    result = bytes()
+    for b in map(serialize_script_unit, script):
+        result += b if isinstance(b, bytes) else bytes(b, 'utf-8')
+    return result
 
 
 def mk_multisig_script(*args):  # [pubs],k or pub1,pub2...pub[n],k
@@ -348,8 +354,7 @@ def verify_tx_input(tx, i, script, sig, pub):
 
 def sign(tx, i, priv, hashcode=SIGHASH_ALL):
     i = int(i)
-    if (not is_python2 and isinstance(re, bytes)) or not re.match(
-            '^[0-9a-fA-F]*$', tx):
+    if (isinstance(re, bytes)) or not re.match('^[0-9a-fA-F]*$', tx):
         return binascii.unhexlify(sign(safe_hexlify(tx), i, priv))
     if len(priv) <= 33:
         priv = safe_hexlify(priv)
