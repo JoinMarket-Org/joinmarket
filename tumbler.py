@@ -13,8 +13,8 @@ from pprint import pprint
 
 from joinmarket import rand_norm_array, rand_pow_array, rand_exp_array, get_log, \
     bc_interface, choose_orders, weighted_order_choose, choose_sweep_orders, \
-    set_debug_silence, validate_address, Taker, load_program_config, Wallet, \
-    random_nick, set_nickname, IRCMessageChannel, debug_dump_object
+    set_debug_silence, validate_address, Taker, load_program_config, random_nick, set_nickname, IRCMessageChannel, debug_dump_object
+from joinmarket.wallet import Wallet
 
 log = get_log()
 

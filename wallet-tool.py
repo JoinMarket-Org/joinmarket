@@ -7,9 +7,10 @@ import os
 import sys
 from optparse import OptionParser
 
-from joinmarket import load_program_config, Wallet, bc_interface, \
+from joinmarket import load_program_config, bc_interface, \
     get_p2pk_vbyte, \
     mn_encode, mn_decode, get_network, encryptData
+from joinmarket.wallet import Wallet
 # data_dir = os.path.dirname(os.path.realpath(__file__))
 # sys.path.insert(0, os.path.join(data_dir, 'joinmarket'))
 

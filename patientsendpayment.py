@@ -9,9 +9,10 @@ from optparse import OptionParser
 # sys.path.insert(0, os.path.join(data_dir, 'joinmarket'))
 
 from joinmarket import choose_orders, weighted_order_choose, Maker, Taker, \
-    get_log, load_program_config, validate_address, Wallet, BitcoinCoreWallet, \
+    get_log, load_program_config, validate_address, BitcoinCoreWallet, \
     bc_interface, random_nick, set_nickname, IRCMessageChannel, \
     debug_dump_object
+from joinmarket.wallet import Wallet, BitcoinCoreWallet
 
 log = get_log()
 

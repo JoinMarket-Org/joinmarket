@@ -11,8 +11,9 @@ import time
 
 from joinmarket import choose_sweep_orders, get_log, choose_orders, Taker, \
     load_program_config, validate_address, pick_order, cheapest_order_choose, \
-    weighted_order_choose, random_nick, set_nickname, Wallet, BitcoinCoreWallet, \
+    weighted_order_choose, random_nick, set_nickname, BitcoinCoreWallet, \
     bc_interface, IRCMessageChannel, debug_dump_object
+from joinmarket.wallet import Wallet, BitcoinCoreWallet
 
 log = get_log()
 

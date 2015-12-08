@@ -14,7 +14,8 @@ from optparse import OptionParser
 from joinmarket import taker as takermodule, choose_sweep_orders, get_log, \
     choose_orders, load_program_config, validate_address, bc_interface, \
     get_p2pk_vbyte, pick_order, cheapest_order_choose, weighted_order_choose, \
-    set_nickname, AbstractWallet, debug_dump_object
+    set_nickname, debug_dump_object
+from joinmarket.wallet import AbstractWallet
 from joinmarket import IRCMessageChannel, random_nick
 import bitcoin as btc
 import sendpayment
@@ -33,7 +34,9 @@ class PaymentThread(threading.Thread):
 
     def create_tx(self):
         crow = self.taker.db.execute(
-                'SELECT COUNT(DISTINCT counterparty) FROM orderbook;').fetchone()
+                'SELECT COUNT(DISTINCT counterparty) FROM orderbook;'
+        ).fetchone()
+
         counterparty_count = crow['COUNT(DISTINCT counterparty)']
         counterparty_count -= len(self.ignored_makers)
         if counterparty_count < self.taker.options.makercount:
@@ -42,8 +45,6 @@ class PaymentThread(threading.Thread):
             return
 
         utxos = self.taker.utxo_data
-        orders = None
-        cjamount = 0
         change_addr = None
         choose_orders_recover = None
         if self.taker.cjamount == 0:
@@ -68,9 +69,10 @@ class PaymentThread(threading.Thread):
                     self.taker.cjamount, self.taker.options.makercount)
             if not orders:
                 log.debug(
-                    'ERROR not enough liquidity in the orderbook, exiting')
+                        'ERROR not enough liquidity in the orderbook, exiting')
                 return
-            total_amount = self.taker.cjamount + total_cj_fee + self.taker.options.txfee
+            total_amount = self.taker.cjamount + total_cj_fee + \
+                           self.taker.options.txfee
             print 'total amount spent = ' + str(total_amount)
             cjamount = self.taker.cjamount
             change_addr = self.taker.changeaddr
@@ -100,7 +102,7 @@ class PaymentThread(threading.Thread):
             return
         self.ignored_makers += coinjointx.nonrespondants
         log.debug(
-            'recreating the tx, ignored_makers=' + str(self.ignored_makers))
+                'recreating the tx, ignored_makers=' + str(self.ignored_makers))
         self.create_tx()
 
     def sendpayment_choose_orders(self,
@@ -216,10 +218,10 @@ def main():
                       dest='answeryes',
                       default=False,
                       help='answer yes to everything')
-    # TODO implement
-    # parser.add_option('-n', '--no-network', action='store_true', dest='nonetwork', default=False,
-    #	help='dont query the blockchain interface, instead user must supply value of UTXOs on ' +
-    #		' command line in the format txid:output/value-in-satoshi')
+    # TODO implement parser.add_option('-n', '--no-network',
+    # action='store_true', dest='nonetwork', default=False, help='dont query
+    # the blockchain interface, instead user must supply value of UTXOs on '
+    # + ' command line in the format txid:output/value-in-satoshi')
     (options, args) = parser.parse_args()
 
     if len(args) < 3:
@@ -260,9 +262,7 @@ def main():
         print 'ERROR: privkey does not match auth utxo'
         return
 
-    # todo: this has obviously never been called.  amount is undefined
-    # if options.pickorders and amount != 0:  #cant use for sweeping
-    if options.pickorders != 0:  # cant use for sweeping
+    if options.pickorders and cjamount != 0:  # cant use for sweeping
         chooseOrdersFunc = pick_order
     elif options.choosecheapest:
         chooseOrdersFunc = cheapest_order_choose

@@ -9,8 +9,9 @@ import threading
 import bitcoin as btc
 from joinmarket import DUST_THRESHOLD, init_keypair, as_init_encryption, \
     init_pubkey, get_log, bc_interface, get_p2pk_vbyte, calc_cj_fee, \
-    CoinJoinerPeer, load_program_config, Wallet, IRCMessageChannel, \
+    CoinJoinerPeer, load_program_config, IRCMessageChannel, \
     debug_dump_object
+from joinmarket.wallet import Wallet
 
 log = get_log()
 

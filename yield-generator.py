@@ -7,7 +7,8 @@ import time
 
 from joinmarket import Maker, random_nick, set_nickname, get_network, get_log, \
     DUST_THRESHOLD, calc_cj_fee, load_program_config, bc_interface, \
-    BlockrInterface, Wallet, IRCMessageChannel, debug_dump_object, config
+    BlockrInterface, IRCMessageChannel, debug_dump_object, config
+from joinmarket.wallet import Wallet
 
 # data_dir = os.path.dirname(os.path.realpath(__file__))
 # sys.path.insert(0, os.path.join(data_dir, 'joinmarket'))

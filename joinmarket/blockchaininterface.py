@@ -19,7 +19,8 @@ import bitcoin as btc
 import subprocess
 
 from joinmarket import get_log, get_network, get_p2pk_vbyte, chunks, config, \
-    BitcoinCoreWallet, JsonRpc, JsonRpcConnectionError
+    JsonRpc, JsonRpcConnectionError
+from joinmarket.wallet import BitcoinCoreWallet
 
 log = get_log()
 
