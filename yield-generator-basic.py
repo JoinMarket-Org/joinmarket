@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 
 import datetime
 import os
@@ -20,9 +20,13 @@ cjfee = '0.002'  # 0.2% fee
 nickname = random_nick()
 set_nickname(nickname)
 nickserv_password = ''
+
+# minimum size is such that you always net profit at least 20% of the miner fee
 minsize = int(
         1.2 * txfee / float(cjfee)
-)  # minimum size is such that you always net profit at least 20% of the miner fee
+)
+
+
 mix_levels = 5
 
 log = get_log()
@@ -88,7 +92,8 @@ class YieldGenerator(Maker):
         mix_balance = self.wallet.get_balance_by_mixdepth()
         max_mix = max(mix_balance, key=mix_balance.get)
 
-        # algo attempts to make the largest-balance mixing depth get an even larger balance
+        # algo attempts to make the largest-balance mixing depth get an even
+        # larger balance
         log.debug('finding suitable mixdepth')
         mixdepth = (max_mix - 1) % self.wallet.max_mix_depth
         while True:
@@ -96,8 +101,8 @@ class YieldGenerator(Maker):
                 break
             mixdepth = (mixdepth - 1) % self.wallet.max_mix_depth
         # mixdepth is the chosen depth we'll be spending from
-        cj_addr = self.wallet.get_receive_addr(
-                (mixdepth + 1) % self.wallet.max_mix_depth)
+        cj_addr = self.wallet.get_receive_addr((mixdepth + 1) %
+                                               self.wallet.max_mix_depth)
         change_addr = self.wallet.get_change_addr(mixdepth)
 
         utxos = self.wallet.select_utxos(mixdepth, amount)
@@ -105,31 +110,32 @@ class YieldGenerator(Maker):
         real_cjfee = calc_cj_fee(cjorder.ordertype, cjorder.cjfee, amount)
         change_value = my_total_in - amount - cjorder.txfee + real_cjfee
         if change_value <= DUST_THRESHOLD:
-            log.debug(
-                'change value=%d below dust threshold, finding new utxos' %
-                (change_value))
+            log.debug(('change value={} below dust threshold, '
+                       'finding new utxos').format(change_value))
             try:
                 utxos = self.wallet.select_utxos(mixdepth,
                                                  amount + DUST_THRESHOLD)
             except Exception:
-                log.debug(
-                        'dont have the required UTXOs to make a output above the dust threshold, quitting')
+                log.debug('dont have the required UTXOs to make a '
+                          'output above the dust threshold, quitting')
                 return None, None, None
 
         return utxos, cj_addr, change_addr
 
     def on_tx_unconfirmed(self, cjorder, txid, removed_utxos):
         self.tx_unconfirm_timestamp[cjorder.cj_addr] = int(time.time())
-        # if the balance of the highest-balance mixing depth change then reannounce it
+        # if the balance of the highest-balance mixing depth change then
+        # reannounce it
         oldorder = self.orderlist[0] if len(self.orderlist) > 0 else None
         neworders = self.create_my_orders()
         if len(neworders) == 0:
-            return ([0], [])  # cancel old order
-        if oldorder:  # oldorder may not exist when this is called from on_tx_confirmed
+            return [0], []  # cancel old order
+        # oldorder may not exist when this is called from on_tx_confirmed
+        if oldorder:
             if oldorder['maxsize'] == neworders[0]['maxsize']:
-                return ([], [])  # change nothing
+                return [], []  # change nothing
         # announce new order, replacing the old order
-        return ([], [neworders[0]])
+        return [], [neworders[0]]
 
     def on_tx_confirmed(self, cjorder, confirmations, txid):
         if cjorder.cj_addr in self.tx_unconfirm_timestamp:
@@ -138,10 +144,11 @@ class YieldGenerator(Maker):
         else:
             confirm_time = 0
         timestamp = datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
-        self.log_statement([timestamp, cjorder.cj_amount, len(
-                cjorder.utxos), sum([av['value'] for av in cjorder.utxos.values(
-        )]), cjorder.real_cjfee, cjorder.real_cjfee - cjorder.txfee, round(
-                confirm_time / 60.0, 2), ''])
+        self.log_statement(
+                [timestamp, cjorder.cj_amount, len(cjorder.utxos),
+                 sum([av['value'] for av in cjorder.utxos.values()]),
+                 cjorder.real_cjfee, cjorder.real_cjfee - cjorder.txfee,
+                 round(confirm_time / 60.0, 2), ''])
         return self.on_tx_unconfirmed(cjorder, txid, None)
 
 
@@ -150,11 +157,15 @@ def main():
     import sys
     seed = sys.argv[1]
     if isinstance(bc_interface, BlockrInterface):
-        print '\nYou are running a yield generator by polling the blockr.io website'
-        print 'This is quite bad for privacy. That site is owned by coinbase.com'
-        print 'Also your bot will run faster and more efficently, you can be immediately notified of new bitcoin network'
-        print ' information so your money will be working for you as hard as possible'
-        print 'Learn how to setup JoinMarket with Bitcoin Core: https://github.com/chris-belcher/joinmarket/wiki/Running-JoinMarket-with-Bitcoin-Core-full-node'
+        c = ('\nYou are running a yield generator by polling the blockr.io '
+             'website. This is quite bad for privacy. That site is owned by '
+             'coinbase.com Also your bot will run faster and more efficently, '
+             'you can be immediately notified of new bitcoin network '
+             'information so your money will be working for you as hard as '
+             'possibleLearn how to setup JoinMarket with Bitcoin Core: '
+             'https://github.com/chris-belcher/joinmarket/wiki/Running'
+             '-JoinMarket-with-Bitcoin-Core-full-node')
+        print(c)
         ret = raw_input('\nContinue? (y/n):')
         if ret[0] != 'y':
             return

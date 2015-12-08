@@ -66,10 +66,9 @@ class JsonRpc(object):
     with the connection (not JSON-RPC itself), an exception is raised.
     """
 
-        headers = {}
-        headers["User-Agent"] = "joinmarket"
-        headers["Content-Type"] = "application/json"
-        headers["Accept"] = "application/json"
+        headers = {"User-Agent": "joinmarket",
+                   "Content-Type": "application/json",
+                   "Accept": "application/json"}
         headers["Authorization"] = "Basic %s" % base64.b64encode(self.authstr)
 
         body = json.dumps(obj)

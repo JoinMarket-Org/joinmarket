@@ -105,7 +105,11 @@ def get_config_irc_channel():
     return channel
 
 
-def debug(msg):
+# todo: oh wow, I thought all those debug statements were logging.debug
+# suggestions?  obviously rewritten to use logging module but what is
+# the strategy being employed in the below?
+
+def dontuse_debug(msg):
     global debug_file_handle
     with debug_file_lock:
         if nickname and not debug_file_handle:
@@ -122,10 +126,10 @@ def debug(msg):
             debug_file_handle.write(outmsg + '\r\n')
 
 
-            # Random functions - replacing some NumPy features
-            # NOTE THESE ARE NEITHER CRYPTOGRAPHICALLY SECURE
-            # NOR PERFORMANT NOR HIGH PRECISION!
-            # Only for sampling purposes
+# Random functions - replacing some NumPy features
+# NOTE THESE ARE NEITHER CRYPTOGRAPHICALLY SECURE
+# NOR PERFORMANT NOR HIGH PRECISION!
+# Only for sampling purposes
 
 
 def rand_norm_array(mu, sigma, n):
@@ -147,11 +151,13 @@ def rand_pow_array(power, n):
 
 
 def rand_weighted_choice(n, p_arr):
-    '''Choose a value in 0..n-1
+    """
+    Choose a value in 0..n-1
 	with the choice weighted by the probabilities
 	in the list p_arr. Note that there will be some
 	floating point rounding errors, but see the note
-	at the top of this section.'''
+	at the top of this section.
+	"""
     if abs(sum(p_arr) - 1.0) > 1e-4:
         raise ValueError("Sum of probabilities must be 1")
     if len(p_arr) != n:
@@ -169,7 +175,7 @@ def chunks(d, n):
 
 
 def get_network():
-    '''Returns network name'''
+    """Returns network name"""
     return config.get("BLOCKCHAIN", "network")
 
 
@@ -200,29 +206,29 @@ def validate_address(addr):
 def debug_dump_object(obj, skip_fields=None):
     if skip_fields is None:
         skip_fields = []
-    debug('Class debug dump, name:' + obj.__class__.__name__)
+    log.debug('Class debug dump, name:' + obj.__class__.__name__)
     for k, v in obj.__dict__.iteritems():
         if k in skip_fields:
             continue
         if k == 'password' or k == 'given_password':
             continue
-        debug('key=' + k)
+        log.debug('key=' + k)
         if isinstance(v, str):
-            debug('string: len:' + str(len(v)))
-            debug(v)
+            log.debug('string: len:' + str(len(v)))
+            log.debug(v)
         elif isinstance(v, dict) or isinstance(v, list):
-            debug(pprint.pformat(v))
+            log.debug(pprint.pformat(v))
         else:
-            debug(str(v))
+            log.debug(str(v))
 
 
 def select_gradual(unspent, value):
-    '''
+    """
 	UTXO selection algorithm for gradual dust reduction
 	If possible, combines outputs, picking as few as possible of the largest
 	utxos less than the target value; if the target value is larger than the
 	sum of all smaller utxos, uses the smallest utxo larger than the value.
-	'''
+	"""
     value, key = int(value), lambda u: u["value"]
     high = sorted([u for u in unspent if key(u) >= value], key=key)
     low = sorted([u for u in unspent if key(u) < value], key=key)
@@ -244,10 +250,10 @@ def select_gradual(unspent, value):
 
 
 def select_greedy(unspent, value):
-    '''
+    """
 	UTXO selection algorithm for greedy dust reduction, but leaves out
 	extraneous utxos, preferring to keep multiple small ones.
-	'''
+	"""
     value, key, cursor = int(value), lambda u: u['value'], 0
     utxos, picked = sorted(unspent, key=key), []
     for utxo in utxos:  # find the smallest consecutive sum >= value
@@ -269,12 +275,12 @@ def select_greedy(unspent, value):
 
 
 def select_greediest(unspent, value):
-    '''
+    """
 	UTXO selection algorithm for speediest dust reduction
 	Combines the shortest run of utxos (sorted by size, from smallest) which
 	exceeds the target value; if the target value is larger than the sum of
 	all smaller utxos, uses the smallest utxo larger than the target value.
-	'''
+	"""
     value, key = int(value), lambda u: u["value"]
     high = sorted([u for u in unspent if key(u) >= value], key=key)
     low = sorted([u for u in unspent if key(u) < value], key=key)
@@ -305,7 +311,7 @@ def calc_cj_fee(ordertype, cjfee, cj_amount):
 
 
 def weighted_order_choose(orders, n, feekey):
-    '''
+    """
 	Algorithm for choosing the weighting function
 	it is an exponential
 	P(f) = exp(-(f - fmin) / phi)
@@ -317,7 +323,7 @@ def weighted_order_choose(orders, n, feekey):
 	define number M, related to the number of counterparties in this coinjoin
 	phi has a value such that it contains up to the Mth order
 	unless M < orderbook size, then phi goes up to the last order
-	'''
+	"""
     minfee = feekey(orders[0])
     M = int(3 * n)
     if len(orders) > M:
@@ -330,15 +336,15 @@ def weighted_order_choose(orders, n, feekey):
     else:
         weight = [1.0] * len(fee)
     weight = [x / sum(weight) for x in weight]
-    debug('phi=' + str(phi) + ' weights = ' + str(weight))
+    log.debug('phi=' + str(phi) + ' weights = ' + str(weight))
     chosen_order_index = rand_weighted_choice(len(orders), weight)
     return orders[chosen_order_index]
 
 
 def cheapest_order_choose(orders, n, feekey):
-    '''
+    """
 	Return the cheapest order from the orders.
-	'''
+	"""
     return sorted(orders, key=feekey)[0]
 
 
@@ -378,7 +384,7 @@ def choose_orders(db, cj_amount, n, chooseOrdersBy, ignored_makers=None):
         3]  # function that returns the fee for a given order
     counterparties = set([o[0] for o in orders])
     if n > len(counterparties):
-        debug(
+        log.debug(
                 'ERROR not enough liquidity in the orderbook n=%d suitable-counterparties=%d amount=%d totalorders=%d'
                 % (n, len(counterparties), cj_amount, len(orders)))
         return None, 0  # TODO handle not enough liquidity better, maybe an Exception
@@ -395,7 +401,7 @@ def choose_orders(db, cj_amount, n, chooseOrdersBy, ignored_makers=None):
         orders = sorted(orders,
                         key=feekey)  # sort from smallest to biggest cj fee
 
-    debug('considered orders = \n' + '\n'.join([str(o) for o in orders]))
+    log.debug('considered orders = \n' + '\n'.join([str(o) for o in orders]))
     total_cj_fee = 0
     chosen_orders = []
     for i in range(n):
@@ -404,7 +410,7 @@ def choose_orders(db, cj_amount, n, chooseOrdersBy, ignored_makers=None):
                   ]  # remove all orders from that same counterparty
         chosen_orders.append(chosen_order)
         total_cj_fee += chosen_order[2]
-    debug('chosen orders = \n' + '\n'.join([str(o) for o in chosen_orders]))
+    log.debug('chosen orders = \n' + '\n'.join([str(o) for o in chosen_orders]))
     chosen_orders = [o[:2] for o in chosen_orders]
     return dict(chosen_orders), total_cj_fee
 
@@ -415,7 +421,7 @@ def choose_sweep_orders(db,
                         n,
                         chooseOrdersBy,
                         ignored_makers=None):
-    '''
+    """
 	choose an order given that we want to be left with no change
 	i.e. sweep an entire group of utxos
 
@@ -424,7 +430,7 @@ def choose_sweep_orders(db,
 	mychange = totalin - cjamount - total_txfee - sum(absfee) - sum(relfee*cjamount)
 	=> 0 = totalin - mytxfee - sum(absfee) - cjamount*(1 + sum(relfee))
 	=> cjamount = (totalin - mytxfee - sum(absfee)) / (1 + sum(relfee))
-	'''
+	"""
 
     if ignored_makers is None:
         ignored_makers = []
@@ -440,14 +446,15 @@ def choose_sweep_orders(db,
             elif order[0]['ordertype'] == 'relorder':
                 sumrelfee += Decimal(order[0]['cjfee'])
             else:
-                raise RuntimeError('unknown order type: ' + str(order[0][
-                                                                    'ordertype']))
+                raise RuntimeError('unknown order type: {}'.format(
+                        order[0]['ordertype']))
+
         my_txfee = max(total_txfee - sumtxfee_contribution, 0)
         cjamount = (total_input_value - my_txfee - sumabsfee) / (1 + sumrelfee)
         cjamount = int(cjamount.quantize(Decimal(1)))
         return cjamount, int(sumabsfee + sumrelfee * cjamount)
 
-    debug('choosing sweep orders for total_input_value = ' + str(
+    log.debug('choosing sweep orders for total_input_value = ' + str(
             total_input_value))
     sqlorders = db.execute('SELECT * FROM orderbook WHERE minsize <= ?;',
                            (total_input_value,)).fetchall()
@@ -456,7 +463,7 @@ def choose_sweep_orders(db,
     orderlist = [dict([(k, o[k]) for k in orderkeys])
                  for o in sqlorders if o['counterparty'] not in ignored_makers]
     # orderlist = sqlorders #uncomment this and comment previous two lines for faster runtime but less readable output
-    debug('orderlist = \n' + '\n'.join([str(o) for o in orderlist]))
+    log.debug('orderlist = \n' + '\n'.join([str(o) for o in orderlist]))
 
     # choose N amount of orders
     available_orders = [(o, calc_cj_fee(o['ordertype'], o['cjfee'],
@@ -469,11 +476,11 @@ def choose_sweep_orders(db,
     chosen_orders = []
     while len(chosen_orders) < n:
         if len(available_orders) < n - len(chosen_orders):
-            debug('ERROR not enough liquidity in the orderbook')
+            log.debug('ERROR not enough liquidity in the orderbook')
             return None, 0  # TODO handle not enough liquidity better, maybe an Exception
         for i in range(n - len(chosen_orders)):
             chosen_order = chooseOrdersBy(available_orders, n, feekey)
-            debug('chosen = ' + str(chosen_order))
+            log.debug('chosen = ' + str(chosen_order))
             # remove all orders from that same counterparty
             available_orders = [
                 o
@@ -488,9 +495,9 @@ def choose_sweep_orders(db,
             maxsize = c[0]['maxsize']
             if cj_amount > maxsize or cj_amount < minsize:
                 chosen_orders.remove(c)
-    debug('chosen orders = \n' + '\n'.join([str(o) for o in chosen_orders]))
+    log.debug('chosen orders = \n' + '\n'.join([str(o) for o in chosen_orders]))
     result = dict([(o[0]['counterparty'], o[0]['oid']) for o in chosen_orders])
-    debug('cj amount = ' + str(cj_amount))
+    log.debug('cj amount = ' + str(cj_amount))
     return result, cj_amount
 
 
@@ -507,6 +514,7 @@ from .irc import *
 from .taker import *
 
 from joinmarket.blockchaininterface import *
+
 
 def load_program_config():
     loadedFiles = config.read([config_location])
@@ -532,11 +540,12 @@ def load_program_config():
         global maker_timeout_sec
         maker_timeout_sec = config.getint('MESSAGING', 'maker_timeout_sec')
     except NoOptionError:
-        debug('maker_timeout_sec not found in .cfg file, using default value')
+        log.debug(
+                'maker_timeout_sec not found in .cfg file, using default value')
 
     # configure the interface to the blockchain on startup
     global bc_interface
     bc_interface = get_blockchain_interface_instance(config)
 
-from .maker import *
 
+from .maker import *

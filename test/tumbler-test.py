@@ -73,7 +73,7 @@ class TumblerTests(unittest.TestCase):
     def run_tumble(self, amt):
         yigen_procs = []
         for i in range(6):
-            ygp = local_command(['python','yield-generator.py',\
+            ygp = local_command(['python','yield-generator-basic.py',\
                                  str(self.wallets[i]['seed'])], bg=True)
             time.sleep(2)  #give it a chance
             yigen_procs.append(ygp)

@@ -9,8 +9,7 @@ from optparse import OptionParser
 # sys.path.insert(0, os.path.join(data_dir, 'joinmarket'))
 
 from joinmarket import choose_orders, weighted_order_choose, Maker, Taker, \
-    get_log, load_program_config, validate_address, BitcoinCoreWallet, \
-    bc_interface, random_nick, set_nickname, IRCMessageChannel, \
+    get_log, load_program_config, validate_address, bc_interface, random_nick, set_nickname, IRCMessageChannel, \
     debug_dump_object
 from joinmarket.wallet import Wallet, BitcoinCoreWallet
 
@@ -106,7 +105,7 @@ class PatientSendPayment(Maker, Taker):
             self.takerthread.finished = True
             print 'finished sending, exiting..'
             self.msgchan.shutdown()
-            return ([], [])
+            return [], []
         available_balance = self.wallet.get_balance_by_mixdepth()[self.mixdepth]
         if available_balance >= self.amount:
             order = {'oid': 0,
@@ -115,10 +114,10 @@ class PatientSendPayment(Maker, Taker):
                      'maxsize': self.amount,
                      'txfee': self.txfee,
                      'cjfee': self.cjfee}
-            return ([], [order])
+            return [], [order]
         else:
             log.debug('not enough money left, have to wait until tx confirms')
-            return ([0], [])
+            return [0], []
 
     def on_tx_confirmed(self, cjorder, confirmations, txid, balance):
         if len(self.orderlist) == 0:
@@ -128,9 +127,9 @@ class PatientSendPayment(Maker, Taker):
                      'maxsize': self.amount,
                      'txfee': self.txfee,
                      'cjfee': self.cjfee}
-            return ([], [order])
+            return [], [order]
         else:
-            return ([], [])
+            return [], []
 
 
 def main():
@@ -209,17 +208,18 @@ def main():
         options.txfee, options.cjfee, str(timedelta(hours=options.waittime)),
         options.makercount)
 
+    # todo: this section doesn't make a lot of sense
     if not options.userpcwallet:
         wallet = Wallet(wallet_name, options.mixdepth + 1)
     else:
         print 'not implemented yet'
         sys.exit(0)
-    wallet = BitcoinCoreWallet(fromaccount=wallet_name)
+    # wallet = BitcoinCoreWallet(fromaccount=wallet_name)
     bc_interface.sync_wallet(wallet)
 
     available_balance = wallet.get_balance_by_mixdepth()[options.mixdepth]
     if available_balance < amount:
-        print 'not enough money at mixdepth=%d, exiting' % (options.mixdepth)
+        print 'not enough money at mixdepth=%d, exiting' % options.mixdepth
         return
 
     nickname = random_nick()
@@ -227,7 +227,7 @@ def main():
     log.debug('Running patient sender of a payment')
 
     irc = IRCMessageChannel(nickname)
-    bot = PatientSendPayment(irc, wallet, destaddr, amount, options.makercount,
+    PatientSendPayment(irc, wallet, destaddr, amount, options.makercount,
                              options.txfee, options.cjfee, waittime,
                              options.mixdepth)
     try:

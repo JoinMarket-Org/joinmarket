@@ -20,14 +20,10 @@ from joinmarket import calc_cj_fee, ordername_list, joinmarket_alert, \
 # sys.path.insert(0, os.path.join(data_dir, 'joinmarket'))
 
 # https://stackoverflow.com/questions/2801882/generating-a-png-with-matplotlib-when-display-is-undefined
-try:
-    import matplotlib
+import matplotlib
 
-    matplotlib.use('Agg')
-    import matplotlib.pyplot as plt
-except ImportError:
-    print 'Install matplotlib to see run orderbook watcher'
-    sys.exit(0)
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
 shutdownform = '<form action="shutdown" method="post"><input type="submit" value="Shutdown" /></form>'
 shutdownpage = '<html><body><center><h1>Successfully Shut down</h1></center></body></html>'
@@ -43,11 +39,13 @@ def calc_depth_data(db, value):
     pass
 
 
-def create_depth_chart(db, cj_amount, args={}):
+def create_depth_chart(db, cj_amount, args=None):
+    if args is None:
+        args = {}
     sqlorders = db.execute('SELECT * FROM orderbook;').fetchall()
     orderfees = sorted([calc_cj_fee(o['ordertype'], o['cjfee'], cj_amount) / 1e8
                         for o in sqlorders
-                        if cj_amount >= o['minsize'] and cj_amount <= o[
+                        if o['minsize'] <= cj_amount <= o[
                             'maxsize']])
 
     if len(orderfees) == 0:
@@ -371,6 +369,8 @@ def main():
     hostport = (options.host, options.port)
 
     irc = IRCMessageChannel(nickname)
+
+    # todo: is the call to GUITaker needed, or the return. taker unused
     taker = GUITaker(irc, hostport)
     print('starting irc')
 

@@ -11,8 +11,7 @@ import time
 
 from joinmarket import choose_sweep_orders, get_log, choose_orders, Taker, \
     load_program_config, validate_address, pick_order, cheapest_order_choose, \
-    weighted_order_choose, random_nick, set_nickname, BitcoinCoreWallet, \
-    bc_interface, IRCMessageChannel, debug_dump_object
+    weighted_order_choose, random_nick, set_nickname, bc_interface, IRCMessageChannel, debug_dump_object
 from joinmarket.wallet import Wallet, BitcoinCoreWallet
 
 log = get_log()
@@ -105,8 +104,12 @@ class PaymentThread(threading.Thread):
     def sendpayment_choose_orders(self,
                                   cj_amount,
                                   makercount,
-                                  nonrespondants=[],
-                                  active_nicks=[]):
+                                  nonrespondants=None,
+                                  active_nicks=None):
+        if nonrespondants is None:
+            nonrespondants = []
+        if active_nicks is None:
+            active_nicks = []
         self.ignored_makers += nonrespondants
         orders, total_cj_fee = choose_orders(
                 self.taker.db, cj_amount, makercount,

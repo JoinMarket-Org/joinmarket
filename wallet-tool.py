@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 
 import datetime
 import getpass
@@ -100,7 +100,7 @@ if method == 'display' or method == 'displayall' or method == 'summary':
 
     def printd(s):
         if method != 'summary':
-            print s
+            print(s)
 
 
     total_balance = 0
@@ -142,25 +142,25 @@ if method == 'display' or method == 'displayall' or method == 'summary':
                                                            1e8, wip_privkey))
         total_balance += balance_depth
         print('for mixdepth=%d balance=%.8fbtc' % (m, balance_depth / 1e8))
-    print 'total balance = %.8fbtc' % (total_balance / 1e8)
+    print('total balance = %.8fbtc' % (total_balance / 1e8))
 elif method == 'generate' or method == 'recover':
     if method == 'generate':
         seed = btc.sha256(os.urandom(64))[:32]
         words = mn_encode(seed)
-        print 'Write down this wallet recovery seed\n\n' + ' '.join(
-                words) + '\n'
+        print('Write down this wallet recovery seed\n\n' + ' '.join(
+                words) + '\n')
     elif method == 'recover':
         words = raw_input('Input 12 word recovery seed: ')
         words = words.split()  # default for split is 1 or more whitespace chars
         if len(words) != 12:
-            print 'ERROR: Recovery seed phrase must be exactly 12 words.'
+            print('ERROR: Recovery seed phrase must be exactly 12 words.')
             sys.exit(0)
         seed = mn_decode(words)
-        print seed
+        print(seed)
     password = getpass.getpass('Enter wallet encryption passphrase: ')
     password2 = getpass.getpass('Reenter wallet encryption passphrase: ')
     if password != password2:
-        print 'ERROR. Passwords did not match'
+        print('ERROR. Passwords did not match')
         sys.exit(0)
     password_key = btc.bin_dbl_sha256(password)
     encrypted_seed = encryptData(password_key, seed.decode('hex'))
@@ -175,18 +175,18 @@ elif method == 'generate' or method == 'recover':
     walletpath = os.path.join('wallets', walletname)
     # Does a wallet with the same name exist?
     if os.path.isfile(walletpath):
-        print 'ERROR: ' + walletpath + ' already exists. Aborting.'
+        print('ERROR: ' + walletpath + ' already exists. Aborting.')
         sys.exit(0)
     else:
         fd = open(walletpath, 'w')
         fd.write(walletfile)
         fd.close()
-        print 'saved to ' + walletname
+        print('saved to ' + walletname)
 elif method == 'showseed':
     hexseed = wallet.seed
-    print 'hexseed = ' + hexseed
+    print('hexseed = ' + hexseed)
     words = mn_encode(hexseed)
-    print 'Wallet recovery seed\n\n' + ' '.join(words) + '\n'
+    print('Wallet recovery seed\n\n' + ' '.join(words) + '\n')
 elif method == 'importprivkey':
     print('WARNING: This imported key will not be recoverable with your 12 ' +
           'word mnemonic seed. Make sure you have backups.')
@@ -202,8 +202,8 @@ elif method == 'importprivkey':
         # TODO is there any point in only accepting wif format? check what other wallets do
         privkey_format = btc.get_privkey_format(privkey)
         if privkey_format not in ['wif', 'wif_compressed']:
-            print 'ERROR: privkey not in wallet import format'
-            print privkey, 'skipped'
+            print('ERROR: privkey not in wallet import format')
+            print(privkey, 'skipped')
             continue
         if privkey_format == 'wif':
             # TODO if they actually use an unc privkey, make sure the unc address is used
@@ -212,8 +212,8 @@ elif method == 'importprivkey':
             #       'being so unusual is bad for privacy. Continue? (y/n):')
             # if r != 'y':
             #   sys.exit(0)
-            print 'Uncompressed privkeys not supported (yet)'
-            print privkey, 'skipped'
+            print('Uncompressed privkeys not supported (yet)')
+            print(privkey, 'skipped')
             continue
         privkey_bin = btc.encode_privkey(privkey, 'hex').decode('hex')
         encrypted_privkey = encryptData(wallet.password_key,
@@ -227,7 +227,7 @@ elif method == 'importprivkey':
         fd = open(wallet.path, 'w')
         fd.write(json.dumps(wallet.walletdata))
         fd.close()
-        print 'Private key(s) successfully imported'
+        print('Private key(s) successfully imported')
 elif method == 'listwallets':
     # Fetch list of wallets
     possible_wallets = []
@@ -250,12 +250,12 @@ elif method == 'listwallets':
     # Sort wallets by date
     walletjsons.sort(key=lambda r: r['creation_time'])
     i = 1
-    print ' '
+    print(' ')
     for walletjson in walletjsons:
-        print 'Wallet #' + str(i) + ' (' + walletjson['filename'] + '):'
-        print 'Creation time:\t' + walletjson['creation_time']
-        print 'Creator:\t' + walletjson['creator']
-        print 'Network:\t' + walletjson['network']
-        print ' '
+        print('Wallet #' + str(i) + ' (' + walletjson['filename'] + '):')
+        print('Creation time:\t' + walletjson['creation_time'])
+        print('Creator:\t' + walletjson['creator'])
+        print('Network:\t' + walletjson['network'])
+        print(' ')
         i += 1
-    print str(i - 1) + ' Wallets have been found.'
+    print(str(i - 1) + ' Wallets have been found.')

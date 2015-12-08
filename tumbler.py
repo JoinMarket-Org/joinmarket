@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 
 import copy
 import sys
@@ -120,8 +120,12 @@ class TumblerThread(threading.Thread):
     def tumbler_choose_orders(self,
                               cj_amount,
                               makercount,
-                              nonrespondants=[],
-                              active_nicks=[]):
+                              nonrespondants=None,
+                              active_nicks=None):
+        if nonrespondants is None:
+            nonrespondants = []
+        if active_nicks is None:
+            active_nicks = []
         self.ignored_makers += nonrespondants
         while True:
             orders, total_cj_fee = choose_orders(
@@ -138,7 +142,7 @@ class TumblerThread(threading.Thread):
                         self.taker.options.liquiditywait) + ' seconds')
                 time.sleep(self.taker.options.liquiditywait)
                 continue
-            if orders == None:
+            if orders is None:
                 log.debug('waiting for liquidity ' + str(
                         self.taker.options.liquiditywait) +
                           'secs, hopefully more orders should come in')
@@ -150,7 +154,6 @@ class TumblerThread(threading.Thread):
         return orders, total_cj_fee
 
     def create_tx(self):
-        utxos = None
         orders = None
         cj_amount = 0
         change_addr = None
@@ -165,7 +168,7 @@ class TumblerThread(threading.Thread):
                         self.taker.db, total_value, self.taker.options.txfee,
                         self.tx['makercount'], weighted_order_choose,
                         self.ignored_makers)
-                if orders == None:
+                if orders is None:
                     log.debug('waiting for liquidity ' + str(
                             self.taker.options.liquiditywait) +
                               'secs, hopefully more orders should come in')
@@ -221,7 +224,8 @@ class TumblerThread(threading.Thread):
                 addr_valid, errormsg = validate_address(destaddr)
                 if addr_valid:
                     break
-                print 'Address ' + destaddr + ' invalid. ' + errormsg + ' try again'
+                print(
+                'Address ' + destaddr + ' invalid. ' + errormsg + ' try again')
             set_debug_silence(False)
         else:
             destaddr = tx['destination']
@@ -442,25 +446,26 @@ def main():
         sys.exit(0)
     wallet_file = args[0]
     destaddrs = args[1:]
-    print destaddrs
+    print(destaddrs)
 
     load_program_config()
     for addr in destaddrs:
         addr_valid, errormsg = validate_address(addr)
         if not addr_valid:
-            print 'ERROR: Address ' + addr + ' invalid. ' + errormsg
+            print('ERROR: Address ' + addr + ' invalid. ' + errormsg)
             return
 
     if len(destaddrs) > options.addrcount:
         options.addrcount = len(destaddrs)
     if options.addrcount + 1 > options.mixdepthcount:
-        print 'not enough mixing depths to pay to all destination addresses, increasing mixdepthcount'
+        print(
+        'not enough mixing depths to pay to all destination addresses, increasing mixdepthcount')
         options.mixdepthcount = options.addrcount + 1
     if options.donateamount > 10.0:
         # fat finger probably, or misunderstanding
         options.donateamount = 0.9
 
-    print str(options)
+    print(str(options))
     tx_list = generate_tumbler_tx(destaddrs, options)
     if not tx_list:
         return
@@ -480,17 +485,17 @@ def main():
     pprint(dbg_tx_list)
 
     total_wait = sum([tx['wait'] for tx in tx_list])
-    print 'creates ' + str(len(tx_list)) + ' transactions in total'
-    print 'waits in total for ' + str(len(tx_list)) + ' blocks and ' + str(
-            total_wait) + ' minutes'
+    print('creates ' + str(len(tx_list)) + ' transactions in total')
+    print('waits in total for ' + str(len(tx_list)) + ' blocks and ' + str(
+            total_wait) + ' minutes')
     total_block_and_wait = len(tx_list) * 10 + total_wait
     print('estimated time taken ' + str(total_block_and_wait) + ' minutes or ' +
           str(round(total_block_and_wait / 60.0, 2)) + ' hours')
     if options.addrcount <= 1:
-        print '=' * 50
-        print 'WARNING: You are only using one destination address'
-        print 'this is very bad for privacy'
-        print '=' * 50
+        print('=' * 50)
+        print('WARNING: You are only using one destination address')
+        print('this is very bad for privacy')
+        print('=' * 50)
 
     ret = raw_input('tumble with these tx? (y/n):')
     if ret[0] != 'y':

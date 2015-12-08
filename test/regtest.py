@@ -72,7 +72,7 @@ class Join2PTests(unittest.TestCase):
     def run_simple_send(self, n, m):
         #start yield generator with wallet1
         yigen_proc = local_command(
-            ['python', 'yield-generator.py', str(self.wallets[0]['seed'])],
+            ['python', 'yield-generator-basic.py', str(self.wallets[0]['seed'])],
             bg=True)
 
         #A significant delay is needed to wait for the yield generator to sync its wallet
@@ -128,7 +128,7 @@ class JoinNPTests(unittest.TestCase):
     def run_nparty_join(self):
         yigen_procs = []
         for i in range(self.n):
-            ygp = local_command(['python','yield-generator.py',\
+            ygp = local_command(['python','yield-generator-basic.py',\
                                  str(self.wallets[i]['seed'])], bg=True)
             time.sleep(2)  #give it a chance
             yigen_procs.append(ygp)
