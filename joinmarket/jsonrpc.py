@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 # Copyright (C) 2013,2015 by Daniel Kraft <d@domob.eu>
 # Copyright (C) 2014 by phelix / blockchained.com
 #
@@ -81,7 +82,7 @@ class JsonRpc(object):
             if response.status == 401:
                 conn.close()
                 raise JsonRpcConnectionError(
-                    "authentication for JSON-RPC failed")
+                        "authentication for JSON-RPC failed")
 
             # All of the codes below are 'fine' from a JSON-RPC point of view.
             if response.status not in [200, 404, 500]:

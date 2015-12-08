@@ -1,12 +1,16 @@
-#
-from common import *
-from message_channel import MessageChannel
-from message_channel import CJPeerError
+from __future__ import absolute_import
 
-import string, random
-import socket, threading, time, ssl, socks
-import base64, os, re
-import enc_wrapper
+import base64
+import random
+import socket
+import ssl
+import threading
+import time
+
+import socks
+
+from joinmarket import get_log, MessageChannel, CJPeerError, encrypt_encode, \
+    chunks, ordername_list, decode_decrypt, config, get_config_irc_channel
 
 MAX_PRIVMSG_LEN = 400
 COMMAND_PREFIX = '!'
@@ -16,11 +20,13 @@ encrypted_commands = ["auth", "ioauth", "tx", "sig"]
 plaintext_commands = ["fill", "error", "pubkey", "orderbook", "relorder",
                       "absorder", "push"]
 
+log = get_log()
+
 
 def random_nick(nick_len=9):
     vowels = "aeiou"
     consonants = ''.join([chr(
-        c) for c in range(
+            c) for c in range(
             ord('a'), ord('z') + 1) if vowels.find(chr(c)) == -1])
     assert nick_len % 2 == 1
     N = (nick_len - 1) / 2
@@ -30,15 +36,15 @@ def random_nick(nick_len=9):
                   for v in range(N)] + ['']
     ircnick = ''.join([i for sl in zip(rnd_consonants, rnd_vowels) for i in sl])
     ircnick = ircnick.capitalize()
-    print 'Generated random nickname: ' + ircnick  #not using debug because it might not know the logfile name at this point
+    print 'Generated random nickname: ' + ircnick  # not using debug because it might not know the logfile name at this point
     return ircnick
-    #Other ideas for random nickname generation:
+    # Other ideas for random nickname generation:
     # - weight randomness by frequency of letter appearance
     # - u always follows q
     # - generate different length nicks
     # - append two or more of these words together
     # - randomly combine phonetic sounds instead consonants, which may be two consecutive consonants
-    #  - e.g. th, dj, g, p, gr, ch, sh, kr, 
+    #  - e.g. th, dj, g, p, gr, ch, sh, kr,
     # - neutral network that generates nicks
 
 
@@ -51,25 +57,24 @@ def get_irc_nick(source):
 
 
 class PingThread(threading.Thread):
-
     def __init__(self, irc):
         threading.Thread.__init__(self)
         self.daemon = True
         self.irc = irc
 
     def run(self):
-        debug('starting ping thread')
+        log.debug('starting ping thread')
         while not self.irc.give_up:
             time.sleep(PING_INTERVAL)
             try:
                 self.irc.ping_reply = False
-                #maybe use this to calculate the lag one day
+                # maybe use this to calculate the lag one day
                 self.irc.lockcond.acquire()
                 self.irc.send_raw('PING LAG' + str(int(time.time() * 1000)))
                 self.irc.lockcond.wait(PING_TIMEOUT)
                 self.irc.lockcond.release()
                 if not self.irc.ping_reply:
-                    debug('irc ping timed out')
+                    log.debug('irc ping timed out')
                     try:
                         self.irc.close()
                     except:
@@ -84,34 +89,33 @@ class PingThread(threading.Thread):
                     except:
                         pass
             except IOError as e:
-                debug('ping thread: ' + repr(e))
-        debug('ended ping thread')
+                log.debug('ping thread: ' + repr(e))
+        log.debug('ended ping thread')
 
 
-#handle one channel at a time
+# handle one channel at a time
 class IRCMessageChannel(MessageChannel):
-
-    #close implies it will attempt to reconnect
+    # close implies it will attempt to reconnect
     def close(self):
         try:
             self.send_raw("QUIT")
         except IOError as e:
-            debug('errored while trying to quit: ' + repr(e))
+            log.debug('errored while trying to quit: ' + repr(e))
 
     def shutdown(self):
         self.close()
         self.give_up = True
 
     def send_error(self, nick, errormsg):
-        debug('error<%s> : %s' % (nick, errormsg))
+        log.debug('error<%s> : %s' % (nick, errormsg))
         self.__privmsg(nick, 'error', errormsg)
         raise CJPeerError()
 
-    #OrderbookWatch callback
+    # OrderbookWatch callback
     def request_orderbook(self):
         self.__pubmsg(COMMAND_PREFIX + 'orderbook')
 
-    #Taker callbacks
+    # Taker callbacks
     def fill_orders(self, nickoid_dict, cj_amount, taker_pubkey):
         for c, oid in nickoid_dict.iteritems():
             msg = str(oid) + ' ' + str(cj_amount) + ' ' + taker_pubkey
@@ -126,21 +130,21 @@ class IRCMessageChannel(MessageChannel):
         for nick in nick_list:
             self.__privmsg(nick, 'tx', txb64)
             time.sleep(
-                1)  #HACK! really there should be rate limiting, see issue#31
+                    1)  # HACK! really there should be rate limiting, see issue#31
 
     def push_tx(self, nick, txhex):
         txb64 = base64.b64encode(txhex.decode('hex'))
         self.__privmsg(nick, 'push', txb64)
 
-    #Maker callbacks
+    # Maker callbacks
     def announce_orders(self, orderlist, nick=None):
-        #nick=None means announce publicly
+        # nick=None means announce publicly
         order_keys = ['oid', 'minsize', 'maxsize', 'txfee', 'cjfee']
         header = 'PRIVMSG ' + (nick if nick else self.channel) + ' :'
         orderlines = []
         for i, order in enumerate(orderlist):
-            orderparams = COMMAND_PREFIX + order['ordertype'] +\
-             ' ' + ' '.join([str(order[k]) for k in order_keys])
+            orderparams = COMMAND_PREFIX + order['ordertype'] + \
+                          ' ' + ' '.join([str(order[k]) for k in order_keys])
             orderlines.append(orderparams)
             line = header + ''.join(orderlines) + ' ~'
             if len(line) > MAX_PRIVMSG_LEN or i == len(orderlist) - 1:
@@ -162,31 +166,32 @@ class IRCMessageChannel(MessageChannel):
         self.__privmsg(nick, 'ioauth', authmsg)
 
     def send_sigs(self, nick, sig_list):
-        #TODO make it send the sigs on one line if there's space
+        # TODO make it send the sigs on one line if there's space
         for s in sig_list:
             self.__privmsg(nick, 'sig', s)
             time.sleep(
-                0.5)  #HACK! really there should be rate limiting, see issue#31
+                    0.5)  # HACK! really there should be rate limiting, see issue#31
 
     def __pubmsg(self, message):
-        debug('>>pubmsg ' + message)
+        log.debug('>>pubmsg ' + message)
         self.send_raw("PRIVMSG " + self.channel + " :" + message)
 
     def __privmsg(self, nick, cmd, message):
-        debug('>>privmsg ' + 'nick=' + nick + ' cmd=' + cmd + ' msg=' + message)
-        #should we encrypt?
+        log.debug(
+            '>>privmsg ' + 'nick=' + nick + ' cmd=' + cmd + ' msg=' + message)
+        # should we encrypt?
         box, encrypt = self.__get_encryption_box(cmd, nick)
-        #encrypt before chunking
+        # encrypt before chunking
         if encrypt:
             if not box:
-                debug('error, dont have encryption box object for ' + nick +
-                      ', dropping message')
+                log.debug('error, dont have encryption box object for ' + nick +
+                          ', dropping message')
                 return
-            message = enc_wrapper.encrypt_encode(message, box)
+            message = encrypt_encode(message, box)
 
         header = "PRIVMSG " + nick + " :"
         max_chunk_len = MAX_PRIVMSG_LEN - len(header) - len(cmd) - 4
-        #1 for command prefix 1 for space 2 for trailer
+        # 1 for command prefix 1 for space 2 for trailer
         if len(message) > max_chunk_len:
             message_chunks = chunks(message, max_chunk_len)
         else:
@@ -198,8 +203,8 @@ class IRCMessageChannel(MessageChannel):
             self.send_raw(header + m + trailer)
 
     def send_raw(self, line):
-        #if not line.startswith('PING LAG'):
-        #	debug('sendraw ' + line)
+        # if not line.startswith('PING LAG'):
+        #	log.debug('sendraw ' + line)
         self.sock.sendall(line + '\r\n')
 
     def check_for_orders(self, nick, chunks):
@@ -216,8 +221,8 @@ class IRCMessageChannel(MessageChannel):
                     self.on_order_seen(counterparty, oid, ordertype, minsize,
                                        maxsize, txfee, cjfee)
             except IndexError as e:
-                debug('index error parsing chunks')
-                #TODO what now? just ignore iirc
+                log.debug('index error parsing chunks')
+                # TODO what now? just ignore iirc
             finally:
                 return True
         return False
@@ -228,16 +233,16 @@ class IRCMessageChannel(MessageChannel):
             return
         for command in message[1:].split(COMMAND_PREFIX):
             chunks = command.split(" ")
-            #looks like a very similar pattern for all of these
+            # looks like a very similar pattern for all of these
             # check for a command name, parse arguments, call a function
             # maybe we need some eval() trickery to do it better
 
             try:
-                #orderbook watch commands
+                # orderbook watch commands
                 if self.check_for_orders(nick, chunks):
                     pass
 
-                #taker commands
+                # taker commands
                 elif chunks[0] == 'pubkey':
                     maker_pk = chunks[1]
                     if self.on_pubkey:
@@ -255,7 +260,7 @@ class IRCMessageChannel(MessageChannel):
                     if self.on_sig:
                         self.on_sig(nick, sig)
 
-                #maker commands
+                # maker commands
                 if chunks[0] == 'fill':
                     try:
                         oid = int(chunks[1])
@@ -290,8 +295,8 @@ class IRCMessageChannel(MessageChannel):
                     if self.on_push_tx:
                         self.on_push_tx(nick, txhex)
             except CJPeerError:
-                #TODO proper error handling
-                debug('cj peer error TODO handle')
+                # TODO proper error handling
+                log.debug('cj peer error TODO handle')
                 continue
 
     def __on_pubmsg(self, nick, message):
@@ -302,19 +307,19 @@ class IRCMessageChannel(MessageChannel):
             if self.check_for_orders(nick, chunks):
                 pass
             elif chunks[0] == 'cancel':
-                #!cancel [oid]
+                # !cancel [oid]
                 try:
                     oid = int(chunks[1])
                     if self.on_order_cancel:
                         self.on_order_cancel(nick, oid)
                 except ValueError as e:
-                    debug("!cancel " + repr(e))
+                    log.debug("!cancel " + repr(e))
                     return
             elif chunks[0] == 'orderbook':
                 if self.on_orderbook_requested:
                     self.on_orderbook_requested(nick)
             else:
-                #TODO this is for testing/debugging, should be removed, see taker.py
+                # TODO this is for testing/debugging, should be removed, see taker.py
                 if hasattr(self, 'debug_on_pubmsg_cmd'):
                     self.debug_on_pubmsg_cmd(nick, chunks)
 
@@ -324,7 +329,7 @@ class IRCMessageChannel(MessageChannel):
 		If so, retrieve the appropriate crypto_box object
 		and return. Sending/receiving flag enables us
 		to check which command strings correspond to which
-		type of object (maker/taker).''' #old doc, dont trust
+		type of object (maker/taker).'''  # old doc, dont trust
         if cmd in plaintext_commands:
             return None, False
         else:
@@ -345,57 +350,59 @@ class IRCMessageChannel(MessageChannel):
 
             if nick not in self.built_privmsg:
                 if message[0] != COMMAND_PREFIX:
-                    debug('message not a cmd')
+                    log.debug('message not a cmd')
                     return
-                #new message starting
+                # new message starting
                 cmd_string = message[1:].split(' ')[0]
                 if cmd_string not in plaintext_commands + encrypted_commands:
-                    debug('cmd not in cmd_list, line="' + message + '"')
+                    log.debug('cmd not in cmd_list, line="' + message + '"')
                     return
                 self.built_privmsg[nick] = [cmd_string, message[:-2]]
             else:
                 self.built_privmsg[nick][1] += message[:-2]
             box, encrypt = self.__get_encryption_box(
-                self.built_privmsg[nick][0], nick)
+                    self.built_privmsg[nick][0], nick)
             if message[-1] == ';':
                 self.waiting[nick] = True
             elif message[-1] == '~':
                 self.waiting[nick] = False
                 if encrypt:
                     if not box:
-                        debug('error, dont have encryption box object for ' +
-                              nick + ', dropping message')
+                        log.debug(
+                            'error, dont have encryption box object for ' +
+                            nick + ', dropping message')
                         return
-                    #need to decrypt everything after the command string
+                    # need to decrypt everything after the command string
                     to_decrypt = ''.join(self.built_privmsg[nick][1].split(' ')[
-                        1])
+                                             1])
                     try:
-                        decrypted = enc_wrapper.decode_decrypt(to_decrypt, box)
+                        decrypted = decode_decrypt(to_decrypt, box)
                     except ValueError as e:
-                        debug('valueerror when decrypting, skipping: ' + repr(
-                            e))
+                        log.debug(
+                            'valueerror when decrypting, skipping: ' + repr(
+                                    e))
                         return
                     parsed = self.built_privmsg[nick][1].split(' ')[
-                        0] + ' ' + decrypted
+                                 0] + ' ' + decrypted
                 else:
                     parsed = self.built_privmsg[nick][1]
-                #wipe the message buffer waiting for the next one
+                # wipe the message buffer waiting for the next one
                 del self.built_privmsg[nick]
-                debug("<<privmsg nick=%s message=%s" % (nick, parsed))
+                log.debug("<<privmsg nick=%s message=%s" % (nick, parsed))
                 self.__on_privmsg(nick, parsed)
             else:
-                #drop the bad nick
+                # drop the bad nick
                 del self.built_privmsg[nick]
         elif target == self.channel:
-            debug("<<pubmsg nick=%s message=%s" % (nick, message))
+            log.debug("<<pubmsg nick=%s message=%s" % (nick, message))
             self.__on_pubmsg(nick, message)
         else:
-            debug('what is this? privmsg src=%s target=%s message=%s;' %
-                  (source, target, message))
+            log.debug('what is this? privmsg src=%s target=%s message=%s;' %
+                      (source, target, message))
 
     def __handle_line(self, line):
         line = line.rstrip()
-        #debug('<< ' + line)
+        # log.debug('<< ' + line)
         if line.startswith('PING '):
             self.send_raw(line.replace('PING', 'PONG'))
             return
@@ -408,25 +415,25 @@ class IRCMessageChannel(MessageChannel):
             else:
                 if self.on_nick_leave:
                     self.on_nick_leave(nick)
-        elif chunks[1] == '433':  #nick in use
-            #self.nick = random_nick()
-            self.nick += '_'  #helps keep identity constant if just _ added
+        elif chunks[1] == '433':  # nick in use
+            # self.nick = random_nick()
+            self.nick += '_'  # helps keep identity constant if just _ added
             self.send_raw('NICK ' + self.nick)
         if self.password:
             if chunks[1] == 'CAP':
                 if chunks[3] != 'ACK':
-                    debug('server does not support SASL, quitting')
+                    log.debug('server does not support SASL, quitting')
                     self.shutdown()
                 self.send_raw('AUTHENTICATE PLAIN')
             elif chunks[0] == 'AUTHENTICATE':
                 self.send_raw('AUTHENTICATE ' + base64.b64encode(
-                    self.nick + '\x00' + self.nick + '\x00' + self.password))
+                        self.nick + '\x00' + self.nick + '\x00' + self.password))
             elif chunks[1] == '903':
-                debug('Successfully authenticated')
+                log.debug('Successfully authenticated')
                 self.password = None
                 self.send_raw('CAP END')
             elif chunks[1] == '904':
-                debug('Failed authentication, wrong password')
+                log.debug('Failed authentication, wrong password')
                 self.shutdown()
             return
 
@@ -437,18 +444,19 @@ class IRCMessageChannel(MessageChannel):
             self.lockcond.acquire()
             self.lockcond.notify()
             self.lockcond.release()
-        elif chunks[1] == '376':  #end of motd
+        elif chunks[1] == '376':  # end of motd
             if self.on_connect:
                 self.on_connect()
             self.send_raw('JOIN ' + self.channel)
-            self.send_raw('MODE ' + self.nick + ' +B')  #marks as bots on unreal
+            self.send_raw(
+                'MODE ' + self.nick + ' +B')  # marks as bots on unreal
             self.send_raw('MODE ' + self.nick + ' -R'
-                         )  #allows unreg'd private messages
-        elif chunks[1] == '366':  #end of names list
-            debug('Connected to IRC and joined channel')
+                          )  # allows unreg'd private messages
+        elif chunks[1] == '366':  # end of names list
+            log.debug('Connected to IRC and joined channel')
             if self.on_welcome:
                 self.on_welcome()
-        elif chunks[1] == '332' or chunks[1] == 'TOPIC':  #channel topic
+        elif chunks[1] == '332' or chunks[1] == 'TOPIC':  # channel topic
             topic = get_irc_text(line)
             self.on_set_topic(topic)
         elif chunks[1] == 'KICK':
@@ -457,7 +465,7 @@ class IRCMessageChannel(MessageChannel):
             if target == self.nick:
                 self.give_up = True
                 raise IOError(get_irc_nick(chunks[
-                    0]) + ' has kicked us from the irc channel! Reason=' +
+                                               0]) + ' has kicked us from the irc channel! Reason=' +
                               get_irc_text(line))
             else:
                 if self.on_nick_leave:
@@ -484,7 +492,7 @@ class IRCMessageChannel(MessageChannel):
                  realname='realname',
                  password=None):
         MessageChannel.__init__(self)
-        self.cjpeer = None  #subclasses have to set this to self
+        self.cjpeer = None  # subclasses have to set this to self
         self.given_nick = given_nick
         self.nick = given_nick
         self.serverport = (config.get("MESSAGING", "host"),
@@ -507,10 +515,10 @@ class IRCMessageChannel(MessageChannel):
 
         while not self.give_up:
             try:
-                debug('connecting')
+                log.debug('connecting')
                 if config.get("MESSAGING", "socks5").lower() == 'true':
-                    debug("Using socks5 proxy %s:%d" %
-                          (self.socks5_host, self.socks5_port))
+                    log.debug("Using socks5 proxy %s:%d" %
+                              (self.socks5_host, self.socks5_port))
                     socks.setdefaultproxy(socks.PROXY_TYPE_SOCKS5,
                                           self.socks5_host, self.socks5_port,
                                           True)
@@ -534,15 +542,15 @@ class IRCMessageChannel(MessageChannel):
                         line = self.fd.readline()
                     except AttributeError as e:
                         raise IOError(repr(e))
-                    if line == None:
-                        debug('line returned null')
+                    if line is None:
+                        log.debug('line returned null')
                         break
                     if len(line) == 0:
-                        debug('line was zero length')
+                        log.debug('line was zero length')
                         break
                     self.__handle_line(line)
             except IOError as e:
-                debug(repr(e))
+                log.debug(repr(e))
             finally:
                 try:
                     self.fd.close()
@@ -551,8 +559,8 @@ class IRCMessageChannel(MessageChannel):
                     print repr(e)
             if self.on_disconnect:
                 self.on_disconnect()
-            debug('disconnected irc')
+            log.debug('disconnected irc')
             if not self.give_up:
                 time.sleep(30)
-        debug('ending irc')
+        log.debug('ending irc')
         self.give_up = True

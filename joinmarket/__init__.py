@@ -1,11 +1,32 @@
-import bitcoin as btc
-from decimal import Decimal, InvalidOperation
-from math import factorial, exp
-import sys, datetime, json, time, pprint, threading, getpass
-import random
-import blockchaininterface, jsonrpc, slowaes
-from ConfigParser import SafeConfigParser, NoSectionError, NoOptionError
-import os, io, itertools
+from __future__ import absolute_import
+
+import datetime
+import io
+import logging
+import threading
+from getpass import getpass
+from math import exp
+
+from ConfigParser import SafeConfigParser, NoSectionError
+from configparser import NoOptionError
+
+# Set default logging handler to avoid "No handler found" warnings.
+try:
+    from logging import NullHandler
+except ImportError:
+    class NullHandler(logging.Handler):
+        def emit(self, record):
+            pass
+
+logging.getLogger(__name__).addHandler(NullHandler())
+
+log = logging.getLogger('gitreformat')
+log.addHandler(logging.NullHandler())
+
+
+def get_log():
+    return log
+
 
 JM_VERSION = 2
 nickname = None
@@ -22,75 +43,58 @@ debug_silence = False
 
 config = SafeConfigParser()
 config_location = 'joinmarket.cfg'
+
+
+# todo: we need a class or something to manage this global state
+
+def set_nickname(nick):
+    global nickname
+    nickname = nick
+
+
+def set_debug_silence(state):
+    global debug_silence
+    debug_silence = state
+
+
 # FIXME: Add rpc_* options here in the future!
 required_options = {'BLOCKCHAIN': ['blockchain_source', 'network'],
                     'MESSAGING': ['host', 'channel', 'port']}
 
-defaultconfig =\
-"""
-[BLOCKCHAIN]
-blockchain_source = blockr 
-#options: blockr, bitcoin-rpc, json-rpc, regtest
-#for instructions on bitcoin-rpc read https://github.com/chris-belcher/joinmarket/wiki/Running-JoinMarket-with-Bitcoin-Core-full-node 
-network = mainnet
-rpc_host = localhost
-rpc_port = 8332
-rpc_user = bitcoin
-rpc_password = password
+defaultconfig = \
+    """
+    [BLOCKCHAIN]
+    blockchain_source = blockr
+    #options: blockr, bitcoin-rpc, json-rpc, regtest
+    #for instructions on bitcoin-rpc read https://github.com/chris-belcher/joinmarket/wiki/Running-JoinMarket-with-Bitcoin-Core-full-node
+    network = mainnet
+    rpc_host = localhost
+    rpc_port = 8332
+    rpc_user = bitcoin
+    rpc_password = password
 
-[MESSAGING]
-host = irc.cyberguerrilla.org
-channel = joinmarket-pit
-port = 6697
-usessl = true
-socks5 = false
-socks5_host = localhost
-socks5_port = 9050
-#for tor
-#host = 6dvj6v5imhny3anf.onion
-#port = 6697
-#usessl = true
-#socks5 = true
-maker_timeout_sec = 30
+    [MESSAGING]
+    host = irc.cyberguerrilla.org
+    channel = joinmarket-pit
+    port = 6697
+    usessl = true
+    socks5 = false
+    socks5_host = localhost
+    socks5_port = 9050
+    #for tor
+    #host = 6dvj6v5imhny3anf.onion
+    #port = 6697
+    #usessl = true
+    #socks5 = true
+    maker_timeout_sec = 30
 
-[POLICY]
-# for dust sweeping, try merge_algorithm = gradual
-# for more rapid dust sweeping, try merge_algorithm = greedy
-# for most rapid dust sweeping, try merge_algorithm = greediest
-# but don't forget to bump your miner fees!
-merge_algorithm = default
-"""
-
-
-def load_program_config():
-    loadedFiles = config.read([config_location])
-    #Create default config file if not found
-    if len(loadedFiles) != 1:
-        config.readfp(io.BytesIO(defaultconfig))
-        with open(config_location, "w") as configfile:
-            configfile.write(defaultconfig)
-
-    #check for sections
-    for s in required_options:
-        if s not in config.sections():
-            raise Exception(
-                "Config file does not contain the required section: " + s)
-    #then check for specific options
-    for k, v in required_options.iteritems():
-        for o in v:
-            if o not in config.options(k):
-                raise Exception(
-                    "Config file does not contain the required option: " + o)
-
-    try:
-        global maker_timeout_sec
-        maker_timeout_sec = config.getint('MESSAGING', 'maker_timeout_sec')
-    except NoOptionError:
-        debug('maker_timeout_sec not found in .cfg file, using default value')
-
-    #configure the interface to the blockchain on startup
-    global bc_interface
-    bc_interface = blockchaininterface.get_blockchain_interface_instance(config)
+    [POLICY]
+    # for dust sweeping, try merge_algorithm = gradual
+    # for more rapid dust sweeping, try merge_algorithm = greedy
+    # for most rapid dust sweeping, try merge_algorithm = greediest
+    # but don't forget to bump your miner fees!
+    merge_algorithm = default
+    """
 
 
 def get_config_irc_channel():
@@ -105,7 +109,7 @@ def debug(msg):
     with debug_file_lock:
         if nickname and not debug_file_handle:
             debug_file_handle = open(
-                os.path.join('logs', nickname + '.log'), 'ab', 1)
+                    os.path.join('logs', nickname + '.log'), 'ab', 1)
         outmsg = datetime.datetime.now().strftime("[%Y/%m/%d %H:%M:%S] ") + msg
         if not debug_silence:
             if core_alert:
@@ -113,28 +117,30 @@ def debug(msg):
             if joinmarket_alert:
                 print 'JoinMarket Alert Message: ' + joinmarket_alert
             print outmsg
-        if nickname:  #debugs before creating bot nick won't be handled like this
+        if nickname:  # debugs before creating bot nick won't be handled like this
             debug_file_handle.write(outmsg + '\r\n')
 
 
-            #Random functions - replacing some NumPy features
-            #NOTE THESE ARE NEITHER CRYPTOGRAPHICALLY SECURE 
-            #NOR PERFORMANT NOR HIGH PRECISION!
-            #Only for sampling purposes
+            # Random functions - replacing some NumPy features
+            # NOTE THESE ARE NEITHER CRYPTOGRAPHICALLY SECURE
+            # NOR PERFORMANT NOR HIGH PRECISION!
+            # Only for sampling purposes
+
+
 def rand_norm_array(mu, sigma, n):
-    #use normalvariate instead of gauss for thread safety
+    # use normalvariate instead of gauss for thread safety
     return [random.normalvariate(mu, sigma) for i in range(n)]
 
 
 def rand_exp_array(lamda, n):
-    #'lambda' is reserved (in case you are triggered by spelling errors)
+    # 'lambda' is reserved (in case you are triggered by spelling errors)
     return [random.expovariate(1.0 / lamda) for i in range(n)]
 
 
 def rand_pow_array(power, n):
-    #rather crude in that uses a uniform sample which is a multiple of 1e-4
-    #for basis of formula, see: http://mathworld.wolfram.com/RandomNumber.html
-    return [y**(1.0 / power)
+    # rather crude in that uses a uniform sample which is a multiple of 1e-4
+    # for basis of formula, see: http://mathworld.wolfram.com/RandomNumber.html
+    return [y ** (1.0 / power)
             for y in [x * 0.0001 for x in random.sample(
                 xrange(10000), n)]]
 
@@ -152,7 +158,9 @@ def rand_weighted_choice(n, p_arr):
     cum_pr = [sum(p_arr[:i + 1]) for i in xrange(len(p_arr))]
     r = random.random()
     return sorted(cum_pr + [r]).index(r)
-#End random functions
+
+
+# End random functions
 
 
 def chunks(d, n):
@@ -188,7 +196,9 @@ def validate_address(addr):
     return True, 'address validated'
 
 
-def debug_dump_object(obj, skip_fields=[]):
+def debug_dump_object(obj, skip_fields=None):
+    if skip_fields is None:
+        skip_fields = []
     debug('Class debug dump, name:' + obj.__class__.__name__)
     for k, v in obj.__dict__.iteritems():
         if k in skip_fields:
@@ -288,6 +298,7 @@ class AbstractWallet(object):
 	'''
 
     def __init__(self):
+        self.max_mix_depth = 0
         self.utxo_selector = btc.select  # default fallback: upstream
         try:
             if config.get("POLICY", "merge_algorithm") == "gradual":
@@ -343,7 +354,6 @@ class AbstractWallet(object):
 
 
 class Wallet(AbstractWallet):
-
     def __init__(self,
                  seedarg,
                  max_mix_depth=2,
@@ -353,8 +363,8 @@ class Wallet(AbstractWallet):
         super(Wallet, self).__init__()
         self.max_mix_depth = max_mix_depth
         self.storepassword = storepassword
-        #key is address, value is (mixdepth, forchange, index)
-        #if mixdepth = -1 it's an imported key and index refers to imported_privkeys
+        # key is address, value is (mixdepth, forchange, index)
+        # if mixdepth = -1 it's an imported key and index refers to imported_privkeys
         self.addr_cache = {}
         self.unspent = {}
         self.spent_utxos = []
@@ -370,7 +380,7 @@ class Wallet(AbstractWallet):
         self.keys = [(btc.bip32_ckd(m, 0), btc.bip32_ckd(m, 1))
                      for m in mixing_depth_keys]
 
-        #self.index = [[0, 0]]*max_mix_depth
+        # self.index = [[0, 0]]*max_mix_depth
         self.index = []
         for i in range(self.max_mix_depth):
             self.index.append([0, 0])
@@ -382,7 +392,7 @@ class Wallet(AbstractWallet):
         if not os.path.isfile(path):
             if get_network() == 'testnet':
                 debug(
-                    'filename interpreted as seed, only available in testnet because this probably has lower entropy')
+                        'filename interpreted as seed, only available in testnet because this probably has lower entropy')
                 return filename
             else:
                 raise IOError('wallet file not found')
@@ -399,14 +409,15 @@ class Wallet(AbstractWallet):
             self.index_cache = walletdata['index_cache']
         decrypted = False
         while not decrypted:
-            password = getpass.getpass('Enter wallet decryption passphrase: ')
+            password = getpass('Enter wallet decryption passphrase: ')
             password_key = btc.bin_dbl_sha256(password)
             encrypted_seed = walletdata['encrypted_seed']
             try:
-                decrypted_seed = slowaes.decryptData(
-                    password_key, encrypted_seed.decode('hex')).encode('hex')
-                #there is a small probability of getting a valid PKCS7 padding
-                #by chance from a wrong password; sanity check the seed length
+                decrypted_seed = decryptData(
+                        password_key, encrypted_seed.decode('hex')).encode(
+                    'hex')
+                # there is a small probability of getting a valid PKCS7 padding
+                # by chance from a wrong password; sanity check the seed length
                 if len(decrypted_seed) == 32:
                     decrypted = True
                 else:
@@ -419,9 +430,9 @@ class Wallet(AbstractWallet):
             self.walletdata = walletdata
         if 'imported_keys' in walletdata:
             for epk_m in walletdata['imported_keys']:
-                privkey = slowaes.decryptData(password_key,
-                                              epk_m['encrypted_privkey']
-                                              .decode('hex')).encode('hex')
+                privkey = decryptData(password_key,
+                                      epk_m['encrypted_privkey']
+                                      .decode('hex')).encode('hex')
                 privkey = btc.encode_privkey(privkey, 'hex_compressed')
                 if epk_m['mixdepth'] not in self.imported_privkeys:
                     self.imported_privkeys[epk_m['mixdepth']] = []
@@ -448,20 +459,20 @@ class Wallet(AbstractWallet):
 
     def get_key(self, mixing_depth, forchange, i):
         return btc.bip32_extract_key(btc.bip32_ckd(self.keys[mixing_depth][
-            forchange], i))
+                                                       forchange], i))
 
     def get_addr(self, mixing_depth, forchange, i):
         return btc.privtoaddr(
-            self.get_key(mixing_depth, forchange, i), get_p2pk_vbyte())
+                self.get_key(mixing_depth, forchange, i), get_p2pk_vbyte())
 
     def get_new_addr(self, mixing_depth, forchange):
         index = self.index[mixing_depth]
         addr = self.get_addr(mixing_depth, forchange, index[forchange])
         self.addr_cache[addr] = (mixing_depth, forchange, index[forchange])
         index[forchange] += 1
-        #self.update_cache_index()
-        if isinstance(bc_interface, blockchaininterface.BitcoinCoreInterface):
-            if bc_interface.wallet_synced:  #do not import in the middle of sync_wallet()
+        # self.update_cache_index()
+        if isinstance(bc_interface, BitcoinCoreInterface):
+            if bc_interface.wallet_synced:  # do not import in the middle of sync_wallet()
                 if bc_interface.rpc('getaccount', [addr]) == '':
                     debug('importing address ' + addr + ' to bitcoin core')
                     bc_interface.rpc('importaddress',
@@ -493,7 +504,7 @@ class Wallet(AbstractWallet):
             removed_utxos[utxo] = self.unspent[utxo]
             del self.unspent[utxo]
         debug('removed utxos, wallet now is \n' + pprint.pformat(
-            self.get_utxos_by_mixdepth()))
+                self.get_utxos_by_mixdepth()))
         self.spent_utxos += removed_utxos.keys()
         return removed_utxos
 
@@ -508,7 +519,7 @@ class Wallet(AbstractWallet):
             added_utxos[utxo] = addrdict
             self.unspent[utxo] = addrdict
         debug('added utxos, wallet now is \n' + pprint.pformat(
-            self.get_utxos_by_mixdepth()))
+                self.get_utxos_by_mixdepth()))
         return added_utxos
 
     def get_utxos_by_mixdepth(self):
@@ -528,13 +539,12 @@ class Wallet(AbstractWallet):
 
 
 class BitcoinCoreWallet(AbstractWallet):
-
     def __init__(self, fromaccount):
         super(BitcoinCoreWallet, self).__init__()
         if not isinstance(bc_interface,
-                          blockchaininterface.BitcoinCoreInterface):
+                          BitcoinCoreInterface):
             raise RuntimeError(
-                'Bitcoin Core wallet can only be used when blockchain interface is BitcoinCoreInterface')
+                    'Bitcoin Core wallet can only be used when blockchain interface is BitcoinCoreInterface')
         self.fromaccount = fromaccount
         self.max_mix_depth = 1
 
@@ -549,12 +559,14 @@ class BitcoinCoreWallet(AbstractWallet):
             if not u['spendable']:
                 continue
             if self.fromaccount and (
-                ('account' not in u) or u['account'] != self.fromaccount):
+                        ('account' not in u) or u[
+                        'account'] != self.fromaccount):
                 continue
             result[0][u['txid'] + ':' + str(u[
-                'vout'])] = {'address': u['address'],
-                             'value':
-                             int(Decimal(str(u['amount'])) * Decimal('1e8'))}
+                                                'vout'])] = {
+                'address': u['address'],
+                'value':
+                    int(Decimal(str(u['amount'])) * Decimal('1e8'))}
         return result
 
     def get_change_addr(self, mixing_depth):
@@ -563,20 +575,20 @@ class BitcoinCoreWallet(AbstractWallet):
     def ensure_wallet_unlocked(self):
         wallet_info = bc_interface.rpc('getwalletinfo', [])
         if 'unlocked_until' in wallet_info and wallet_info[
-                'unlocked_until'] <= 0:
+            'unlocked_until'] <= 0:
             while True:
-                password = getpass.getpass(
-                    'Enter passphrase to unlock wallet: ')
+                password = getpass(
+                        'Enter passphrase to unlock wallet: ')
                 if password == '':
                     raise RuntimeError('Aborting wallet unlock')
                 try:
-                    #TODO cleanly unlock wallet after use, not with arbitrary timeout
+                    # TODO cleanly unlock wallet after use, not with arbitrary timeout
                     bc_interface.rpc('walletpassphrase', [password, 10])
                     break
-                except jsonrpc.JsonRpcError as exc:
+                except JsonRpcError as exc:
                     if exc.code != -14:
                         raise exc
-                    # Wrong passphrase, try again.
+                        # Wrong passphrase, try again.
 
 
 def calc_cj_fee(ordertype, cjfee, cj_amount):
@@ -585,7 +597,7 @@ def calc_cj_fee(ordertype, cjfee, cj_amount):
         real_cjfee = int(cjfee)
     elif ordertype == 'relorder':
         real_cjfee = int((Decimal(cjfee) * Decimal(cj_amount)).quantize(Decimal(
-            1)))
+                1)))
     else:
         raise RuntimeError('unknown order type: ' + str(ordertype))
     return real_cjfee
@@ -647,37 +659,40 @@ def pick_order(orders, n, feekey):
             pickedOrderIndex = -1
             continue
 
-        if pickedOrderIndex >= 0 and pickedOrderIndex < len(orders):
+        if 0 <= pickedOrderIndex < len(orders):
             return orders[pickedOrderIndex]
         pickedOrderIndex = -1
 
 
-def choose_orders(db, cj_amount, n, chooseOrdersBy, ignored_makers=[]):
+def choose_orders(db, cj_amount, n, chooseOrdersBy, ignored_makers=None):
+    if ignored_makers is None:
+        ignored_makers = []
     sqlorders = db.execute('SELECT * FROM orderbook;').fetchall()
     orders = [(o['counterparty'], o['oid'], calc_cj_fee(
-        o['ordertype'], o['cjfee'], cj_amount), o['txfee'])
+            o['ordertype'], o['cjfee'], cj_amount), o['txfee'])
               for o in sqlorders
-              if cj_amount >= o['minsize'] and cj_amount <= o['maxsize'] and o[
+              if o['minsize'] <= cj_amount <= o['maxsize'] and o[
                   'counterparty'] not in ignored_makers]
-    feekey = lambda o: o[2] - o[3]  # function that returns the fee for a given order
+    feekey = lambda o: o[2] - o[
+        3]  # function that returns the fee for a given order
     counterparties = set([o[0] for o in orders])
     if n > len(counterparties):
         debug(
-            'ERROR not enough liquidity in the orderbook n=%d suitable-counterparties=%d amount=%d totalorders=%d'
-            % (n, len(counterparties), cj_amount, len(orders)))
-        return None, 0  #TODO handle not enough liquidity better, maybe an Exception
-    #restrict to one order per counterparty, choose the one with the lowest cjfee
-    #this is done in advance of the order selection algo, so applies to all of them.
-    #however, if orders are picked manually, allow duplicates.
+                'ERROR not enough liquidity in the orderbook n=%d suitable-counterparties=%d amount=%d totalorders=%d'
+                % (n, len(counterparties), cj_amount, len(orders)))
+        return None, 0  # TODO handle not enough liquidity better, maybe an Exception
+    # restrict to one order per counterparty, choose the one with the lowest cjfee
+    # this is done in advance of the order selection algo, so applies to all of them.
+    # however, if orders are picked manually, allow duplicates.
     if chooseOrdersBy != pick_order:
         orders = sorted(
-            dict((v[0], v) for v in sorted(orders,
-                                           key=feekey,
-                                           reverse=True)).values(),
-            key=feekey)
+                dict((v[0], v) for v in sorted(orders,
+                                               key=feekey,
+                                               reverse=True)).values(),
+                key=feekey)
     else:
         orders = sorted(orders,
-                        key=feekey)  #sort from smallest to biggest cj fee
+                        key=feekey)  # sort from smallest to biggest cj fee
 
     debug('considered orders = \n' + '\n'.join([str(o) for o in orders]))
     total_cj_fee = 0
@@ -685,7 +700,7 @@ def choose_orders(db, cj_amount, n, chooseOrdersBy, ignored_makers=[]):
     for i in range(n):
         chosen_order = chooseOrdersBy(orders, n, feekey)
         orders = [o for o in orders if o[0] != chosen_order[0]
-                 ]  #remove all orders from that same counterparty
+                  ]  # remove all orders from that same counterparty
         chosen_orders.append(chosen_order)
         total_cj_fee += chosen_order[2]
     debug('chosen orders = \n' + '\n'.join([str(o) for o in chosen_orders]))
@@ -698,7 +713,7 @@ def choose_sweep_orders(db,
                         total_txfee,
                         n,
                         chooseOrdersBy,
-                        ignored_makers=[]):
+                        ignored_makers=None):
     '''
 	choose an order given that we want to be left with no change
 	i.e. sweep an entire group of utxos
@@ -709,6 +724,9 @@ def choose_sweep_orders(db,
 	=> 0 = totalin - mytxfee - sum(absfee) - cjamount*(1 + sum(relfee))
 	=> cjamount = (totalin - mytxfee - sum(absfee)) / (1 + sum(relfee))
 	'''
+
+    if ignored_makers is None:
+        ignored_makers = []
 
     def calc_zero_change_cj_amount(ordercombo):
         sumabsfee = 0
@@ -722,46 +740,47 @@ def choose_sweep_orders(db,
                 sumrelfee += Decimal(order[0]['cjfee'])
             else:
                 raise RuntimeError('unknown order type: ' + str(order[0][
-                    'ordertype']))
+                                                                    'ordertype']))
         my_txfee = max(total_txfee - sumtxfee_contribution, 0)
         cjamount = (total_input_value - my_txfee - sumabsfee) / (1 + sumrelfee)
         cjamount = int(cjamount.quantize(Decimal(1)))
         return cjamount, int(sumabsfee + sumrelfee * cjamount)
 
     debug('choosing sweep orders for total_input_value = ' + str(
-        total_input_value))
+            total_input_value))
     sqlorders = db.execute('SELECT * FROM orderbook WHERE minsize <= ?;',
                            (total_input_value,)).fetchall()
     orderkeys = ['counterparty', 'oid', 'ordertype', 'minsize', 'maxsize',
                  'txfee', 'cjfee']
     orderlist = [dict([(k, o[k]) for k in orderkeys])
                  for o in sqlorders if o['counterparty'] not in ignored_makers]
-    #orderlist = sqlorders #uncomment this and comment previous two lines for faster runtime but less readable output
+    # orderlist = sqlorders #uncomment this and comment previous two lines for faster runtime but less readable output
     debug('orderlist = \n' + '\n'.join([str(o) for o in orderlist]))
 
-    #choose N amount of orders
+    # choose N amount of orders
     available_orders = [(o, calc_cj_fee(o['ordertype'], o['cjfee'],
                                         total_input_value), o['txfee'])
                         for o in orderlist]
-    feekey = lambda o: o[1] - o[2]  # function that returns the fee for a given order
+    feekey = lambda o: o[1] - o[
+        2]  # function that returns the fee for a given order
     available_orders = sorted(available_orders,
-                              key=feekey)  #sort from smallest to biggest cj fee
+                              key=feekey)  # sort from smallest to biggest cj fee
     chosen_orders = []
     while len(chosen_orders) < n:
         if len(available_orders) < n - len(chosen_orders):
             debug('ERROR not enough liquidity in the orderbook')
-            return None, 0  #TODO handle not enough liquidity better, maybe an Exception
+            return None, 0  # TODO handle not enough liquidity better, maybe an Exception
         for i in range(n - len(chosen_orders)):
             chosen_order = chooseOrdersBy(available_orders, n, feekey)
             debug('chosen = ' + str(chosen_order))
-            #remove all orders from that same counterparty
+            # remove all orders from that same counterparty
             available_orders = [
                 o
                 for o in available_orders
                 if o[0]['counterparty'] != chosen_order[0]['counterparty']
-            ]
+                ]
             chosen_orders.append(chosen_order)
-        #calc cj_amount and check its in range
+        # calc cj_amount and check its in range
         cj_amount, total_fee = calc_zero_change_cj_amount(chosen_orders)
         for c in list(chosen_orders):
             minsize = c[0]['minsize']
@@ -772,3 +791,50 @@ def choose_sweep_orders(db,
     result = dict([(o[0]['counterparty'], o[0]['oid']) for o in chosen_orders])
     debug('cj amount = ' + str(cj_amount))
     return result, cj_amount
+
+
+from .slowaes import *
+from .message_channel import *
+from .socks import *
+from .message_channel import *
+from .old_mnemonic import *
+from .jsonrpc import *
+from .enc_wrapper import *
+
+from .irc import *
+from .taker import *
+
+from joinmarket.blockchaininterface import *
+
+def load_program_config():
+    loadedFiles = config.read([config_location])
+    # Create default config file if not found
+    if len(loadedFiles) != 1:
+        config.readfp(io.BytesIO(defaultconfig))
+        with open(config_location, "w") as configfile:
+            configfile.write(defaultconfig)
+
+    # check for sections
+    for s in required_options:
+        if s not in config.sections():
+            raise Exception(
+                    "Config file does not contain the required section: " + s)
+    # then check for specific options
+    for k, v in required_options.iteritems():
+        for o in v:
+            if o not in config.options(k):
+                raise Exception(
+                        "Config file does not contain the required option: " + o)
+
+    try:
+        global maker_timeout_sec
+        maker_timeout_sec = config.getint('MESSAGING', 'maker_timeout_sec')
+    except NoOptionError:
+        debug('maker_timeout_sec not found in .cfg file, using default value')
+
+    # configure the interface to the blockchain on startup
+    global bc_interface
+    bc_interface = get_blockchain_interface_instance(config)
+
+from .maker import *
+

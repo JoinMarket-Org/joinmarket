@@ -1,15 +1,20 @@
 #! /usr/bin/env python
+from __future__ import absolute_import
 
+import sys
+import threading
 from optparse import OptionParser
-import threading, pprint, sys, os
-data_dir = os.path.dirname(os.path.realpath(__file__))
-sys.path.insert(0, os.path.join(data_dir, 'joinmarket'))
 
-from common import *
-import common
-import taker as takermodule
-from irc import IRCMessageChannel, random_nick
-import bitcoin as btc
+# data_dir = os.path.dirname(os.path.realpath(__file__))
+# sys.path.insert(0, os.path.join(data_dir, 'joinmarket'))
+import time
+
+from joinmarket import choose_sweep_orders, get_log, choose_orders, Taker, \
+    load_program_config, validate_address, pick_order, cheapest_order_choose, \
+    weighted_order_choose, random_nick, set_nickname, Wallet, BitcoinCoreWallet, \
+    bc_interface, IRCMessageChannel, debug_dump_object
+
+log = get_log()
 
 
 def check_high_fee(total_fee_pc):
@@ -24,10 +29,9 @@ def check_high_fee(total_fee_pc):
         print '\n'.join(['=' * 60] * 3)
 
 
-#thread which does the buy-side algorithm
+# thread which does the buy-side algorithm
 # chooses which coinjoins to initiate and when
 class PaymentThread(threading.Thread):
-
     def __init__(self, taker):
         threading.Thread.__init__(self)
         self.daemon = True
@@ -36,7 +40,7 @@ class PaymentThread(threading.Thread):
 
     def create_tx(self):
         crow = self.taker.db.execute(
-            'SELECT COUNT(DISTINCT counterparty) FROM orderbook;').fetchone()
+                'SELECT COUNT(DISTINCT counterparty) FROM orderbook;').fetchone()
         counterparty_count = crow['COUNT(DISTINCT counterparty)']
         counterparty_count -= len(self.ignored_makers)
         if counterparty_count < self.taker.makercount:
@@ -54,14 +58,14 @@ class PaymentThread(threading.Thread):
                 self.taker.mixdepth]
             total_value = sum([va['value'] for va in utxos.values()])
             orders, cjamount = choose_sweep_orders(
-                self.taker.db, total_value, self.taker.txfee,
-                self.taker.makercount, self.taker.chooseOrdersFunc,
-                self.ignored_makers)
+                    self.taker.db, total_value, self.taker.txfee,
+                    self.taker.makercount, self.taker.chooseOrdersFunc,
+                    self.ignored_makers)
             if not self.taker.answeryes:
                 total_cj_fee = total_value - cjamount - self.taker.txfee
-                debug('total cj fee = ' + str(total_cj_fee))
+                log.debug('total cj fee = ' + str(total_cj_fee))
                 total_fee_pc = 1.0 * total_cj_fee / cjamount
-                debug('total coinjoin fee = ' + str(float('%.3g' % (
+                log.debug('total coinjoin fee = ' + str(float('%.3g' % (
                     100.0 * total_fee_pc))) + '%')
                 check_high_fee(total_fee_pc)
                 if raw_input('send with these orders? (y/n):')[0] != 'y':
@@ -69,9 +73,10 @@ class PaymentThread(threading.Thread):
                     return
         else:
             orders, total_cj_fee = self.sendpayment_choose_orders(
-                self.taker.amount, self.taker.makercount)
+                    self.taker.amount, self.taker.makercount)
             if not orders:
-                debug('ERROR not enough liquidity in the orderbook, exiting')
+                log.debug(
+                    'ERROR not enough liquidity in the orderbook, exiting')
                 return
             total_amount = self.taker.amount + total_cj_fee + self.taker.txfee
             print 'total amount spent = ' + str(total_amount)
@@ -88,11 +93,12 @@ class PaymentThread(threading.Thread):
     def finishcallback(self, coinjointx):
         if coinjointx.all_responded:
             coinjointx.self_sign_and_push()
-            debug('created fully signed tx, ending')
+            log.debug('created fully signed tx, ending')
             self.taker.msgchan.shutdown()
             return
         self.ignored_makers += coinjointx.nonrespondants
-        debug('recreating the tx, ignored_makers=' + str(self.ignored_makers))
+        log.debug(
+            'recreating the tx, ignored_makers=' + str(self.ignored_makers))
         self.create_tx()
 
     def sendpayment_choose_orders(self,
@@ -102,23 +108,24 @@ class PaymentThread(threading.Thread):
                                   active_nicks=[]):
         self.ignored_makers += nonrespondants
         orders, total_cj_fee = choose_orders(
-            self.taker.db, cj_amount, makercount, self.taker.chooseOrdersFunc,
-            self.ignored_makers + active_nicks)
+                self.taker.db, cj_amount, makercount,
+                self.taker.chooseOrdersFunc,
+                self.ignored_makers + active_nicks)
         if not orders:
             return None, 0
         print 'chosen orders to fill ' + str(orders) + ' totalcjfee=' + str(
-            total_cj_fee)
+                total_cj_fee)
         if not self.taker.answeryes:
             if len(self.ignored_makers) > 0:
                 noun = 'total'
             else:
                 noun = 'additional'
             total_fee_pc = 1.0 * total_cj_fee / cj_amount
-            debug(noun + ' coinjoin fee = ' + str(float('%.3g' % (
+            log.debug(noun + ' coinjoin fee = ' + str(float('%.3g' % (
                 100.0 * total_fee_pc))) + '%')
             check_high_fee(total_fee_pc)
             if raw_input('send with these orders? (y/n):')[0] != 'y':
-                debug('ending')
+                log.debug('ending')
                 self.taker.msgchan.shutdown()
                 return None, -1
         return orders, total_cj_fee
@@ -129,11 +136,10 @@ class PaymentThread(threading.Thread):
         self.create_tx()
 
 
-class SendPayment(takermodule.Taker):
-
+class SendPayment(Taker):
     def __init__(self, msgchan, wallet, destaddr, amount, makercount, txfee,
                  waittime, mixdepth, answeryes, chooseOrdersFunc):
-        takermodule.Taker.__init__(self, msgchan)
+        Taker.__init__(self, msgchan)
         self.wallet = wallet
         self.destaddr = destaddr
         self.amount = amount
@@ -145,19 +151,19 @@ class SendPayment(takermodule.Taker):
         self.chooseOrdersFunc = chooseOrdersFunc
 
     def on_welcome(self):
-        takermodule.Taker.on_welcome(self)
+        Taker.on_welcome(self)
         PaymentThread(self).start()
 
 
 def main():
     parser = OptionParser(
-        usage=
-        'usage: %prog [options] [wallet file / fromaccount] [amount] [destaddr]',
-        description='Sends a single payment from a given mixing depth of your '
-        +
-        'wallet to an given address using coinjoin and then switches off. Also sends from bitcoinqt. '
-        +
-        'Setting amount to zero will do a sweep, where the entire mix depth is emptied')
+            usage=
+            'usage: %prog [options] [wallet file / fromaccount] [amount] [destaddr]',
+            description='Sends a single payment from a given mixing depth of your '
+                        +
+                        'wallet to an given address using coinjoin and then switches off. Also sends from bitcoinqt. '
+                        +
+                        'Setting amount to zero will do a sweep, where the entire mix depth is emptied')
     parser.add_option('-f',
                       '--txfee',
                       action='store',
@@ -166,13 +172,13 @@ def main():
                       default=10000,
                       help='total miner fee in satoshis, default=10000')
     parser.add_option(
-        '-w',
-        '--wait-time',
-        action='store',
-        type='float',
-        dest='waittime',
-        help='wait time in seconds to allow orders to arrive, default=5',
-        default=5)
+            '-w',
+            '--wait-time',
+            action='store',
+            type='float',
+            dest='waittime',
+            help='wait time in seconds to allow orders to arrive, default=5',
+            default=5)
     parser.add_option('-N',
                       '--makercount',
                       action='store',
@@ -181,20 +187,20 @@ def main():
                       help='how many makers to coinjoin with, default=2',
                       default=2)
     parser.add_option(
-        '-C',
-        '--choose-cheapest',
-        action='store_true',
-        dest='choosecheapest',
-        default=False,
-        help='override weightened offers picking and choose cheapest')
+            '-C',
+            '--choose-cheapest',
+            action='store_true',
+            dest='choosecheapest',
+            default=False,
+            help='override weightened offers picking and choose cheapest')
     parser.add_option(
-        '-P',
-        '--pick-orders',
-        action='store_true',
-        dest='pickorders',
-        default=False,
-        help=
-        'manually pick which orders to take. doesn\'t work while sweeping.')
+            '-P',
+            '--pick-orders',
+            action='store_true',
+            dest='pickorders',
+            default=False,
+            help=
+            'manually pick which orders to take. doesn\'t work while sweeping.')
     parser.add_option('-m',
                       '--mixdepth',
                       action='store',
@@ -208,13 +214,13 @@ def main():
                       default=False,
                       help='answer yes to everything')
     parser.add_option(
-        '--rpcwallet',
-        action='store_true',
-        dest='userpcwallet',
-        default=False,
-        help=
-        'Use the Bitcoin Core wallet through json rpc, instead of the internal joinmarket '
-        + 'wallet. Requires blockchain_source=json-rpc')
+            '--rpcwallet',
+            action='store_true',
+            dest='userpcwallet',
+            default=False,
+            help=
+            'Use the Bitcoin Core wallet through json rpc, instead of the internal joinmarket '
+            + 'wallet. Requires blockchain_source=json-rpc')
     (options, args) = parser.parse_args()
 
     if len(args) < 3:
@@ -231,35 +237,36 @@ def main():
         return
 
     chooseOrdersFunc = None
-    if options.pickorders and amount != 0:  #cant use for sweeping
+    if options.pickorders and amount != 0:  # cant use for sweeping
         chooseOrdersFunc = pick_order
     elif options.choosecheapest:
         chooseOrdersFunc = cheapest_order_choose
-    else:  #choose randomly (weighted)
+    else:  # choose randomly (weighted)
         chooseOrdersFunc = weighted_order_choose
 
-    common.nickname = random_nick()
-    debug('starting sendpayment')
+    nickname = random_nick()
+    set_nickname(nickname)
+    log.debug('starting sendpayment')
 
     if not options.userpcwallet:
         wallet = Wallet(wallet_name, options.mixdepth + 1)
     else:
         wallet = BitcoinCoreWallet(fromaccount=wallet_name)
-    common.bc_interface.sync_wallet(wallet)
+    bc_interface.sync_wallet(wallet)
 
-    irc = IRCMessageChannel(common.nickname)
+    irc = IRCMessageChannel(nickname)
     taker = SendPayment(irc, wallet, destaddr, amount, options.makercount,
                         options.txfee, options.waittime, options.mixdepth,
                         options.answeryes, chooseOrdersFunc)
     try:
-        debug('starting irc')
+        log.debug('starting irc')
         irc.run()
     except:
-        debug('CRASHING, DUMPING EVERYTHING')
+        log.debug('CRASHING, DUMPING EVERYTHING')
         debug_dump_object(wallet, ['addr_cache', 'keys', 'wallet_name', 'seed'])
         debug_dump_object(taker)
         import traceback
-        debug(traceback.format_exc())
+        log.debug(traceback.format_exc())
 
 
 if __name__ == "__main__":

@@ -11,9 +11,8 @@
 # Licensed under the Apache License, Version 2.0
 # http://www.apache.org/licenses/
 #
-import os
-import sys
 import math
+import os
 
 
 def append_PKCS7_padding(s):
@@ -177,7 +176,7 @@ class AES(object):
                 rconIteration += 1
             # For 256-bit keys, we add an extra sbox to the calculation
             if size == self.keySize["SIZE_256"] and (
-                (currentSize % size) == 16):
+                        (currentSize % size) == 16):
                 for l in range(4):
                     t[l] = self.getSBoxValue(t[l])
 
@@ -186,7 +185,7 @@ class AES(object):
             # key.
             for m in range(4):
                 expandedKey[currentSize] = expandedKey[currentSize - size] ^ \
-                        t[m]
+                                           t[m]
                 currentSize += 1
 
         return expandedKey
@@ -227,8 +226,10 @@ class AES(object):
     # using the state value as index for the SBox
     #
     def subBytes(self, state, isInv):
-        if isInv: getter = self.getSBoxInvert
-        else: getter = self.getSBoxValue
+        if isInv:
+            getter = self.getSBoxInvert
+        else:
+            getter = self.getSBoxValue
         for i in range(16):
             state[i] = getter(state[i])
         return state
@@ -243,13 +244,13 @@ class AES(object):
     def shiftRow(self, state, statePointer, nbr, isInv):
         for i in range(nbr):
             if isInv:
-                state[statePointer:statePointer+4] = \
-                        state[statePointer+3:statePointer+4] + \
-                        state[statePointer:statePointer+3]
+                state[statePointer:statePointer + 4] = \
+                    state[statePointer + 3:statePointer + 4] + \
+                    state[statePointer:statePointer + 3]
             else:
-                state[statePointer:statePointer+4] = \
-                        state[statePointer+1:statePointer+4] + \
-                        state[statePointer:statePointer+1]
+                state[statePointer:statePointer + 4] = \
+                    state[statePointer + 1:statePointer + 4] + \
+                    state[statePointer:statePointer + 1]
         return state
 
     # galois multiplication of the 4x4 matrix
@@ -267,8 +268,10 @@ class AES(object):
 
     # galois multiplication of 1 column of the 4x4 matrix
     def mixColumn(self, column, isInv):
-        if isInv: mult = [14, 9, 13, 11]
-        else: mult = [2, 1, 1, 3]
+        if isInv:
+            mult = [14, 9, 13, 11]
+        else:
+            mult = [2, 1, 1, 3]
         cpy = list(column)
         g = self.galois_multiplication
 
@@ -310,14 +313,14 @@ class AES(object):
         state = self.subBytes(state, False)
         state = self.shiftRows(state, False)
         state = self.addRoundKey(
-            state, self.createRoundKey(expandedKey, 16 * nbrRounds))
+                state, self.createRoundKey(expandedKey, 16 * nbrRounds))
         return state
 
     # Perform the initial operations, the standard round, and the final
     # operations of the inverse aes, creating a round key for each round
     def aes_invMain(self, state, expandedKey, nbrRounds):
         state = self.addRoundKey(
-            state, self.createRoundKey(expandedKey, 16 * nbrRounds))
+                state, self.createRoundKey(expandedKey, 16 * nbrRounds))
         i = nbrRounds - 1
         while i > 0:
             state = self.aes_invRound(state,
@@ -336,10 +339,14 @@ class AES(object):
         # the 128 bit block to encode
         block = [0] * 16
         # set the number of rounds
-        if size == self.keySize["SIZE_128"]: nbrRounds = 10
-        elif size == self.keySize["SIZE_192"]: nbrRounds = 12
-        elif size == self.keySize["SIZE_256"]: nbrRounds = 14
-        else: return None
+        if size == self.keySize["SIZE_128"]:
+            nbrRounds = 10
+        elif size == self.keySize["SIZE_192"]:
+            nbrRounds = 12
+        elif size == self.keySize["SIZE_256"]:
+            nbrRounds = 14
+        else:
+            return None
 
         # the expanded keySize
         expandedKeySize = 16 * (nbrRounds + 1)
@@ -379,10 +386,14 @@ class AES(object):
         # the 128 bit block to decode
         block = [0] * 16
         # set the number of rounds
-        if size == self.keySize["SIZE_128"]: nbrRounds = 10
-        elif size == self.keySize["SIZE_192"]: nbrRounds = 12
-        elif size == self.keySize["SIZE_256"]: nbrRounds = 14
-        else: return None
+        if size == self.keySize["SIZE_128"]:
+            nbrRounds = 10
+        elif size == self.keySize["SIZE_192"]:
+            nbrRounds = 12
+        elif size == self.keySize["SIZE_256"]:
+            nbrRounds = 14
+        else:
+            return None
 
         # the expanded keySize
         expandedKeySize = 16 * (nbrRounds + 1)
@@ -412,7 +423,6 @@ class AES(object):
 
 
 class AESModeOfOperation(object):
-
     aes = AES()
 
     # structure of supported modes of operation
@@ -421,8 +431,10 @@ class AESModeOfOperation(object):
     # converts a 16 character string into a number array
     def convertString(self, string, start, end, mode):
         if end - start > 16: end = start + 16
-        if mode == self.modeOfOperation["CBC"]: ar = [0] * 16
-        else: ar = []
+        if mode == self.modeOfOperation["CBC"]:
+            ar = [0] * 16
+        else:
+            ar = []
 
         i = start
         j = 0
@@ -454,7 +466,7 @@ class AESModeOfOperation(object):
         cipherOut = []
         # char firstRound
         firstRound = True
-        if stringIn != None:
+        if stringIn is not None:
             for j in range(int(math.ceil(float(len(stringIn)) / 16))):
                 start = j * 16
                 end = j * 16 + 16
@@ -534,7 +546,7 @@ class AESModeOfOperation(object):
         stringOut = ''
         # char firstRound
         firstRound = True
-        if cipherIn != None:
+        if cipherIn is not None:
             for j in range(int(math.ceil(float(len(cipherIn)) / 16))):
                 start = j * 16
                 end = j * 16 + 16
@@ -644,9 +656,9 @@ def decryptData(key, data, mode=AESModeOfOperation.modeOfOperation["CBC"]):
 
 def generateRandomKey(keysize):
     """Generates a key from random data of length `keysize`.
-    
+
     The returned key is a string of bytes.
-    
+
     """
     if keysize not in (16, 24, 32):
         emsg = 'Invalid keysize, %s. Should be one of (16, 24, 32).'

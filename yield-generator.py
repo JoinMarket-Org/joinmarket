@@ -1,35 +1,40 @@
 #! /usr/bin/env python
+from __future__ import absolute_import
 
-import time, os, binascii, sys, datetime
-import pprint
-data_dir = os.path.dirname(os.path.realpath(__file__))
-sys.path.insert(0, os.path.join(data_dir, 'joinmarket'))
+import datetime
+import os
+import time
 
-from maker import *
-from irc import IRCMessageChannel, random_nick
-import bitcoin as btc
-import common, blockchaininterface
+from joinmarket import Maker, random_nick, set_nickname, get_network, get_log, \
+    DUST_THRESHOLD, calc_cj_fee, load_program_config, bc_interface, \
+    BlockrInterface, Wallet, IRCMessageChannel, debug_dump_object, config
 
-from socket import gethostname
+# data_dir = os.path.dirname(os.path.realpath(__file__))
+# sys.path.insert(0, os.path.join(data_dir, 'joinmarket'))
+
+# import blockchaininterface
 
 txfee = 1000
 cjfee = '0.002'  # 0.2% fee
 nickname = random_nick()
+set_nickname(nickname)
 nickserv_password = ''
 minsize = int(
-    1.2 * txfee / float(cjfee)
-)  #minimum size is such that you always net profit at least 20% of the miner fee
+        1.2 * txfee / float(cjfee)
+)  # minimum size is such that you always net profit at least 20% of the miner fee
 mix_levels = 5
 
+log = get_log()
 
-#is a maker for the purposes of generating a yield from held
+
+# is a maker for the purposes of generating a yield from held
 # bitcoins without ruining privacy for the taker, the taker could easily check
 # the history of the utxos this bot sends, so theres not much incentive
 # to ruin the privacy for barely any more yield
-#sell-side algorithm:
-#add up the value of each utxo for each mixing depth,
+# sell-side algorithm:
+# add up the value of each utxo for each mixing depth,
 # announce a relative-fee order of the highest balance
-#spent from utxos that try to make the highest balance even higher
+# spent from utxos that try to make the highest balance even higher
 # so try to keep coins concentrated in one mixing depth
 class YieldGenerator(Maker):
     statement_file = os.path.join('logs', 'yigen-statement.csv')
@@ -42,7 +47,7 @@ class YieldGenerator(Maker):
         self.tx_unconfirm_timestamp = {}
 
     def log_statement(self, data):
-        if common.get_network() == 'testnet':
+        if get_network() == 'testnet':
             return
 
         data = [str(d) for d in data]
@@ -54,9 +59,10 @@ class YieldGenerator(Maker):
         Maker.on_welcome(self)
         if not os.path.isfile(self.statement_file):
             self.log_statement(
-                ['timestamp', 'cj amount/satoshi', 'my input count',
-                 'my input value/satoshi', 'cjfee/satoshi', 'earned/satoshi',
-                 'confirm time/min', 'notes'])
+                    ['timestamp', 'cj amount/satoshi', 'my input count',
+                     'my input value/satoshi', 'cjfee/satoshi',
+                     'earned/satoshi',
+                     'confirm time/min', 'notes'])
 
         timestamp = datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
         self.log_statement([timestamp, '', '', '', '', '', '', 'Connected'])
@@ -64,15 +70,15 @@ class YieldGenerator(Maker):
     def create_my_orders(self):
         mix_balance = self.wallet.get_balance_by_mixdepth()
         if len([b for m, b in mix_balance.iteritems() if b > 0]) == 0:
-            debug('do not have any coins left')
+            log.debug('do not have any coins left')
             return []
 
-        #print mix_balance
+        # print mix_balance
         max_mix = max(mix_balance, key=mix_balance.get)
         order = {'oid': 0,
                  'ordertype': 'relorder',
                  'minsize': minsize,
-                 'maxsize': mix_balance[max_mix] - common.DUST_THRESHOLD,
+                 'maxsize': mix_balance[max_mix] - DUST_THRESHOLD,
                  'txfee': txfee,
                  'cjfee': cjfee}
         return [order]
@@ -81,46 +87,47 @@ class YieldGenerator(Maker):
         mix_balance = self.wallet.get_balance_by_mixdepth()
         max_mix = max(mix_balance, key=mix_balance.get)
 
-        #algo attempts to make the largest-balance mixing depth get an even larger balance
-        debug('finding suitable mixdepth')
+        # algo attempts to make the largest-balance mixing depth get an even larger balance
+        log.debug('finding suitable mixdepth')
         mixdepth = (max_mix - 1) % self.wallet.max_mix_depth
         while True:
             if mixdepth in mix_balance and mix_balance[mixdepth] >= amount:
                 break
             mixdepth = (mixdepth - 1) % self.wallet.max_mix_depth
-        #mixdepth is the chosen depth we'll be spending from
+        # mixdepth is the chosen depth we'll be spending from
         cj_addr = self.wallet.get_receive_addr(
-            (mixdepth + 1) % self.wallet.max_mix_depth)
+                (mixdepth + 1) % self.wallet.max_mix_depth)
         change_addr = self.wallet.get_change_addr(mixdepth)
 
         utxos = self.wallet.select_utxos(mixdepth, amount)
         my_total_in = sum([va['value'] for va in utxos.values()])
         real_cjfee = calc_cj_fee(cjorder.ordertype, cjorder.cjfee, amount)
         change_value = my_total_in - amount - cjorder.txfee + real_cjfee
-        if change_value <= common.DUST_THRESHOLD:
-            debug('change value=%d below dust threshold, finding new utxos' %
-                  (change_value))
+        if change_value <= DUST_THRESHOLD:
+            log.debug(
+                'change value=%d below dust threshold, finding new utxos' %
+                (change_value))
             try:
                 utxos = self.wallet.select_utxos(mixdepth,
-                                                 amount + common.DUST_THRESHOLD)
+                                                 amount + DUST_THRESHOLD)
             except Exception:
-                debug(
-                    'dont have the required UTXOs to make a output above the dust threshold, quitting')
+                log.debug(
+                        'dont have the required UTXOs to make a output above the dust threshold, quitting')
                 return None, None, None
 
         return utxos, cj_addr, change_addr
 
     def on_tx_unconfirmed(self, cjorder, txid, removed_utxos):
         self.tx_unconfirm_timestamp[cjorder.cj_addr] = int(time.time())
-        #if the balance of the highest-balance mixing depth change then reannounce it
+        # if the balance of the highest-balance mixing depth change then reannounce it
         oldorder = self.orderlist[0] if len(self.orderlist) > 0 else None
         neworders = self.create_my_orders()
         if len(neworders) == 0:
-            return ([0], [])  #cancel old order
-        if oldorder:  #oldorder may not exist when this is called from on_tx_confirmed
+            return ([0], [])  # cancel old order
+        if oldorder:  # oldorder may not exist when this is called from on_tx_confirmed
             if oldorder['maxsize'] == neworders[0]['maxsize']:
-                return ([], [])  #change nothing
-        #announce new order, replacing the old order
+                return ([], [])  # change nothing
+        # announce new order, replacing the old order
         return ([], [neworders[0]])
 
     def on_tx_confirmed(self, cjorder, confirmations, txid):
@@ -131,17 +138,17 @@ class YieldGenerator(Maker):
             confirm_time = 0
         timestamp = datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
         self.log_statement([timestamp, cjorder.cj_amount, len(
-            cjorder.utxos), sum([av['value'] for av in cjorder.utxos.values(
-            )]), cjorder.real_cjfee, cjorder.real_cjfee - cjorder.txfee, round(
+                cjorder.utxos), sum([av['value'] for av in cjorder.utxos.values(
+        )]), cjorder.real_cjfee, cjorder.real_cjfee - cjorder.txfee, round(
                 confirm_time / 60.0, 2), ''])
         return self.on_tx_unconfirmed(cjorder, txid, None)
 
 
 def main():
-    common.load_program_config()
+    load_program_config()
     import sys
     seed = sys.argv[1]
-    if isinstance(common.bc_interface, blockchaininterface.BlockrInterface):
+    if isinstance(bc_interface, BlockrInterface):
         print '\nYou are running a yield generator by polling the blockr.io website'
         print 'This is quite bad for privacy. That site is owned by coinbase.com'
         print 'Also your bot will run faster and more efficently, you can be immediately notified of new bitcoin network'
@@ -152,25 +159,27 @@ def main():
             return
 
     wallet = Wallet(seed, max_mix_depth=mix_levels)
-    common.bc_interface.sync_wallet(wallet)
+    bc_interface.sync_wallet(wallet)
 
-    common.nickname = nickname
-    debug('starting yield generator')
-    irc = IRCMessageChannel(common.nickname,
-                            realname='btcint=' + common.config.get(
-                                "BLOCKCHAIN", "blockchain_source"),
+    # nickname is set way above
+    # nickname
+
+    log.debug('starting yield generator')
+    irc = IRCMessageChannel(nickname,
+                            realname='btcint=' + config.get(
+                                    "BLOCKCHAIN", "blockchain_source"),
                             password=nickserv_password)
     maker = YieldGenerator(irc, wallet)
     try:
-        debug('connecting to irc')
+        log.debug('connecting to irc')
         irc.run()
     except:
-        debug('CRASHING, DUMPING EVERYTHING')
+        log.debug('CRASHING, DUMPING EVERYTHING')
         debug_dump_object(wallet, ['addr_cache', 'keys', 'seed'])
         debug_dump_object(maker)
         debug_dump_object(irc)
         import traceback
-        debug(traceback.format_exc())
+        log.debug(traceback.format_exc())
 
 
 if __name__ == "__main__":

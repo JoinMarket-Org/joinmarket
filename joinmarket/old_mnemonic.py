@@ -226,7 +226,8 @@ words = [
     "company", "coward", "creak", "danger", "deadly", "defense", "define",
     "depend", "desperate", "destination", "dew", "duck", "dusty", "embarrass",
     "engine", "example", "explore", "foe", "freely", "frustrate", "generation",
-    "glove", "guilty", "health", "hurry", "idiot", "impossible", "inhale", "jaw",
+    "glove", "guilty", "health", "hurry", "idiot", "impossible", "inhale",
+    "jaw",
     "kingdom", "mention", "mist", "moan", "mumble", "mutter", "observe", "ode",
     "pathetic", "pattern", "pie", "prefer", "puff", "rape", "rare", "revenge",
     "rude", "scrape", "spiral", "squeeze", "strain", "sunset", "suspend",
@@ -234,6 +235,7 @@ words = [
 ]
 
 n = 1626
+
 
 # Note about US patent no 5892470: Here each word does not represent a given digit.
 # Instead, the digit represented by a word is variable, it depends on the previous word.
@@ -266,6 +268,7 @@ def mn_decode(wlist):
 
 if __name__ == '__main__':
     import sys
+
     if len(sys.argv) == 1:
         print 'I need arguments: a hex string to encode, or a list of words to decode'
     elif len(sys.argv) == 2:

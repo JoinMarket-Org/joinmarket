@@ -1,18 +1,25 @@
 #! /usr/bin/env python
+from __future__ import absolute_import
 
-import os
 import sys
+import threading
+import time
 from optparse import OptionParser
 
-data_dir = os.path.dirname(os.path.realpath(__file__))
-sys.path.insert(0, os.path.join(data_dir, 'joinmarket'))
+# data_dir = os.path.dirname(os.path.realpath(__file__))
+# sys.path.insert(0, os.path.join(data_dir, 'joinmarket'))
 
-from common import *
-import common
-import taker as takermodule
-from irc import IRCMessageChannel, random_nick
+# from common import *
+# import common
+from joinmarket import taker as takermodule, choose_sweep_orders, get_log, \
+    choose_orders, load_program_config, validate_address, bc_interface, \
+    get_p2pk_vbyte, pick_order, cheapest_order_choose, weighted_order_choose, \
+    set_nickname, AbstractWallet, debug_dump_object
+from joinmarket import IRCMessageChannel, random_nick
 import bitcoin as btc
 import sendpayment
+
+log = get_log()
 
 
 # thread which does the buy-side algorithm
@@ -47,9 +54,9 @@ class PaymentThread(threading.Thread):
                     self.ignored_makers)
             if not self.taker.options.answeryes:
                 total_cj_fee = total_value - cjamount - self.taker.options.txfee
-                debug('total cj fee = ' + str(total_cj_fee))
+                log.debug('total cj fee = ' + str(total_cj_fee))
                 total_fee_pc = 1.0 * total_cj_fee / cjamount
-                debug('total coinjoin fee = ' + str(float('%.3g' % (
+                log.debug('total coinjoin fee = ' + str(float('%.3g' % (
                     100.0 * total_fee_pc))) + '%')
                 sendpayment.check_high_fee(total_fee_pc)
                 if raw_input('send with these orders? (y/n):')[0] != 'y':
@@ -60,7 +67,8 @@ class PaymentThread(threading.Thread):
             orders, total_cj_fee = self.sendpayment_choose_orders(
                     self.taker.cjamount, self.taker.options.makercount)
             if not orders:
-                debug('ERROR not enough liquidity in the orderbook, exiting')
+                log.debug(
+                    'ERROR not enough liquidity in the orderbook, exiting')
                 return
             total_amount = self.taker.cjamount + total_cj_fee + self.taker.options.txfee
             print 'total amount spent = ' + str(total_amount)
@@ -87,11 +95,12 @@ class PaymentThread(threading.Thread):
                 tx = btc.sign(tx, index,
                               coinjointx.wallet.get_key_from_addr(addr))
             print 'unsigned tx = \n\n' + tx + '\n'
-            debug('created unsigned tx, ending')
+            log.debug('created unsigned tx, ending')
             self.taker.msgchan.shutdown()
             return
         self.ignored_makers += coinjointx.nonrespondants
-        debug('recreating the tx, ignored_makers=' + str(self.ignored_makers))
+        log.debug(
+            'recreating the tx, ignored_makers=' + str(self.ignored_makers))
         self.create_tx()
 
     def sendpayment_choose_orders(self,
@@ -118,11 +127,11 @@ class PaymentThread(threading.Thread):
             else:
                 noun = 'additional'
             total_fee_pc = 1.0 * total_cj_fee / cj_amount
-            debug(noun + ' coinjoin fee = ' + str(float('%.3g' % (
+            log.debug(noun + ' coinjoin fee = ' + str(float('%.3g' % (
                 100.0 * total_fee_pc))) + '%')
             sendpayment.check_high_fee(total_fee_pc)
             if raw_input('send with these orders? (y/n):')[0] != 'y':
-                debug('ending')
+                log.debug('ending')
                 self.taker.msgchan.shutdown()
                 return None, -1
         return orders, total_cj_fee
@@ -153,16 +162,17 @@ class CreateUnsignedTx(takermodule.Taker):
 
 def main():
     parser = OptionParser(
-            usage=
-            'usage: %prog [options] [auth utxo] [cjamount] [cjaddr] [changeaddr] [utxos..]',
-            description=
-            'Creates an unsigned coinjoin transaction. Outputs a partially signed transaction '
-            +
-            'hex string. The user must sign their inputs independently and broadcast them. The JoinMarket'
-            +
-            ' protocol requires the taker to have a single p2pk UTXO input to use to authenticate the '
-            +
-            ' encrypted messages. For this reason you must pass auth utxo and the corresponding private key')
+            usage='usage: %prog [options] [auth utxo] [cjamount] [cjaddr] ['
+                  'changeaddr] [utxos..]',
+            description=('Creates an unsigned coinjoin transaction. Outputs '
+                         'a partially signed transaction hex string. The user '
+                         'must sign their inputs independently and broadcast '
+                         'them. The JoinMarket protocol requires the taker to '
+                         'have a single p2pk UTXO input to use to '
+                         'authenticate the  encrypted messages. For this '
+                         'reason you must pass auth utxo and the '
+                         'corresponding private key'))
+
     # for cjamount=0 do a sweep, and ignore change address
     parser.add_option('-f',
                       '--txfee',
@@ -221,7 +231,7 @@ def main():
     changeaddr = args[3]
     cold_utxos = args[4:]
 
-    common.load_program_config()
+    load_program_config()
     addr_valid1, errormsg1 = validate_address(destaddr)
     errormsg2 = None
     # if amount = 0 dont bother checking changeaddr so user can write any junk
@@ -237,7 +247,7 @@ def main():
         return
 
     all_utxos = [auth_utxo] + cold_utxos
-    query_result = common.bc_interface.query_utxo_set(all_utxos)
+    query_result = bc_interface.query_utxo_set(all_utxos)
     if None in query_result:
         print query_result
     utxo_data = {}
@@ -246,7 +256,7 @@ def main():
     auth_privkey = raw_input('input private key for ' + utxo_data[auth_utxo][
         'address'] + ' :')
     if utxo_data[auth_utxo]['address'] != btc.privtoaddr(
-            auth_privkey, common.get_p2pk_vbyte()):
+            auth_privkey, get_p2pk_vbyte()):
         print 'ERROR: privkey does not match auth utxo'
         return
 
@@ -259,30 +269,31 @@ def main():
     else:  # choose randomly (weighted)
         chooseOrdersFunc = weighted_order_choose
 
-    common.nickname = random_nick()
-    debug('starting sendpayment')
+    nickname = random_nick()
+    set_nickname(nickname)
+    log.debug('starting sendpayment')
 
-    class UnsignedTXWallet(common.AbstractWallet):
+    class UnsignedTXWallet(AbstractWallet):
 
         def get_key_from_addr(self, addr):
-            debug('getting privkey of ' + addr)
-            if btc.privtoaddr(auth_privkey, common.get_p2pk_vbyte()) != addr:
+            log.debug('getting privkey of ' + addr)
+            if btc.privtoaddr(auth_privkey, get_p2pk_vbyte()) != addr:
                 raise RuntimeError('privkey doesnt match given address')
             return auth_privkey
 
     wallet = UnsignedTXWallet()
-    irc = IRCMessageChannel(common.nickname)
+    irc = IRCMessageChannel(nickname)
     taker = CreateUnsignedTx(irc, wallet, auth_utxo, cjamount, destaddr,
                              changeaddr, utxo_data, options, chooseOrdersFunc)
     try:
-        debug('starting irc')
+        log.debug('starting irc')
         irc.run()
     except:
-        debug('CRASHING, DUMPING EVERYTHING')
+        log.debug('CRASHING, DUMPING EVERYTHING')
         debug_dump_object(wallet, ['addr_cache', 'keys', 'wallet_name', 'seed'])
         debug_dump_object(taker)
         import traceback
-        debug(traceback.format_exc())
+        log.debug(traceback.format_exc())
 
 
 if __name__ == "__main__":
