@@ -7,9 +7,9 @@ import os
 import sys
 from optparse import OptionParser
 
-from joinmarket import load_program_config, bc_interface, \
-    get_p2pk_vbyte, \
-    mn_encode, mn_decode, get_network, encryptData
+from joinmarket import mn_encode, mn_decode, encryptData
+from joinmarket.configure import load_program_config, jm_single,\
+    get_p2pk_vbyte, get_network
 from joinmarket.wallet import Wallet
 # data_dir = os.path.dirname(os.path.realpath(__file__))
 # sys.path.insert(0, os.path.join(data_dir, 'joinmarket'))
@@ -19,21 +19,27 @@ import bitcoin as btc
 # structure for cj market wallet
 # m/0/ root key
 # m/0/n/ nth mixing depth, where n=0 is unmixed, n=1 is coinjoined once, etc
-#        pay in coins to mix at n=0 addresses
-#	 coins move up a level when they are cj'd and stay at same level if they're the change from a coinjoin
-#	 using coins from different levels as inputs to the same tx is probably detrimental to privacy
+# pay in coins to mix at n=0 addresses
+
+# coins move up a level when they are cj'd and stay at same level if they're
+# the change from a coinjoin
+
+# using coins from different levels as inputs to the same tx is probably
+# detrimental to privacy
+
 # m/0/n/0/k kth receive address, for mixing depth n
 # m/0/n/1/k kth change address, for mixing depth n
 
-description=('Does useful little tasks involving your bip32 wallet. The '
-             'method is one of the following: display - shows addresses and '
-             'balances. displayall - shows ALL addresses and balances. '
-             'summary - shows a summary of mixing depth balances.generate - '
-             'generates a new wallet recover - recovers a wallet from the 12 '
-             'word recovery seed showseed - shows the wallet recovery seed '
-             'and hex seed. importprivkey - adds privkeys to this wallet ('
-             'privkeys are spaces or commas separated) listwallets - lists '
-             'all wallets with creator and timestamp')
+description=(
+    'Does useful little tasks involving your bip32 wallet. The '
+    'method is one of the following: display - shows addresses and '
+    'balances. displayall - shows ALL addresses and balances. '
+    'summary - shows a summary of mixing depth balances.generate - '
+    'generates a new wallet recover - recovers a wallet from the 12 '
+    'word recovery seed showseed - shows the wallet recovery seed '
+    'and hex seed. importprivkey - adds privkeys to this wallet ('
+    'privkeys are spaces or commas separated) listwallets - lists '
+    'all wallets with creator and timestamp')
 
 parser = OptionParser(
         usage='usage: %prog [options] [wallet file] [method]',
@@ -94,7 +100,7 @@ else:
                     extend_mixdepth=not maxmixdepth_configured,
                     storepassword=(method == 'importprivkey'))
     if method not in noscan_methods:
-        bc_interface.sync_wallet(wallet)
+        jm_single().bc_interface.sync_wallet(wallet)
 
 if method == 'display' or method == 'displayall' or method == 'summary':
 

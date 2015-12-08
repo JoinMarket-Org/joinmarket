@@ -5,9 +5,11 @@ import datetime
 import os
 import time
 
-from joinmarket import Maker, random_nick, set_nickname, get_network, get_log, \
-    DUST_THRESHOLD, calc_cj_fee, load_program_config, bc_interface, \
-    BlockrInterface, IRCMessageChannel, debug_dump_object, config
+from joinmarket import Maker, IRCMessageChannel
+from joinmarket.blockchaininterface import BlockrInterface
+from joinmarket.configure import jm_single, get_network, load_program_config
+from joinmarket.irc import random_nick
+from joinmarket.support import get_log, calc_cj_fee, debug_dump_object
 from joinmarket.wallet import Wallet
 
 # data_dir = os.path.dirname(os.path.realpath(__file__))
@@ -17,8 +19,7 @@ from joinmarket.wallet import Wallet
 
 txfee = 1000
 cjfee = '0.002'  # 0.2% fee
-nickname = random_nick()
-set_nickname(nickname)
+jm_single().nickname = random_nick()
 nickserv_password = ''
 
 # minimum size is such that you always net profit at least 20% of the miner fee
@@ -83,7 +84,7 @@ class YieldGenerator(Maker):
         order = {'oid': 0,
                  'ordertype': 'relorder',
                  'minsize': minsize,
-                 'maxsize': mix_balance[max_mix] - DUST_THRESHOLD,
+                 'maxsize': mix_balance[max_mix] - jm_single().DUST_THRESHOLD,
                  'txfee': txfee,
                  'cjfee': cjfee}
         return [order]
@@ -109,12 +110,12 @@ class YieldGenerator(Maker):
         my_total_in = sum([va['value'] for va in utxos.values()])
         real_cjfee = calc_cj_fee(cjorder.ordertype, cjorder.cjfee, amount)
         change_value = my_total_in - amount - cjorder.txfee + real_cjfee
-        if change_value <= DUST_THRESHOLD:
+        if change_value <= jm_single().DUST_THRESHOLD:
             log.debug(('change value={} below dust threshold, '
                        'finding new utxos').format(change_value))
             try:
-                utxos = self.wallet.select_utxos(mixdepth,
-                                                 amount + DUST_THRESHOLD)
+                utxos = self.wallet.select_utxos(
+                        mixdepth, amount + jm_single().DUST_THRESHOLD)
             except Exception:
                 log.debug('dont have the required UTXOs to make a '
                           'output above the dust threshold, quitting')
@@ -156,7 +157,7 @@ def main():
     load_program_config()
     import sys
     seed = sys.argv[1]
-    if isinstance(bc_interface, BlockrInterface):
+    if isinstance(jm_single().bc_interface, BlockrInterface):
         c = ('\nYou are running a yield generator by polling the blockr.io '
              'website. This is quite bad for privacy. That site is owned by '
              'coinbase.com Also your bot will run faster and more efficently, '
@@ -171,14 +172,14 @@ def main():
             return
 
     wallet = Wallet(seed, max_mix_depth=mix_levels)
-    bc_interface.sync_wallet(wallet)
+    jm_single().bc_interface.sync_wallet(wallet)
 
     # nickname is set way above
     # nickname
 
     log.debug('starting yield generator')
-    irc = IRCMessageChannel(nickname,
-                            realname='btcint=' + config.get(
+    irc = IRCMessageChannel(jm_single().nickname,
+                            realname='btcint=' + jm_single().config.get(
                                     "BLOCKCHAIN", "blockchain_source"),
                             password=nickserv_password)
     maker = YieldGenerator(irc, wallet)

@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 
 import BaseHTTPServer
 import abc
@@ -18,9 +18,9 @@ import bitcoin as btc
 # This can be removed once CliJsonRpc is gone.
 import subprocess
 
-from joinmarket import get_log, get_network, get_p2pk_vbyte, chunks, config, \
-    JsonRpc, JsonRpcConnectionError
-from joinmarket.wallet import BitcoinCoreWallet
+from joinmarket.jsonrpc import JsonRpcConnectionError
+from joinmarket.configure import get_p2pk_vbyte, config
+from joinmarket.support import get_log, chunks
 
 log = get_log()
 
@@ -65,35 +65,6 @@ def is_index_ahead_of_cache(wallet, mix_depth, forchange):
         forchange]
 
 
-def get_blockchain_interface_instance(config):
-    source = config.get("BLOCKCHAIN", "blockchain_source")
-    network = get_network()
-    testnet = network == 'testnet'
-    if source == 'bitcoin-rpc':
-        rpc_host = config.get("BLOCKCHAIN", "rpc_host")
-        rpc_port = config.get("BLOCKCHAIN", "rpc_port")
-        rpc_user = config.get("BLOCKCHAIN", "rpc_user")
-        rpc_password = config.get("BLOCKCHAIN", "rpc_password")
-        rpc = JsonRpc(rpc_host, rpc_port, rpc_user, rpc_password)
-        bc_interface = BitcoinCoreInterface(rpc, network)
-    elif source == 'json-rpc':
-        bitcoin_cli_cmd = config.get("BLOCKCHAIN", "bitcoin_cli_cmd").split(' ')
-        rpc = CliJsonRpc(bitcoin_cli_cmd, testnet)
-        bc_interface = BitcoinCoreInterface(rpc, network)
-    elif source == 'regtest':
-        rpc_host = config.get("BLOCKCHAIN", "rpc_host")
-        rpc_port = config.get("BLOCKCHAIN", "rpc_port")
-        rpc_user = config.get("BLOCKCHAIN", "rpc_user")
-        rpc_password = config.get("BLOCKCHAIN", "rpc_password")
-        rpc = JsonRpc(rpc_host, rpc_port, rpc_user, rpc_password)
-        bc_interface = RegtestBitcoinCoreInterface(rpc)
-    elif source == 'blockr':
-        bc_interface = BlockrInterface(testnet)
-    else:
-        raise ValueError("Invalid blockchain source")
-    return bc_interface
-
-
 class BlockchainInterface(object):
     __metaclass__ = abc.ABCMeta
 
@@ -106,31 +77,33 @@ class BlockchainInterface(object):
 
     @abc.abstractmethod
     def sync_addresses(self, wallet):
-        '''Finds which addresses have been used and sets wallet.index appropriately'''
+        """Finds which addresses have been used and sets
+        wallet.index appropriately"""
         pass
 
     @abc.abstractmethod
     def sync_unspent(self, wallet):
-        '''Finds the unspent transaction outputs belonging to this wallet, sets wallet.unspent'''
+        """Finds the unspent transaction outputs belonging to this wallet,
+        sets wallet.unspent """
         pass
 
     @abc.abstractmethod
     def add_tx_notify(self, txd, unconfirmfun, confirmfun, notifyaddr):
-        '''Invokes unconfirmfun and confirmfun when tx is seen on the network'''
+        """Invokes unconfirmfun and confirmfun when tx is seen on the network"""
         pass
 
     @abc.abstractmethod
     def pushtx(self, txhex):
-        '''pushes tx to the network, returns txhash, or None if failed'''
+        """pushes tx to the network, returns txhash, or None if failed"""
         pass
 
     @abc.abstractmethod
     def query_utxo_set(self, txouts):
-        '''
-		takes a utxo or a list of utxos
-		returns None if they are spend or unconfirmed
-		otherwise returns value in satoshis, address and output script
-		'''
+        """
+        takes a utxo or a list of utxos
+        returns None if they are spend or unconfirmed
+        otherwise returns value in satoshis, address and output script
+        """
         # address and output script contain the same information btw
 
 
@@ -139,7 +112,9 @@ class BlockrInterface(BlockchainInterface):
 
     def __init__(self, testnet=False):
         super(BlockrInterface, self).__init__()
-        self.network = 'testnet' if testnet else 'btc'  # see bci.py in bitcoin module
+
+        # see bci.py in bitcoin module
+        self.network = 'testnet' if testnet else 'btc'
         self.blockr_domain = 'tbtc' if testnet else 'btc'
         self.last_sync_unspent = 0
 
@@ -150,20 +125,27 @@ class BlockrInterface(BlockchainInterface):
             for forchange in [0, 1]:
                 unused_addr_count = 0
                 last_used_addr = ''
-                while unused_addr_count < wallet.gaplimit or not is_index_ahead_of_cache(
-                        wallet, mix_depth, forchange):
+                while (unused_addr_count < wallet.gaplimit or
+                           not is_index_ahead_of_cache(
+                                   wallet, mix_depth, forchange)):
                     addrs = [wallet.get_new_addr(mix_depth, forchange)
-                             for i in range(self.BLOCKR_MAX_ADDR_REQ_COUNT)]
+                             for _ in range(self.BLOCKR_MAX_ADDR_REQ_COUNT)]
 
                     # TODO send a pull request to pybitcointools
                     # because this surely should be possible with a function from it
-                    blockr_url = 'https://' + self.blockr_domain + '.blockr.io/api/v1/address/txs/'
-                    # print 'downloading, lastusedaddr = ' + last_used_addr + ' unusedaddrcount= ' + str(unused_addr_count)
+                    blockr_url = 'https://' + self.blockr_domain
+                    blockr_url += '.blockr.io/api/v1/address/txs/'
+
+                    # print 'downloading, lastusedaddr = ' + last_used_addr +
+                    #  ' unusedaddrcount= ' + str(unused_addr_count)
+
                     res = btc.make_request(blockr_url + ','.join(addrs))
                     data = json.loads(res)['data']
                     for dat in data:
-                        # if forchange == 0:
-                        #	print ' nbtxs ' + str(dat['nb_txs']) + ' addr=' + dat['address'] + ' unused=' + str(unused_addr_count)
+                        # todo: remove these commented out code sections
+                        # if forchange == 0: print ' nbtxs ' + str(dat[
+                        # 'nb_txs']) + ' addr=' + dat['address'] + ' unused='
+                        # + str(unused_addr_count)
                         if dat['nb_txs'] != 0:
                             last_used_addr = dat['address']
                             unused_addr_count = 0
@@ -201,15 +183,15 @@ class BlockrInterface(BlockchainInterface):
             # unspent() doesnt tell you which address, you get a bunch of utxos
             # but dont know which privkey to sign with
 
-            blockr_url = 'https://' + self.blockr_domain + '.blockr.io/api/v1/address/unspent/'
+            blockr_url = 'https://' + self.blockr_domain + \
+                         '.blockr.io/api/v1/address/unspent/'
             res = btc.make_request(blockr_url + ','.join(req))
             data = json.loads(res)['data']
             if 'unspent' in data:
                 data = [data]
             for dat in data:
                 for u in dat['unspent']:
-                    wallet.unspent[u['tx'] + ':' + str(u[
-                                                           'n'])] = {
+                    wallet.unspent[u['tx'] + ':' + str(u['n'])] = {
                         'address': dat['address'],
                         'value': int(u['amount'].replace('.', ''))}
         for u in wallet.spent_utxos:
@@ -250,11 +232,16 @@ class BlockrInterface(BlockchainInterface):
                     if int(time.time()) - st > unconfirm_timeout:
                         log.debug('checking for unconfirmed tx timed out')
                         return
-                    blockr_url = 'https://' + self.blockr_domain + '.blockr.io/api/v1/address/unspent/'
+                    blockr_url = 'https://' + self.blockr_domain
+                    blockr_url += '.blockr.io/api/v1/address/unspent/'
                     random.shuffle(self.output_addresses
                                    )  # seriously weird bug with blockr.io
-                    data = json.loads(btc.make_request(blockr_url + ','.join(
-                            self.output_addresses) + '?unconfirmed=1'))['data']
+                    data = json.loads(
+                            btc.make_request(
+                                    blockr_url + ','.join(
+                                            self.output_addresses
+                                    ) + '?unconfirmed=1'))['data']
+
                     shared_txid = None
                     for unspent_list in data:
                         txs = set([str(txdata['tx'])
@@ -269,7 +256,8 @@ class BlockrInterface(BlockchainInterface):
                     time.sleep(
                             2
                     )  # here for some race condition bullshit with blockr.io
-                    blockr_url = 'https://' + self.blockr_domain + '.blockr.io/api/v1/tx/raw/'
+                    blockr_url = 'https://' + self.blockr_domain
+                    blockr_url += '.blockr.io/api/v1/tx/raw/'
                     data = json.loads(btc.make_request(blockr_url + ','.join(
                             shared_txid)))['data']
                     if not isinstance(data, list):
@@ -295,7 +283,8 @@ class BlockrInterface(BlockchainInterface):
                     if int(time.time()) - st > confirm_timeout:
                         log.debug('checking for confirmed tx timed out')
                         return
-                    blockr_url = 'https://' + self.blockr_domain + '.blockr.io/api/v1/address/txs/'
+                    blockr_url = 'https://' + self.blockr_domain
+                    blockr_url += '.blockr.io/api/v1/address/txs/'
                     data = json.loads(btc.make_request(blockr_url + ','.join(
                             self.output_addresses)))['data']
                     shared_txid = None
@@ -309,7 +298,8 @@ class BlockrInterface(BlockchainInterface):
                     log.debug('sharedtxid = ' + str(shared_txid))
                     if len(shared_txid) == 0:
                         continue
-                    blockr_url = 'https://' + self.blockr_domain + '.blockr.io/api/v1/tx/raw/'
+                    blockr_url = 'https://' + self.blockr_domain
+                    blockr_url += '.blockr.io/api/v1/tx/raw/'
                     data = json.loads(btc.make_request(blockr_url + ','.join(
                             shared_txid)))['data']
                     if not isinstance(data, list):
@@ -404,7 +394,9 @@ class NotifyRequestHeader(BaseHTTPServer.BaseHTTPRequestHandler):
             if unconfirmfun is None:
                 log.debug('txid=' + txid + ' not being listened for')
             else:
-                txdata = None  # on rare occasions people spend their output without waiting for a confirm
+                # on rare occasions people spend their output without waiting
+                #  for a confirm
+                txdata = None
                 for n in range(len(txd['outs'])):
                     txdata = self.btcinterface.rpc('gettxout', [txid, n, True])
                     if txdata is not None:
@@ -419,8 +411,8 @@ class NotifyRequestHeader(BaseHTTPServer.BaseHTTPRequestHandler):
                     log.debug('ran unconfirmfun')
                 else:
                     confirmfun(txd, txid, txdata['confirmations'])
-                    self.btcinterface.txnotify_fun.remove((tx_out, unconfirmfun,
-                                                           confirmfun))
+                    self.btcinterface.txnotify_fun.remove(
+                            (tx_out, unconfirmfun, confirmfun))
                     log.debug('ran confirmfun')
 
         elif self.path.startswith('/alertnotify?'):
@@ -483,7 +475,8 @@ class BitcoinCoreInterface(BlockchainInterface):
         self.txnotify_fun = []
         self.wallet_synced = False
 
-    def get_wallet_name(self, wallet):
+    @staticmethod
+    def get_wallet_name(wallet):
         return 'joinmarket-wallet-' + btc.dbl_sha256(wallet.keys[0][0])[:6]
 
     def rpc(self, method, args):
@@ -500,11 +493,14 @@ class BitcoinCoreInterface(BlockchainInterface):
         for addr in addr_list:
             self.rpc('importaddress', [addr, wallet_name, False])
         if config.get("BLOCKCHAIN", "blockchain_source") != 'regtest':
-            print 'restart Bitcoin Core with -rescan if you\'re recovering an existing wallet from backup seed'
-            print ' otherwise just restart this joinmarket script'
+            print('restart Bitcoin Core with -rescan if you\'re '
+                  'recovering an existing wallet from backup seed')
+            print(' otherwise just restart this joinmarket script')
             sys.exit(0)
 
     def sync_addresses(self, wallet):
+        from joinmarket.wallet import BitcoinCoreWallet
+
         if isinstance(wallet, BitcoinCoreWallet):
             return
         log.debug('requesting wallet history')
@@ -514,7 +510,7 @@ class BitcoinCoreInterface(BlockchainInterface):
         for mix_depth in range(wallet.max_mix_depth):
             for forchange in [0, 1]:
                 wallet_addr_list += [wallet.get_new_addr(mix_depth, forchange)
-                                     for i in range(addr_req_count)]
+                                     for _ in range(addr_req_count)]
                 wallet.index[mix_depth][forchange] = 0
         # makes more sense to add these in an account called "joinmarket-imported" but its much
         # simpler to add to the same account here
@@ -534,9 +530,12 @@ class BitcoinCoreInterface(BlockchainInterface):
             buf = self.rpc('listtransactions', [wallet_name, 1000, len(txs),
                                                 True])
             txs += buf
-        # TODO check whether used_addr_list can be a set, may be faster (if its a hashset) and allows
-        # using issubset() here and setdiff() for finding which addresses need importing
-        # TODO also check the fastest way to build up python lists, i suspect using += is slow
+        # TODO check whether used_addr_list can be a set, may be faster (if
+        # its a hashset) and allows using issubset() here and setdiff() for
+        # finding which addresses need importing
+
+        # TODO also check the fastest way to build up python lists, i suspect
+        #  using += is slow
         used_addr_list = [tx['address']
                           for tx in txs if tx['category'] == 'receive']
         too_few_addr_mix_change = []
@@ -551,12 +550,12 @@ class BitcoinCoreInterface(BlockchainInterface):
                                                     forchange):
                         break
                     mix_change_addrs = [wallet.get_new_addr(
-                            mix_depth, forchange) for i in
+                            mix_depth, forchange) for _ in
                                         range(addr_req_count)]
                     for mc_addr in mix_change_addrs:
                         if mc_addr not in imported_addr_list:
-                            too_few_addr_mix_change.append((mix_depth, forchange
-                                                            ))
+                            too_few_addr_mix_change.append(
+                                    (mix_depth, forchange))
                             breakloop = True
                             break
                         if mc_addr in used_addr_list:
@@ -568,22 +567,25 @@ class BitcoinCoreInterface(BlockchainInterface):
                 if last_used_addr == '':
                     wallet.index[mix_depth][forchange] = 0
                 else:
-                    wallet.index[mix_depth][forchange] = wallet.addr_cache[
-                                                             last_used_addr][
-                                                             2] + 1
+                    wallet.index[mix_depth][forchange] = \
+                        wallet.addr_cache[last_used_addr][2] + 1
 
         wallet_addr_list = []
         if len(too_few_addr_mix_change) > 0:
             log.debug('too few addresses in ' + str(too_few_addr_mix_change))
             for mix_depth, forchange in too_few_addr_mix_change:
-                wallet_addr_list += [wallet.get_new_addr(mix_depth, forchange)
-                                     for i in range(addr_req_count * 3)]
+                wallet_addr_list += [wallet.get_new_addr(
+                        mix_depth, forchange) for _ in range(
+                        addr_req_count * 3)]
+
             self.add_watchonly_addresses(wallet_addr_list, wallet_name)
             return
 
         self.wallet_synced = True
 
     def sync_unspent(self, wallet):
+        from joinmarket.wallet import BitcoinCoreWallet
+
         if isinstance(wallet, BitcoinCoreWallet):
             return
         st = time.time()
@@ -667,28 +669,30 @@ class RegtestBitcoinCoreInterface(BitcoinCoreInterface):
         return ret
 
     def tick_forward_chain(self, n):
-        '''Special method for regtest only;
-		instruct to mine n blocks.'''
+        """
+        Special method for regtest only;
+        instruct to mine n blocks.
+        """
         self.rpc('setgenerate', [True, n])
 
     def grab_coins(self, receiving_addr, amt=50):
-        '''
-		NOTE! amt is passed in Coins, not Satoshis!
-		Special method for regtest only:
-		take coins from bitcoind's own wallet
-		and put them in the receiving addr.
-		Return the txid.
-		'''
+        """
+        NOTE! amt is passed in Coins, not Satoshis!
+        Special method for regtest only:
+        take coins from bitcoind's own wallet
+        and put them in the receiving addr.
+        Return the txid.
+        """
         if amt > 500:
             raise Exception("too greedy")
-        '''
-		if amt > self.current_balance:
-		#mine enough to get to the reqd amt
-		reqd = int(amt - self.current_balance)
-		reqd_blocks = int(reqd/50) +1
-		if self.rpc('setgenerate', [True, reqd_blocks]):
-		raise Exception("Something went wrong")
-		'''
+        """
+        if amt > self.current_balance:
+        #mine enough to get to the reqd amt
+        reqd = int(amt - self.current_balance)
+        reqd_blocks = int(reqd/50) +1
+        if self.rpc('setgenerate', [True, reqd_blocks]):
+        raise Exception("Something went wrong")
+        """
         # now we do a custom create transaction and push to the receiver
         txid = self.rpc('sendtoaddress', [receiving_addr, amt])
         if not txid:
@@ -698,14 +702,15 @@ class RegtestBitcoinCoreInterface(BitcoinCoreInterface):
         return txid
 
     def get_received_by_addr(self, addresses, query_params):
-        # NB This will NOT return coinbase coins (but wont matter in our use case).
-        # allow importaddress to fail in case the address is already in the wallet
+        # NB This will NOT return coinbase coins (but wont matter in our use
+        # case). allow importaddress to fail in case the address is already
+        # in the wallet
         res = []
         for address in addresses:
             self.rpc('importaddress', [address, 'watchonly'])
-            res.append({'address': address, 'balance': \
-                int(Decimal(1e8) * Decimal(
-                    self.rpc('getreceivedbyaddress', [address])))})
+            res.append({'address': address,
+                        'balance': int(Decimal(1e8) * Decimal(
+                                self.rpc('getreceivedbyaddress', [address])))})
         return {'data': res}
 
 # todo: won't run anyways

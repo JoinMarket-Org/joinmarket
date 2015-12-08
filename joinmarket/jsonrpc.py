@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 # Copyright (C) 2013,2015 by Daniel Kraft <d@domob.eu>
 # Copyright (C) 2014 by phelix / blockchained.com
 #
@@ -114,7 +114,7 @@ class JsonRpc(object):
             raise JsonRpcConnectionError("invalid id returned by query")
 
         if response["error"] is not None:
-            print response["error"]
+            print(response["error"])
             raise JsonRpcError(response["error"])
 
         return response["result"]

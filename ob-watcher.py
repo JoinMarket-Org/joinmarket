@@ -5,22 +5,23 @@ import SimpleHTTPServer
 import base64
 import io
 import json
-import sys
 import threading
 import time
 import urllib2
 from decimal import Decimal
 from optparse import OptionParser
 
-from joinmarket import calc_cj_fee, ordername_list, joinmarket_alert, \
-    OrderbookWatch, random_nick, set_nickname, load_program_config, \
-    IRCMessageChannel
 
 # data_dir = os.path.dirname(os.path.realpath(__file__))
 # sys.path.insert(0, os.path.join(data_dir, 'joinmarket'))
 
 # https://stackoverflow.com/questions/2801882/generating-a-png-with-matplotlib-when-display-is-undefined
 import matplotlib
+
+from joinmarket import jm_single, load_program_config, IRCMessageChannel
+from joinmarket.irc import random_nick
+from joinmarket.support import calc_cj_fee
+from joinmarket.taker import OrderbookWatch
 
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -150,8 +151,8 @@ def create_orderbook_table(db, btc_unit, rel_unit):
     def orderby_cmp(x, y):
         if x['ordertype'] == y['ordertype']:
             return cmp(Decimal(x['cjfee']), Decimal(y['cjfee']))
-        return cmp(ordername_list.index(x['ordertype']),
-                   ordername_list.index(y['ordertype']))
+        return cmp(jm_single().ordername_list.index(x['ordertype']),
+                   jm_single().ordername_list.index(y['ordertype']))
 
     for o in sorted(rows, cmp=orderby_cmp):
         result += ' <tr>\n'
@@ -235,8 +236,9 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
         orderbook_fmt = fd.read()
         fd.close()
         alert_msg = ''
-        if joinmarket_alert:
-            alert_msg = '<br />JoinMarket Alert Message:<br />' + joinmarket_alert
+        if jm_single().joinmarket_alert:
+            alert_msg = '<br />JoinMarket Alert Message:<br />' + \
+                        jm_single().joinmarket_alert
         if self.path == '/':
             btc_unit = args['btcunit'][
                 0] if 'btcunit' in args else sorted_units[0]
@@ -343,8 +345,7 @@ class GUITaker(OrderbookWatch):
 
 
 def main():
-    nickname = random_nick()  # watcher' +binascii.hexlify(os.urandom(4))
-    set_nickname(nickname)
+    jm_single().nickname = random_nick()  # watcher' +binascii.hexlify(os.urandom(4))
     load_program_config()
 
     parser = OptionParser(
@@ -368,7 +369,7 @@ def main():
 
     hostport = (options.host, options.port)
 
-    irc = IRCMessageChannel(nickname)
+    irc = IRCMessageChannel(jm_single().nickname)
 
     # todo: is the call to GUITaker needed, or the return. taker unused
     taker = GUITaker(irc, hostport)

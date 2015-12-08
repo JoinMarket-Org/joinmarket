@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 
 import base64
 import pprint
@@ -7,10 +7,12 @@ import sys
 import threading
 
 import bitcoin as btc
-from joinmarket import DUST_THRESHOLD, init_keypair, as_init_encryption, \
-    init_pubkey, get_log, bc_interface, get_p2pk_vbyte, calc_cj_fee, \
-    CoinJoinerPeer, load_program_config, IRCMessageChannel, \
-    debug_dump_object
+from joinmarket import IRCMessageChannel
+from joinmarket.configure import get_p2pk_vbyte, load_program_config, jm_single
+from joinmarket.enc_wrapper import init_keypair, as_init_encryption, init_pubkey
+
+from joinmarket.support import get_log, calc_cj_fee, debug_dump_object
+from joinmarket.taker import CoinJoinerPeer
 from joinmarket.wallet import Wallet
 
 log = get_log()
@@ -18,10 +20,13 @@ log = get_log()
 
 class CoinJoinOrder(object):
     def __init__(self, maker, nick, oid, amount, taker_pk):
+        self.tx = None
+        self.i_utxo_pubkey = None
+
         self.maker = maker
         self.oid = oid
         self.cj_amount = amount
-        if self.cj_amount <= DUST_THRESHOLD:
+        if self.cj_amount <= jm_single().DUST_THRESHOLD:
             self.maker.msgchan.send_error(nick, 'amount below dust threshold')
         # the btc pubkey of the utxo that the taker plans to use as input
         self.taker_pk = taker_pk
@@ -48,22 +53,20 @@ class CoinJoinOrder(object):
             self.maker.msgchan.send_error(
                     nick, 'unable to fill order constrained by dust avoidance')
             # TODO make up orders offers in a way that this error cant appear
-            # check nothing has messed up with the wallet code, remove this code after a while
+            #  check nothing has messed up with the wallet code, remove this
+            # code after a while
         import pprint
         log.debug('maker utxos = ' + pprint.pformat(self.utxos))
         utxo_list = self.utxos.keys()
-        utxo_data = bc_interface.query_utxo_set(utxo_list)
+        utxo_data = jm_single().bc_interface.query_utxo_set(utxo_list)
         if None in utxo_data:
             log.debug('wrongly using an already spent utxo. utxo_data = ' +
                       pprint.pformat(utxo_data))
             sys.exit(0)
         for utxo, data in zip(utxo_list, utxo_data):
             if self.utxos[utxo]['value'] != data['value']:
-                log.debug(
-                    'wrongly labeled utxo, expected value ' + str(self.utxos[
-                                                                      utxo][
-                                                                      'value']) + ' got ' + str(
-                            data['value']))
+                fmt = 'wrongly labeled utxo, expected value: {} got {}'.format
+                log.debug(fmt(self.utxos[utxo]['value'], data['value']))
                 sys.exit(0)
 
         # always a new address even if the order ends up never being
@@ -75,7 +78,7 @@ class CoinJoinOrder(object):
         self.i_utxo_pubkey = i_utxo_pubkey
 
         if not btc.ecdsa_verify(self.taker_pk, btc_sig, self.i_utxo_pubkey):
-            print 'signature didnt match pubkey and message'
+            print('signature didnt match pubkey and message')
             return False
         # authorisation of taker passed
         # (but input utxo pubkey is checked in verify_unsigned_tx).
@@ -112,8 +115,9 @@ class CoinJoinOrder(object):
                                              'script'].decode('hex')))
         # len(sigs) > 0 guarenteed since i did verify_unsigned_tx()
 
-        bc_interface.add_tx_notify(self.tx, self.unconfirm_callback,
-                                   self.confirm_callback, self.cj_addr)
+        jm_single().bc_interface.add_tx_notify(
+                self.tx, self.unconfirm_callback,
+                self.confirm_callback, self.cj_addr)
         log.debug('sending sigs ' + str(sigs))
         self.maker.msgchan.send_sigs(nick, sigs)
         self.maker.active_orders[nick] = None
@@ -124,16 +128,16 @@ class CoinJoinOrder(object):
             removed_utxos = self.maker.wallet.remove_old_utxos(self.tx)
         finally:
             self.maker.wallet_unspent_lock.release()
-        log.debug('saw tx on network, removed_utxos=\n' + pprint.pformat(
-                removed_utxos))
-        to_cancel, to_announce = self.maker.on_tx_unconfirmed(self, txid,
-                                                              removed_utxos)
+        log.debug('saw tx on network, removed_utxos=\n{}'.format(
+                pprint.pformat(removed_utxos)))
+        to_cancel, to_announce = self.maker.on_tx_unconfirmed(
+                self, txid, removed_utxos)
         self.maker.modify_orders(to_cancel, to_announce)
 
     def confirm_callback(self, txd, txid, confirmations):
         self.maker.wallet_unspent_lock.acquire()
         try:
-            bc_interface.sync_unspent(self.maker.wallet)
+            jm_single().bc_interface.sync_unspent(self.maker.wallet)
         finally:
             self.maker.wallet_unspent_lock.release()
         log.debug('tx in a block')
@@ -143,29 +147,32 @@ class CoinJoinOrder(object):
         self.maker.modify_orders(to_cancel, to_announce)
 
     def verify_unsigned_tx(self, txd):
-        tx_utxo_set = set([ins['outpoint']['hash'] + ':' \
-                           + str(ins['outpoint']['index']) for ins in
-                           txd['ins']])
+        tx_utxo_set = set(ins['outpoint']['hash'] + ':' + str(
+                ins['outpoint']['index']) for ins in txd['ins'])
         # complete authentication: check the tx input uses the authing pubkey
-        input_utxo_data = bc_interface.query_utxo_set(list(tx_utxo_set))
+        input_utxo_data = jm_single().bc_interface.query_utxo_set(
+                list(tx_utxo_set))
+
         if None in input_utxo_data:
             return False, 'some utxos already spent or not confirmed yet'
         input_addresses = [u['address'] for u in input_utxo_data]
-        if btc.pubtoaddr(self.i_utxo_pubkey, get_p2pk_vbyte()) \
-                not in input_addresses:
+        if btc.pubtoaddr(
+                self.i_utxo_pubkey, get_p2pk_vbyte()) not in input_addresses:
             return False, "authenticating bitcoin address is not contained"
+
         my_utxo_set = set(self.utxos.keys())
         if not tx_utxo_set.issuperset(my_utxo_set):
             return False, 'my utxos are not contained'
 
         my_total_in = sum([va['value'] for va in self.utxos.values()])
-        self.real_cjfee = calc_cj_fee(self.ordertype, self.cjfee,
-                                      self.cj_amount)
+        self.real_cjfee = calc_cj_fee(
+                self.ordertype, self.cjfee, self.cj_amount)
         expected_change_value = (
             my_total_in - self.cj_amount - self.txfee + self.real_cjfee)
-        log.debug('potentially earned = ' + str(self.real_cjfee - self.txfee))
-        log.debug(
-            'mycjaddr, mychange = ' + self.cj_addr + ', ' + self.change_addr)
+        log.debug('potentially earned = {}'.format(
+                self.real_cjfee - self.txfee))
+        log.debug('mycjaddr, mychange = {}, {}'.format(
+                self.cj_addr, self.change_addr))
 
         times_seen_cj_addr = 0
         times_seen_change_addr = 0
@@ -182,9 +189,9 @@ class CoinJoinOrder(object):
                     return False, 'wrong change, i expect ' + str(
                             expected_change_value)
         if times_seen_cj_addr != 1 or times_seen_change_addr != 1:
-            return False, ('cj or change addr not in tx outputs once, #cjaddr='
-                           + str(times_seen_cj_addr) + ', #chaddr=' +
-                           str(times_seen_change_addr))
+            fmt = ('cj or change addr not in tx '
+                   'outputs once, #cjaddr={}, #chaddr={}').format
+            return False, (fmt(times_seen_cj_addr, times_seen_change_addr))
         return True, None
 
 
@@ -250,7 +257,7 @@ class Maker(CoinJoinerPeer):
 
     def on_push_tx(self, nick, txhex):
         log.debug('received txhex from ' + nick + ' to push\n' + txhex)
-        txid = bc_interface.pushtx(txhex)
+        txid = jm_single().bc_interface.pushtx(txhex)
         log.debug('pushed tx ' + str(txid))
         if txid is None:
             self.msgchan.send_error(nick, 'Unable to push tx')
@@ -265,22 +272,20 @@ class Maker(CoinJoinerPeer):
             del self.active_orders[nick]
 
     def modify_orders(self, to_cancel, to_announce):
-        log.debug(
-            'modifying orders. to_cancel=' + str(to_cancel) + '\nto_announce='
-            + str(to_announce))
+        log.debug('modifying orders. to_cancel={}\nto_announce={}'.format(
+                to_cancel, to_announce))
         for oid in to_cancel:
             order = [o for o in self.orderlist if o['oid'] == oid]
             if len(order) == 0:
-                log.debug(
-                    'didnt cancel order which doesnt exist, oid=' + str(oid))
+                fmt = 'didnt cancel order which doesnt exist, oid={}'.format
+                log.debug(fmt(oid))
             self.orderlist.remove(order[0])
         if len(to_cancel) > 0:
             self.msgchan.cancel_orders(to_cancel)
         if len(to_announce) > 0:
             self.msgchan.announce_orders(to_announce)
             for ann in to_announce:
-                oldorder_s = [order
-                              for order in self.orderlist
+                oldorder_s = [order for order in self.orderlist
                               if order['oid'] == ann['oid']]
                 if len(oldorder_s) > 0:
                     self.orderlist.remove(oldorder_s[0])
@@ -294,7 +299,7 @@ class Maker(CoinJoinerPeer):
     # define the sell-side pricing algorithm of this bot
     # still might be a bad way of doing things, we'll see
     def create_my_orders(self):
-        '''
+        """
 		#tells the highest value possible made by combining all utxos
 		#fee is 0.2% of the cj amount
 		total_value = 0
@@ -304,7 +309,7 @@ class Maker(CoinJoinerPeer):
 		order = {'oid': 0, 'ordertype': 'relorder', 'minsize': 0,
 			'maxsize': total_value, 'txfee': 10000, 'cjfee': '0.002'}
 		return [order]
-		'''
+		"""
 
         # each utxo is a single absolute-fee order
         orderlist = []
@@ -319,15 +324,15 @@ class Maker(CoinJoinerPeer):
                      'mixdepth':
                          self.wallet.addr_cache[addrvalue['address']][0]}
             orderlist.append(order)
-        # yes you can add keys there that are never used by the rest of the Maker code
-        # so im adding utxo and mixdepth here
+        # yes you can add keys there that are never used by the rest of the
+        # Maker code so im adding utxo and mixdepth here
         return orderlist
 
-        # has to return a list of utxos and mixing depth the cj address will be in
-        # the change address will be in mixing_depth-1
+        # has to return a list of utxos and mixing depth the cj address will
+        # be in the change address will be in mixing_depth-1
 
     def oid_to_order(self, cjorder, oid, amount):
-        '''
+        """
 		unspent = []
 		for utxo, addrvalue in self.wallet.unspent.iteritems():
 			unspent.append({'value': addrvalue['value'], 'utxo': utxo})
@@ -335,7 +340,7 @@ class Maker(CoinJoinerPeer):
 		#TODO this raises an exception if you dont have enough money, id rather it just returned None
 		mixing_depth = 1
 		return [i['utxo'] for i in inputs], mixing_depth
-		'''
+		"""
 
         order = [o for o in self.orderlist if o['oid'] == oid][0]
         cj_addr = self.wallet.get_receive_addr(order['mixdepth'] + 1)
@@ -390,12 +395,12 @@ def main():
 
     load_program_config()
     wallet = Wallet(seed, max_mix_depth=5)
-    bc_interface.sync_wallet(wallet)
+    jm_single().bc_interface.sync_wallet(wallet)
 
     irc = IRCMessageChannel(nickname)
     maker = Maker(irc, wallet)
     try:
-        print 'connecting to irc'
+        print('connecting to irc')
         irc.run()
     except:
         log.debug('CRASHING, DUMPING EVERYTHING')

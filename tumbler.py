@@ -11,9 +11,13 @@ import time
 from optparse import OptionParser
 from pprint import pprint
 
-from joinmarket import rand_norm_array, rand_pow_array, rand_exp_array, get_log, \
-    bc_interface, choose_orders, weighted_order_choose, choose_sweep_orders, \
-    set_debug_silence, validate_address, Taker, load_program_config, random_nick, set_nickname, IRCMessageChannel, debug_dump_object
+from joinmarket import jm_single, set_debug_silence, Taker, load_program_config, \
+    IRCMessageChannel
+from joinmarket.configure import validate_address
+from joinmarket.irc import random_nick
+from joinmarket.support import get_log, rand_norm_array, rand_pow_array, \
+    rand_exp_array, choose_orders, weighted_order_choose, choose_sweep_orders, \
+    debug_dump_object
 from joinmarket.wallet import Wallet
 
 log = get_log()
@@ -106,7 +110,7 @@ class TumblerThread(threading.Thread):
 
     def finishcallback(self, coinjointx):
         if coinjointx.all_responded:
-            bc_interface.add_tx_notify(
+            jm_single().bc_interface.add_tx_notify(
                     coinjointx.latest_tx, self.unconfirm_callback,
                     self.confirm_callback, coinjointx.my_cj_addr)
             self.taker.wallet.remove_old_utxos(coinjointx.latest_tx)
@@ -516,12 +520,12 @@ def main():
     # python tumbler.py -N 2 1 -c 3 0.001 -l 0.1 -M 3 -a 0 wallet_file 1xxx 1yyy
     wallet = Wallet(wallet_file,
                     max_mix_depth=options.mixdepthsrc + options.mixdepthcount)
-    bc_interface.sync_wallet(wallet)
+    jm_single().bc_interface.sync_wallet(wallet)
 
-    nickname = random_nick()
-    set_nickname(nickname)
+    jm_single().nickname = random_nick()
+
     log.debug('starting tumbler')
-    irc = IRCMessageChannel(nickname)
+    irc = IRCMessageChannel(jm_single().nickname)
     tumbler = Tumbler(irc, wallet, tx_list, options)
     try:
         log.debug('connecting to irc')

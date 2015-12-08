@@ -7,11 +7,12 @@ from datetime import timedelta
 from optparse import OptionParser
 # data_dir = os.path.dirname(os.path.realpath(__file__))
 # sys.path.insert(0, os.path.join(data_dir, 'joinmarket'))
-
-from joinmarket import choose_orders, weighted_order_choose, Maker, Taker, \
-    get_log, load_program_config, validate_address, bc_interface, random_nick, set_nickname, IRCMessageChannel, \
+from joinmarket import Maker, Taker, load_program_config, IRCMessageChannel
+from joinmarket.configure import validate_address, jm_single
+from joinmarket.irc import random_nick
+from joinmarket.support import get_log, choose_orders, weighted_order_choose, \
     debug_dump_object
-from joinmarket.wallet import Wallet, BitcoinCoreWallet
+from joinmarket.wallet import Wallet
 
 log = get_log()
 
@@ -215,18 +216,18 @@ def main():
         print 'not implemented yet'
         sys.exit(0)
     # wallet = BitcoinCoreWallet(fromaccount=wallet_name)
-    bc_interface.sync_wallet(wallet)
+    jm_single().bc_interface.sync_wallet(wallet)
 
     available_balance = wallet.get_balance_by_mixdepth()[options.mixdepth]
     if available_balance < amount:
         print 'not enough money at mixdepth=%d, exiting' % options.mixdepth
         return
 
-    nickname = random_nick()
-    set_nickname(nickname)
+    jm_single().nickname = random_nick()
+
     log.debug('Running patient sender of a payment')
 
-    irc = IRCMessageChannel(nickname)
+    irc = IRCMessageChannel(jm_single().nickname)
     PatientSendPayment(irc, wallet, destaddr, amount, options.makercount,
                              options.txfee, options.cjfee, waittime,
                              options.mixdepth)

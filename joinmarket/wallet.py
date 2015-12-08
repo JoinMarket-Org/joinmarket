@@ -1,3 +1,4 @@
+from __future__ import absolute_import, print_function
 import json
 import os
 import pprint
@@ -8,21 +9,27 @@ from ConfigParser import NoSectionError
 from getpass import getpass
 
 import bitcoin as btc
-from joinmarket import get_network, debug, decryptData, \
-    get_p2pk_vbyte, bc_interface, BitcoinCoreInterface, config, select_gradual, \
-    select_greedy, select_greediest, JsonRpcError
+from joinmarket.slowaes import decryptData
+from joinmarket.blockchaininterface import BitcoinCoreInterface
+from joinmarket.configure import jm_single, get_network, get_p2pk_vbyte
+
+from joinmarket.support import get_log, select_gradual, select_greedy, \
+    select_greediest
+
+log = get_log()
 
 
 class AbstractWallet(object):
-    '''
-	Abstract wallet for use with JoinMarket
-	Mostly written with Wallet in mind, the default JoinMarket HD wallet
-	'''
+    """
+    Abstract wallet for use with JoinMarket
+    Mostly written with Wallet in mind, the default JoinMarket HD wallet
+    """
 
     def __init__(self):
         self.max_mix_depth = 0
         self.utxo_selector = btc.select  # default fallback: upstream
         try:
+            config = jm_single()
             if config.get("POLICY", "merge_algorithm") == "gradual":
                 self.utxo_selector = select_gradual
             elif config.get("POLICY", "merge_algorithm") == "greedy":
@@ -58,20 +65,21 @@ class AbstractWallet(object):
                     'value': addrval['value']}
                    for utxo, addrval in utxo_list.iteritems()]
         inputs = self.utxo_selector(unspent, amount)
-        debug('for mixdepth=' + str(mixdepth) + ' amount=' + str(amount) +
-              ' selected:')
-        debug(pprint.pformat(inputs))
-        return dict([(i['utxo'], {'value': i['value'],
-                                  'address': utxo_list[i['utxo']]['address']})
-                     for i in inputs])
+        log.debug('for mixdepth={} amount={} selected:'.format(
+            mixdepth, amount))
+        log.debug(pprint.pformat(inputs))
+
+        return {(i['utxo'], {'value': i['value'],
+                             'address': utxo_list[i['utxo']]['address']})
+                for i in inputs}
 
     def get_balance_by_mixdepth(self):
         mix_balance = {}
         for m in range(self.max_mix_depth):
             mix_balance[m] = 0
         for mixdepth, utxos in self.get_utxos_by_mixdepth().iteritems():
-            mix_balance[mixdepth] = sum([addrval['value']
-                                         for addrval in utxos.values()])
+            mix_balance[mixdepth] = sum(
+                    [addrval['value'] for addrval in utxos.values()])
         return mix_balance
 
 
@@ -85,8 +93,8 @@ class Wallet(AbstractWallet):
         super(Wallet, self).__init__()
         self.max_mix_depth = max_mix_depth
         self.storepassword = storepassword
-        # key is address, value is (mixdepth, forchange, index)
-        # if mixdepth = -1 it's an imported key and index refers to imported_privkeys
+        # key is address, value is (mixdepth, forchange, index) if mixdepth =
+        #  -1 it's an imported key and index refers to imported_privkeys
         self.addr_cache = {}
         self.unspent = {}
         self.spent_utxos = []
@@ -113,8 +121,8 @@ class Wallet(AbstractWallet):
         path = os.path.join('wallets', filename)
         if not os.path.isfile(path):
             if get_network() == 'testnet':
-                debug(
-                        'filename interpreted as seed, only available in testnet because this probably has lower entropy')
+                log.debug('filename interpreted as seed, only available in '
+                          'testnet because this probably has lower entropy')
                 return filename
             else:
                 raise IOError('wallet file not found')
@@ -124,8 +132,9 @@ class Wallet(AbstractWallet):
         fd.close()
         walletdata = json.loads(walletfile)
         if walletdata['network'] != get_network():
-            print 'wallet network(%s) does not match joinmarket configured network(%s)' % (
-                walletdata['network'], get_network())
+            print ('wallet network(%s) does not match '
+                   'joinmarket configured network(%s)' % (
+                walletdata['network'], get_network()))
             sys.exit(0)
         if 'index_cache' in walletdata:
             self.index_cache = walletdata['index_cache']
@@ -136,30 +145,31 @@ class Wallet(AbstractWallet):
             encrypted_seed = walletdata['encrypted_seed']
             try:
                 decrypted_seed = decryptData(
-                        password_key, encrypted_seed.decode('hex')).encode(
-                    'hex')
-                # there is a small probability of getting a valid PKCS7 padding
-                # by chance from a wrong password; sanity check the seed length
+                        password_key,
+                        encrypted_seed.decode('hex')).encode('hex')
+                # there is a small probability of getting a valid PKCS7
+                # padding by chance from a wrong password; sanity check the
+                # seed length
                 if len(decrypted_seed) == 32:
                     decrypted = True
                 else:
                     raise ValueError
             except ValueError:
-                print 'Incorrect password'
+                print('Incorrect password')
                 decrypted = False
         if self.storepassword:
             self.password_key = password_key
             self.walletdata = walletdata
         if 'imported_keys' in walletdata:
             for epk_m in walletdata['imported_keys']:
-                privkey = decryptData(password_key,
-                                      epk_m['encrypted_privkey']
-                                      .decode('hex')).encode('hex')
+                privkey = decryptData(
+                        password_key,
+                        epk_m['encrypted_privkey'].decode( 'hex')).encode('hex')
                 privkey = btc.encode_privkey(privkey, 'hex_compressed')
                 if epk_m['mixdepth'] not in self.imported_privkeys:
                     self.imported_privkeys[epk_m['mixdepth']] = []
-                self.addr_cache[btc.privtoaddr(privkey, get_p2pk_vbyte())] = (
-                    epk_m['mixdepth'], -1,
+                self.addr_cache[btc.privtoaddr(
+                        privkey, get_p2pk_vbyte())] = (epk_m['mixdepth'], -1,
                     len(self.imported_privkeys[epk_m['mixdepth']]))
                 self.imported_privkeys[epk_m['mixdepth']].append(privkey)
         return decrypted_seed
@@ -180,8 +190,8 @@ class Wallet(AbstractWallet):
         fd.close()
 
     def get_key(self, mixing_depth, forchange, i):
-        return btc.bip32_extract_key(btc.bip32_ckd(self.keys[mixing_depth][
-                                                       forchange], i))
+        return btc.bip32_extract_key(btc.bip32_ckd(
+                self.keys[mixing_depth][forchange], i))
 
     def get_addr(self, mixing_depth, forchange, i):
         return btc.privtoaddr(
@@ -193,13 +203,15 @@ class Wallet(AbstractWallet):
         self.addr_cache[addr] = (mixing_depth, forchange, index[forchange])
         index[forchange] += 1
         # self.update_cache_index()
+        bc_interface = jm_single().bc_interface
         if isinstance(bc_interface, BitcoinCoreInterface):
-            if bc_interface.wallet_synced:  # do not import in the middle of sync_wallet()
+            # do not import in the middle of sync_wallet()
+            if bc_interface.wallet_synced:
                 if bc_interface.rpc('getaccount', [addr]) == '':
-                    debug('importing address ' + addr + ' to bitcoin core')
-                    bc_interface.rpc('importaddress',
-                                     [addr, bc_interface.get_wallet_name(self),
-                                      False])
+                    log.debug('importing address ' + addr + ' to bitcoin core')
+                    bc_interface.rpc(
+                            'importaddress',
+                            [addr, bc_interface.get_wallet_name(self), False])
         return addr
 
     def get_receive_addr(self, mixing_depth):
@@ -225,7 +237,7 @@ class Wallet(AbstractWallet):
                 continue
             removed_utxos[utxo] = self.unspent[utxo]
             del self.unspent[utxo]
-        debug('removed utxos, wallet now is \n' + pprint.pformat(
+        log.debug('removed utxos, wallet now is \n' + pprint.pformat(
                 self.get_utxos_by_mixdepth()))
         self.spent_utxos += removed_utxos.keys()
         return removed_utxos
@@ -240,14 +252,14 @@ class Wallet(AbstractWallet):
             utxo = txid + ':' + str(index)
             added_utxos[utxo] = addrdict
             self.unspent[utxo] = addrdict
-        debug('added utxos, wallet now is \n' + pprint.pformat(
+        log.debug('added utxos, wallet now is \n' + pprint.pformat(
                 self.get_utxos_by_mixdepth()))
         return added_utxos
 
     def get_utxos_by_mixdepth(self):
-        '''
-		returns a list of utxos sorted by different mix levels
-		'''
+        """
+        returns a list of utxos sorted by different mix levels
+        """
         mix_utxo_list = {}
         for m in range(self.max_mix_depth):
             mix_utxo_list[m] = {}
@@ -256,46 +268,45 @@ class Wallet(AbstractWallet):
             if mixdepth not in mix_utxo_list:
                 mix_utxo_list[mixdepth] = {}
             mix_utxo_list[mixdepth][utxo] = addrvalue
-        debug('get_utxos_by_mixdepth = \n' + pprint.pformat(mix_utxo_list))
+        log.debug('get_utxos_by_mixdepth = \n' + pprint.pformat(mix_utxo_list))
         return mix_utxo_list
 
 
 class BitcoinCoreWallet(AbstractWallet):
     def __init__(self, fromaccount):
         super(BitcoinCoreWallet, self).__init__()
-        if not isinstance(bc_interface,
+        if not isinstance(jm_single().bc_interface,
                           BitcoinCoreInterface):
-            raise RuntimeError(
-                    'Bitcoin Core wallet can only be used when blockchain interface is BitcoinCoreInterface')
+            raise RuntimeError('Bitcoin Core wallet can only be used when '
+                               'blockchain interface is BitcoinCoreInterface')
         self.fromaccount = fromaccount
         self.max_mix_depth = 1
 
     def get_key_from_addr(self, addr):
         self.ensure_wallet_unlocked()
-        return bc_interface.rpc('dumpprivkey', [addr])
+        return jm_single().bc_interface.rpc('dumpprivkey', [addr])
 
     def get_utxos_by_mixdepth(self):
-        unspent_list = bc_interface.rpc('listunspent', [])
+        unspent_list = jm_single().bc_interface.rpc('listunspent', [])
         result = {0: {}}
         for u in unspent_list:
             if not u['spendable']:
                 continue
             if self.fromaccount and (
-                        ('account' not in u) or u[
-                        'account'] != self.fromaccount):
+                        ('account' not in u) or u['account'] !=
+                        self.fromaccount):
                 continue
-            result[0][u['txid'] + ':' + str(u[
-                                                'vout'])] = {
+            result[0][u['txid'] + ':' + str(u['vout'])] = {
                 'address': u['address'],
-                'value':
-                    int(Decimal(str(u['amount'])) * Decimal('1e8'))}
+                'value': int(Decimal(str(u['amount'])) * Decimal('1e8'))}
         return result
 
     def get_change_addr(self, mixing_depth):
-        return bc_interface.rpc('getrawchangeaddress', [])
+        return jm_single().bc_interface.rpc('getrawchangeaddress', [])
 
-    def ensure_wallet_unlocked(self):
-        wallet_info = bc_interface.rpc('getwalletinfo', [])
+    @staticmethod
+    def ensure_wallet_unlocked():
+        wallet_info = jm_single().bc_interface.rpc('getwalletinfo', [])
         if 'unlocked_until' in wallet_info and wallet_info[
             'unlocked_until'] <= 0:
             while True:
@@ -305,9 +316,10 @@ class BitcoinCoreWallet(AbstractWallet):
                     raise RuntimeError('Aborting wallet unlock')
                 try:
                     # TODO cleanly unlock wallet after use, not with arbitrary timeout
-                    bc_interface.rpc('walletpassphrase', [password, 10])
+                    jm_single().bc_interface.rpc(
+                            'walletpassphrase', [password, 10])
                     break
-                except JsonRpcError as exc:
+                except jm_single().JsonRpcError as exc:
                     if exc.code != -14:
                         raise exc
                         # Wrong passphrase, try again.

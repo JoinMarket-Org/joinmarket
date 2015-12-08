@@ -11,12 +11,14 @@ from optparse import OptionParser
 
 # from common import *
 # import common
-from joinmarket import taker as takermodule, choose_sweep_orders, get_log, \
-    choose_orders, load_program_config, validate_address, bc_interface, \
-    get_p2pk_vbyte, pick_order, cheapest_order_choose, weighted_order_choose, \
-    set_nickname, debug_dump_object
+from joinmarket import taker as takermodule
+from joinmarket.configure import load_program_config, validate_address, \
+    jm_single, get_p2pk_vbyte
+from joinmarket.irc import random_nick
+from joinmarket.support import get_log, choose_sweep_orders, choose_orders, \
+    pick_order, cheapest_order_choose, weighted_order_choose, debug_dump_object
 from joinmarket.wallet import AbstractWallet
-from joinmarket import IRCMessageChannel, random_nick
+from joinmarket import IRCMessageChannel
 import bitcoin as btc
 import sendpayment
 
@@ -249,7 +251,7 @@ def main():
         return
 
     all_utxos = [auth_utxo] + cold_utxos
-    query_result = bc_interface.query_utxo_set(all_utxos)
+    query_result = jm_single().bc_interface.query_utxo_set(all_utxos)
     if None in query_result:
         print query_result
     utxo_data = {}
@@ -269,8 +271,7 @@ def main():
     else:  # choose randomly (weighted)
         chooseOrdersFunc = weighted_order_choose
 
-    nickname = random_nick()
-    set_nickname(nickname)
+    jm_single().nickname = random_nick()
     log.debug('starting sendpayment')
 
     class UnsignedTXWallet(AbstractWallet):
@@ -282,7 +283,7 @@ def main():
             return auth_privkey
 
     wallet = UnsignedTXWallet()
-    irc = IRCMessageChannel(nickname)
+    irc = IRCMessageChannel(jm_single().nickname)
     taker = CreateUnsignedTx(irc, wallet, auth_utxo, cjamount, destaddr,
                              changeaddr, utxo_data, options, chooseOrdersFunc)
     try:

@@ -97,7 +97,8 @@ class AES(object):
         """Retrieves a given Inverted S-Box Value"""
         return self.rsbox[num]
 
-    def rotate(self, word):
+    @staticmethod
+    def rotate(word):
         """ Rijndael's key schedule rotate operation.
 
         Rotate a word eight bits to the left: eg, rotate(1d2c3a4f) == 2c3a4f1d
@@ -190,13 +191,15 @@ class AES(object):
 
         return expandedKey
 
-    def addRoundKey(self, state, roundKey):
+    @staticmethod
+    def addRoundKey(state, roundKey):
         """Adds (XORs) the round key to the state."""
         for i in range(16):
             state[i] ^= roundKey[i]
         return state
 
-    def createRoundKey(self, expandedKey, roundKeyPointer):
+    @staticmethod
+    def createRoundKey(expandedKey, roundKeyPointer):
         """Create a round key.
         Creates a round key from the given expanded key and the
         position within the expanded key.
@@ -207,7 +210,8 @@ class AES(object):
                 roundKey[j * 4 + i] = expandedKey[roundKeyPointer + i * 4 + j]
         return roundKey
 
-    def galois_multiplication(self, a, b):
+    @staticmethod
+    def galois_multiplication(a, b):
         """Galois multiplication of 8 bit characters a and b."""
         p = 0
         for counter in range(8):
@@ -241,7 +245,8 @@ class AES(object):
         return state
 
     # each iteration shifts the row to the left by 1
-    def shiftRow(self, state, statePointer, nbr, isInv):
+    @staticmethod
+    def shiftRow(state, statePointer, nbr, isInv):
         for i in range(nbr):
             if isInv:
                 state[statePointer:statePointer + 4] = \
