@@ -4,8 +4,7 @@ import io
 import logging
 import threading
 
-from ConfigParser import SafeConfigParser
-from configparser import NoOptionError
+from ConfigParser import SafeConfigParser, NoOptionError
 
 import bitcoin as btc
 from joinmarket.jsonrpc import JsonRpc

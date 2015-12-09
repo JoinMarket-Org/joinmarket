@@ -1,14 +1,28 @@
+#! /usr/bin/env python
+from __future__ import absolute_import
+
+'''Some helper functions for testing'''
+
 import sys
-import os, time
-data_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-sys.path.insert(0, os.path.join(data_dir, 'joinmarket'))
+import os
+import time
+import binascii
+import pexpect
+import random
 import subprocess
 import unittest
-import common
-import commontest
-from blockchaininterface import *
+from commontest import local_command, make_wallets
+
+data_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+sys.path.insert(0, os.path.join(data_dir))
+
 import bitcoin as btc
-import binascii
+
+from joinmarket import load_program_config, jm_single
+from joinmarket import get_p2pk_vbyte, get_log
+
+log = get_log()
+
 ''' Just some random thoughts to motivate possible tests;
 almost none of this has really been done:
 
@@ -25,33 +39,6 @@ respecting the JoinMarket protocol for its version.
 '''
 '''helper functions put here to avoid polluting the main codebase.'''
 
-import platform
-OS = platform.system()
-PINL = '\r\n' if OS == 'Windows' else '\n'
-
-
-def local_command(command, bg=False, redirect=''):
-    if redirect == 'NULL':
-        if OS == 'Windows':
-            command.append(' > NUL 2>&1')
-        elif OS == 'Linux':
-            command.extend(['>', '/dev/null', '2>&1'])
-        else:
-            print "OS not recognised, quitting."
-    elif redirect:
-        command.extend(['>', redirect])
-
-    if bg:
-        FNULL = open(os.devnull, 'w')
-        return subprocess.Popen(command,
-                                stdout=FNULL,
-                                stderr=subprocess.STDOUT,
-                                close_fds=True)
-    else:
-        #in case of foreground execution, we can use the output; if not
-        #it doesn't matter
-        return subprocess.check_output(command)
-
 
 class Join2PTests(unittest.TestCase):
     '''This test case intends to simulate
@@ -64,7 +51,7 @@ class Join2PTests(unittest.TestCase):
         #create 2 new random wallets.
         #put 10 coins into the first receive address
         #to allow that bot to start.
-        self.wallets = commontest.make_wallets(
+        self.wallets = make_wallets(
             2,
             wallet_structures=[[1, 0, 0, 0, 0], [1, 0, 0, 0, 0]],
             mean_amt=10)
@@ -81,7 +68,7 @@ class Join2PTests(unittest.TestCase):
         #run a single sendpayment call with wallet2
         amt = n * 100000000  #in satoshis
         dest_address = btc.privkey_to_address(
-            os.urandom(32), common.get_p2pk_vbyte())
+            os.urandom(32), get_p2pk_vbyte())
         try:
             for i in range(m):
                 sp_proc = local_command(['python','sendpayment.py','--yes','-N','1', self.wallets[1]['seed'],\
@@ -96,10 +83,10 @@ class Join2PTests(unittest.TestCase):
         if yigen_proc:
             yigen_proc.terminate()
 
-        received = common.bc_interface.get_received_by_addr(
+        received = jm_single().bc_interface.get_received_by_addr(
             [dest_address], None)['data'][0]['balance']
         if received != amt * m:
-            common.debug('received was: ' + str(received) + ' but amount was: '
+            log.debug('received was: ' + str(received) + ' but amount was: '
                          + str(amt))
             return False
         return True
@@ -116,7 +103,7 @@ class JoinNPTests(unittest.TestCase):
         #put 10 coins into the first receive address
         #to allow that bot to start.
         wallet_structures = [[1, 0, 0, 0, 0]] * 3
-        self.wallets = commontest.make_wallets(
+        self.wallets = make_wallets(
             3,
             wallet_structures=wallet_structures,
             mean_amt=10)
@@ -139,7 +126,7 @@ class JoinNPTests(unittest.TestCase):
         #run a single sendpayment call
         amt = 100000000  #in satoshis
         dest_address = btc.privkey_to_address(
-            os.urandom(32), common.get_p2pk_vbyte())
+            os.urandom(32), get_p2pk_vbyte())
         try:
             sp_proc = local_command(['python','sendpayment.py','--yes','-N', str(self.n),\
                                      self.wallets[self.n]['seed'], str(amt), dest_address])
@@ -154,7 +141,7 @@ class JoinNPTests(unittest.TestCase):
             for ygp in yigen_procs:
                 ygp.kill()
 
-        received = common.bc_interface.get_received_by_addr(
+        received = jm_single().bc_interface.get_received_by_addr(
             [dest_address], None)['data'][0]['balance']
         if received != amt:
             return False
@@ -163,7 +150,7 @@ class JoinNPTests(unittest.TestCase):
 
 def main():
     os.chdir(data_dir)
-    common.load_program_config()
+    load_program_config()
     unittest.main()
 
 
