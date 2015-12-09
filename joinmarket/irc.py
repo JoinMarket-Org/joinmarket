@@ -11,7 +11,7 @@ from joinmarket.configure import jm_single, get_config_irc_channel
 from joinmarket.message_channel import MessageChannel, CJPeerError
 from joinmarket.enc_wrapper import encrypt_encode, decode_decrypt
 from joinmarket.support import get_log, chunks
-from joinmarket.socks import socksocket, setdefaultproxy
+from joinmarket.socks import socksocket, setdefaultproxy, PROXY_TYPE_SOCKS5
 
 MAX_PRIVMSG_LEN = 400
 COMMAND_PREFIX = '!'
@@ -27,7 +27,7 @@ log = get_log()
 def random_nick(nick_len=9):
     vowels = "aeiou"
     consonants = ''.join([chr(
-            c) for c in range(
+        c) for c in range(
             ord('a'), ord('z') + 1) if vowels.find(chr(c)) == -1])
     assert nick_len % 2 == 1
     N = (nick_len - 1) / 2
@@ -59,6 +59,7 @@ def get_irc_nick(source):
 
 
 class PingThread(threading.Thread):
+
     def __init__(self, irc):
         threading.Thread.__init__(self)
         self.daemon = True
@@ -172,15 +173,15 @@ class IRCMessageChannel(MessageChannel):
         for s in sig_list:
             self.__privmsg(nick, 'sig', s)
             time.sleep(
-                    0.5)  # HACK! really there should be rate limiting, see issue#31
+                0.5)  # HACK! really there should be rate limiting, see issue#31
 
     def __pubmsg(self, message):
         log.debug('>>pubmsg ' + message)
         self.send_raw("PRIVMSG " + self.channel + " :" + message)
 
     def __privmsg(self, nick, cmd, message):
-        log.debug(
-            '>>privmsg ' + 'nick=' + nick + ' cmd=' + cmd + ' msg=' + message)
+        log.debug('>>privmsg ' + 'nick=' + nick + ' cmd=' + cmd + ' msg=' +
+                  message)
         # should we encrypt?
         box, encrypt = self.__get_encryption_box(cmd, nick)
         # encrypt before chunking
@@ -364,29 +365,27 @@ class IRCMessageChannel(MessageChannel):
             else:
                 self.built_privmsg[nick][1] += message[:-2]
             box, encrypt = self.__get_encryption_box(
-                    self.built_privmsg[nick][0], nick)
+                self.built_privmsg[nick][0], nick)
             if message[-1] == ';':
                 self.waiting[nick] = True
             elif message[-1] == '~':
                 self.waiting[nick] = False
                 if encrypt:
                     if not box:
-                        log.debug(
-                            'error, dont have encryption box object for ' +
-                            nick + ', dropping message')
+                        log.debug('error, dont have encryption box object for '
+                                  + nick + ', dropping message')
                         return
                     # need to decrypt everything after the command string
                     to_decrypt = ''.join(self.built_privmsg[nick][1].split(' ')[
-                                             1])
+                        1])
                     try:
                         decrypted = decode_decrypt(to_decrypt, box)
                     except ValueError as e:
-                        log.debug(
-                            'valueerror when decrypting, skipping: ' + repr(
-                                    e))
+                        log.debug('valueerror when decrypting, skipping: ' +
+                                  repr(e))
                         return
                     parsed = self.built_privmsg[nick][1].split(' ')[
-                                 0] + ' ' + decrypted
+                        0] + ' ' + decrypted
                 else:
                     parsed = self.built_privmsg[nick][1]
                 # wipe the message buffer waiting for the next one
@@ -430,7 +429,7 @@ class IRCMessageChannel(MessageChannel):
                 self.send_raw('AUTHENTICATE PLAIN')
             elif _chunks[0] == 'AUTHENTICATE':
                 self.send_raw('AUTHENTICATE ' + base64.b64encode(
-                        self.nick + '\x00' + self.nick + '\x00' + self.password))
+                    self.nick + '\x00' + self.nick + '\x00' + self.password))
             elif _chunks[1] == '903':
                 log.debug('Successfully authenticated')
                 self.password = None
@@ -453,8 +452,8 @@ class IRCMessageChannel(MessageChannel):
             self.send_raw('JOIN ' + self.channel)
             self.send_raw(
                 'MODE ' + self.nick + ' +B')  # marks as bots on unreal
-            self.send_raw('MODE ' + self.nick + ' -R'
-                          )  # allows unreg'd private messages
+            self.send_raw(
+                'MODE ' + self.nick + ' -R')  # allows unreg'd private messages
         elif _chunks[1] == '366':  # end of names list
             log.debug('Connected to IRC and joined channel')
             if self.on_welcome:
@@ -487,7 +486,6 @@ class IRCMessageChannel(MessageChannel):
         #     self.motd_fd.write(get_irc_text(line) + "\n")
         # elif chunks[1] == '251':
         #     self.motd_fd.close()
-
 
     def __init__(self,
                  given_nick,
@@ -525,10 +523,9 @@ class IRCMessageChannel(MessageChannel):
                 if config.get("MESSAGING", "socks5").lower() == 'true':
                     log.debug("Using socks5 proxy %s:%d" %
                               (self.socks5_host, self.socks5_port))
-                    socks.setdefaultproxy(socks.PROXY_TYPE_SOCKS5,
-                                          self.socks5_host, self.socks5_port,
-                                          True)
-                    self.sock = socks.socksocket()
+                    setdefaultproxy(PROXY_TYPE_SOCKS5, self.socks5_host,
+                                    self.socks5_port, True)
+                    self.sock = socksocket()
                 else:
                     self.sock = socket.socket(socket.AF_INET,
                                               socket.SOCK_STREAM)

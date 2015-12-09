@@ -23,10 +23,7 @@ jm_single().nickname = random_nick()
 nickserv_password = ''
 
 # minimum size is such that you always net profit at least 20% of the miner fee
-minsize = int(
-        1.2 * txfee / float(cjfee)
-)
-
+minsize = int(1.2 * txfee / float(cjfee))
 
 mix_levels = 5
 
@@ -65,10 +62,9 @@ class YieldGenerator(Maker):
         Maker.on_welcome(self)
         if not os.path.isfile(self.statement_file):
             self.log_statement(
-                    ['timestamp', 'cj amount/satoshi', 'my input count',
-                     'my input value/satoshi', 'cjfee/satoshi',
-                     'earned/satoshi',
-                     'confirm time/min', 'notes'])
+                ['timestamp', 'cj amount/satoshi', 'my input count',
+                 'my input value/satoshi', 'cjfee/satoshi', 'earned/satoshi',
+                 'confirm time/min', 'notes'])
 
         timestamp = datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
         self.log_statement([timestamp, '', '', '', '', '', '', 'Connected'])
@@ -115,7 +111,7 @@ class YieldGenerator(Maker):
                        'finding new utxos').format(change_value))
             try:
                 utxos = self.wallet.select_utxos(
-                        mixdepth, amount + jm_single().DUST_THRESHOLD)
+                    mixdepth, amount + jm_single().DUST_THRESHOLD)
             except Exception:
                 log.debug('dont have the required UTXOs to make a '
                           'output above the dust threshold, quitting')
@@ -145,11 +141,10 @@ class YieldGenerator(Maker):
         else:
             confirm_time = 0
         timestamp = datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
-        self.log_statement(
-                [timestamp, cjorder.cj_amount, len(cjorder.utxos),
-                 sum([av['value'] for av in cjorder.utxos.values()]),
-                 cjorder.real_cjfee, cjorder.real_cjfee - cjorder.txfee,
-                 round(confirm_time / 60.0, 2), ''])
+        self.log_statement([timestamp, cjorder.cj_amount, len(
+            cjorder.utxos), sum([av['value'] for av in cjorder.utxos.values(
+            )]), cjorder.real_cjfee, cjorder.real_cjfee - cjorder.txfee, round(
+                confirm_time / 60.0, 2), ''])
         return self.on_tx_unconfirmed(cjorder, txid, None)
 
 
@@ -180,7 +175,7 @@ def main():
     log.debug('starting yield generator')
     irc = IRCMessageChannel(jm_single().nickname,
                             realname='btcint=' + jm_single().config.get(
-                                    "BLOCKCHAIN", "blockchain_source"),
+                                "BLOCKCHAIN", "blockchain_source"),
                             password=nickserv_password)
     maker = YieldGenerator(irc, wallet)
     try:
