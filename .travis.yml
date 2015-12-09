@@ -29,10 +29,10 @@ script:
  - chmod 600 /home/travis/.bitcoin/bitcoin.conf
  - bitcoind -regtest -daemon 
  - sleep 5
- - bitcoin-cli -regtest setgenerate true 101
+ - bitcoin-cli -regtest generate 101
  - cd test
  - python regtest.py
  - python wallet-test.py
 branches:
  only:
-  - master
+  - develop 

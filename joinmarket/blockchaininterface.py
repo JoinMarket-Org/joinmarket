@@ -673,7 +673,7 @@ class RegtestBitcoinCoreInterface(BitcoinCoreInterface):
         Special method for regtest only;
         instruct to mine n blocks.
         """
-        self.rpc('setgenerate', [True, n])
+        self.rpc('generate', [n])
 
     def grab_coins(self, receiving_addr, amt=50):
         """
