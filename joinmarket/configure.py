@@ -1,6 +1,5 @@
 from __future__ import absolute_import, print_function
 
-import datetime
 import io
 import threading
 
@@ -11,8 +10,8 @@ import bitcoin as btc
 from joinmarket.jsonrpc import JsonRpc
 from joinmarket.support import get_log
 
-config = SafeConfigParser()
-config_location = 'joinmarket.cfg'
+# config = SafeConfigParser()
+# config_location = 'joinmarket.cfg'
 
 log = get_log()
 
@@ -55,8 +54,8 @@ global_singleton = AttributeDict(
            'core_alert': None,
            'joinmarket_alert': None,
            'debug_silence': False,
-           'config': config,
-           'config_location': config_location})
+           'config': SafeConfigParser(),
+           'config_location': 'joinmarket.cfg'})
 
 # todo: same as above.  decide!!!
 # global_singleton = AttributeDict()
@@ -120,7 +119,7 @@ defaultconfig = \
 
 
 def get_config_irc_channel():
-    channel = '#' + config.get("MESSAGING", "channel")
+    channel = '#' + global_singleton.config.get("MESSAGING", "channel")
     if get_network() == 'testnet':
         channel += '-test'
     return channel
@@ -128,7 +127,7 @@ def get_config_irc_channel():
 
 def get_network():
     """Returns network name"""
-    return config.get("BLOCKCHAIN", "network")
+    return global_singleton.config.get("BLOCKCHAIN", "network")
 
 
 def get_p2sh_vbyte():
@@ -156,36 +155,36 @@ def validate_address(addr):
 
 
 def load_program_config():
-    loadedFiles = config.read([config_location])
+    loadedFiles = global_singleton.config.read(
+            [global_singleton.config_location])
     # Create default config file if not found
     if len(loadedFiles) != 1:
-        config.readfp(io.BytesIO(defaultconfig))
-        with open(config_location, "w") as configfile:
+        global_singleton.config.readfp(io.BytesIO(defaultconfig))
+        with open(global_singleton.config_location, "w") as configfile:
             configfile.write(defaultconfig)
 
     # check for sections
     for s in required_options:
-        if s not in config.sections():
+        if s not in global_singleton.config.sections():
             raise Exception(
                     "Config file does not contain the required section: " + s)
     # then check for specific options
     for k, v in required_options.iteritems():
         for o in v:
-            if o not in config.options(k):
+            if o not in global_singleton.config.options(k):
                 raise Exception(
                         "Config file does not contain the required option: " + o)
 
     try:
-        global maker_timeout_sec
-        maker_timeout_sec = config.getint('MESSAGING', 'maker_timeout_sec')
+        global_singleton.maker_timeout_sec = global_singleton.config.getint(
+                'MESSAGING', 'maker_timeout_sec')
     except NoOptionError:
         log.debug('maker_timeout_sec not found in .cfg file, '
                   'using default value')
 
     # configure the interface to the blockchain on startup
-    # global bc_interface
-    bc_interface = get_blockchain_interface_instance(config)
-    global_singleton.bc_interface = bc_interface
+    global_singleton.bc_interface = get_blockchain_interface_instance(
+            global_singleton.config)
 
 
 def get_blockchain_interface_instance(_config):
