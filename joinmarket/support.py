@@ -1,5 +1,7 @@
 from __future__ import absolute_import, print_function
 
+import sys
+
 """
 Random functions - replacing some NumPy features
 NOTE THESE ARE NEITHER CRYPTOGRAPHICALLY SECURE
@@ -15,11 +17,30 @@ from decimal import Decimal
 
 from math import exp
 
-log = logging.getLogger('joinmarket')
-log.addHandler(logging.NullHandler())
 # todo: this was the date format used in the original debug().  Use it?
-logging.basicConfig(dateformat='[%Y/%m/%d %H:%M:%S] ')
+# logging.basicConfig(filename='logs/joinmarket.log',
+#                     stream=sys.stdout,
+#                     level=logging.DEBUG,
+#                     format='%(asctime)s %(message)s',
+#                     dateformat='[%Y/%m/%d %H:%M:%S] ')
 
+logFormatter = logging.Formatter(
+        "%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s")
+log = logging.getLogger('joinmarket')
+log.setLevel(logging.DEBUG)
+
+fileHandler = logging.FileHandler('logs/joinmarket.log')
+fileHandler.setFormatter(logFormatter)
+log.addHandler(fileHandler)
+
+consoleHandler = logging.StreamHandler(stream=sys.stdout)
+consoleHandler.setFormatter(logFormatter)
+log.addHandler(consoleHandler)
+
+# log = logging.getLogger('joinmarket')
+# log.addHandler(logging.NullHandler())
+
+log.debug('hello joinmarket')
 
 def get_log():
     """

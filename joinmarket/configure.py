@@ -70,7 +70,7 @@ global_singleton.debug_file_handle = None
 global_singleton.core_alert = None
 global_singleton.joinmarket_alert = None
 global_singleton.debug_silence = False
-global_singleton.config = SafeConfigParser(),
+global_singleton.config = SafeConfigParser()
 global_singleton.config_location = 'joinmarket.cfg'
 
 
