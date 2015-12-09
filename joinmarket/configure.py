@@ -52,37 +52,31 @@ global_singleton = AttributeDict(
            'maker_timeout_sec': 30,
            'debug_file_lock': threading.Lock(),
            'debug_file_handle': None,
+           'core_alert': None,
            'joinmarket_alert': None,
            'debug_silence': False,
            'config': config,
            'config_location': config_location})
 
+# todo: same as above.  decide!!!
+# global_singleton = AttributeDict()
+# global_singleton.JM_VERSION = 2
+# global_singleton.nickname = None
+# global_singleton.DUST_THRESHOLD = 2730
+# global_singleton.bc_interface = None
+# global_singleton.ordername_list = ['absorder', 'relorder']
+# global_singleton.maker_timeout_sec = 30
+# global_singleton.debug_file_lock = threading.Lock()
+# global_singleton.debug_file_handle = None
+# global_singleton.core_alert = None
+# global_singleton.joinmarket_alert = None
+# global_singleton.debug_silence = False
+# global_singleton.config = config
+# global_singleton.config_location = config_location
+
 
 def jm_single():
     return global_singleton
-
-
-# todo: oh wow, I thought all those debug statements were logging.debug
-# suggestions?  obviously rewritten to use logging module but what is
-# the strategy being employed in the below?
-
-# noinspection PyUnresolvedReferences
-def dontuse_debug(msg):
-    outmsg = datetime.datetime.now().strftime("[%Y/%m/%d %H:%M:%S] ") + msg
-    if not jm_single().debug_silence:
-        if jm_single().core_alert:
-            log.debug('Core Alert Message: ' + jm_single().core_alert)
-        if jm_single().joinmarket_alert:
-            log.debug(
-                    'JoinMarket Alert Message: {}'.format(
-                            jm_single().joinmarket_alert))
-        log.debug(outmsg)
-        # todo: revisit the intent of this logic
-        # debugs before creating bot nick won't be handled like this
-
-        # if jm_single().nickname:
-        #     debug_file_handle.write(outmsg + '\r\n')
-
 
 # FIXME: Add rpc_* options here in the future!
 required_options = {'BLOCKCHAIN': ['blockchain_source', 'network'],
@@ -185,8 +179,8 @@ def load_program_config():
         global maker_timeout_sec
         maker_timeout_sec = config.getint('MESSAGING', 'maker_timeout_sec')
     except NoOptionError:
-        log.debug(
-                'maker_timeout_sec not found in .cfg file, using default value')
+        log.debug('maker_timeout_sec not found in .cfg file, '
+                  'using default value')
 
     # configure the interface to the blockchain on startup
     # global bc_interface
@@ -195,6 +189,8 @@ def load_program_config():
 
 
 def get_blockchain_interface_instance(_config):
+    # todo: refactor joinmarket module to get rid of loops
+    # importing here is necessary to avoid import loops
     from joinmarket.blockchaininterface import BitcoinCoreInterface, \
         RegtestBitcoinCoreInterface, BlockrInterface
     from joinmarket.blockchaininterface import CliJsonRpc

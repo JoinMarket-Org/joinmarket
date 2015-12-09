@@ -12,13 +12,12 @@ from optparse import OptionParser
 # from common import *
 # import common
 from joinmarket import taker as takermodule
-from joinmarket.configure import load_program_config, validate_address, \
-    jm_single, get_p2pk_vbyte
-from joinmarket.irc import random_nick
-from joinmarket.support import get_log, choose_sweep_orders, choose_orders, \
-    pick_order, cheapest_order_choose, weighted_order_choose, debug_dump_object
-from joinmarket.wallet import AbstractWallet
-from joinmarket import IRCMessageChannel
+from joinmarket import load_program_config, validate_address, \
+    jm_single, get_p2pk_vbyte, random_nick
+from joinmarket import get_log, choose_sweep_orders, choose_orders, \
+    pick_order, cheapest_order_choose, weighted_order_choose
+from joinmarket import AbstractWallet, IRCMessageChannel, debug_dump_object
+
 import bitcoin as btc
 import sendpayment
 
@@ -178,13 +177,14 @@ def main():
                          'corresponding private key'))
 
     # for cjamount=0 do a sweep, and ignore change address
-    parser.add_option('-f',
-                      '--txfee',
-                      action='store',
-                      type='int',
-                      dest='txfee',
-                      default=10000,
-                      help='total miner fee in satoshis, default=10000')
+    parser.add_option(
+            '-f',
+            '--txfee',
+            action='store',
+            type='int',
+            dest='txfee',
+            default=10000,
+            help='total miner fee in satoshis, default=10000')
     parser.add_option(
             '-w',
             '--wait-time',
@@ -193,13 +193,14 @@ def main():
             dest='waittime',
             help='wait time in seconds to allow orders to arrive, default=5',
             default=5)
-    parser.add_option('-N',
-                      '--makercount',
-                      action='store',
-                      type='int',
-                      dest='makercount',
-                      help='how many makers to coinjoin with, default=2',
-                      default=2)
+    parser.add_option(
+            '-N',
+            '--makercount',
+            action='store',
+            type='int',
+            dest='makercount',
+            help='how many makers to coinjoin with, default=2',
+            default=2)
     parser.add_option(
             '-C',
             '--choose-cheapest',
@@ -215,11 +216,12 @@ def main():
             default=False,
             help=
             'manually pick which orders to take. doesn\'t work while sweeping.')
-    parser.add_option('--yes',
-                      action='store_true',
-                      dest='answeryes',
-                      default=False,
-                      help='answer yes to everything')
+    parser.add_option(
+            '--yes',
+            action='store_true',
+            dest='answeryes',
+            default=False,
+            help='answer yes to everything')
     # TODO implement parser.add_option('-n', '--no-network',
     # action='store_true', dest='nonetwork', default=False, help='dont query
     # the blockchain interface, instead user must supply value of UTXOs on '

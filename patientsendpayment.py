@@ -8,11 +8,11 @@ from optparse import OptionParser
 # data_dir = os.path.dirname(os.path.realpath(__file__))
 # sys.path.insert(0, os.path.join(data_dir, 'joinmarket'))
 from joinmarket import Maker, Taker, load_program_config, IRCMessageChannel
-from joinmarket.configure import validate_address, jm_single
-from joinmarket.irc import random_nick
-from joinmarket.support import get_log, choose_orders, weighted_order_choose, \
+from joinmarket import validate_address, jm_single
+from joinmarket import random_nick
+from joinmarket import get_log, choose_orders, weighted_order_choose, \
     debug_dump_object
-from joinmarket.wallet import Wallet
+from joinmarket import Wallet
 
 log = get_log()
 
@@ -141,13 +141,14 @@ def main():
                         ' using coinjoin. First acts as a maker, announcing an order and ' +
                         'waiting for someone to fill it. After a set period of time, gives' +
                         ' up waiting and acts as a taker and coinjoins any remaining coins')
-    parser.add_option('-f',
-                      '--txfee',
-                      action='store',
-                      type='int',
-                      dest='txfee',
-                      default=10000,
-                      help='miner fee contribution, in satoshis, default=10000')
+    parser.add_option(
+            '-f',
+            '--txfee',
+            action='store',
+            type='int',
+            dest='txfee',
+            default=10000,
+            help='miner fee contribution, in satoshis, default=10000')
     parser.add_option(
             '-N',
             '--makercount',
@@ -174,13 +175,14 @@ def main():
             help=
             'coinjoin fee asked for when being a maker, in satoshis per order filled, default=50000',
             default=50000)
-    parser.add_option('-m',
-                      '--mixdepth',
-                      action='store',
-                      type='int',
-                      dest='mixdepth',
-                      help='mixing depth to spend from, default=0',
-                      default=0)
+    parser.add_option(
+            '-m',
+            '--mixdepth',
+            action='store',
+            type='int',
+            dest='mixdepth',
+            help='mixing depth to spend from, default=0',
+            default=0)
     parser.add_option(
             '--rpcwallet',
             action='store_true',

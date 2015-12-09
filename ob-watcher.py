@@ -19,9 +19,7 @@ from optparse import OptionParser
 import matplotlib
 
 from joinmarket import jm_single, load_program_config, IRCMessageChannel
-from joinmarket.irc import random_nick
-from joinmarket.support import calc_cj_fee
-from joinmarket.taker import OrderbookWatch
+from joinmarket import random_nick, calc_cj_fee, OrderbookWatch
 
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -248,8 +246,8 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
                 btc_unit = sorted_units[0]
             if rel_unit not in sorted_rel_units:
                 rel_unit = sorted_rel_units[0]
-            ordercount, ordertable = create_orderbook_table(self.taker.db,
-                                                            btc_unit, rel_unit)
+            ordercount, ordertable = create_orderbook_table(
+                    self.taker.db, btc_unit, rel_unit)
             choose_units_form = create_choose_units_form(btc_unit, rel_unit)
             table_heading = create_table_heading(btc_unit, rel_unit)
             replacements = {

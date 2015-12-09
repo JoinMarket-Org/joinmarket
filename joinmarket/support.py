@@ -1,9 +1,12 @@
 from __future__ import absolute_import, print_function
 
-# Random functions - replacing some NumPy features
-# NOTE THESE ARE NEITHER CRYPTOGRAPHICALLY SECURE
-# NOR PERFORMANT NOR HIGH PRECISION!
-# Only for sampling purposes
+"""
+Random functions - replacing some NumPy features
+NOTE THESE ARE NEITHER CRYPTOGRAPHICALLY SECURE
+NOR PERFORMANT NOR HIGH PRECISION!
+Only for sampling purposes
+"""
+
 import logging
 import pprint
 import random
@@ -12,20 +15,28 @@ from decimal import Decimal
 
 from math import exp
 
-log = logging.getLogger('gitreformat')
+log = logging.getLogger('joinmarket')
 log.addHandler(logging.NullHandler())
+# todo: this was the date format used in the original debug().  Use it?
+logging.basicConfig(dateformat='[%Y/%m/%d %H:%M:%S] ')
+
 
 def get_log():
+    """
+    provides joinmarket logging instance
+    :return: log instance
+    """
     return log
+
 
 def rand_norm_array(mu, sigma, n):
     # use normalvariate instead of gauss for thread safety
-    return [random.normalvariate(mu, sigma) for i in range(n)]
+    return [random.normalvariate(mu, sigma) for _ in range(n)]
 
 
 def rand_exp_array(lamda, n):
     # 'lambda' is reserved (in case you are triggered by spelling errors)
-    return [random.expovariate(1.0 / lamda) for i in range(n)]
+    return [random.expovariate(1.0 / lamda) for _ in range(n)]
 
 
 def rand_pow_array(power, n):
@@ -39,11 +50,11 @@ def rand_pow_array(power, n):
 def rand_weighted_choice(n, p_arr):
     """
     Choose a value in 0..n-1
-	with the choice weighted by the probabilities
-	in the list p_arr. Note that there will be some
-	floating point rounding errors, but see the note
-	at the top of this section.
-	"""
+    with the choice weighted by the probabilities
+    in the list p_arr. Note that there will be some
+    floating point rounding errors, but see the note
+    at the top of this section.
+    """
     if abs(sum(p_arr) - 1.0) > 1e-4:
         raise ValueError("Sum of probabilities must be 1")
     if len(p_arr) != n:
@@ -59,13 +70,14 @@ def rand_weighted_choice(n, p_arr):
 def chunks(d, n):
     return [d[x:x + n] for x in xrange(0, len(d), n)]
 
+
 def select_gradual(unspent, value):
     """
-	UTXO selection algorithm for gradual dust reduction
-	If possible, combines outputs, picking as few as possible of the largest
-	utxos less than the target value; if the target value is larger than the
-	sum of all smaller utxos, uses the smallest utxo larger than the value.
-	"""
+    UTXO selection algorithm for gradual dust reduction
+    If possible, combines outputs, picking as few as possible of the largest
+    utxos less than the target value; if the target value is larger than the
+    sum of all smaller utxos, uses the smallest utxo larger than the value.
+    """
     value, key = int(value), lambda u: u["value"]
     high = sorted([u for u in unspent if key(u) >= value], key=key)
     low = sorted([u for u in unspent if key(u) < value], key=key)
@@ -88,9 +100,9 @@ def select_gradual(unspent, value):
 
 def select_greedy(unspent, value):
     """
-	UTXO selection algorithm for greedy dust reduction, but leaves out
-	extraneous utxos, preferring to keep multiple small ones.
-	"""
+    UTXO selection algorithm for greedy dust reduction, but leaves out
+    extraneous utxos, preferring to keep multiple small ones.
+    """
     value, key, cursor = int(value), lambda u: u['value'], 0
     utxos, picked = sorted(unspent, key=key), []
     for utxo in utxos:  # find the smallest consecutive sum >= value
@@ -113,11 +125,11 @@ def select_greedy(unspent, value):
 
 def select_greediest(unspent, value):
     """
-	UTXO selection algorithm for speediest dust reduction
-	Combines the shortest run of utxos (sorted by size, from smallest) which
-	exceeds the target value; if the target value is larger than the sum of
-	all smaller utxos, uses the smallest utxo larger than the target value.
-	"""
+    UTXO selection algorithm for speediest dust reduction
+    Combines the shortest run of utxos (sorted by size, from smallest) which
+    exceeds the target value; if the target value is larger than the sum of
+    all smaller utxos, uses the smallest utxo larger than the target value.
+    """
     value, key = int(value), lambda u: u["value"]
     high = sorted([u for u in unspent if key(u) >= value], key=key)
     low = sorted([u for u in unspent if key(u) < value], key=key)
@@ -136,12 +148,11 @@ def select_greediest(unspent, value):
 
 
 def calc_cj_fee(ordertype, cjfee, cj_amount):
-    real_cjfee = None
     if ordertype == 'absorder':
         real_cjfee = int(cjfee)
     elif ordertype == 'relorder':
-        real_cjfee = int((Decimal(cjfee) * Decimal(cj_amount)).quantize(Decimal(
-                1)))
+        real_cjfee = int(
+                (Decimal(cjfee) * Decimal(cj_amount)).quantize(Decimal(1)))
     else:
         raise RuntimeError('unknown order type: ' + str(ordertype))
     return real_cjfee
@@ -149,18 +160,18 @@ def calc_cj_fee(ordertype, cjfee, cj_amount):
 
 def weighted_order_choose(orders, n, feekey):
     """
-	Algorithm for choosing the weighting function
-	it is an exponential
-	P(f) = exp(-(f - fmin) / phi)
-	P(f) - probability of order being chosen
-	f - order fee
-	fmin - minimum fee in the order book
-	phi - scaling parameter, 63% of the distribution is within
+    Algorithm for choosing the weighting function
+    it is an exponential
+    P(f) = exp(-(f - fmin) / phi)
+    P(f) - probability of order being chosen
+    f - order fee
+    fmin - minimum fee in the order book
+    phi - scaling parameter, 63% of the distribution is within
 
-	define number M, related to the number of counterparties in this coinjoin
-	phi has a value such that it contains up to the Mth order
-	unless M < orderbook size, then phi goes up to the last order
-	"""
+    define number M, related to the number of counterparties in this coinjoin
+    phi has a value such that it contains up to the Mth order
+    unless M < orderbook size, then phi goes up to the last order
+    """
     minfee = feekey(orders[0])
     M = int(3 * n)
     if len(orders) > M:
@@ -180,8 +191,8 @@ def weighted_order_choose(orders, n, feekey):
 
 def cheapest_order_choose(orders, n, feekey):
     """
-	Return the cheapest order from the orders.
-	"""
+    Return the cheapest order from the orders.
+    """
     return sorted(orders, key=feekey)[0]
 
 
@@ -217,23 +228,28 @@ def choose_orders(db, cj_amount, n, chooseOrdersBy, ignored_makers=None):
               for o in sqlorders
               if o['minsize'] <= cj_amount <= o['maxsize'] and o[
                   'counterparty'] not in ignored_makers]
-    feekey = lambda o: o[2] - o[
-        3]  # function that returns the fee for a given order
+
+    # function that returns the fee for a given order
+    def feekey(o):
+        return o[2] - o[3]
+
     counterparties = set([o[0] for o in orders])
     if n > len(counterparties):
-        log.debug(
-                'ERROR not enough liquidity in the orderbook n=%d suitable-counterparties=%d amount=%d totalorders=%d'
-                % (n, len(counterparties), cj_amount, len(orders)))
-        return None, 0  # TODO handle not enough liquidity better, maybe an Exception
-    # restrict to one order per counterparty, choose the one with the lowest cjfee
-    # this is done in advance of the order selection algo, so applies to all of them.
-    # however, if orders are picked manually, allow duplicates.
+        log.debug(('ERROR not enough liquidity in the orderbook n=%d '
+                   'suitable-counterparties=%d amount=%d totalorders=%d')
+                  % (n, len(counterparties), cj_amount, len(orders)))
+        # TODO handle not enough liquidity better, maybe an Exception
+        return None, 0
+
+    """
+    restrict to one order per counterparty, choose the one with the lowest
+    cjfee this is done in advance of the order selection algo, so applies to
+    all of them. however, if orders are picked manually, allow duplicates.
+    """
     if chooseOrdersBy != pick_order:
         orders = sorted(
-                dict((v[0], v) for v in sorted(orders,
-                                               key=feekey,
-                                               reverse=True)).values(),
-                key=feekey)
+                dict((v[0], v) for v in sorted(
+                        orders, key=feekey, reverse=True)).values(), key=feekey)
     else:
         orders = sorted(orders,
                         key=feekey)  # sort from smallest to biggest cj fee
@@ -259,15 +275,15 @@ def choose_sweep_orders(db,
                         chooseOrdersBy,
                         ignored_makers=None):
     """
-	choose an order given that we want to be left with no change
-	i.e. sweep an entire group of utxos
+    choose an order given that we want to be left with no change
+    i.e. sweep an entire group of utxos
 
-	solve for cjamount when mychange = 0
-	for an order with many makers, a mixture of absorder and relorder
-	mychange = totalin - cjamount - total_txfee - sum(absfee) - sum(relfee*cjamount)
-	=> 0 = totalin - mytxfee - sum(absfee) - cjamount*(1 + sum(relfee))
-	=> cjamount = (totalin - mytxfee - sum(absfee)) / (1 + sum(relfee))
-	"""
+    solve for cjamount when mychange = 0
+    for an order with many makers, a mixture of absorder and relorder
+    mychange = totalin - cjamount - total_txfee - sum(absfee) - sum(relfee*cjamount)
+    => 0 = totalin - mytxfee - sum(absfee) - cjamount*(1 + sum(relfee))
+    => cjamount = (totalin - mytxfee - sum(absfee)) / (1 + sum(relfee))
+    """
 
     if ignored_makers is None:
         ignored_makers = []
@@ -299,22 +315,28 @@ def choose_sweep_orders(db,
                  'txfee', 'cjfee']
     orderlist = [dict([(k, o[k]) for k in orderkeys])
                  for o in sqlorders if o['counterparty'] not in ignored_makers]
-    # orderlist = sqlorders #uncomment this and comment previous two lines for faster runtime but less readable output
+
+    # uncomment this and comment previous two lines for faster runtime but
+    # less readable output
+    # orderlist = sqlorders
     log.debug('orderlist = \n' + '\n'.join([str(o) for o in orderlist]))
 
     # choose N amount of orders
     available_orders = [(o, calc_cj_fee(o['ordertype'], o['cjfee'],
                                         total_input_value), o['txfee'])
                         for o in orderlist]
-    feekey = lambda o: o[1] - o[
-        2]  # function that returns the fee for a given order
-    available_orders = sorted(available_orders,
-                              key=feekey)  # sort from smallest to biggest cj fee
+
+    def feekey(o):
+        return o[1] - o[2]
+
+    # sort from smallest to biggest cj fee
+    available_orders = sorted(available_orders, key=feekey)
     chosen_orders = []
     while len(chosen_orders) < n:
         if len(available_orders) < n - len(chosen_orders):
             log.debug('ERROR not enough liquidity in the orderbook')
-            return None, 0  # TODO handle not enough liquidity better, maybe an Exception
+            # TODO handle not enough liquidity better, maybe an Exception
+            return None, 0
         for i in range(n - len(chosen_orders)):
             chosen_order = chooseOrdersBy(available_orders, n, feekey)
             log.debug('chosen = ' + str(chosen_order))
@@ -355,4 +377,3 @@ def debug_dump_object(obj, skip_fields=None):
             log.debug(pprint.pformat(v))
         else:
             log.debug(str(v))
-

@@ -19,7 +19,7 @@ import bitcoin as btc
 import subprocess
 
 from joinmarket.jsonrpc import JsonRpcConnectionError
-from joinmarket.configure import get_p2pk_vbyte, config
+from joinmarket.configure import get_p2pk_vbyte, config, jm_single
 from joinmarket.support import get_log, chunks
 
 log = get_log()
@@ -161,7 +161,8 @@ class BlockrInterface(BlockchainInterface):
     def sync_unspent(self, wallet):
         # finds utxos in the wallet
         st = time.time()
-        rate_limit_time = 10 * 60  # dont refresh unspent dict more often than 10 minutes
+        # dont refresh unspent dict more often than 10 minutes
+        rate_limit_time = 10 * 60
         if st - self.last_sync_unspent < rate_limit_time:
             log.debug(
                     'blockr sync_unspent() happened too recently (%dsec), skipping'
@@ -217,9 +218,9 @@ class BlockrInterface(BlockchainInterface):
                 self.confirmfun = confirmfun
                 self.tx_output_set = set([(sv['script'], sv['value'])
                                           for sv in txd['outs']])
-                self.output_addresses = [btc.script_to_address(
-                        scrval[0], get_p2pk_vbyte())
-                                         for scrval in self.tx_output_set]
+                self.output_addresses = [
+                    btc.script_to_address(scrval[0], get_p2pk_vbyte())
+                    for scrval in self.tx_output_set]
                 log.debug('txoutset=' + pprint.pformat(self.tx_output_set))
                 log.debug('outaddrs=' + ','.join(self.output_addresses))
 
@@ -237,10 +238,9 @@ class BlockrInterface(BlockchainInterface):
                     random.shuffle(self.output_addresses
                                    )  # seriously weird bug with blockr.io
                     data = json.loads(
-                            btc.make_request(
-                                    blockr_url + ','.join(
-                                            self.output_addresses
-                                    ) + '?unconfirmed=1'))['data']
+                            btc.make_request(blockr_url + ','.join(
+                                    self.output_addresses
+                            ) + '?unconfirmed=1'))['data']
 
                     shared_txid = None
                     for unspent_list in data:
@@ -289,8 +289,8 @@ class BlockrInterface(BlockchainInterface):
                             self.output_addresses)))['data']
                     shared_txid = None
                     for addrtxs in data:
-                        txs = set([str(txdata['tx']) for txdata in addrtxs[
-                            'txs']])
+                        txs = set(str(txdata['tx'])
+                                  for txdata in addrtxs['txs'])
                         if not shared_txid:
                             shared_txid = txs
                         else:
@@ -300,8 +300,9 @@ class BlockrInterface(BlockchainInterface):
                         continue
                     blockr_url = 'https://' + self.blockr_domain
                     blockr_url += '.blockr.io/api/v1/tx/raw/'
-                    data = json.loads(btc.make_request(blockr_url + ','.join(
-                            shared_txid)))['data']
+                    data = json.loads(
+                            btc.make_request(
+                                    blockr_url + ','.join(shared_txid)))['data']
                     if not isinstance(data, list):
                         data = [data]
                     for txinfo in data:
@@ -343,8 +344,8 @@ class BlockrInterface(BlockchainInterface):
         data = []
         for ids in txids:
             blockr_url = 'https://' + self.blockr_domain + '.blockr.io/api/v1/tx/info/'
-            blockr_data = json.loads(btc.make_request(blockr_url + ','.join(
-                    ids)))['data']
+            blockr_data = json.loads(
+                    btc.make_request(blockr_url + ','.join(ids)))['data']
             if not isinstance(blockr_data, list):
                 blockr_data = [blockr_data]
             data += blockr_data
@@ -416,8 +417,8 @@ class NotifyRequestHeader(BaseHTTPServer.BaseHTTPRequestHandler):
                     log.debug('ran confirmfun')
 
         elif self.path.startswith('/alertnotify?'):
-            core_alert = urllib.unquote(self.path[len(pages[1]):])
-            log.debug('Got an alert!\nMessage=' + core_alert)
+            jm_single().core_alert = urllib.unquote(self.path[len(pages[1]):])
+            log.debug('Got an alert!\nMessage=' + jm_single().core_alert)
 
         os.system('curl -sI --connect-timeout 1 http://localhost:' + str(
                 self.base_server.server_address[1] + 1) + self.path)
@@ -549,9 +550,9 @@ class BitcoinCoreInterface(BlockchainInterface):
                             is_index_ahead_of_cache(wallet, mix_depth,
                                                     forchange):
                         break
-                    mix_change_addrs = [wallet.get_new_addr(
-                            mix_depth, forchange) for _ in
-                                        range(addr_req_count)]
+                    mix_change_addrs = [
+                        wallet.get_new_addr(mix_depth, forchange)
+                        for _ in range(addr_req_count)]
                     for mc_addr in mix_change_addrs:
                         if mc_addr not in imported_addr_list:
                             too_few_addr_mix_change.append(
@@ -574,9 +575,9 @@ class BitcoinCoreInterface(BlockchainInterface):
         if len(too_few_addr_mix_change) > 0:
             log.debug('too few addresses in ' + str(too_few_addr_mix_change))
             for mix_depth, forchange in too_few_addr_mix_change:
-                wallet_addr_list += [wallet.get_new_addr(
-                        mix_depth, forchange) for _ in range(
-                        addr_req_count * 3)]
+                wallet_addr_list += [
+                    wallet.get_new_addr(mix_depth, forchange)
+                    for _ in range(addr_req_count * 3)]
 
             self.add_watchonly_addresses(wallet_addr_list, wallet_name)
             return
@@ -613,8 +614,7 @@ class BitcoinCoreInterface(BlockchainInterface):
             self.notifythread.start()
         one_addr_imported = False
         for outs in txd['outs']:
-            addr = btc.script_to_address(outs['script'],
-                                         get_p2pk_vbyte())
+            addr = btc.script_to_address(outs['script'], get_p2pk_vbyte())
             if self.rpc('getaccount', [addr]) != '':
                 one_addr_imported = True
                 break

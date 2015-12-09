@@ -107,9 +107,8 @@ class CoinJoinTX(object):
 
     def recv_txio(self, nick, utxo_list, cj_pub, change_addr):
         if nick not in self.nonrespondants:
-            log.debug(
-                'recv_txio => nick=' + nick + ' not in nonrespondants ' + str(
-                        self.nonrespondants))
+            log.debug(('recv_txio => nick={} not in '
+                       'nonrespondants {}').format(nick, self.nonrespondants))
             return
         self.utxos[nick] = utxo_list
         order = self.db.execute('SELECT ordertype, txfee, cjfee FROM '
@@ -117,11 +116,13 @@ class CoinJoinTX(object):
                                 (self.active_orders[nick], nick)).fetchone()
         utxo_data = jm_single().bc_interface.query_utxo_set(self.utxos[nick])
         if None in utxo_data:
-            log.debug(
-                    'ERROR outputs unconfirmed or already spent. utxo_data=' +
-                    pprint.pformat(utxo_data))
-            # when internal reviewing of makers is created, add it here to immediately quit
-            return  # ignore this message, eventually the timeout thread will recover
+            log.debug(('ERROR outputs unconfirmed or already spent. '
+                       'utxo_data={}').format(pprint.pformat(utxo_data)))
+            # when internal reviewing of makers is created, add it here to
+            # immediately quit
+            return
+
+        # ignore this message, eventually the timeout thread will recover
         total_input = sum([d['value'] for d in utxo_data])
         real_cjfee = calc_cj_fee(order['ordertype'], order['cjfee'],
                                  self.cj_amount)
@@ -189,7 +190,8 @@ class CoinJoinTX(object):
     def add_signature(self, nick, sigb64):
         if nick not in self.nonrespondants:
             log.debug(('add_signature => nick={} '
-                       'not in nonrespondants ').format(self.nonrespondants))
+                       'not in nonrespondants {}').format(
+                    nick, self.nonrespondants))
             return
         sig = base64.b64decode(sigb64).encode('hex')
         inserted_sig = False
@@ -223,9 +225,9 @@ class CoinJoinTX(object):
                 # check if maker has sent everything possible
                 self.utxos[nick].remove(u[1])
                 if len(self.utxos[nick]) == 0:
-                    log.debug(('nick = {} sent all sigs, '
-                               'removing from nonrespondant list').format(
-                            self.nonrespondants.remove(nick)))
+                    log.debug(('nick = {} sent all sigs, removing from '
+                               'nonrespondant list').format(nick))
+                    self.nonrespondants.remove(nick)
                 break
         if not inserted_sig:
             log.debug('signature did not match anything in the tx')

@@ -10,11 +10,11 @@ from optparse import OptionParser
 import time
 
 from joinmarket import Taker, load_program_config, IRCMessageChannel
-from joinmarket.configure import validate_address, jm_single
-from joinmarket.irc import random_nick
-from joinmarket.support import get_log, choose_sweep_orders, choose_orders, \
+from joinmarket import validate_address, jm_single
+from joinmarket import random_nick
+from joinmarket import get_log, choose_sweep_orders, choose_orders, \
     pick_order, cheapest_order_choose, weighted_order_choose, debug_dump_object
-from joinmarket.wallet import Wallet, BitcoinCoreWallet
+from joinmarket import Wallet, BitcoinCoreWallet
 
 log = get_log()
 
@@ -170,13 +170,14 @@ def main():
                         'wallet to an given address using coinjoin and then switches off. Also sends from bitcoinqt. '
                         +
                         'Setting amount to zero will do a sweep, where the entire mix depth is emptied')
-    parser.add_option('-f',
-                      '--txfee',
-                      action='store',
-                      type='int',
-                      dest='txfee',
-                      default=10000,
-                      help='total miner fee in satoshis, default=10000')
+    parser.add_option(
+            '-f',
+            '--txfee',
+            action='store',
+            type='int',
+            dest='txfee',
+            default=10000,
+            help='total miner fee in satoshis, default=10000')
     parser.add_option(
             '-w',
             '--wait-time',
@@ -185,13 +186,14 @@ def main():
             dest='waittime',
             help='wait time in seconds to allow orders to arrive, default=5',
             default=5)
-    parser.add_option('-N',
-                      '--makercount',
-                      action='store',
-                      type='int',
-                      dest='makercount',
-                      help='how many makers to coinjoin with, default=2',
-                      default=2)
+    parser.add_option(
+            '-N',
+            '--makercount',
+            action='store',
+            type='int',
+            dest='makercount',
+            help='how many makers to coinjoin with, default=2',
+            default=2)
     parser.add_option(
             '-C',
             '--choose-cheapest',
@@ -207,26 +209,28 @@ def main():
             default=False,
             help=
             'manually pick which orders to take. doesn\'t work while sweeping.')
-    parser.add_option('-m',
-                      '--mixdepth',
-                      action='store',
-                      type='int',
-                      dest='mixdepth',
-                      help='mixing depth to spend from, default=0',
-                      default=0)
-    parser.add_option('--yes',
-                      action='store_true',
-                      dest='answeryes',
-                      default=False,
-                      help='answer yes to everything')
+    parser.add_option(
+            '-m',
+            '--mixdepth',
+            action='store',
+            type='int',
+            dest='mixdepth',
+            help='mixing depth to spend from, default=0',
+            default=0)
+    parser.add_option(
+            '--yes',
+            action='store_true',
+            dest='answeryes',
+            default=False,
+            help='answer yes to everything')
     parser.add_option(
             '--rpcwallet',
             action='store_true',
             dest='userpcwallet',
             default=False,
-            help=
-            'Use the Bitcoin Core wallet through json rpc, instead of the internal joinmarket '
-            + 'wallet. Requires blockchain_source=json-rpc')
+            help=('Use the Bitcoin Core wallet through json rpc, instead '
+                  'of the internal joinmarket wallet. Requires '
+                  'blockchain_source=json-rpc'))
     (options, args) = parser.parse_args()
 
     if len(args) < 3:

@@ -11,14 +11,14 @@ import time
 from optparse import OptionParser
 from pprint import pprint
 
-from joinmarket import jm_single, set_debug_silence, Taker, load_program_config, \
+from joinmarket import jm_single, Taker, load_program_config, \
     IRCMessageChannel
-from joinmarket.configure import validate_address
-from joinmarket.irc import random_nick
-from joinmarket.support import get_log, rand_norm_array, rand_pow_array, \
+from joinmarket import validate_address
+from joinmarket import random_nick
+from joinmarket import get_log, rand_norm_array, rand_pow_array, \
     rand_exp_array, choose_orders, weighted_order_choose, choose_sweep_orders, \
     debug_dump_object
-from joinmarket.wallet import Wallet
+from joinmarket import Wallet
 
 log = get_log()
 
@@ -222,7 +222,7 @@ class TumblerThread(threading.Thread):
         if tx['destination'] == 'internal':
             destaddr = self.taker.wallet.get_receive_addr(tx['srcmixdepth'] + 1)
         elif tx['destination'] == 'addrask':
-            set_debug_silence(True)
+            jm_single().debug_silence = True
             while True:
                 destaddr = raw_input('insert new address: ')
                 addr_valid, errormsg = validate_address(destaddr)
@@ -230,7 +230,7 @@ class TumblerThread(threading.Thread):
                     break
                 print(
                 'Address ' + destaddr + ' invalid. ' + errormsg + ' try again')
-            set_debug_silence(False)
+            jm_single().debug_silence = False
         else:
             destaddr = tx['destination']
         self.sweep = sweep
@@ -254,17 +254,15 @@ class TumblerThread(threading.Thread):
         orders = [o['cjfee'] for o in sqlorders if o['ordertype'] == 'relorder']
         orders = sorted(orders)
         if len(orders) == 0:
-            log.debug(
-                    'There are no orders at all in the orderbook! Is the bot connecting to the right server?')
+            log.debug('There are no orders at all in the orderbook! '
+                      'Is the bot connecting to the right server?')
             return
         relorder_fee = float(orders[0])
         log.debug('relorder fee = ' + str(relorder_fee))
         maker_count = sum([tx['makercount'] for tx in self.taker.tx_list])
         log.debug('uses ' + str(maker_count) + ' makers, at ' + str(
                 relorder_fee * 100) + '% per maker, estimated total cost ' + str(
-                round(
-                        (1 - (1 - relorder_fee) ** maker_count) * 100,
-                        3)) + '%')
+                round((1 - (1 - relorder_fee) ** maker_count) * 100, 3)) + '%')
         log.debug('starting')
         self.lockcond = threading.Condition()
 
@@ -329,12 +327,13 @@ def main():
             'coins being left in higher mixing levels, this option can be used to resume without needing'
             + ' to send to another address. default=0',
             default=0)
-    parser.add_option('-f',
-                      '--txfee',
-                      type='int',
-                      dest='txfee',
-                      default=10000,
-                      help='total miner fee in satoshis, default=10000')
+    parser.add_option(
+            '-f',
+            '--txfee',
+            type='int',
+            dest='txfee',
+            default=10000,
+            help='total miner fee in satoshis, default=10000')
     parser.add_option(
             '-a',
             '--addrcount',
@@ -373,12 +372,13 @@ def main():
             default=2,
             help=
             'The minimum maker count in a transaction, random values below this are clamped at this number. default=2')
-    parser.add_option('-M',
-                      '--mixdepthcount',
-                      type='int',
-                      dest='mixdepthcount',
-                      help='How many mixing depths to mix through',
-                      default=4)
+    parser.add_option(
+            '-M',
+            '--mixdepthcount',
+            type='int',
+            dest='mixdepthcount',
+            help='How many mixing depths to mix through',
+            default=4)
     parser.add_option(
             '-c',
             '--txcountparams',
@@ -462,8 +462,8 @@ def main():
     if len(destaddrs) > options.addrcount:
         options.addrcount = len(destaddrs)
     if options.addrcount + 1 > options.mixdepthcount:
-        print(
-        'not enough mixing depths to pay to all destination addresses, increasing mixdepthcount')
+        print('not enough mixing depths to pay to all destination addresses, '
+              'increasing mixdepthcount')
         options.mixdepthcount = options.addrcount + 1
     if options.donateamount > 10.0:
         # fat finger probably, or misunderstanding

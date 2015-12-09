@@ -29,7 +29,7 @@ class AbstractWallet(object):
         self.max_mix_depth = 0
         self.utxo_selector = btc.select  # default fallback: upstream
         try:
-            config = jm_single()
+            config = jm_single().config
             if config.get("POLICY", "merge_algorithm") == "gradual":
                 self.utxo_selector = select_gradual
             elif config.get("POLICY", "merge_algorithm") == "greedy":
