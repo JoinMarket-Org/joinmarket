@@ -17,10 +17,6 @@ from joinmarket.support import get_log, calc_cj_fee
 log = get_log()
 
 
-def maker_timeout_sec(_):
-    pass
-
-
 class CoinJoinTX(object):
     # soon the taker argument will be removed and just be replaced by wallet
     # or some other interface
@@ -348,9 +344,9 @@ class CoinJoinTX(object):
             # to see if if the messages have arrived
             while not self.cjtx.end_timeout_thread:
                 log.debug('waiting for all replies.. timeout=' + str(
-                        maker_timeout_sec))
+                        jm_single().maker_timeout_sec))
                 with self.cjtx.timeout_lock:
-                    self.cjtx.timeout_lock.wait(maker_timeout_sec)
+                    self.cjtx.timeout_lock.wait(jm_single().maker_timeout_sec)
                 if self.cjtx.all_responded:
                     log.debug(('timeout thread woken by notify(), '
                                'makers responded in time'))
