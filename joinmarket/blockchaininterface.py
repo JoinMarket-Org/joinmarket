@@ -19,7 +19,7 @@ import bitcoin as btc
 import subprocess
 
 from joinmarket.jsonrpc import JsonRpcConnectionError
-from joinmarket.configure import get_p2pk_vbyte, config, jm_single
+from joinmarket.configure import get_p2pk_vbyte, jm_single
 from joinmarket.support import get_log, chunks
 
 log = get_log()
@@ -436,6 +436,7 @@ class BitcoinCoreNotifyThread(threading.Thread):
     def run(self):
         notify_host = 'localhost'
         notify_port = 62602  # defaults
+        config = jm_single().config
         if 'notify_host' in config.options("BLOCKCHAIN"):
             notify_host = config.get("BLOCKCHAIN", "notify_host").strip()
         if 'notify_port' in config.options("BLOCKCHAIN"):
@@ -493,7 +494,8 @@ class BitcoinCoreInterface(BlockchainInterface):
                   ' addresses into account ' + wallet_name)
         for addr in addr_list:
             self.rpc('importaddress', [addr, wallet_name, False])
-        if config.get("BLOCKCHAIN", "blockchain_source") != 'regtest':
+        if jm_single().config.get(
+                "BLOCKCHAIN", "blockchain_source") != 'regtest':
             print('restart Bitcoin Core with -rescan if you\'re '
                   'recovering an existing wallet from backup seed')
             print(' otherwise just restart this joinmarket script')
