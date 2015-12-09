@@ -1,6 +1,7 @@
 from __future__ import absolute_import, print_function
 
 import io
+import logging
 import threading
 
 from ConfigParser import SafeConfigParser
@@ -33,6 +34,19 @@ class AttributeDict(object):
                 self.__dict__[key] = AttributeDict(**value)
             else:
                 self.__dict__[key] = value
+
+    def __setattr__(self, name, value):
+        if name == 'nickname' and value:
+            logFormatter = logging.Formatter(
+                    ('%(asctime)s [%(threadName)-12.12s] '
+                     '[%(levelname)-5.5s]  %(message)s'))
+            fileHandler = logging.FileHandler(
+                    'logs/{}.log'.format(value))
+            fileHandler.setFormatter(logFormatter)
+            log.addHandler(fileHandler)
+
+        super(AttributeDict, self).__setattr__(name, value)
+
 
     def __getitem__(self, key):
         """

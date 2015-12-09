@@ -29,10 +29,6 @@ logFormatter = logging.Formatter(
 log = logging.getLogger('joinmarket')
 log.setLevel(logging.DEBUG)
 
-fileHandler = logging.FileHandler('logs/joinmarket.log')
-fileHandler.setFormatter(logFormatter)
-log.addHandler(fileHandler)
-
 consoleHandler = logging.StreamHandler(stream=sys.stdout)
 consoleHandler.setFormatter(logFormatter)
 log.addHandler(consoleHandler)
