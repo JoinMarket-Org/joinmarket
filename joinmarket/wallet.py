@@ -68,10 +68,9 @@ class AbstractWallet(object):
         log.debug('for mixdepth={} amount={} selected:'.format(
             mixdepth, amount))
         log.debug(pprint.pformat(inputs))
-
-        return {(i['utxo'], {'value': i['value'],
+        return dict([(i['utxo'], {'value': i['value'],
                              'address': utxo_list[i['utxo']]['address']})
-                for i in inputs}
+                     for i in inputs])
 
     def get_balance_by_mixdepth(self):
         mix_balance = {}
