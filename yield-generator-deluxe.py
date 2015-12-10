@@ -68,8 +68,9 @@ offer_spread = 'fibonacci'  #fibonacci, evenly, random, bymixdepth, custom
 min_offer_size = None  #when None, min_output_size will be used
 max_offer_size = None  #when None, size of largest mix depth will be used
 #max_offer_size = random.randrange(2500000000, 3000000000)
-custom_offers_levels = [1, 1.5, 10, 100
-                       ]  #in bitcoins, used when offer_spread is set to custom
+custom_offers_levels = [
+    1, 1.5, 10, 100
+]  #in bitcoins, used when offer_spread is set to custom
 
 # You can overwrite the above autogenerate options
 custom_offers = None  #comment this line if using below
@@ -316,7 +317,7 @@ class YieldGenerator(Maker):
                                   key=lambda x: x[1],
                                   reverse=True)[0][0]  #find largest amount
         filtered_mix_balance = [
-            m for m in mix_balance.iteritems() if m[0] <= largest_mixdepth
+            m for m in filtered_mix_balance if m[0] <= largest_mixdepth
         ]  #use mixdepths before and including the largest
         filtered_mix_balance = sorted(
             filtered_mix_balance,
