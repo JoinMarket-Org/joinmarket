@@ -11,7 +11,7 @@ from joinmarket.configure import jm_single, get_config_irc_channel
 from joinmarket.message_channel import MessageChannel, CJPeerError
 from joinmarket.enc_wrapper import encrypt_encode, decode_decrypt
 from joinmarket.support import get_log, chunks
-from joinmarket.socks import socksocket, setdefaultproxy
+from joinmarket.socks import socksocket, setdefaultproxy, PROXY_TYPE_SOCKS5
 
 MAX_PRIVMSG_LEN = 400
 COMMAND_PREFIX = '!'
@@ -525,10 +525,10 @@ class IRCMessageChannel(MessageChannel):
                 if config.get("MESSAGING", "socks5").lower() == 'true':
                     log.debug("Using socks5 proxy %s:%d" %
                               (self.socks5_host, self.socks5_port))
-                    socks.setdefaultproxy(socks.PROXY_TYPE_SOCKS5,
+                    setdefaultproxy(PROXY_TYPE_SOCKS5,
                                           self.socks5_host, self.socks5_port,
                                           True)
-                    self.sock = socks.socksocket()
+                    self.sock = socksocket()
                 else:
                     self.sock = socket.socket(socket.AF_INET,
                                               socket.SOCK_STREAM)
