@@ -22,7 +22,7 @@ script:
 #set up joinmarket.cfg
  - cp test/regtest_joinmarket.cfg joinmarket.cfg
 #E2E encryption (libnacl) tests
- - python joinmarket/enc_wrapper.py
+ - PYTHONPATH=.:$PYTHONPATH python joinmarket/enc_wrapper.py
 #start bitcoin regtest daemon and 101 blocks
  - mkdir /home/travis/.bitcoin
  - cp test/bitcoin.conf /home/travis/.bitcoin/.
