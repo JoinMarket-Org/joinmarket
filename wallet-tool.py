@@ -31,48 +31,43 @@ import bitcoin as btc
 
 description = (
     'Does useful little tasks involving your bip32 wallet. The '
-    'method is one of the following: display - shows addresses and '
-    'balances. displayall - shows ALL addresses and balances. '
-    'summary - shows a summary of mixing depth balances.generate - '
-    'generates a new wallet recover - recovers a wallet from the 12 '
-    'word recovery seed showseed - shows the wallet recovery seed '
-    'and hex seed. importprivkey - adds privkeys to this wallet ('
-    'privkeys are spaces or commas separated) listwallets - lists '
-    'all wallets with creator and timestamp')
+    'method is one of the following: (display) Shows addresses and '
+    'balances. (displayall) Shows ALL addresses and balances. '
+    '(summary) Shows a summary of mixing depth balances. (generate) '
+    'Generates a new wallet. (recover) Recovers a wallet from the 12 '
+    'word recovery seed. (showseed) Shows the wallet recovery seed '
+    'and hex seed. (importprivkey) Adds privkeys to this wallet, '
+    'privkeys are spaces or commas separated. (listwallets) Lists '
+    'all wallets with creator and timestamp.')
 
-parser = OptionParser(
-        usage='usage: %prog [options] [wallet file] [method]',
-        description=description)
+parser = OptionParser(usage='usage: %prog [options] [wallet file] [method]',
+                      description=description)
 
-parser.add_option(
-        '-p',
-        '--privkey',
-        action='store_true',
-        dest='showprivkey',
-        help='print private key along with address, default false')
-parser.add_option(
-        '-m',
-        '--maxmixdepth',
-        action='store',
-        type='int',
-        dest='maxmixdepth',
-        help='maximum mixing depth to look for, default=5')
-parser.add_option(
-        '-g',
-        '--gap-limit',
-        type="int",
-        action='store',
-        dest='gaplimit',
-        help='gap limit for wallet, default=6',
-        default=6)
-parser.add_option(
-        '-M',
-        '--mix-depth',
-        type="int",
-        action='store',
-        dest='mixdepth',
-        help='mixing depth to import private key into',
-        default=0)
+parser.add_option('-p',
+                  '--privkey',
+                  action='store_true',
+                  dest='showprivkey',
+                  help='print private key along with address, default false')
+parser.add_option('-m',
+                  '--maxmixdepth',
+                  action='store',
+                  type='int',
+                  dest='maxmixdepth',
+                  help='maximum mixing depth to look for, default=5')
+parser.add_option('-g',
+                  '--gap-limit',
+                  type="int",
+                  action='store',
+                  dest='gaplimit',
+                  help='gap limit for wallet, default=6',
+                  default=6)
+parser.add_option('-M',
+                  '--mix-depth',
+                  type="int",
+                  action='store',
+                  dest='mixdepth',
+                  help='mixing depth to import private key into',
+                  default=0)
 (options, args) = parser.parse_args()
 
 # if the index_cache stored in wallet.json is longer than the default
@@ -98,12 +93,11 @@ if args[0] in noseed_methods:
 else:
     seed = args[0]
     method = ('display' if len(args) == 1 else args[1].lower())
-    wallet = Wallet(
-            seed,
-            options.maxmixdepth,
-            options.gaplimit,
-            extend_mixdepth=not maxmixdepth_configured,
-            storepassword=(method == 'importprivkey'))
+    wallet = Wallet(seed,
+                    options.maxmixdepth,
+                    options.gaplimit,
+                    extend_mixdepth=not maxmixdepth_configured,
+                    storepassword=(method == 'importprivkey'))
     if method not in noscan_methods:
         jm_single().bc_interface.sync_wallet(wallet)
 
@@ -112,7 +106,6 @@ if method == 'display' or method == 'displayall' or method == 'summary':
     def cus_print(s):
         if method != 'summary':
             print(s)
-
 
     total_balance = 0
     for m in range(wallet.max_mix_depth):
@@ -131,12 +124,13 @@ if method == 'display' or method == 'displayall' or method == 'summary':
                 balance_depth += balance
                 used = ('used' if k < wallet.index[m][forchange] else ' new')
                 privkey = btc.encode_privkey(
-                        wallet.get_key(m, forchange, k), 'wif_compressed',
-                        get_p2pk_vbyte()) if options.showprivkey else ''
+                    wallet.get_key(m, forchange, k), 'wif_compressed',
+                    get_p2pk_vbyte()) if options.showprivkey else ''
                 if (method == 'displayall' or balance > 0 or
-                        (used == ' new' and forchange == 0)):
-                    cus_print('  m/0/%d/%d/%03d %-35s%s %.8f btc %s' % (
-                        m, forchange, k, addr, used, balance / 1e8, privkey))
+                    (used == ' new' and forchange == 0)):
+                    cus_print('  m/0/%d/%d/%03d %-35s%s %.8f btc %s' %
+                              (m, forchange, k, addr, used, balance / 1e8,
+                               privkey))
         if m in wallet.imported_privkeys:
             cus_print(' import addresses')
             for privkey in wallet.imported_privkeys[m]:
@@ -148,8 +142,8 @@ if method == 'display' or method == 'displayall' or method == 'summary':
                 used = (' used' if balance > 0.0 else 'empty')
                 balance_depth += balance
                 wip_privkey = btc.encode_privkey(
-                        privkey, 'wif_compressed',
-                        get_p2pk_vbyte()) if options.showprivkey else ''
+                    privkey, 'wif_compressed',
+                    get_p2pk_vbyte()) if options.showprivkey else ''
                 cus_print(' ' * 13 + '%-35s%s %.8f btc %s' % (
                     addr, used, balance / 1e8, wip_privkey))
         total_balance += balance_depth
@@ -159,8 +153,8 @@ elif method == 'generate' or method == 'recover':
     if method == 'generate':
         seed = btc.sha256(os.urandom(64))[:32]
         words = mn_encode(seed)
-        print('Write down this wallet recovery seed\n\n' + ' '.join(
-                words) + '\n')
+        print('Write down this wallet recovery seed\n\n' + ' '.join(words) +
+              '\n')
     elif method == 'recover':
         words = raw_input('Input 12 word recovery seed: ')
         words = words.split()  # default for split is 1 or more whitespace chars
@@ -229,13 +223,12 @@ elif method == 'importprivkey':
             print(privkey, 'skipped')
             continue
         privkey_bin = btc.encode_privkey(privkey, 'hex').decode('hex')
-        encrypted_privkey = encryptData(
-                wallet.password_key, privkey_bin)
+        encrypted_privkey = encryptData(wallet.password_key, privkey_bin)
         if 'imported_keys' not in wallet.walletdata:
             wallet.walletdata['imported_keys'] = []
         wallet.walletdata['imported_keys'].append(
-                {'encrypted_privkey': encrypted_privkey.encode('hex'),
-                 'mixdepth': options.mixdepth})
+            {'encrypted_privkey': encrypted_privkey.encode('hex'),
+             'mixdepth': options.mixdepth})
     if wallet.walletdata['imported_keys']:
         fd = open(wallet.path, 'w')
         fd.write(json.dumps(wallet.walletdata))
