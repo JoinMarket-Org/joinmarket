@@ -96,39 +96,39 @@ required_options = {'BLOCKCHAIN': ['blockchain_source', 'network'],
 
 defaultconfig = \
     """
-    [BLOCKCHAIN]
-    blockchain_source = blockr
-    #options: blockr, bitcoin-rpc, json-rpc, regtest
-    # for instructions on bitcoin-rpc read
-    # https://github.com/chris-belcher/joinmarket/wiki/Running-JoinMarket-with-Bitcoin-Core-full-node
-    network = mainnet
-    rpc_host = localhost
-    rpc_port = 8332
-    rpc_user = bitcoin
-    rpc_password = password
+[BLOCKCHAIN]
+blockchain_source = blockr
+#options: blockr, bitcoin-rpc, json-rpc, regtest
+# for instructions on bitcoin-rpc read
+# https://github.com/chris-belcher/joinmarket/wiki/Running-JoinMarket-with-Bitcoin-Core-full-node
+network = mainnet
+rpc_host = localhost
+rpc_port = 8332
+rpc_user = bitcoin
+rpc_password = password
 
-    [MESSAGING]
-    host = irc.cyberguerrilla.org
-    channel = joinmarket-pit
-    port = 6697
-    usessl = true
-    socks5 = false
-    socks5_host = localhost
-    socks5_port = 9050
-    #for tor
-    #host = 6dvj6v5imhny3anf.onion
-    #port = 6697
-    #usessl = true
-    #socks5 = true
-    maker_timeout_sec = 30
+[MESSAGING]
+host = irc.cyberguerrilla.org
+channel = joinmarket-pit
+port = 6697
+usessl = true
+socks5 = false
+socks5_host = localhost
+socks5_port = 9050
+#for tor
+#host = 6dvj6v5imhny3anf.onion
+#port = 6697
+#usessl = true
+#socks5 = true
+maker_timeout_sec = 30
 
-    [POLICY]
-    # for dust sweeping, try merge_algorithm = gradual
-    # for more rapid dust sweeping, try merge_algorithm = greedy
-    # for most rapid dust sweeping, try merge_algorithm = greediest
-    # but don't forget to bump your miner fees!
-    merge_algorithm = default
-    """
+[POLICY]
+# for dust sweeping, try merge_algorithm = gradual
+# for more rapid dust sweeping, try merge_algorithm = greedy
+# for most rapid dust sweeping, try merge_algorithm = greediest
+# but don't forget to bump your miner fees!
+merge_algorithm = default
+"""
 
 
 def get_config_irc_channel():

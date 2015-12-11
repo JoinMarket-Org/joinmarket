@@ -523,8 +523,9 @@ class IRCMessageChannel(MessageChannel):
                 if config.get("MESSAGING", "socks5").lower() == 'true':
                     log.debug("Using socks5 proxy %s:%d" %
                               (self.socks5_host, self.socks5_port))
-                    setdefaultproxy(PROXY_TYPE_SOCKS5, self.socks5_host,
-                                    self.socks5_port, True)
+                    setdefaultproxy(PROXY_TYPE_SOCKS5,
+                                          self.socks5_host, self.socks5_port,
+                                          True)
                     self.sock = socksocket()
                 else:
                     self.sock = socket.socket(socket.AF_INET,

@@ -13,7 +13,6 @@ from .maker import Maker
 from .message_channel import MessageChannel
 from .old_mnemonic import mn_decode, mn_encode
 from .slowaes import decryptData, encryptData
-from .socks import socksocket, setdefaultproxy
 from .taker import Taker, OrderbookWatch
 from .wallet import AbstractWallet, BitcoinCoreInterface, Wallet, \
     BitcoinCoreWallet
