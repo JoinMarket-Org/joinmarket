@@ -1,16 +1,28 @@
+#! /usr/bin/env python
+from __future__ import absolute_import
+
+'''Wallet functionality tests.'''
+
 import sys
-import os, time
-data_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-sys.path.insert(0, os.path.join(data_dir, 'lib'))
-import subprocess
-import unittest
-import common
-import commontest
-from blockchaininterface import *
-import bitcoin as btc
+import os
+import time
 import binascii
 import pexpect
+import random
+import subprocess
+import unittest
+from commontest import local_command, interact
 
+data_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+sys.path.insert(0, os.path.join(data_dir))
+
+import bitcoin as btc
+
+from joinmarket import load_program_config, jm_single
+from joinmarket import get_p2pk_vbyte, get_log, Wallet
+from joinmarket.support import chunks
+
+log = get_log()
 
 class TestWalletCreation(unittest.TestCase):
 
@@ -35,7 +47,7 @@ class TestWalletCreation(unittest.TestCase):
                         'Input wallet file name']
             testlog = open('test/testlog-' + pwd, 'wb')
             p = pexpect.spawn('python wallet-tool.py generate', logfile=testlog)
-            commontest.interact(p, test_in, expected)
+            interact(p, test_in, expected)
             p.expect('saved to')
             time.sleep(1)
             p.close()
@@ -78,7 +90,7 @@ class TestWalletRecovery(unittest.TestCase):
                         'Reenter wallet encryption passphrase:',
                         'Input wallet file name']
             test_in = [seed, 'abc123', 'abc123', 'test_recover_wallet.json']
-            commontest.interact(p, test_in, expected)
+            interact(p, test_in, expected)
             p.expect('saved to')
             time.sleep(1)
             p.close()
@@ -101,5 +113,5 @@ class TestWalletRecovery(unittest.TestCase):
 
 if __name__ == '__main__':
     os.chdir(data_dir)
-    common.load_program_config()
+    load_program_config()
     unittest.main()

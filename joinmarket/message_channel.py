@@ -3,27 +3,27 @@ class CJPeerError(StandardError):
 
 
 class MessageChannel(object):
-    '''
+    """
 	Abstract class which implements a way for bots to communicate
-	'''
+	"""
 
     def __init__(self):
-        #all
+        # all
         self.on_welcome = None
         self.on_set_topic = None
         self.on_connect = None
         self.on_disconnect = None
         self.on_nick_leave = None
         self.on_nick_change = None
-        #orderbook watch functions
+        # orderbook watch functions
         self.on_order_seen = None
         self.on_order_cancel = None
-        #taker functions
+        # taker functions
         self.on_error = None
         self.on_pubkey = None
         self.on_ioauth = None
         self.on_sig = None
-        #maker functions
+        # maker functions
         self.on_orderbook_requested = None
         self.on_order_fill = None
         self.on_seen_auth = None
@@ -39,8 +39,8 @@ class MessageChannel(object):
     def send_error(self, nick, errormsg):
         pass
 
-    #callbacks for everyone
-    #some of these many not have meaning in a future channel, like bitmessage
+    # callbacks for everyone
+    # some of these many not have meaning in a future channel, like bitmessage
     def register_channel_callbacks(self,
                                    on_welcome=None,
                                    on_set_topic=None,
@@ -55,7 +55,7 @@ class MessageChannel(object):
         self.on_nick_leave = on_nick_leave
         self.on_nick_change = on_nick_change
 
-    #orderbook watcher commands
+    # orderbook watcher commands
     def register_orderbookwatch_callbacks(self,
                                           on_order_seen=None,
                                           on_order_cancel=None):
@@ -65,7 +65,7 @@ class MessageChannel(object):
     def request_orderbook(self):
         pass
 
-    #taker commands
+    # taker commands
     def register_taker_callbacks(self,
                                  on_error=None,
                                  on_pubkey=None,
@@ -88,7 +88,7 @@ class MessageChannel(object):
     def push_tx(self, nick, txhex):
         pass
 
-    #maker commands
+    # maker commands
     def register_maker_callbacks(self,
                                  on_orderbook_requested=None,
                                  on_order_fill=None,
@@ -102,7 +102,7 @@ class MessageChannel(object):
         self.on_push_tx = on_push_tx
 
     def announce_orders(self, orderlist, nick=None):
-        pass  #nick=None means announce publicly
+        pass  # nick=None means announce publicly
 
     def cancel_orders(self, oid_list):
         pass

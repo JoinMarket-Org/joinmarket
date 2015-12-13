@@ -1,18 +1,27 @@
+#! /usr/bin/env python
+from __future__ import absolute_import
+
+'''Some helper functions for testing'''
+
 import sys
-import os, time
-data_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-sys.path.insert(0, os.path.join(data_dir, 'lib'))
-import subprocess
-import unittest
-import common
-from blockchaininterface import *
-import bitcoin as btc
+import os
+import time
 import binascii
 import pexpect
 import random
-'''Some helper functions for testing'''
+import subprocess
+import platform
+
+data_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+sys.path.insert(0, os.path.join(data_dir))
+
+from joinmarket import jm_single, Wallet, get_log
+from joinmarket.support import chunks
+
+log = get_log()
+
 '''This code is intended to provide
-subprocess startup cross-platform with 
+subprocess startup cross-platform with
 some useful options; it could do with
 some simplification/improvement.'''
 import platform
@@ -54,18 +63,18 @@ def make_wallets(n, wallet_structures=None, mean_amt=1, sdev_amt=0, start_index=
        Returns: a dict of dicts of form {0:{'seed':seed,'wallet':Wallet object},1:..,}'''
     if len(wallet_structures) != n:
         raise Exception("Number of wallets doesn't match wallet structures")
-    seeds = common.chunks(binascii.hexlify(os.urandom(15 * n)), n)
+    seeds = chunks(binascii.hexlify(os.urandom(15 * n)), n)
     wallets = {}
     for i in range(n):
         wallets[i+start_index] = {'seed': seeds[i],
-                      'wallet': common.Wallet(seeds[i],
+                      'wallet': Wallet(seeds[i],
                                               max_mix_depth=5)}
         for j in range(5):
             for k in range(wallet_structures[i][j]):
                 deviation = sdev_amt * random.random()
                 amt = mean_amt - sdev_amt / 2.0 + deviation
                 if amt < 0: amt = 0.001
-                common.bc_interface.grab_coins(
+                jm_single().bc_interface.grab_coins(
                     wallets[i+start_index]['wallet'].get_receive_addr(j), amt)
     return wallets
 
