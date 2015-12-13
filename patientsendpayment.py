@@ -116,7 +116,7 @@ def main():
 			'waiting for someone to fill it. After a set period of time, gives' +
 			' up waiting and acts as a taker and coinjoins any remaining coins')
 	parser.add_option('-f', '--txfee', action='store', type='int', dest='txfee',
-		default=10000, help='miner fee contribution, in satoshis, default=10000')
+		default=30000, help='miner fee contribution, in satoshis, default=30000')
 	parser.add_option('-N', '--makercount', action='store', type='int', dest='makercount',
 		help='how many makers to coinjoin with when taking liquidity, default=2', default=2)
 	parser.add_option('-w', '--wait-time', action='store', type='float', dest='waittime',
