@@ -87,7 +87,6 @@ def rand_weighted_choice(n, p_arr):
 def chunks(d, n):
     return [d[x:x + n] for x in xrange(0, len(d), n)]
 
-
 def select_gradual(unspent, value):
     """
     UTXO selection algorithm for gradual dust reduction
@@ -287,7 +286,7 @@ def choose_orders(db, cj_amount, n, chooseOrdersBy, ignored_makers=None):
 
 def choose_sweep_orders(db,
                         total_input_value,
-                        total_txfee,
+                        txfee,
                         n,
                         chooseOrdersBy,
                         ignored_makers=None):
@@ -301,7 +300,8 @@ def choose_sweep_orders(db,
     => 0 = totalin - mytxfee - sum(absfee) - cjamount*(1 + sum(relfee))
     => cjamount = (totalin - mytxfee - sum(absfee)) / (1 + sum(relfee))
     """
-
+    total_txfee = txfee*n
+    
     if ignored_makers is None:
         ignored_makers = []
 

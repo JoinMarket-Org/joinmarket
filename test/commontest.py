@@ -53,7 +53,7 @@ def local_command(command, bg=False, redirect=''):
         return subprocess.check_output(command)
 
 
-def make_wallets(n, wallet_structures=None, mean_amt=1, sdev_amt=0):
+def make_wallets(n, wallet_structures=None, mean_amt=1, sdev_amt=0, start_index=0):
     '''n: number of wallets to be created
        wallet_structure: array of n arrays , each subarray
        specifying the number of addresses to be populated with coins
@@ -66,7 +66,7 @@ def make_wallets(n, wallet_structures=None, mean_amt=1, sdev_amt=0):
     seeds = chunks(binascii.hexlify(os.urandom(15 * n)), n)
     wallets = {}
     for i in range(n):
-        wallets[i] = {'seed': seeds[i],
+        wallets[i+start_index] = {'seed': seeds[i],
                       'wallet': Wallet(seeds[i],
                                               max_mix_depth=5)}
         for j in range(5):
@@ -75,7 +75,7 @@ def make_wallets(n, wallet_structures=None, mean_amt=1, sdev_amt=0):
                 amt = mean_amt - sdev_amt / 2.0 + deviation
                 if amt < 0: amt = 0.001
                 jm_single().bc_interface.grab_coins(
-                    wallets[i]['wallet'].get_receive_addr(j), amt)
+                    wallets[i+start_index]['wallet'].get_receive_addr(j), amt)
     return wallets
 
 

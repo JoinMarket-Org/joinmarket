@@ -21,9 +21,9 @@ from joinmarket import load_program_config, jm_single
 from joinmarket import get_p2pk_vbyte, get_log
 
 python_cmd = 'python2'
-#yg_cmd = 'yield-generator-basic.py'
+yg_cmd = 'yield-generator-basic.py'
 #yg_cmd = 'yield-generator-mixdepth.py'
-yg_cmd = 'yield-generator-deluxe.py'
+#yg_cmd = 'yield-generator-deluxe.py'
 
 log = get_log()
 ''' Just some random thoughts to motivate possible tests;

@@ -105,6 +105,13 @@ class BlockchainInterface(object):
         otherwise returns value in satoshis, address and output script
         """
         # address and output script contain the same information btw
+    
+    @abc.abstractmethod
+    def estimate_fee_per_kb(self, N):
+        '''Use the blockchain interface to 
+        get an estimate of the transaction fee per kb
+        required for inclusion in the next N blocks.
+	'''
 
 
 class BlockrInterface(BlockchainInterface):
@@ -362,6 +369,18 @@ class BlockrInterface(BlockchainInterface):
                                'script': vout['extras']['script']})
         return result
 
+    def estimate_fee_per_kb(self, N):
+        bcypher_fee_estimate_url = 'https://api.blockcypher.com/v1/btc/main'
+        bcypher_data = json.loads(btc.make_request(bcypher_fee_estimate_url))
+        log.debug("Got blockcypher result: "+pprint.pformat(bcypher_data))
+	if N<=2:
+	    fee_per_kb = bcypher_data["high_fee_per_kb"]
+	elif N <=4:
+	    fee_per_kb = bcypher_data["medium_fee_per_kb"]
+	else:
+	    fee_per_kb = bcypher_data["low_fee_per_kb"]
+	    
+	return fee_per_kb
 
 class NotifyRequestHeader(BaseHTTPServer.BaseHTTPRequestHandler):
     def __init__(self, request, client_address, base_server):
@@ -646,6 +665,14 @@ class BitcoinCoreInterface(BlockchainInterface):
                                'script': ret['scriptPubKey']['hex']})
         return result
 
+    def estimate_fee_per_kb(self, N):
+        estimate = Decimal(1e8)*Decimal(self.rpc('estimatefee', [N]))
+	if estimate < 0:
+	    #This occurs when Core has insufficient data to estimate.
+	    #TODO anything better than a hardcoded default?
+	    return 30000 
+        else:
+	    return estimate    
 
 # class for regtest chain access
 # running on local daemon. Only

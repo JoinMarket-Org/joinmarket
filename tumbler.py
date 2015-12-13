@@ -19,6 +19,7 @@ from joinmarket import get_log, rand_norm_array, rand_pow_array, \
     rand_exp_array, choose_orders, weighted_order_choose, choose_sweep_orders, \
     debug_dump_object
 from joinmarket import Wallet
+from joinmarket.wallet import estimate_tx_fee
 
 log = get_log()
 
@@ -166,10 +167,26 @@ class TumblerThread(threading.Thread):
             log.debug('sweeping')
             utxos = self.taker.wallet.get_utxos_by_mixdepth()[self.tx[
                 'srcmixdepth']]
+            #do our best to estimate the fee based on the number of
+            #our own utxos; this estimate may be significantly higher
+            #than the default set in option.txfee * makercount, where
+            #we have a large number of utxos to spend. If it is smaller,
+            #we'll be conservative and retain the original estimate.
+            est_ins = len(utxos)+3*self.tx['makercount']
+            log.debug("Estimated ins: "+str(est_ins))
+            est_outs = 2*self.tx['makercount'] + 1
+            log.debug("Estimated outs: "+str(est_outs))
+            estimated_fee = estimate_tx_fee(est_ins, est_outs)
+            log.debug("We have a fee estimate: "+str(estimated_fee))
+            log.debug("And a requested fee of: "+str(
+                self.taker.options.txfee * self.tx['makercount']))
+            fee_for_tx = max([estimated_fee,
+                              self.tx['makercount'] * self.taker.options.txfee])
+            fee_for_tx = int(fee_for_tx / self.tx['makercount'])
             total_value = sum([addrval['value'] for addrval in utxos.values()])
             while True:
                 orders, cj_amount = choose_sweep_orders(
-                        self.taker.db, total_value, self.taker.options.txfee,
+                    self.taker.db, total_value, fee_for_tx,
                         self.tx['makercount'], weighted_order_choose,
                         self.ignored_makers)
                 if orders is None:
@@ -206,16 +223,35 @@ class TumblerThread(threading.Thread):
             log.debug('coinjoining ' + str(cj_amount) + ' satoshi')
             orders, total_cj_fee = self.tumbler_choose_orders(
                     cj_amount, self.tx['makercount'])
-            total_amount = cj_amount + total_cj_fee + self.taker.options.txfee
-            log.debug('total amount spent = ' + str(total_amount))
-            utxos = self.taker.wallet.select_utxos(self.tx['srcmixdepth'],
-                                                   total_amount)
+            total_amount = cj_amount + total_cj_fee + \
+                self.taker.options.txfee*self.tx['makercount']
+            log.debug('total estimated amount spent = ' + str(total_amount))
+            #adjust the required amount upwards to anticipate a tripling of
+            #transaction fee after re-estimation; this is sufficiently conservative
+            #to make failures unlikely while keeping the occurence of failure to
+            #find sufficient utxos extremely rare. Indeed, a tripling of 'normal'
+            #txfee indicates undesirable behaviour on maker side anyway.
+            try:
+                utxos = self.taker.wallet.select_utxos(self.tx['srcmixdepth'],
+                total_amount+2*self.taker.options.txfee*self.tx['makercount'])
+            except Exception as e:
+                #we cannot afford to just throw not enough funds; better to
+                #try with a smaller request; it could still fail within
+                #CoinJoinTX.recv_txio, but make every effort to avoid stopping.
+                if repr(e) == "Not enough funds":
+                    log.debug("Failed to select total amount + twice txfee from" +
+                          "wallet; trying to select just total amount.")
+                    utxos = self.taker.wallet.select_utxos(self.tx['srcmixdepth'],
+                            total_amount)
+                else:
+                    raise
+            fee_for_tx = self.taker.options.txfee
             choose_orders_recover = self.tumbler_choose_orders
 
         self.taker.start_cj(self.taker.wallet, cj_amount, orders, utxos,
                             self.destaddr, change_addr,
-                            self.taker.options.txfee, self.finishcallback,
-                            choose_orders_recover)
+                            fee_for_tx*self.tx['makercount'],
+                            self.finishcallback, choose_orders_recover)
 
     def init_tx(self, tx, balance, sweep):
         destaddr = None
@@ -329,11 +365,15 @@ def main():
             default=0)
     parser.add_option(
             '-f',
-            '--txfee',
-            type='int',
-            dest='txfee',
-            default=10000,
-            help='total miner fee in satoshis, default=10000')
+        '--txfee',
+        action='store',
+        type='int',
+        dest='txfee',
+        default=5000,
+        help='number of satoshis per participant to use as the initial estimate '+
+        'for the total transaction fee, default=5000, note that this is adjusted '+
+        'based on the estimated fee calculated after tx construction, based on '+
+        'policy set in joinmarket.cfg.')
     parser.add_option(
             '-a',
             '--addrcount',

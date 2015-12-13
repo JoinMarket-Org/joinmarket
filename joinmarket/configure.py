@@ -128,6 +128,13 @@ maker_timeout_sec = 30
 # for most rapid dust sweeping, try merge_algorithm = greediest
 # but don't forget to bump your miner fees!
 merge_algorithm = default
+# the fee estimate is based on a projection of how many satoshis
+# per kB are needed to get in one of the next N blocks, N set here
+# as the value of 'tx_fees'. This estimate is high if you set N=1, 
+# so we choose N=3 for a more reasonable figure,
+# as our default. Note that for clients not using a local blockchain
+# instance, we retrieve an estimate from the API at blockcypher.com, currently.
+tx_fees = 3
 """
 
 
