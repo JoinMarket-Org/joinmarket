@@ -372,7 +372,7 @@ class BlockrInterface(BlockchainInterface):
     def estimate_fee_per_kb(self, N):
         bcypher_fee_estimate_url = 'https://api.blockcypher.com/v1/btc/main'
         bcypher_data = json.loads(btc.make_request(bcypher_fee_estimate_url))
-        common.debug("Got blockcypher result: "+pprint.pformat(bcypher_data))
+        log.debug("Got blockcypher result: "+pprint.pformat(bcypher_data))
 	if N<=2:
 	    fee_per_kb = bcypher_data["high_fee_per_kb"]
 	elif N <=4:

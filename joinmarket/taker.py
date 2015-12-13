@@ -13,6 +13,7 @@ import bitcoin as btc
 from joinmarket.configure import jm_single, get_p2pk_vbyte
 from joinmarket.enc_wrapper import init_keypair, as_init_encryption, init_pubkey
 from joinmarket.support import get_log, calc_cj_fee
+from joinmarket.wallet import estimate_tx_fee
 
 log = get_log()
 
@@ -147,9 +148,9 @@ class CoinJoinTX(object):
                            self.input_utxos.iteritems()])
         if self.my_change_addr:
             #Estimate fee per choice of next/3/6 blocks targetting.
-            estimated_fee = common.estimate_tx_fee(len(sum(
+            estimated_fee = estimate_tx_fee(len(sum(
                 self.utxos.values(),[])), len(self.outputs)+2)
-            debug("Based on initial guess: "+str(
+            log.debug("Based on initial guess: "+str(
                 self.total_txfee)+", we estimated a fee of: "+str(estimated_fee))
             #reset total
             self.total_txfee = estimated_fee
@@ -164,13 +165,14 @@ class CoinJoinTX(object):
         if self.my_change_addr and my_change_value <= 0:
             raise ValueError("Calculated transaction fee of: "+str(
                 self.total_txfee)+" is too large for our inputs;Please try again.")
-        elif self.my_change_addr and my_change_value <= common.DUST_THRESHOLD:
-            debug("Dynamically calculated change lower than dust: "+str(
+        elif self.my_change_addr and my_change_value <= jm_single().DUST_THRESHOLD:
+            log.debug("Dynamically calculated change lower than dust: "+str(
                 my_change_value)+"; dropping.")
             self.my_change_addr = None
             my_change_value = 0
-            
-                      self.cjfee_total, my_change_value))
+        log.debug('fee breakdown for me totalin=%d my_txfee=%d makers_txfee=%d cjfee_total=%d => changevalue=%d'
+                  % (my_total_in, my_txfee, self.maker_txfee_contributions,            
+                  self.cjfee_total, my_change_value))
         if self.my_change_addr is None:
             if my_change_value != 0 and abs(my_change_value) != 1:
                 # seems you wont always get exactly zero because of integer

@@ -19,6 +19,7 @@ from joinmarket import get_log, rand_norm_array, rand_pow_array, \
     rand_exp_array, choose_orders, weighted_order_choose, choose_sweep_orders, \
     debug_dump_object
 from joinmarket import Wallet
+from joinmarket.wallet import estimate_tx_fee
 
 log = get_log()
 
@@ -172,12 +173,13 @@ class TumblerThread(threading.Thread):
             #we have a large number of utxos to spend. If it is smaller,
             #we'll be conservative and retain the original estimate.
             est_ins = len(utxos)+3*self.tx['makercount']
-            debug("Estimated ins: "+str(est_ins))
+            log.debug("Estimated ins: "+str(est_ins))
             est_outs = 2*self.tx['makercount'] + 1
-            debug("Estimated outs: "+str(est_outs))
-            estimated_fee = common.estimate_tx_fee(est_ins, est_outs)
-            debug("We have a fee estimate: "+str(estimated_fee))
-            debug("And a requested fee of: "+str(self.taker.options.txfee))
+            log.debug("Estimated outs: "+str(est_outs))
+            estimated_fee = estimate_tx_fee(est_ins, est_outs)
+            log.debug("We have a fee estimate: "+str(estimated_fee))
+            log.debug("And a requested fee of: "+str(
+                self.taker.options.txfee * self.tx['makercount']))
             fee_for_tx = max([estimated_fee,
                               self.tx['makercount'] * self.taker.options.txfee])
             fee_for_tx = int(fee_for_tx / self.tx['makercount'])
@@ -223,7 +225,7 @@ class TumblerThread(threading.Thread):
                     cj_amount, self.tx['makercount'])
             total_amount = cj_amount + total_cj_fee + \
                 self.taker.options.txfee*self.tx['makercount']
-            debug('total estimated amount spent = ' + str(total_amount))
+            log.debug('total estimated amount spent = ' + str(total_amount))
             #adjust the required amount upwards to anticipate a tripling of
             #transaction fee after re-estimation; this is sufficiently conservative
             #to make failures unlikely while keeping the occurence of failure to
@@ -237,7 +239,7 @@ class TumblerThread(threading.Thread):
                 #try with a smaller request; it could still fail within
                 #CoinJoinTX.recv_txio, but make every effort to avoid stopping.
                 if repr(e) == "Not enough funds":
-                    debug("Failed to select total amount + twice txfee from" +
+                    log.debug("Failed to select total amount + twice txfee from" +
                           "wallet; trying to select just total amount.")
                     utxos = self.taker.wallet.select_utxos(self.tx['srcmixdepth'],
                             total_amount)

@@ -15,6 +15,7 @@ from joinmarket import random_nick
 from joinmarket import get_log, choose_sweep_orders, choose_orders, \
     pick_order, cheapest_order_choose, weighted_order_choose, debug_dump_object
 from joinmarket import Wallet, BitcoinCoreWallet
+from joinmarket.wallet import estimate_tx_fee
 
 log = get_log()
 
@@ -65,12 +66,13 @@ class PaymentThread(threading.Thread):
             #we have a large number of utxos to spend. If it is smaller,
             #we'll be conservative and retain the original estimate.
             est_ins = len(utxos)+3*self.taker.makercount
-            debug("Estimated ins: "+str(est_ins))
+            log.debug("Estimated ins: "+str(est_ins))
             est_outs = 2*self.taker.makercount + 1
-            debug("Estimated outs: "+str(est_outs))
-            estimated_fee = common.estimate_tx_fee(est_ins, est_outs)
-            debug("We have a fee estimate: "+str(estimated_fee))
-            debug("And a requested fee of: "+str(self.taker.txfee))
+            log.debug("Estimated outs: "+str(est_outs))
+            estimated_fee = estimate_tx_fee(est_ins, est_outs)
+            log.debug("We have a fee estimate: "+str(estimated_fee))
+            log.debug("And a requested fee of: "+str(
+                self.taker.txfee * self.taker.makercount))
             if estimated_fee > self.taker.makercount * self.taker.txfee:
                 #both values are integers; we can ignore small rounding errors
                 self.taker.txfee = estimated_fee / self.taker.makercount
@@ -79,6 +81,8 @@ class PaymentThread(threading.Thread):
                 self.taker.db, total_value, self.taker.txfee,
                 self.taker.makercount, self.taker.chooseOrdersFunc,
                 self.ignored_makers)
+            if not orders:
+                raise Exception("Could not find orders to complete transaction.")
             if not self.taker.answeryes:
                 total_cj_fee = total_value - cjamount - \
                     self.taker.txfee*self.taker.makercount

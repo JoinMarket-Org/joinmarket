@@ -18,6 +18,17 @@ from joinmarket.support import get_log, select_gradual, select_greedy, \
 
 log = get_log()
 
+def estimate_tx_fee(ins, outs, txtype='p2pkh'):
+    '''Returns an estimate of the number of satoshis required
+    for a transaction with the given number of inputs and outputs,
+    based on information from the blockchain interface.
+    '''
+    tx_estimated_bytes = btc.estimate_tx_size(ins, outs, txtype)
+    log.debug("Estimated transaction size: "+str(tx_estimated_bytes))
+    fee_per_kb = jm_single().bc_interface.estimate_fee_per_kb(
+        jm_single().config.getint("POLICY","tx_fees"))
+    log.debug("got estimated tx bytes: "+str(tx_estimated_bytes))
+    return int((tx_estimated_bytes * fee_per_kb)/Decimal(1000.0))
 
 class AbstractWallet(object):
     """
