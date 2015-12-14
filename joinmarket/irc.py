@@ -306,7 +306,11 @@ class IRCMessageChannel(MessageChannel):
     def __on_pubmsg(self, nick, message):
         if message[0] != COMMAND_PREFIX:
             return
-        for command in message[1:].split(COMMAND_PREFIX):
+        commands = message[1:].split(COMMAND_PREFIX)
+        #DOS vector: repeated !orderbook requests, see #298.
+        if commands.count('orderbook')>1:
+            return
+        for command in commands:
             _chunks = command.split(" ")
             if self.check_for_orders(nick, _chunks):
                 pass
