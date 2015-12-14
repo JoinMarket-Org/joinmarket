@@ -217,7 +217,8 @@ def pick_order(orders, n, feekey):
     print("Considered orders:")
     for o in orders:
         i += 1
-        print("    %2d. %20s, CJ fee: %6d, tx fee: %6d" % (i, o[0], o[2], o[3]))
+        counterparty = o[0]['counterparty'] if type(o[0]) == dict else o[0]
+        print("    %2d. %20s, CJ fee: %6d, tx fee: %6d" % (i, counterparty, o[2], o[3]))
     pickedOrderIndex = -1
     if i == 0:
         print("Only one possible pick, picking it.")
@@ -339,12 +340,12 @@ def choose_sweep_orders(db,
     log.debug('orderlist = \n' + '\n'.join([str(o) for o in orderlist]))
 
     # choose N amount of orders
-    available_orders = [(o, calc_cj_fee(o['ordertype'], o['cjfee'],
-                                        total_input_value), o['txfee'])
+    available_orders = [(o, o['oid'], calc_cj_fee(o['ordertype'], o['cjfee'],
+                                                  total_input_value), o['txfee'])
                         for o in orderlist]
 
     def feekey(o):
-        return o[1] - o[2]
+        return o[2] - o[3]
 
     # sort from smallest to biggest cj fee
     available_orders = sorted(available_orders, key=feekey)

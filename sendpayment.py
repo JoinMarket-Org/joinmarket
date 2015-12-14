@@ -202,13 +202,12 @@ def main():
         '--txfee',
         action='store',
         type='int',
-        dest='txfee',        
-        default=5000, 
+        dest='txfee',
+        default=5000,
         help='number of satoshis per participant to use as the initial estimate '+
         'for the total transaction fee, default=5000, note that this is adjusted '+
         'based on the estimated fee calculated after tx construction, based on '+
         'policy set in joinmarket.cfg.')
-
     parser.add_option(
         '-w',
         '--wait-time',
@@ -275,8 +274,11 @@ def main():
         return
 
     chooseOrdersFunc = None
-    if options.pickorders and amount != 0:  # cant use for sweeping
+    if options.pickorders:
         chooseOrdersFunc = pick_order
+        if amount == 0:
+            print 'WARNING: You may have to pick offers multiple times'
+            print 'WARNING: due to manual offer picking while sweeping'
     elif options.choosecheapest:
         chooseOrdersFunc = cheapest_order_choose
     else:  # choose randomly (weighted)
