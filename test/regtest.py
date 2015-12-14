@@ -66,7 +66,7 @@ class Join2PTests(unittest.TestCase):
             bg=True)
 
         #A significant delay is needed to wait for the yield generator to sync its wallet
-        time.sleep(60)
+        time.sleep(20)
 
         #run a single sendpayment call with wallet2
         amt = n * 100000000  #in satoshis
@@ -122,7 +122,7 @@ class JoinNPTests(unittest.TestCase):
             yigen_procs.append(ygp)
 
         #A significant delay is needed to wait for the yield generators to sync
-        time.sleep(60)
+        time.sleep(20)
 
         #run a single sendpayment call
         amt = 100000000  #in satoshis

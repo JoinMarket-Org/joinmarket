@@ -11,6 +11,13 @@ install:
  - pip install numpy
  - pip install pexpect
 script:
+#required for local IRC pit simulation
+ - git clone git://github.com/jrosdahl/miniircd.git
+ - echo "dummy MOTD example">>miniircd/testmotd
+ - cd miniircd
+ - ./miniircd --daemon --motd=/home/travis/miniircd/testmotd
+ - cd ..
+#install and test libsodium
  - git clone git://github.com/jedisct1/libsodium.git
  - cd libsodium
  - git checkout tags/1.0.3
