@@ -4,6 +4,7 @@ from __future__ import absolute_import, print_function
 import datetime
 import os
 import time
+import sys
 
 from joinmarket import Maker, IRCMessageChannel
 from joinmarket import BlockrInterface
@@ -73,7 +74,7 @@ class YieldGenerator(Maker):
         mix_balance = self.wallet.get_balance_by_mixdepth()
         if len([b for m, b in mix_balance.iteritems() if b > 0]) == 0:
             log.debug('do not have any coins left')
-            return []
+            sys.exit(0)
 
         # print mix_balance
         max_mix = max(mix_balance, key=mix_balance.get)

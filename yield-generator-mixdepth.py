@@ -89,7 +89,7 @@ class YieldGenerator(Maker):
                                     if b > jm_single().DUST_THRESHOLD])
         if len(nondust_mix_balance) == 0:
             log.debug('do not have any coins left')
-            return []
+            sys.exit(0)
         #sorts the mixdepth_balance map by balance size
         sorted_mix_balance = sorted(
             list(mix_balance.iteritems()),
@@ -147,41 +147,27 @@ class YieldGenerator(Maker):
 
     def oid_to_order(self, cjorder, oid, amount):
         mix_balance = self.wallet.get_balance_by_mixdepth()
-        #remove mix depths that do not have enough
         filtered_mix_balance = [m
                                 for m in mix_balance.iteritems()
                                 if m[1] >= amount]
-        log.debug('have enough, filtered_mix_balance = ' + str(
+        log.debug('mix depths that have enough, filtered_mix_balance = ' + str(
             filtered_mix_balance))
 
-        #when we have more then one usable mix depth, and the max mix depth is one of them
-        #then remove it so that coins keep moving down the mix depths
-        if len(filtered_mix_balance) > 1 and self.wallet.max_mix_depth in [
-                x[0] for x in filtered_mix_balance
-        ]:
-            filtered_mix_balance = [x
-                                    for x in filtered_mix_balance
-                                    if x[0] != self.wallet.max_mix_depth]
-            log.debug('excluding the max mix depth, ' + str(
-                self.wallet.max_mix_depth))
-
-        #clump into the largest mixdepth 
-        #use the first usable mixdepth that is before the mixdepth with the largest amount
-        largest_mixdepth = sorted(filtered_mix_balance,
-                                  key=lambda x: x[1],
-                                  reverse=True)[0][0]  #find largest amount
-        filtered_mix_balance = [
-            m for m in filtered_mix_balance if m[0] <= largest_mixdepth
-        ]  #use mixdepths before and including the largest
+        # use mix depth that has the closest amount of coins to what this transaction needs
+        # keeps coins moving through mix depths more quickly
+        # and its more likely to use txos of a similiar size to this transaction
         filtered_mix_balance = sorted(
             filtered_mix_balance,
-            key=lambda x: x[0])  #make sure we are in seq of mixdepth num
+            key=lambda x: x[1])  #sort smallest to largest usable amount
+
+        log.debug('sorted order of filtered_mix_balance = ' + str(
+            filtered_mix_balance))
 
         mixdepth = filtered_mix_balance[0][0]
 
         log.debug('filling offer, mixdepth=' + str(mixdepth))
 
-        #mixdepth is the chosen depth we'll be spending from
+        # mixdepth is the chosen depth we'll be spending from
         cj_addr = self.wallet.get_receive_addr((mixdepth + 1) %
                                                self.wallet.max_mix_depth)
         change_addr = self.wallet.get_change_addr(mixdepth)
