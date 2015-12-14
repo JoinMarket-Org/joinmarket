@@ -225,10 +225,10 @@ class Wallet(AbstractWallet):
         return addr
 
     def get_receive_addr(self, mixing_depth):
-        return self.get_new_addr(mixing_depth, False)
+        return self.get_new_addr(mixing_depth, 0)
 
     def get_change_addr(self, mixing_depth):
-        return self.get_new_addr(mixing_depth, True)
+        return self.get_new_addr(mixing_depth, 1)
 
     def get_key_from_addr(self, addr):
         if addr not in self.addr_cache:
