@@ -576,7 +576,8 @@ def pick_order(orders, n, feekey):
 		i-=1
 		print("    %2d. %20s, CJ fee: %6d, tx fee: %6d" % (i, o[0], o[2], o[3]))
 	pickedOrderIndex = -1
-	if i==0:
+	
+	if len(orders)==1:
 		print("Only one possible pick, picking it.")
 		return orders[0]
 	while pickedOrderIndex == -1:
