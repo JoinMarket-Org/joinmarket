@@ -568,10 +568,12 @@ def cheapest_order_choose(orders, n, feekey):
 	return sorted(orders, key=feekey)[0]
 
 def pick_order(orders, n, feekey):
-	i = -1
+	i = len(orders);
+	orders_desc = sorted(orders, key=feekey, reverse=True);
+	
 	print("Considered orders:");
-	for o in orders:
-		i+=1
+	for o in orders_desc:
+		i-=1
 		print("    %2d. %20s, CJ fee: %6d, tx fee: %6d" % (i, o[0], o[2], o[3]))
 	pickedOrderIndex = -1
 	if i==0:
