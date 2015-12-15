@@ -6,6 +6,7 @@ import pprint
 import random
 import sqlite3
 import sys
+import time
 import threading
 from decimal import InvalidOperation, Decimal
 
@@ -508,6 +509,7 @@ class Taker(OrderbookWatch):
                  finishcallback=None,
                  choose_orders_recover=None,
                  auth_addr=None):
+        self.cjtx = None
         self.cjtx = CoinJoinTX(
                 self.msgchan, wallet, self.db, cj_amount, orders,
                 input_utxos, my_cj_addr, my_change_addr,
@@ -518,6 +520,10 @@ class Taker(OrderbookWatch):
         pass  # TODO implement
 
     def on_pubkey(self, nick, maker_pubkey):
+        #It's possible that the CoinJoinTX object is
+        #not yet created (__init__ call not finished).
+        while not self.cjtx:
+            time.sleep(0.5)
         self.cjtx.start_encryption(nick, maker_pubkey)
 
     def on_ioauth(self, nick, utxo_list, cj_pub, change_addr, btc_sig):
