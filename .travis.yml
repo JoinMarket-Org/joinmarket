@@ -12,8 +12,7 @@ install:
  - pip install pexpect
 script:
 #required for local IRC pit simulation
- - git clone git://github.com/jrosdahl/miniircd.git
- - echo "dummy MOTD example">>miniircd/testmotd
+ - git clone git://github.com/joinmarket-org/miniircd.git
  - cd miniircd
  - ./miniircd --daemon --motd=/home/travis/miniircd/testmotd
  - cd ..
