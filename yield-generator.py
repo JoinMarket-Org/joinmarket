@@ -12,13 +12,16 @@ import common, blockchaininterface
 
 from socket import gethostname
 
-txfee = 1000
-cjfee = '0.002' # 0.2% fee
-nickname = random_nick()
-nickserv_password = ''
-minsize = int(1.2 * txfee / float(cjfee)) #minimum size is such that you always net profit at least 20% of the miner fee
-mix_levels = 5
+load_program_config()
+if not config.has_section('YIELDGEN'):
+	config.add_section('YIELDGEN')
 
+txfee = config.getint('YIELDGEN', 'txfee')
+cjfee = config.getfloat('YIELDGEN', 'cjfee')
+nickname = config.get('YIELDGEN', 'nickname') or random_nick()
+nickserv_password = config.get('YIELDGEN', 'nickserv_password')
+minsize = config.getint('YIELDGEN', 'minsize') or int(1.2 * txfee / float(cjfee))
+mix_levels = config.getint('YIELDGEN', 'mix_levels')
 
 
 #is a maker for the purposes of generating a yield from held
