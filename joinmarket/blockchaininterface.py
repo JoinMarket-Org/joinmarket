@@ -2,6 +2,7 @@ from __future__ import absolute_import, print_function
 
 import BaseHTTPServer
 import abc
+import ast
 import json
 import os
 import pprint
@@ -613,7 +614,13 @@ class BitcoinCoreInterface(BlockchainInterface):
         st = time.time()
         wallet_name = self.get_wallet_name(wallet)
         wallet.unspent = {}
-        unspent_list = self.rpc('listunspent', [])
+
+        listunspent_args = []
+        if 'listunspent_args' in jm_single().config.options('POLICY'):
+            listunspent_args = ast.literal_eval(
+                jm_single().config.get('POLICY', 'listunspent_args'))
+
+        unspent_list = self.rpc('listunspent', listunspent_args)
         for u in unspent_list:
             if 'account' not in u:
                 continue
@@ -621,11 +628,9 @@ class BitcoinCoreInterface(BlockchainInterface):
                 continue
             if u['address'] not in wallet.addr_cache:
                 continue
-            wallet.unspent[u['txid'] + ':' + str(u[
-                                                     'vout'])] = {
+            wallet.unspent[u['txid'] + ':' + str(u['vout'])] = {
                 'address': u['address'],
-                'value':
-                    int(Decimal(str(u['amount'])) * Decimal('1e8'))}
+                'value': int(Decimal(str(u['amount'])) * Decimal('1e8'))}
         et = time.time()
         log.debug('bitcoind sync_unspent took ' + str((et - st)) + 'sec')
 

@@ -135,6 +135,18 @@ merge_algorithm = default
 # as our default. Note that for clients not using a local blockchain
 # instance, we retrieve an estimate from the API at blockcypher.com, currently.
 tx_fees = 3
+# the range of confirmations passed to the `listunspent` bitcoind RPC call
+# 1st value is the inclusive minimum, defaults to one confirmation
+# 2nd value is the exclusive maximum, defaults to most-positive-bignum (Google Me!)
+# leave it unset to defer to bitcoind's default values, ie [1, 9999999]
+#listunspent = []
+# unless you have a specific reason, eg:
+#  spend from unconfirmed transactions:  listunspent_args = [0]
+# display only unconfirmed transactions: listunspent_args = [0, 1]
+# defend against small reorganizations:  listunspent_args = [3]
+#   who is at risk of reorganization?:   listunspent_args = [0, 2]
+# NB: using 0 for the 1st value with scripts other than wallet-tool could cause
+# spends from unconfirmed inputs, which may then get malleated or double-spent!
 """
 
 
