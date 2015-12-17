@@ -52,7 +52,7 @@ class TakerThread(threading.Thread):
         self.tmaker.start_cj(
                 self.tmaker.wallet, self.tmaker.amount, orders, utxos,
                 self.tmaker.destaddr,
-                self.tmaker.wallet.get_change_addr(self.tmaker.mixdepth),
+                self.tmaker.wallet.get_internal_addr(self.tmaker.mixdepth),
                 self.tmaker.txfee, self.finishcallback)
 
 
@@ -98,7 +98,7 @@ class PatientSendPayment(Maker, Taker):
         # its possible this bot will end up paying to the destaddr more than it
         # intended
         utxos = self.wallet.select_utxos(self.mixdepth, amount)
-        return utxos, self.destaddr, self.wallet.get_change_addr(self.mixdepth)
+        return utxos, self.destaddr, self.wallet.get_internal_addr(self.mixdepth)
 
     def on_tx_unconfirmed(self, cjorder, balance, removed_utxos):
         self.amount -= cjorder.cj_amount

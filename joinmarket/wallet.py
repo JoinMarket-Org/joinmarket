@@ -58,7 +58,19 @@ class AbstractWallet(object):
     def get_utxos_by_mixdepth(self):
         return None
 
-    def get_change_addr(self, mixing_depth):
+    def get_external_addr(self, mixing_depth):
+        """
+        Return an address suitable for external distribution, including funding
+        the wallet from other sources, or receiving payments or donations.
+        JoinMarket will never generate these addresses for internal use.
+        """
+        return None
+
+    def get_internal_addr(self, mixing_depth):
+        """
+        Return an address for internal usage, as change addresses and when
+        participating in transactions initiated by other parties.
+        """
         return None
 
     def update_cache_index(self):
@@ -224,10 +236,10 @@ class Wallet(AbstractWallet):
                             [addr, bc_interface.get_wallet_name(self), False])
         return addr
 
-    def get_receive_addr(self, mixing_depth):
+    def get_external_addr(self, mixing_depth):
         return self.get_new_addr(mixing_depth, 0)
 
-    def get_change_addr(self, mixing_depth):
+    def get_internal_addr(self, mixing_depth):
         return self.get_new_addr(mixing_depth, 1)
 
     def get_key_from_addr(self, addr):
@@ -311,7 +323,7 @@ class BitcoinCoreWallet(AbstractWallet):
                 'value': int(Decimal(str(u['amount'])) * Decimal('1e8'))}
         return result
 
-    def get_change_addr(self, mixing_depth):
+    def get_internal_addr(self, mixing_depth):
         return jm_single().bc_interface.rpc('getrawchangeaddress', [])
 
     @staticmethod

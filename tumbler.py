@@ -218,8 +218,8 @@ class TumblerThread(threading.Thread):
             if cj_amount < self.taker.options.mincjamount:
                 log.debug('cj amount too low, bringing up')
                 cj_amount = self.taker.options.mincjamount
-            change_addr = self.taker.wallet.get_change_addr(self.tx[
-                                                                'srcmixdepth'])
+            change_addr = self.taker.wallet.get_internal_addr(
+                self.tx['srcmixdepth'])
             log.debug('coinjoining ' + str(cj_amount) + ' satoshi')
             orders, total_cj_fee = self.tumbler_choose_orders(
                     cj_amount, self.tx['makercount'])
@@ -256,7 +256,7 @@ class TumblerThread(threading.Thread):
     def init_tx(self, tx, balance, sweep):
         destaddr = None
         if tx['destination'] == 'internal':
-            destaddr = self.taker.wallet.get_receive_addr(tx['srcmixdepth'] + 1)
+            destaddr = self.taker.wallet.get_internal_addr(tx['srcmixdepth'] + 1)
         elif tx['destination'] == 'addrask':
             jm_single().debug_silence = True
             while True:

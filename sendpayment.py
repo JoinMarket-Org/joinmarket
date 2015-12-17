@@ -112,7 +112,7 @@ class PaymentThread(threading.Thread):
             utxos = self.taker.wallet.select_utxos(self.taker.mixdepth, 
                 total_amount+2*self.taker.txfee*self.taker.makercount)
             cjamount = self.taker.amount
-            change_addr = self.taker.wallet.get_change_addr(self.taker.mixdepth)
+            change_addr = self.taker.wallet.get_internal_addr(self.taker.mixdepth)
             choose_orders_recover = self.sendpayment_choose_orders
 
         self.taker.start_cj(self.taker.wallet, cjamount, orders, utxos,
