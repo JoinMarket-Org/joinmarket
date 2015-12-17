@@ -114,8 +114,12 @@ class TumblerThread(threading.Thread):
             jm_single().bc_interface.add_tx_notify(
                     coinjointx.latest_tx, self.unconfirm_callback,
                     self.confirm_callback, coinjointx.my_cj_addr)
-            self.taker.wallet.remove_old_utxos(coinjointx.latest_tx)
-            coinjointx.self_sign_and_push()
+            pushed = coinjointx.self_sign_and_push()
+            if pushed:
+                self.taker.wallet.remove_old_utxos(coinjointx.latest_tx)
+            else:
+                log.debug("Failed to push transaction, trying again.")
+                self.create_tx()
         else:
             self.ignored_makers += coinjointx.nonrespondants
             log.debug('recreating the tx, ignored_makers=' + str(

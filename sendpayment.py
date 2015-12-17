@@ -122,8 +122,12 @@ class PaymentThread(threading.Thread):
 
     def finishcallback(self, coinjointx):
         if coinjointx.all_responded:
-            coinjointx.self_sign_and_push()
-            log.debug('created fully signed tx, ending')
+            pushed = coinjointx.self_sign_and_push()
+            if pushed:
+                log.debug('created fully signed tx, ending')
+            else:
+                #Error should be in log, will not retry.
+                log.debug('failed to push tx, ending.')
             self.taker.msgchan.shutdown()
             return
         self.ignored_makers += coinjointx.nonrespondants

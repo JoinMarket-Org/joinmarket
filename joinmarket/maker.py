@@ -257,9 +257,11 @@ class Maker(CoinJoinerPeer):
 
     def on_push_tx(self, nick, txhex):
         log.debug('received txhex from ' + nick + ' to push\n' + txhex)
-        txid = jm_single().bc_interface.pushtx(txhex)
-        log.debug('pushed tx ' + str(txid))
-        if txid is None:
+        pushed = jm_single().bc_interface.pushtx(txhex)
+        if pushed[0]:
+            log.debug('pushed tx ' + str(pushed[1]))
+        else:
+            log.debug('failed to push tx, reason: '+str(pushed[1]))
             self.msgchan.send_error(nick, 'Unable to push tx')
 
     def on_welcome(self):
