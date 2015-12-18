@@ -148,6 +148,8 @@ def main():
 		help='manually pick which orders to take. doesn\'t work while sweeping.')
 	parser.add_option('-m', '--mixdepth', action='store', type='int', dest='mixdepth',
 		help='mixing depth to spend from, default=0', default=0)
+        parser.add_option('-g', '--gap-limit', action='store', type="int", dest='gaplimit',
+                help='gap limit for wallet, default=6', default=6)
 	parser.add_option('--yes', action='store_true', dest='answeryes', default=False,
 		help='answer yes to everything')
 	parser.add_option('--rpcwallet', action='store_true', dest='userpcwallet', default=False,
@@ -180,7 +182,7 @@ def main():
 	debug('starting sendpayment')
 
 	if not options.userpcwallet:
-		wallet = Wallet(wallet_name, options.mixdepth + 1)
+		wallet = Wallet(wallet_name, options.mixdepth + 1, options.gaplimit)
 	else:
 		wallet = BitcoinCoreWallet(fromaccount = wallet_name)
 	common.bc_interface.sync_wallet(wallet)
