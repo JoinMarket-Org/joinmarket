@@ -117,9 +117,29 @@ class CoinJoinOrder(object):
 			self.maker.wallet_unspent_lock.release()
 		debug('tx in a block')
 		debug('earned = ' + str(self.real_cjfee - self.txfee))
-		to_cancel, to_announce = self.maker.on_tx_confirmed(self,
-			confirmations, txid)
-		self.maker.modify_orders(to_cancel, to_announce)
+		try:
+			to_cancel, to_announce = self.maker.on_tx_confirmed(self, confirmations, txid)
+			debug('maker.on_tx_confirmed success')
+		except Exception as e:
+			debug('confirm_callback exception. transaction not seen on network prior to confirmation.\n  address = ' + str(e) + '\n : using maker.on_tx_unconfirmed instead...')
+			self.maker.wallet_unspent_lock.acquire()
+			try:
+				removed_utxos = self.maker.wallet.remove_old_utxos(self.tx)
+				to_cancel, to_announce = self.maker.on_tx_unconfirmed(self, txid, removed_utxos)
+			finally:
+				self.maker.wallet_unspent_lock.release()
+		if len(to_cancel) > 0 and len(to_announce) > 0:
+			self.maker.modify_orders(to_cancel, to_announce)
+			debug('changed order(s) have been announced. cancelled order(s) have been announced.')
+		elif len(to_cancel) == 0 and len(to_announce) > 0:
+			to_cancel = []
+			self.maker.modify_orders(to_cancel, to_announce)
+			debug('no orders to cancel.	 new order(s) have been announced.')
+		elif len(to_cancel) > 0 and len(to_announce == 0):
+			to_announce = []
+			self.maker.modify_orders(to_cancel, to_announce)
+			debug('no orders to change.	 cancelled order(s) have been announced.')
+		debug('confirm_callback done!')
 
 	def verify_unsigned_tx(self, txd):
 		tx_utxo_set = set([ins['outpoint']['hash'] + ':' \
@@ -231,7 +251,7 @@ class Maker(CoinJoinerPeer):
                         del self.active_orders[nick]
 
 	def modify_orders(self, to_cancel, to_announce):
-		debug('modifying orders. to_cancel=' + str(to_cancel) + '\nto_announce=' + str(to_announce))
+		debug('modifying orders. \nto_cancel=' + str(to_cancel) + '\nto_announce=' + str(to_announce))
 		for oid in to_cancel:
 			order = [o for o in self.orderlist if o['oid'] == oid]
 			if len(order) == 0:
@@ -239,6 +259,7 @@ class Maker(CoinJoinerPeer):
 			self.orderlist.remove(order[0])
 		if len(to_cancel) > 0:
 			self.msgchan.cancel_orders(to_cancel)
+			debug('modify_orders: cancelled orders success.')
 		if len(to_announce) > 0:
 			self.msgchan.announce_orders(to_announce)
 			for ann in to_announce:
@@ -246,6 +267,7 @@ class Maker(CoinJoinerPeer):
 				if len(oldorder_s) > 0:
 					self.orderlist.remove(oldorder_s[0])
 			self.orderlist += to_announce
+			debug('modify_orders: announce orders success.')
 
 	#these functions
 	# create_my_orders()
