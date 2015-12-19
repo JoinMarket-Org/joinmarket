@@ -373,6 +373,20 @@ def main():
 	wallet = Wallet(wallet_file, max_mix_depth = options.mixdepthsrc + options.mixdepthcount)
 	common.bc_interface.sync_wallet(wallet)
 
+        #check if there are actually any coins at the mixdepthsrc level
+        #if not, allow user to start at minimum used level
+        used_depths = [k for k,v in  wallet.get_utxos_by_mixdepth().iteritems() if v != {}]
+        if options.mixdepthsrc not in used_depths:
+                ret = raw_input("no coins in chosen src level. Use lowest possible level? (y/n):")
+                if ret[0] !='y':
+                        return
+                options.mixdepthsrc = sorted(used_depths.keys())[0]
+                print "starting with depth: " + str(options.mixdepthsrc)
+                wallet = Wallet(wallet_file,max_mix_depth = options.mixdepthsrc + options.mixdepthcount)
+                common.bc_interface.sync_wallet(wallet)
+                
+        
+
 	common.nickname = random_nick()
 	debug('starting tumbler')
 	irc = IRCMessageChannel(common.nickname)
