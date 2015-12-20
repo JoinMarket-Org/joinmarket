@@ -4,7 +4,6 @@ from __future__ import absolute_import, print_function
 import datetime
 import os
 import time
-import sys
 
 from joinmarket import Maker, IRCMessageChannel
 from joinmarket import BlockrInterface
@@ -74,7 +73,7 @@ class YieldGenerator(Maker):
         mix_balance = self.wallet.get_balance_by_mixdepth()
         if len([b for m, b in mix_balance.iteritems() if b > 0]) == 0:
             log.debug('do not have any coins left')
-            sys.exit(0)
+            return []
 
         # print mix_balance
         max_mix = max(mix_balance, key=mix_balance.get)
@@ -84,9 +83,16 @@ class YieldGenerator(Maker):
                  'maxsize': mix_balance[max_mix] - jm_single().DUST_THRESHOLD,
                  'txfee': txfee,
                  'cjfee': cjfee}
+
+        # sanity check
+        assert order['minsize'] >= 0
+        assert order['maxsize'] > 0
+        assert order['minsize'] <= order['maxsize']
+
         return [order]
 
     def oid_to_order(self, cjorder, oid, amount):
+        total_amount = amount + cjorder.txfee
         mix_balance = self.wallet.get_balance_by_mixdepth()
         max_mix = max(mix_balance, key=mix_balance.get)
 
@@ -95,7 +101,7 @@ class YieldGenerator(Maker):
         log.debug('finding suitable mixdepth')
         mixdepth = (max_mix - 1) % self.wallet.max_mix_depth
         while True:
-            if mixdepth in mix_balance and mix_balance[mixdepth] >= amount:
+            if mixdepth in mix_balance and mix_balance[mixdepth] >= total_amount:
                 break
             mixdepth = (mixdepth - 1) % self.wallet.max_mix_depth
         # mixdepth is the chosen depth we'll be spending from
@@ -103,7 +109,7 @@ class YieldGenerator(Maker):
                                                self.wallet.max_mix_depth)
         change_addr = self.wallet.get_change_addr(mixdepth)
 
-        utxos = self.wallet.select_utxos(mixdepth, amount)
+        utxos = self.wallet.select_utxos(mixdepth, total_amount)
         my_total_in = sum([va['value'] for va in utxos.values()])
         real_cjfee = calc_cj_fee(cjorder.ordertype, cjorder.cjfee, amount)
         change_value = my_total_in - amount - cjorder.txfee + real_cjfee
@@ -112,7 +118,7 @@ class YieldGenerator(Maker):
                        'finding new utxos').format(change_value))
             try:
                 utxos = self.wallet.select_utxos(
-                    mixdepth, amount + jm_single().DUST_THRESHOLD)
+                    mixdepth, total_amount + jm_single().DUST_THRESHOLD)
             except Exception:
                 log.debug('dont have the required UTXOs to make a '
                           'output above the dust threshold, quitting')
