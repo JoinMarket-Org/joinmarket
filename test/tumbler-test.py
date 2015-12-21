@@ -75,7 +75,7 @@ class TumblerTests(unittest.TestCase):
             test_in = ['y']
             p = pexpect.spawn(python_cmd,
                               ['tumbler.py', '-N', '2', '0', '-a', '0', '-M',
-                               '5', '-w', '3', '-l', '0.2', '-s', '1000000',
+                               '5', '-w', '10', '-l', '0.2', '-s', '1000000',
                                self.wallets[6]['seed'], dest_address])
             interact(p, test_in, expected)
             p.expect(pexpect.EOF, timeout=100000)

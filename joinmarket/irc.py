@@ -6,6 +6,7 @@ import socket
 import ssl
 import threading
 import time
+import Queue
 
 from joinmarket.configure import jm_single, get_config_irc_channel
 from joinmarket.message_channel import MessageChannel, CJPeerError
@@ -58,6 +59,67 @@ def get_irc_nick(source):
     return source[1:source.find('!')]
 
 
+class ThrottleThread(threading.Thread):
+
+    def __init__(self, irc):
+        threading.Thread.__init__(self)
+        self.daemon = True
+        self.irc = irc
+        self.msg_buffer = []
+        #TODO - probably global configuration?
+        self.MSG_INTERVAL = 1.0
+        self.B_PER_SEC = 300
+        self.B_PER_SEC_INTERVAL = 10.0
+
+    def run(self):
+        log.debug("starting throttle thread")
+        last_msg_time = 0
+        while not self.irc.give_up:
+            self.irc.lockthrottle.acquire()
+            while not (self.irc.throttleQ.empty() and self.irc.obQ.empty()
+                       and self.irc.pingQ.empty()):
+                time.sleep(0.2) #need to avoid cpu spinning if throttled
+                try:
+                    pingmsg = self.irc.pingQ.get(block=False)
+                    #ping messages are not counted to throttling totals,
+                    #so send immediately
+                    log.debug("sending: "+pingmsg)
+                    self.irc.sock.sendall(pingmsg + '\r\n')
+                    continue
+                except Queue.Empty:
+                    pass
+                #First throttling mechanism: no more than 1 line
+                #per self.MSG_INTERVAL seconds.
+                x = time.time() - last_msg_time
+                if  x < self.MSG_INTERVAL:
+                    continue
+                #Second throttling mechanism: limited kB/s rate
+                #over the most recent period.
+                q = time.time() - self.B_PER_SEC_INTERVAL
+                #clean out old messages
+                self.msg_buffer = [_ for _ in self.msg_buffer if _[1] > q]
+                bytes_recent = sum(len(i[0]) for i in self.msg_buffer)
+                if bytes_recent > self.B_PER_SEC * self.B_PER_SEC_INTERVAL:
+                    log.debug("Throttling triggered, with: "+str(
+                        bytes_recent)+ " bytes in the last "+str(
+                            self.B_PER_SEC_INTERVAL)+" seconds.")
+                    continue
+                try:
+                    throttled_msg = self.irc.throttleQ.get(block=False)
+                except Queue.Empty:
+                    try:
+                        throttled_msg = self.irc.obQ.get(block=False)
+                    except Queue.Empty:
+                        #this code *should* be unreachable.
+                        continue
+                self.irc.sock.sendall(throttled_msg+'\r\n')
+                last_msg_time = time.time()
+                self.msg_buffer.append((throttled_msg, last_msg_time))
+            self.irc.lockthrottle.wait()
+            self.irc.lockthrottle.release()
+
+        log.debug("Ended throttling thread.")
+
 class PingThread(threading.Thread):
 
     def __init__(self, irc):
@@ -101,7 +163,7 @@ class IRCMessageChannel(MessageChannel):
     # close implies it will attempt to reconnect
     def close(self):
         try:
-            self.send_raw("QUIT")
+            self.sock.sendall("QUIT\r\n")
         except IOError as e:
             log.debug('errored while trying to quit: ' + repr(e))
 
@@ -172,8 +234,6 @@ class IRCMessageChannel(MessageChannel):
         # TODO make it send the sigs on one line if there's space
         for s in sig_list:
             self.__privmsg(nick, 'sig', s)
-            time.sleep(
-                0.5)  # HACK! really there should be rate limiting, see issue#31
 
     def __pubmsg(self, message):
         log.debug('>>pubmsg ' + message)
@@ -206,9 +266,17 @@ class IRCMessageChannel(MessageChannel):
             self.send_raw(header + m + trailer)
 
     def send_raw(self, line):
-        # if not line.startswith('PING LAG'):
-        #	log.debug('sendraw ' + line)
-        self.sock.sendall(line + '\r\n')
+        # Messages are queued and prioritised.
+        # This is an addressing of github #300
+        if line.startswith("PING") or line.startswith("PONG"):
+            self.pingQ.put(line)
+        elif "relorder" in line or "absorder" in line:
+                self.obQ.put(line)
+        else:
+            self.throttleQ.put(line)
+        self.lockthrottle.acquire()
+        self.lockthrottle.notify()
+        self.lockthrottle.release()
 
     def check_for_orders(self, nick, _chunks):
         if _chunks[0] in jm_single().ordername_list:
@@ -511,6 +579,9 @@ class IRCMessageChannel(MessageChannel):
         if password and len(password) == 0:
             password = None
         self.given_password = password
+        self.pingQ = Queue.Queue()
+        self.throttleQ = Queue.Queue()
+        self.obQ = Queue.Queue()
 
     def run(self):
         self.waiting = {}
@@ -518,7 +589,9 @@ class IRCMessageChannel(MessageChannel):
         self.give_up = False
         self.ping_reply = True
         self.lockcond = threading.Condition()
+        self.lockthrottle = threading.Condition()
         PingThread(self).start()
+        ThrottleThread(self).start()
 
         while not self.give_up:
             try:
