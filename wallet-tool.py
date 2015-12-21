@@ -99,6 +99,10 @@ else:
                     extend_mixdepth=not maxmixdepth_configured,
                     storepassword=(method == 'importprivkey'))
     if method not in noscan_methods:
+        # if nothing was configured, we override bitcoind's options so that
+        # unconfirmed balance is included in the wallet display by default
+        if 'listunspent_args' not in jm_single().config.options('POLICY'):
+            jm_single().config.set('POLICY','listunspent_args', '[0]')
         jm_single().bc_interface.sync_wallet(wallet)
 
 if method == 'display' or method == 'displayall' or method == 'summary':
