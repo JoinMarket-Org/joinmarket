@@ -32,6 +32,10 @@ As a result of free-market forces (i.e. anyone with bitcoins can become a JoinMa
 
 ###[FOR WINDOWS](https://github.com/chris-belcher/joinmarket/wiki/Installing-JoinMarket-on-Windows-7-(temporary))
 
+###CONTRIBUTING TO JOINMARKET AS A DEVELOPER
+
+Instructions are [here](./CONTRIBUTING.md)
+
 ---
 
 + IRC: `#joinmarket` on irc.freenode.net https://webchat.freenode.net/?channels=%23joinmarket
