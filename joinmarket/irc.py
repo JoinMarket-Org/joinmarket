@@ -83,7 +83,6 @@ class ThrottleThread(threading.Thread):
                     pingmsg = self.irc.pingQ.get(block=False)
                     #ping messages are not counted to throttling totals,
                     #so send immediately
-                    log.debug("sending: "+pingmsg)
                     self.irc.sock.sendall(pingmsg + '\r\n')
                     continue
                 except Queue.Empty:
