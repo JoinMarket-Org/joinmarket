@@ -77,7 +77,7 @@ class FeeEstimateTests(unittest.TestCase):
         #having created the bad wallet, add lots of utxos to 
         #the same mixdepth
         print 'creating a crazy amount of utxos in one wallet...'
-        r_addr = self.wallets[2]['wallet'].get_receive_addr(0)
+        r_addr = self.wallets[2]['wallet'].get_external_addr(0)
         for i in range(60):
             jm_single().bc_interface.grab_coins(r_addr,0.02)
             time.sleep(1)

@@ -51,7 +51,7 @@ class TumblerTests(unittest.TestCase):
                     amt = base + random.random(
                     )  #average is 0.5 for tumbler, else 1.5
                     jm_single().bc_interface.grab_coins(
-                        w.get_receive_addr(j), amt)
+                        w.get_external_addr(j), amt)
 
     def run_tumble(self, amt):
         yigen_procs = []

@@ -343,8 +343,8 @@ class Maker(CoinJoinerPeer):
 		"""
 
         order = [o for o in self.orderlist if o['oid'] == oid][0]
-        cj_addr = self.wallet.get_receive_addr(order['mixdepth'] + 1)
-        change_addr = self.wallet.get_change_addr(order['mixdepth'])
+        cj_addr = self.wallet.get_internal_addr(order['mixdepth'] + 1)
+        change_addr = self.wallet.get_internal_addr(order['mixdepth'])
         return [order['utxo']], cj_addr, change_addr
 
     def get_next_oid(self):

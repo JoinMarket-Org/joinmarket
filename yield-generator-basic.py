@@ -99,9 +99,9 @@ class YieldGenerator(Maker):
                 break
             mixdepth = (mixdepth - 1) % self.wallet.max_mix_depth
         # mixdepth is the chosen depth we'll be spending from
-        cj_addr = self.wallet.get_receive_addr((mixdepth + 1) %
-                                               self.wallet.max_mix_depth)
-        change_addr = self.wallet.get_change_addr(mixdepth)
+        cj_addr = self.wallet.get_internal_addr(
+            (mixdepth + 1) % self.wallet.max_mix_depth)
+        change_addr = self.wallet.get_internal_addr(mixdepth)
 
         utxos = self.wallet.select_utxos(mixdepth, amount)
         my_total_in = sum([va['value'] for va in utxos.values()])
