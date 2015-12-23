@@ -26,7 +26,7 @@ As a result of free-market forces (i.e. anyone with bitcoins can become a JoinMa
     sudo make install
     ```
     
- - Use this line to check it was installed correctly: `python lib/enc_wrapper.py`
+ - After installation of JoinMarket, use this line to check it was installed correctly: `PYTHONPATH=.:$PYTHONPATH python joinmarket/enc_wrapper.py`
 
 + Matplotlib for displaying the graphs in orderbook-watcher (optional)
 
@@ -35,7 +35,7 @@ As a result of free-market forces (i.e. anyone with bitcoins can become a JoinMa
 1. `sudo apt-get update -y && sudo apt-get upgrade -y && sudo apt-get install python libsodium-dev -y`
 2. `sudo apt-get install python-matplotlib -y` (optional)
 3. Download JoinMarket 0.1.0 source from [here](https://github.com/joinmarket-org/joinmarket/releases/tag/v0.1.0)
-4. `tar xvf v0.1.0.tar.gz` and `cd joinmarket`
+4. Extract or unzip and `cd joinmarket-0.1.0`
 4. Generating your first wallet will populate the configuration file: `joinmarket.cfg`.
    Check if the default settings suit your needs.
 
