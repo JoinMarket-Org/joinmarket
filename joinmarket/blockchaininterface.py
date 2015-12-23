@@ -19,7 +19,7 @@ import bitcoin as btc
 # This can be removed once CliJsonRpc is gone.
 import subprocess
 
-from joinmarket.jsonrpc import JsonRpcConnectionError
+from joinmarket.jsonrpc import JsonRpcConnectionError, JsonRpcError
 from joinmarket.configure import get_p2pk_vbyte, jm_single
 from joinmarket.support import get_log, chunks
 
@@ -651,9 +651,12 @@ class BitcoinCoreInterface(BlockchainInterface):
 
     def pushtx(self, txhex):
         try:
-            return self.rpc('sendrawtransaction', [txhex])
-        except JsonRpcConnectionError:
-            return None
+            txid = self.rpc('sendrawtransaction', [txhex])
+        except JsonRpcConnectionError as e:
+	    return (False, repr(e))
+        except JsonRpcError as e:
+	    return (False, str(e.code) + " " + str(e.message))
+        return (True, txid)
 
     def query_utxo_set(self, txout):
         if not isinstance(txout, list):

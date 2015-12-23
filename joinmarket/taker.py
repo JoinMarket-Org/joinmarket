@@ -300,13 +300,16 @@ class CoinJoinTX(object):
         # TODO send to a random maker or push myself
         # TODO need to check whether the other party sent it
         # self.msgchan.push_tx(self.active_orders.keys()[0], txhex)
-        self.txid = jm_single().bc_interface.pushtx(tx)
-        if self.txid is None:
-            log.debug('unable to pushtx')
+        pushed = jm_single().bc_interface.pushtx(tx)
+        if pushed[0]:
+            self.txid = pushed[1]
+        else:
+            log.debug('unable to pushtx, reason: '+str(pushed[1]))
+        return pushed[0]
 
     def self_sign_and_push(self):
         self.self_sign()
-        self.push(self.latest_tx)
+        return self.push(self.latest_tx)
 
     def recover_from_nonrespondants(self):
         log.debug('nonresponding makers = ' + str(self.nonrespondants))
