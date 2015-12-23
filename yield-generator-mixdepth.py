@@ -89,7 +89,7 @@ class YieldGenerator(Maker):
                                     if b > jm_single().DUST_THRESHOLD])
         if len(nondust_mix_balance) == 0:
             log.debug('do not have any coins left')
-            sys.exit(0)
+            return []
         #sorts the mixdepth_balance map by balance size
         sorted_mix_balance = sorted(
             list(mix_balance.iteritems()),
@@ -99,6 +99,7 @@ class YieldGenerator(Maker):
             1.5 * txfee / float(min(cjfee))
         )  #minimum size is such that you always net profit at least 50% of the miner fee
         filtered_mix_balance = [f for f in sorted_mix_balance if f[1] > minsize]
+        delta = mix_levels - len(filtered_mix_balance)
         log.debug('minsize=' + str(minsize) + ' calc\'d with cjfee=' + str(min(
             cjfee)))
         lower_bound_balances = filtered_mix_balance[1:] + [(-1, minsize)]
@@ -123,7 +124,7 @@ class YieldGenerator(Maker):
                      'maxsize': max(balance - jm_single().DUST_THRESHOLD,
                                     jm_single().DUST_THRESHOLD),
                      'txfee': txfee,
-                     'cjfee': thecjfee[oid],
+                     'cjfee': thecjfee[oid + delta],
                      'mixdepth': mixdepth}
             oid += 1
             orders.append(order)
@@ -143,13 +144,21 @@ class YieldGenerator(Maker):
                      'cjfee': absorder_fee}
             orders = [order] + orders
         log.debug('generated orders = \n' + '\n'.join([str(o) for o in orders]))
+
+        # sanity check
+        for order in orders:
+            assert order['minsize'] >= 0
+            assert order['maxsize'] > 0
+            assert order['minsize'] <= order['maxsize']
+
         return orders
 
     def oid_to_order(self, cjorder, oid, amount):
+        total_amount = amount + cjorder.txfee
         mix_balance = self.wallet.get_balance_by_mixdepth()
         filtered_mix_balance = [m
                                 for m in mix_balance.iteritems()
-                                if m[1] >= amount]
+                                if m[1] >= total_amount]
         log.debug('mix depths that have enough, filtered_mix_balance = ' + str(
             filtered_mix_balance))
 
@@ -172,7 +181,7 @@ class YieldGenerator(Maker):
             (mixdepth + 1) % self.wallet.max_mix_depth)
         change_addr = self.wallet.get_internal_addr(mixdepth)
 
-        utxos = self.wallet.select_utxos(mixdepth, amount)
+        utxos = self.wallet.select_utxos(mixdepth, total_amount)
         my_total_in = sum([va['value'] for va in utxos.values()])
         real_cjfee = calc_cj_fee(cjorder.ordertype, cjorder.cjfee, amount)
         change_value = my_total_in - amount - cjorder.txfee + real_cjfee
@@ -181,7 +190,7 @@ class YieldGenerator(Maker):
                       % (change_value))
             try:
                 utxos = self.wallet.select_utxos(
-                    mixdepth, amount + jm_single().DUST_THRESHOLD)
+                    mixdepth, total_amount + jm_single().DUST_THRESHOLD)
             except Exception:
                 log.debug(
                     'dont have the required UTXOs to make a output above the dust threshold, quitting')
