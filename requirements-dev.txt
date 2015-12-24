@@ -1,0 +1,7 @@
+# matplotlib
+numpy
+pexpect
+pytest
+pytest-cov
+
+-r requirements.txt
