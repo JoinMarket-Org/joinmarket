@@ -2,6 +2,7 @@ from __future__ import absolute_import, print_function
 
 import BaseHTTPServer
 import abc
+import ast
 import json
 import os
 import pprint
@@ -18,7 +19,7 @@ import bitcoin as btc
 # This can be removed once CliJsonRpc is gone.
 import subprocess
 
-from joinmarket.jsonrpc import JsonRpcConnectionError
+from joinmarket.jsonrpc import JsonRpcConnectionError, JsonRpcError
 from joinmarket.configure import get_p2pk_vbyte, jm_single
 from joinmarket.support import get_log, chunks
 
@@ -613,7 +614,13 @@ class BitcoinCoreInterface(BlockchainInterface):
         st = time.time()
         wallet_name = self.get_wallet_name(wallet)
         wallet.unspent = {}
-        unspent_list = self.rpc('listunspent', [])
+
+        listunspent_args = []
+        if 'listunspent_args' in jm_single().config.options('POLICY'):
+            listunspent_args = ast.literal_eval(
+                jm_single().config.get('POLICY', 'listunspent_args'))
+
+        unspent_list = self.rpc('listunspent', listunspent_args)
         for u in unspent_list:
             if 'account' not in u:
                 continue
@@ -621,11 +628,9 @@ class BitcoinCoreInterface(BlockchainInterface):
                 continue
             if u['address'] not in wallet.addr_cache:
                 continue
-            wallet.unspent[u['txid'] + ':' + str(u[
-                                                     'vout'])] = {
+            wallet.unspent[u['txid'] + ':' + str(u['vout'])] = {
                 'address': u['address'],
-                'value':
-                    int(Decimal(str(u['amount'])) * Decimal('1e8'))}
+                'value': int(Decimal(str(u['amount'])) * Decimal('1e8'))}
         et = time.time()
         log.debug('bitcoind sync_unspent took ' + str((et - st)) + 'sec')
 
@@ -646,9 +651,12 @@ class BitcoinCoreInterface(BlockchainInterface):
 
     def pushtx(self, txhex):
         try:
-            return self.rpc('sendrawtransaction', [txhex])
-        except JsonRpcConnectionError:
-            return None
+            txid = self.rpc('sendrawtransaction', [txhex])
+        except JsonRpcConnectionError as e:
+	    return (False, repr(e))
+        except JsonRpcError as e:
+	    return (False, str(e.code) + " " + str(e.message))
+        return (True, txid)
 
     def query_utxo_set(self, txout):
         if not isinstance(txout, list):

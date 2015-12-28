@@ -257,9 +257,11 @@ class Maker(CoinJoinerPeer):
 
     def on_push_tx(self, nick, txhex):
         log.debug('received txhex from ' + nick + ' to push\n' + txhex)
-        txid = jm_single().bc_interface.pushtx(txhex)
-        log.debug('pushed tx ' + str(txid))
-        if txid is None:
+        pushed = jm_single().bc_interface.pushtx(txhex)
+        if pushed[0]:
+            log.debug('pushed tx ' + str(pushed[1]))
+        else:
+            log.debug('failed to push tx, reason: '+str(pushed[1]))
             self.msgchan.send_error(nick, 'Unable to push tx')
 
     def on_welcome(self):
@@ -343,8 +345,8 @@ class Maker(CoinJoinerPeer):
 		"""
 
         order = [o for o in self.orderlist if o['oid'] == oid][0]
-        cj_addr = self.wallet.get_receive_addr(order['mixdepth'] + 1)
-        change_addr = self.wallet.get_change_addr(order['mixdepth'])
+        cj_addr = self.wallet.get_internal_addr(order['mixdepth'] + 1)
+        change_addr = self.wallet.get_internal_addr(order['mixdepth'])
         return [order['utxo']], cj_addr, change_addr
 
     def get_next_oid(self):

@@ -14,23 +14,38 @@ As a result of free-market forces (i.e. anyone with bitcoins can become a JoinMa
 
 + You will need libsodium installed
 
- - You can get it here: http://doc.libsodium.org/ or through apt-get as `libsodium-dev`
+ - Either get it via apt-get as `libsodium-dev` or build:
  
- - Use this line to check it was installed correctly: `python lib/enc_wrapper.py`
+    ``` 
+    git clone git://github.com/jedisct1/libsodium.git
+    cd libsodium
+    git checkout tags/1.0.3
+    ./autogen.sh
+    ./configure
+    make check
+    sudo make install
+    ```
+    
+ - After installation of JoinMarket, use this line to check it was installed correctly: `PYTHONPATH=.:$PYTHONPATH python joinmarket/enc_wrapper.py`
 
 + Matplotlib for displaying the graphs in orderbook-watcher (optional)
 
-###DEBIAN / UBUNTU QUICK INSTALL:
+###DEBIAN / UBUNTU QUICK INSTALL FOR USERS:
 
 1. `sudo apt-get update -y && sudo apt-get upgrade -y && sudo apt-get install python libsodium-dev -y`
 2. `sudo apt-get install python-matplotlib -y` (optional)
-3. `git clone https://github.com/chris-belcher/joinmarket.git`
+3. Download JoinMarket 0.1.0 source from [here](https://github.com/joinmarket-org/joinmarket/releases/tag/v0.1.0)
+4. Extract or unzip and `cd joinmarket-0.1.0`
 4. Generating your first wallet will populate the configuration file: `joinmarket.cfg`.
    Check if the default settings suit your needs.
 
-###[WIKI PAGES FOR DETAILED ARTICLES/GUIDES](https://github.com/chris-belcher/joinmarket/wiki)
+###[INSTALL FOR WINDOWS USERS](https://github.com/joinmarket-org/joinmarket/wiki/Installing-JoinMarket-on-Windows-7-(temporary))
 
-###[FOR WINDOWS](https://github.com/chris-belcher/joinmarket/wiki/Installing-JoinMarket-on-Windows-7-(temporary))
+###[WIKI PAGES FOR DETAILED ARTICLES/GUIDES](https://github.com/joinmarket-org/joinmarket/wiki)
+
+###CONTRIBUTING TO JOINMARKET AS A DEVELOPER
+
+Clone the repo, then read the notes [here](./CONTRIBUTING.md).
 
 ---
 

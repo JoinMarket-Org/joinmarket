@@ -26,8 +26,8 @@ import bitcoin as btc
 # using coins from different levels as inputs to the same tx is probably
 # detrimental to privacy
 
-# m/0/n/0/k kth receive address, for mixing depth n
-# m/0/n/1/k kth change address, for mixing depth n
+# m/0/n/0/k kth external address, for mixing depth n
+# m/0/n/1/k kth internal address, for mixing depth n
 
 description = (
     'Does useful little tasks involving your bip32 wallet. The '
@@ -99,6 +99,10 @@ else:
                     extend_mixdepth=not maxmixdepth_configured,
                     storepassword=(method == 'importprivkey'))
     if method not in noscan_methods:
+        # if nothing was configured, we override bitcoind's options so that
+        # unconfirmed balance is included in the wallet display by default
+        if 'listunspent_args' not in jm_single().config.options('POLICY'):
+            jm_single().config.set('POLICY','listunspent_args', '[0]')
         jm_single().bc_interface.sync_wallet(wallet)
 
 if method == 'display' or method == 'displayall' or method == 'summary':
@@ -112,7 +116,7 @@ if method == 'display' or method == 'displayall' or method == 'summary':
         cus_print('mixing depth %d m/0/%d/' % (m, m))
         balance_depth = 0
         for forchange in [0, 1]:
-            cus_print(' ' + ('receive' if forchange == 0 else 'change') +
+            cus_print(' ' + ('external' if forchange == 0 else 'internal') +
                       ' addresses m/0/%d/%d/' % (m, forchange))
 
             for k in range(wallet.index[m][forchange] + options.gaplimit):

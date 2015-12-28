@@ -23,7 +23,7 @@ from joinmarket.support import chunks
 
 python_cmd = 'python2'
 yg_cmd = 'yield-generator-basic.py'
-#yg_cmd = 'yield-generator-mixdepth.py'
+yg_cmd = 'yield-generator-mixdepth.py'
 #yg_cmd = 'yield-generator-deluxe.py'
 
 log = get_log()
@@ -47,11 +47,11 @@ class TumblerTests(unittest.TestCase):
             w = self.wallets[i]['wallet']
             for j in range(5):
                 for k in range(4):
-                    base = 0.001 if i == 6 else 1.0
+                    base = 0.001 if i == 6 else 2.0
                     amt = base + random.random(
                     )  #average is 0.5 for tumbler, else 1.5
                     jm_single().bc_interface.grab_coins(
-                        w.get_receive_addr(j), amt)
+                        w.get_external_addr(j), amt)
 
     def run_tumble(self, amt):
         yigen_procs = []
@@ -75,8 +75,8 @@ class TumblerTests(unittest.TestCase):
             test_in = ['y']
             p = pexpect.spawn(python_cmd,
                               ['tumbler.py', '-N', '2', '0', '-a', '0', '-M',
-                               '5', '-w', '3', '-l', '0.2', '-s', '1000000',
-                               self.wallets[6]['seed'], dest_address])
+                               '5', '-w', '10', '-l', '0.2', '-s', '1000000',
+                               '-q', '5', self.wallets[6]['seed'], dest_address])
             interact(p, test_in, expected)
             p.expect(pexpect.EOF, timeout=100000)
             p.close()

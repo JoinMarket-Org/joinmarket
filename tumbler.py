@@ -114,8 +114,12 @@ class TumblerThread(threading.Thread):
             jm_single().bc_interface.add_tx_notify(
                     coinjointx.latest_tx, self.unconfirm_callback,
                     self.confirm_callback, coinjointx.my_cj_addr)
-            self.taker.wallet.remove_old_utxos(coinjointx.latest_tx)
-            coinjointx.self_sign_and_push()
+            pushed = coinjointx.self_sign_and_push()
+            if pushed:
+                self.taker.wallet.remove_old_utxos(coinjointx.latest_tx)
+            else:
+                log.debug("Failed to push transaction, trying again.")
+                self.create_tx()
         else:
             self.ignored_makers += coinjointx.nonrespondants
             log.debug('recreating the tx, ignored_makers=' + str(
@@ -218,8 +222,8 @@ class TumblerThread(threading.Thread):
             if cj_amount < self.taker.options.mincjamount:
                 log.debug('cj amount too low, bringing up')
                 cj_amount = self.taker.options.mincjamount
-            change_addr = self.taker.wallet.get_change_addr(self.tx[
-                                                                'srcmixdepth'])
+            change_addr = self.taker.wallet.get_internal_addr(
+                self.tx['srcmixdepth'])
             log.debug('coinjoining ' + str(cj_amount) + ' satoshi')
             orders, total_cj_fee = self.tumbler_choose_orders(
                     cj_amount, self.tx['makercount'])
@@ -256,7 +260,7 @@ class TumblerThread(threading.Thread):
     def init_tx(self, tx, balance, sweep):
         destaddr = None
         if tx['destination'] == 'internal':
-            destaddr = self.taker.wallet.get_receive_addr(tx['srcmixdepth'] + 1)
+            destaddr = self.taker.wallet.get_internal_addr(tx['srcmixdepth'] + 1)
         elif tx['destination'] == 'addrask':
             jm_single().debug_silence = True
             while True:

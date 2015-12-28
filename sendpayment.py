@@ -112,7 +112,7 @@ class PaymentThread(threading.Thread):
             utxos = self.taker.wallet.select_utxos(self.taker.mixdepth, 
                 total_amount+2*self.taker.txfee*self.taker.makercount)
             cjamount = self.taker.amount
-            change_addr = self.taker.wallet.get_change_addr(self.taker.mixdepth)
+            change_addr = self.taker.wallet.get_internal_addr(self.taker.mixdepth)
             choose_orders_recover = self.sendpayment_choose_orders
 
         self.taker.start_cj(self.taker.wallet, cjamount, orders, utxos,
@@ -122,8 +122,12 @@ class PaymentThread(threading.Thread):
 
     def finishcallback(self, coinjointx):
         if coinjointx.all_responded:
-            coinjointx.self_sign_and_push()
-            log.debug('created fully signed tx, ending')
+            pushed = coinjointx.self_sign_and_push()
+            if pushed:
+                log.debug('created fully signed tx, ending')
+            else:
+                #Error should be in log, will not retry.
+                log.debug('failed to push tx, ending.')
             self.taker.msgchan.shutdown()
             return
         self.ignored_makers += coinjointx.nonrespondants
@@ -245,6 +249,13 @@ def main():
                       dest='mixdepth',
                       help='mixing depth to spend from, default=0',
                       default=0)
+    parser.add_option('-g',
+                      '--gap-limit',
+                      type="int",
+                      action='store',
+                      dest='gaplimit',
+                      help='gap limit for wallet, default=6',
+                      default=6)
     parser.add_option('--yes',
                       action='store_true',
                       dest='answeryes',
@@ -289,7 +300,7 @@ def main():
     log.debug('starting sendpayment')
 
     if not options.userpcwallet:
-        wallet = Wallet(wallet_name, options.mixdepth + 1)
+        wallet = Wallet(wallet_name, options.mixdepth + 1, options.gaplimit)
     else:
         wallet = BitcoinCoreWallet(fromaccount=wallet_name)
     jm_single().bc_interface.sync_wallet(wallet)

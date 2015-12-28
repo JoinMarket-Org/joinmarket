@@ -75,7 +75,7 @@ def make_wallets(n, wallet_structures=None, mean_amt=1, sdev_amt=0, start_index=
                 amt = mean_amt - sdev_amt / 2.0 + deviation
                 if amt < 0: amt = 0.001
                 jm_single().bc_interface.grab_coins(
-                    wallets[i+start_index]['wallet'].get_receive_addr(j), amt)
+                    wallets[i+start_index]['wallet'].get_external_addr(j), amt)
     return wallets
 
 
