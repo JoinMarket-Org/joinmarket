@@ -87,7 +87,7 @@ class CoinJoinTX(object):
                 return
         else:
             #create DH keypair on the fly for this Tx object
-            self.kp = enc_wrapper.init_keypair()
+            self.kp = init_keypair()
         if my_btc_sig == None:
             if self.auth_addr:
                 self.my_btc_addr = self.auth_addr
