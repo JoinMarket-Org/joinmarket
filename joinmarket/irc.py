@@ -87,6 +87,9 @@ class ThrottleThread(threading.Thread):
                     continue
                 except Queue.Empty:
                     pass
+                except:
+                    log.debug("failed to send ping message on socket")
+                    break
                 #First throttling mechanism: no more than 1 line
                 #per self.MSG_INTERVAL seconds.
                 x = time.time() - last_msg_time
@@ -111,9 +114,14 @@ class ThrottleThread(threading.Thread):
                     except Queue.Empty:
                         #this code *should* be unreachable.
                         continue
-                self.irc.sock.sendall(throttled_msg+'\r\n')
-                last_msg_time = time.time()
-                self.msg_buffer.append((throttled_msg, last_msg_time))
+                try:
+                    self.irc.sock.sendall(throttled_msg+'\r\n')
+                    last_msg_time = time.time()
+                    self.msg_buffer.append((throttled_msg, last_msg_time))
+                except:
+                    log.debug("failed to send on socket")
+                    self.irc.fd.close()
+                    break
             self.irc.lockthrottle.wait()
             self.irc.lockthrottle.release()
 
