@@ -96,14 +96,14 @@ class YieldGenerator(Maker):
         mix_balance = self.wallet.get_balance_by_mixdepth()
         max_mix = max(mix_balance, key=mix_balance.get)
 
-        # algo attempts to make the largest-balance mixing depth get an even
-        # larger balance
-        log.debug('finding suitable mixdepth')
-        mixdepth = (max_mix - 1) % self.wallet.max_mix_depth
-        while True:
-            if mixdepth in mix_balance and mix_balance[mixdepth] >= total_amount:
-                break
-            mixdepth = (mixdepth - 1) % self.wallet.max_mix_depth
+        filtered_mix_balance = [m
+                                for m in mix_balance.iteritems()
+                                if m[1] >= total_amount]
+        log.debug('mix depths that have enough = ' + str(filtered_mix_balance))
+        filtered_mix_balance = sorted(filtered_mix_balance, key=lambda x: x[0])
+        mixdepth = filtered_mix_balance[0][0]
+        log.debug('filling offer, mixdepth=' + str(mixdepth))
+
         # mixdepth is the chosen depth we'll be spending from
         cj_addr = self.wallet.get_internal_addr(
             (mixdepth + 1) % self.wallet.max_mix_depth)
