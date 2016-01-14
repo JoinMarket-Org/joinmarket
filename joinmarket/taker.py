@@ -456,6 +456,13 @@ class OrderbookWatch(CoinJoinerPeer):
                        "from {}").format
                 log.debug(fmt(minsize, maxsize, counterparty))
                 return
+            if ordertype == 'absorder' and not isinstance(cjfee, int):
+                try:
+                    cjfee = int(cjfee)
+                except ValueError:
+                    log.debug("Got non integer coinjoin fee: " + str(cjfee) +
+                            " for an absorder from " + counterparty)
+                    return
             self.db.execute(
                     'INSERT INTO orderbook VALUES(?, ?, ?, ?, ?, ?, ?);',
                     (counterparty, oid, ordertype, minsize, maxsize, txfee,
