@@ -2,9 +2,9 @@
 
 The idea behind JoinMarket is to allow users to have their bitcoins mixed with other JoinMarket users in return for a fee. A form of smart contract is created, meaning the private keys will never be broadcasted outside of your computer, resulting in virtually zero risk of loss (aside from malware or bugs).
 
-Simply put, JoinMarket allows its users to improve the privacy of their bitcoin transactions (and therefore maintaining or even restoring fungibility) in a decentralized fashion. On the other side, there are the JoinMarket operators who provide access to their bitcoins for others to use in mixing transactions. Their incentive is in the form of a fee in return for the provision of their bitcoins, meaning JoinMarket could become a form of passive income. 
+Simply put, JoinMarket allows its users to improve the privacy of their bitcoin transactions (and therefore maintaining or even restoring fungibility) in a decentralized fashion. On the other side, there are the JoinMarket operators who provide access to their bitcoins for others to use in mixing transactions. Their incentive is in the form of a fee in return for the provision of their bitcoins, meaning JoinMarket could become a form of passive income.
 
-As a result of free-market forces (i.e. anyone with bitcoins can become a JoinMarket operator), the fees will eventually be next to nothing. 
+As a result of free-market forces (i.e. anyone with bitcoins can become a JoinMarket operator), the fees will eventually be next to nothing.
 
 ##Installation
 
@@ -15,8 +15,8 @@ As a result of free-market forces (i.e. anyone with bitcoins can become a JoinMa
 + You will need libsodium installed
 
  - Either get it via apt-get as `libsodium-dev` or build:
- 
-    ``` 
+
+    ```
     git clone git://github.com/jedisct1/libsodium.git
     cd libsodium
     git checkout tags/1.0.3
@@ -25,7 +25,7 @@ As a result of free-market forces (i.e. anyone with bitcoins can become a JoinMa
     make check
     sudo make install
     ```
-    
+
  - After installation of JoinMarket, use this line to check it was installed correctly: `PYTHONPATH=.:$PYTHONPATH python joinmarket/enc_wrapper.py`
 
 + Matplotlib for displaying the graphs in orderbook-watcher (optional)
@@ -46,6 +46,27 @@ As a result of free-market forces (i.e. anyone with bitcoins can become a JoinMa
 ###CONTRIBUTING TO JOINMARKET AS A DEVELOPER
 
 Clone the repo, then read the notes [here](./CONTRIBUTING.md).
+
+###TESTING
+
+Install the developement requirements:
+
+    ```
+    pip install -r requirements-dev.txt
+    ```
+
+Run the tests:
+
+    ```
+    PYTHONPATH=.:$PYTHONPATH py.test
+    ```
+
+Generating html code coverage reports:
+
+    ```
+    PYTHONPATH=.:$PYTHONPATH py.test --cov-report html
+    open htmlcov/index.html
+    ```
 
 ---
 
