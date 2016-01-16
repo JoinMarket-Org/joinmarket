@@ -472,19 +472,25 @@ class OrderbookWatch(CoinJoinerPeer):
             log.debug("Got invalid cjfee: " + cjfee + " from " + counterparty)
         except:
             log.debug("Error parsing order " + oid + " from " + counterparty)
+        self.orderbook_change()
 
     def on_order_cancel(self, counterparty, oid):
         self.db.execute(("DELETE FROM orderbook WHERE "
                          "counterparty=? AND oid=?;"), (counterparty, oid))
+        self.orderbook_change()
 
     def on_welcome(self):
         self.msgchan.request_orderbook()
 
     def on_nick_leave(self, nick):
         self.db.execute('DELETE FROM orderbook WHERE counterparty=?;', (nick,))
+        self.orderbook_change()
 
     def on_disconnect(self):
         self.db.execute('DELETE FROM orderbook;')
+
+    def orderbook_change(self):
+        return
 
 
 # assume this only has one open cj tx at a time
