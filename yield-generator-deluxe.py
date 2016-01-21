@@ -65,11 +65,8 @@ min_output_size = random.randrange(15000, 300000)  # varied
 #min_output_size = 15000 
 #min_output_size = jm_single().DUST_THRESHOLD # 546 satoshis
 
-# minimum revenue you require for a transaction (exact absorders for dust exempt)
-min_revenue = random.randrange(txfee_low, 12000)  # varied
-#min_revenue = txfee_low # break even
-#min_revenue = int(txfee_low * 1.5) # 50% net revenue
-#min_revenue = random.randrange(txfee_low, txfee_low * 3)
+# minimum profit you require for a transaction (exact absorders for dust exempt)
+profit_req_per_transaction = 1
 
 # You can override the above autogenerate options for maximum customization
 override_offers = None  # comment this line if using below
@@ -98,7 +95,8 @@ log.debug('txfee_low = ' + str(txfee_low))
 log.debug('txfee_high = ' + str(txfee_high))
 log.debug('min_output_size = ' + str(min_output_size) + " (" + str(
     min_output_size / 1e8) + " btc)")
-log.debug('min_revenue = ' + str(min_revenue))
+profit_req_per_transaction = max(profit_req_per_transaction, -250)  # safe guard
+log.debug('profit_req_per_transaction = ' + str(profit_req_per_transaction))
 
 
 def fib(n):
@@ -332,10 +330,13 @@ class YieldGenerator(Maker):
                 break
 
         for upper, lower, cjfee, txfee in offer_ranges:
-            if float(cjfee) > 0:
-                min_needed = int(min_revenue / float(cjfee))
-            else:
-                min_needed = min_revenue
+            cjfee = float(cjfee)
+            if cjfee == 0:
+                min_needed = profit_req_per_transaction + txfee
+            elif cjfee > 0:
+                min_needed = int((profit_req_per_transaction + txfee + 1) / cjfee)
+            elif cjfee < 0:
+                sys.exit('negative fee not supported here')
             if min_needed <= lower:
                 # create a regular relorder
                 offer = {'oid': oid,
@@ -351,7 +352,7 @@ class YieldGenerator(Maker):
                          'minsize': lower,
                          'maxsize': min_needed - 1,
                          'txfee': txfee,
-                         'cjfee': min_revenue}
+                         'cjfee': profit_req_per_transaction + txfee}
                 oid += 1
                 offers.append(offer)
                 offer = {'oid': oid,
@@ -367,7 +368,7 @@ class YieldGenerator(Maker):
                          'minsize': lower,
                          'maxsize': upper,
                          'txfee': txfee,
-                         'cjfee': min_revenue}
+                         'cjfee': profit_req_per_transaction + txfee}
                 # todo: combine neighboring absorders into a single one
             oid += 1
             offers.append(offer)
