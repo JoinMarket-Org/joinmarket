@@ -36,8 +36,8 @@ Widespread use of JoinMarket could improve bitcoin's fungibility as a commodity.
 
 1. `sudo apt-get update -y && sudo apt-get upgrade -y && sudo apt-get install python libsodium-dev -y`
 2. `sudo apt-get install python-matplotlib -y` (optional)
-3. Download JoinMarket 0.1.1 source from [here](https://github.com/joinmarket-org/joinmarket/releases/tag/v0.1.1)
-4. Extract or unzip and `cd joinmarket-0.1.1`
+3. Download JoinMarket 0.1.2 source from [here](https://github.com/joinmarket-org/joinmarket/releases/tag/v0.1.2)
+4. Extract or unzip and `cd joinmarket-0.1.2`
 4. Generating your first wallet will populate the configuration file: `joinmarket.cfg`.
    Check if the default settings suit your needs.
 
