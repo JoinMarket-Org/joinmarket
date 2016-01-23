@@ -56,7 +56,7 @@ class AttributeDict(object):
 
 # global_singleton = AttributeDict(
 #         **{'log': log,
-#            'JM_VERSION': 2,
+#            'JM_VERSION': 3,
 #            'nickname': None,
 #            'DUST_THRESHOLD': 2730,
 #            'bc_interface': None,
@@ -72,7 +72,7 @@ class AttributeDict(object):
 
 # todo: same as above.  decide!!!
 global_singleton = AttributeDict()
-global_singleton.JM_VERSION = 2
+global_singleton.JM_VERSION = 3
 global_singleton.nickname = None
 global_singleton.DUST_THRESHOLD = 2730
 global_singleton.bc_interface = None
