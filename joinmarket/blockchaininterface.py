@@ -437,8 +437,8 @@ class NotifyRequestHeader(BaseHTTPServer.BaseHTTPRequestHandler):
                     log.debug('ran confirmfun')
 
         elif self.path.startswith('/alertnotify?'):
-            jm_single().core_alert = urllib.unquote(self.path[len(pages[1]):])
-            log.debug('Got an alert!\nMessage=' + jm_single().core_alert)
+            jm_single().core_alert[0] = urllib.unquote(self.path[len(pages[1]):])
+            log.debug('Got an alert!\nMessage=' + jm_single().core_alert[0])
 
         else:
             log.debug('ERROR: This is not a handled URL path.  You may want to check your notify URL for typos.')

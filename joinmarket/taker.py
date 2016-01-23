@@ -405,8 +405,7 @@ class CoinJoinerPeer(object):
                 print('JOINMARKET ALERT')
                 print(alert)
                 print('=' * 60)
-                # todo: is this right?
-                jm_single().joinmarket_alert = alert
+                jm_single().joinmarket_alert[0] = alert
 
 
 class OrderbookWatch(CoinJoinerPeer):
