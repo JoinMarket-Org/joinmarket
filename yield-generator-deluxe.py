@@ -112,10 +112,9 @@ def fib_seq(low, high, num, upper_bound=False):
         num += 1
     else:
         x.append(low)
-    fib_sec = high / decimal.Decimal(fib(num))
-    for y in range(2, num):
+    fib_sec = (high - low) / decimal.Decimal(fib(num))
+    for y in range(2, (num + 1)):
         x.append(low + (fib_sec * fib(y)))
-    x.append(high)
     return x
 
 
