@@ -443,19 +443,24 @@ class YieldGenerator(Maker):
                           'amount, cjfee, and min_output_size.')
                 return None, None, None
 
+        # prioritize by mixdepths sequencially
+        # keep coins moving towards last mixdepth, clumps once they get there
+        # makes sure coins sent to mixdepth 0 will get mixed to max mixdepth
+        filtered_mix_balance = sorted(filtered_mix_balance, key=lambda x: x[0])
+
         # clumping. push all coins towards the largest mixdepth
         # the largest amount of coins are available to join with (since joins always come from a single depth)
         # the maker commands a higher fee for the larger amounts 
         # order ascending but circularly with largest last
         # note, no need to consider max_offer_size here
-        largest_mixdepth = sorted(
-            filtered_mix_balance,
-            key=lambda x: x[1],)[-1]  # find largest amount
-        smb = sorted(filtered_mix_balance,
-                     key=lambda x: x[0])  # seq of mixdepth num
-        next_index = smb.index(largest_mixdepth) + 1
-        mmd = self.wallet.max_mix_depth
-        filtered_mix_balance = smb[next_index % mmd:] + smb[:next_index % mmd]
+        #largest_mixdepth = sorted(
+        #    filtered_mix_balance,
+        #    key=lambda x: x[1],)[-1]  # find largest amount
+        #smb = sorted(filtered_mix_balance,
+        #             key=lambda x: x[0])  # seq of mixdepth num
+        #next_index = smb.index(largest_mixdepth) + 1
+        #mmd = self.wallet.max_mix_depth
+        #filtered_mix_balance = smb[next_index % mmd:] + smb[:next_index % mmd]
 
         # use mix depth that has the closest amount of coins to what this transaction needs
         # keeps coins moving through mix depths more quickly
