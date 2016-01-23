@@ -5,7 +5,7 @@ import logging
 from .support import get_log, calc_cj_fee, debug_dump_object, \
     choose_sweep_orders, choose_orders, \
     pick_order, cheapest_order_choose, weighted_order_choose, \
-    rand_norm_array, rand_pow_array, rand_exp_array
+    rand_norm_array, rand_pow_array, rand_exp_array, joinmarket_alert, core_alert
 from .enc_wrapper import decode_decrypt, encrypt_encode, get_pubkey
 from .irc import IRCMessageChannel, random_nick
 from .jsonrpc import JsonRpcError, JsonRpcConnectionError, JsonRpc

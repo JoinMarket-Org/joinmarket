@@ -234,9 +234,9 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
         orderbook_fmt = fd.read()
         fd.close()
         alert_msg = ''
-        if jm_single().joinmarket_alert:
+        if jm_single().joinmarket_alert[0]:
             alert_msg = '<br />JoinMarket Alert Message:<br />' + \
-                        jm_single().joinmarket_alert
+                        jm_single().joinmarket_alert[0]
         if self.path == '/':
             btc_unit = args['btcunit'][
                 0] if 'btcunit' in args else sorted_units[0]

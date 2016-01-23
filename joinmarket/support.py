@@ -29,7 +29,22 @@ logFormatter = logging.Formatter(
 log = logging.getLogger('joinmarket')
 log.setLevel(logging.DEBUG)
 
-consoleHandler = logging.StreamHandler(stream=sys.stdout)
+joinmarket_alert = ['']
+core_alert = ['']
+
+#consoleHandler = logging.StreamHandler(stream=sys.stdout)
+class JoinMarketStreamHandler(logging.StreamHandler):
+    def __init__(self, stream):
+        super(JoinMarketStreamHandler, self).__init__(stream)
+
+    def emit(self, record):
+        if joinmarket_alert[0]:
+            print('JoinMarket Alert Message: ' + joinmarket_alert[0])
+        if core_alert[0]:
+            print('Core Alert Message: ' + core_alert[0])
+        super(JoinMarketStreamHandler, self).emit(record)
+
+consoleHandler = JoinMarketStreamHandler(stream=sys.stdout)
 consoleHandler.setFormatter(logFormatter)
 log.addHandler(consoleHandler)
 
