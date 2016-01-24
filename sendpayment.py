@@ -176,7 +176,7 @@ class PaymentThread(threading.Thread):
 class SendPayment(Taker):
 
     def __init__(self, msgchan, wallet, destaddr, amount, makercount, txfee,
-                 waittime, mixdepth, answeryes, chooseOrdersFunc):
+                 waittime, mixdepth, answeryes, chooseOrdersFunc, isolated=False):
         Taker.__init__(self, msgchan)
         self.wallet = wallet
         self.destaddr = destaddr
@@ -187,10 +187,14 @@ class SendPayment(Taker):
         self.mixdepth = mixdepth
         self.answeryes = answeryes
         self.chooseOrdersFunc = chooseOrdersFunc
+        #extra variables for GUI-style
+        self.isolated = isolated
+        self.txid = None
 
     def on_welcome(self):
         Taker.on_welcome(self)
-        PaymentThread(self).start()
+        if not self.isolated:
+            PaymentThread(self).start()
 
 
 def main():
@@ -319,6 +323,104 @@ def main():
         import traceback
         log.debug(traceback.format_exc())
 
+
+#PaymentThread object modified (not a thread, refactored a bit)
+#The reason is that Qt won't work with python threads, and we need
+#separate threads for separate steps (returning chosen orders to gui),
+#so the threading is in the gui code.
+class PT(object):
+
+    def __init__(self, taker):
+        self.taker = taker
+        self.ignored_makers = []
+
+    def create_tx(self):
+        time.sleep(self.taker.waittime)
+        crow = self.taker.db.execute(
+            'SELECT COUNT(DISTINCT counterparty) FROM orderbook;').fetchone()
+        counterparty_count = crow['COUNT(DISTINCT counterparty)']
+        counterparty_count -= len(self.ignored_makers)
+        if counterparty_count < self.taker.makercount:
+            log.debug('not enough counterparties to fill order, ending')
+            self.taker.msgchan.shutdown()
+            return None, None
+
+        utxos = None
+        orders = None
+        cjamount = 0
+        change_addr = None
+        choose_orders_recover = None
+        orders, total_cj_fee = self.sendpayment_choose_orders(
+            self.taker.amount, self.taker.makercount)
+        if not orders:
+            log.debug(
+                'ERROR not enough liquidity in the orderbook, exiting')
+            return None, None
+        return orders, total_cj_fee
+
+    def do_tx(self, total_cj_fee, orders):
+        total_amount = self.taker.amount + total_cj_fee + \
+            self.taker.txfee*self.taker.makercount
+        log.debug('total estimated amount spent = ' + str(total_amount))
+        #adjust the required amount upwards to anticipate a tripling of
+        #transaction fee after re-estimation; this is sufficiently conservative
+        #to make failures unlikely while keeping the occurence of failure to
+        #find sufficient utxos extremely rare. Indeed, a tripling of 'normal'
+        #txfee indicates undesirable behaviour on maker side anyway.
+        try:
+            utxos = self.taker.wallet.select_utxos(self.taker.mixdepth,
+                    total_amount+2*self.taker.txfee*self.taker.makercount)
+        except Exception as e:
+            log.debug("Failed to select coins: "+repr(e))
+            return
+        cjamount = self.taker.amount
+        log.debug("using coinjoin amount: "+str(cjamount))
+        change_addr = self.taker.wallet.get_internal_addr(self.taker.mixdepth)
+        log.debug("using change address: "+change_addr)
+        choose_orders_recover = self.sendpayment_choose_orders
+        log.debug("About to start coinjoin")
+        try:
+            self.taker.start_cj(self.taker.wallet, cjamount, orders, utxos,
+                            self.taker.destaddr, change_addr,
+                             self.taker.makercount*self.taker.txfee,
+                                self.finishcallback, choose_orders_recover)
+        except Exception as e:
+            log.debug("failed to start coinjoin: "+repr(e))
+
+    def finishcallback(self, coinjointx):
+        if coinjointx.all_responded:
+            pushed = coinjointx.self_sign_and_push()
+            if pushed:
+                log.debug('created fully signed tx, ending')
+                self.taker.txid = coinjointx.txid
+            else:
+                #Error should be in log, will not retry.
+                log.debug('failed to push tx, ending.')
+            self.taker.msgchan.shutdown()
+            return
+        self.ignored_makers += coinjointx.nonrespondants
+        log.debug('recreating the tx, ignored_makers=' + str(
+            self.ignored_makers))
+        self.create_tx()
+
+    def sendpayment_choose_orders(self,
+                                  cj_amount,
+                                  makercount,
+                                  nonrespondants=None,
+                                  active_nicks=None):
+        if nonrespondants is None:
+            nonrespondants = []
+        if active_nicks is None:
+            active_nicks = []
+        self.ignored_makers += nonrespondants
+        orders, total_cj_fee = choose_orders(
+            self.taker.db, cj_amount, makercount, self.taker.chooseOrdersFunc,
+            self.ignored_makers + active_nicks)
+        if not orders:
+            return None, 0
+        log.debug('chosen orders to fill ' + str(orders) + ' totalcjfee=' + str(
+            total_cj_fee))
+        return orders, total_cj_fee
 
 if __name__ == "__main__":
     main()

@@ -15,7 +15,7 @@ from .old_mnemonic import mn_decode, mn_encode
 from .slowaes import decryptData, encryptData
 from .taker import Taker, OrderbookWatch
 from .wallet import AbstractWallet, BitcoinCoreInterface, Wallet, \
-    BitcoinCoreWallet
+    BitcoinCoreWallet, create_wallet_file
 from .configure import load_program_config, jm_single, get_p2pk_vbyte, \
     get_network, jm_single, get_network, validate_address
 from .blockchaininterface import BlockrInterface
