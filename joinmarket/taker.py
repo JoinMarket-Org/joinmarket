@@ -302,7 +302,7 @@ class CoinJoinTX(object):
         # self.msgchan.push_tx(self.active_orders.keys()[0], txhex)
         pushed = jm_single().bc_interface.pushtx(tx)
         if pushed[0]:
-            self.txid = pushed[1]
+            self.txid = btc.txhash(tx)
         else:
             log.debug('unable to pushtx, reason: '+str(pushed[1]))
         return pushed[0]

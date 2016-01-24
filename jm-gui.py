@@ -581,11 +581,9 @@ class SpendTab(QWidget):
         #convert from bitcoins (enforced by QDoubleValidator) to satoshis
         self.btc_amount_str = str(self.widgets[3][1].text())
         amount = int(Decimal(self.btc_amount_str)*Decimal('1e8'))
-        QMessageBox.information(self,"Info", "amount: "+str(amount))
-        return
         makercount = int(self.widgets[1][1].text())
         mixdepth = int(self.widgets[2][1].text())
-        self.taker = SendPayment(self.irc, w.wallet, destaddr, amount, makercount,
+        self.taker = SendPayment(self.irc, w.wallet, self.destaddr, amount, makercount,
                                             5000, 30, mixdepth,
                                             False, weighted_order_choose,
                                             isolated=True)        
@@ -642,7 +640,7 @@ class SpendTab(QWidget):
             w.statusBar().showMessage("Transaction completed successfully.")
             QMessageBox.information(self,"Success",
                                     "Transaction has been broadcast.\n"+
-                                "Txid: "+self.taker.txid)
+                                "Txid: "+str(self.taker.txid))
         self.startButton.setEnabled(True)
         self.abortButton.setEnabled(False)
         
