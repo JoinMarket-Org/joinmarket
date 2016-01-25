@@ -55,7 +55,7 @@ import socks
 log = get_log()
 #TODO options/settings not global
 gaplimit = 6
-
+history_file = 'jm-tx-history.txt'
 #configuration types
 config_types = {'rpc_port': int,
                 'port': int,
@@ -280,7 +280,7 @@ class MyTreeWidget(QTreeWidget):
         self.parent = parent
         self.stretch_column = stretch_column
         self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        self.customContextMenuRequested.connect(self.create_menu)
+        self.customContextMenuRequested.connect(create_menu)
         self.setUniformRowHeights(True)
         # extend the syntax for consistency
         self.addChild = self.addTopLevelItem
@@ -295,29 +295,6 @@ class MyTreeWidget(QTreeWidget):
         #self.setItemDelegate(ElectrumItemDelegate(self))
         self.itemActivated.connect(self.on_activated)
         self.update_headers(headers)
-
-    def create_menu(self, position):
-        self.selectedIndexes()
-        item = self.currentItem()
-        address_valid = False
-        if item:
-            address = str(item.text(0))
-            try:
-                btc.b58check_to_hex(address)
-                address_valid = True
-            except AssertionError:
-                print 'no btc address found, not creating menu item'
-        
-        menu = QMenu()
-        if address_valid:
-            menu.addAction("Copy address to clipboard", 
-                           lambda: app.clipboard().setText(address))
-        menu.addAction("Resync wallet from blockchain", lambda: w.resyncWallet())
-        #TODO add more items to context menu
-        #menu.addAction(_("Details"), lambda: self.parent.show_transaction(self.wallet.transactions.get(tx_hash)))
-        #menu.addAction(_("Edit description"), lambda: self.editItem(item, self.editable_columns[0]))
-        #menu.addAction(_("View on block explorer"), lambda: webbrowser.open(tx_URL))
-        menu.exec_(self.viewport().mapToGlobal(position))    
 
     def update_headers(self, headers):
         self.setColumnCount(len(headers))
@@ -424,9 +401,7 @@ class MyTreeWidget(QTreeWidget):
         for item in self.get_leaves(self.invisibleRootItem()):
             item.setHidden(all([unicode(item.text(column)).lower().find(p) == -1
                                 for column in columns]))
-            
-#TODO change denominations, mbtc, ubtc, bits
-# make a satoshi_to_unit() and unit_to_satoshi()
+
 class SettingsTab(QDialog):
     def __init__(self):
         super(SettingsTab, self).__init__()
@@ -456,7 +431,6 @@ class SettingsTab(QDialog):
                 if str(ns[0].text()) in config_tips:
                     ttS = config_tips[str(ns[0].text())]
                     ns[0].setToolTip(ttS)
-                #TODO why doesn't addWidget() with colspan = -1 work?
                 grid.addWidget(ns[1],j,1)
                 sfindex = len(self.settingsFields)-len(newSettingsFields)+k
                 if isinstance(ns[1], QCheckBox):
@@ -652,6 +626,11 @@ class SpendTab(QWidget):
             QMessageBox.information(self,"Success",
                                     "Transaction has been broadcast.\n"+
                                 "Txid: "+str(self.taker.txid))
+            #persist the transaction to history
+            with open(history_file,'ab') as f:
+                f.write(','.join([self.destaddr, self.btc_amount_str,
+                        self.taker.txid,
+                        datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")]))
         self.startButton.setEnabled(True)
         self.abortButton.setEnabled(False)
         
@@ -717,6 +696,79 @@ class SpendTab(QWidget):
         return results
         
 
+class TxHistoryTab(QWidget):
+    def __init__(self):
+        super(TxHistoryTab, self).__init__()
+        self.initUI()
+
+    def initUI(self):
+        self.tHTW = MyTreeWidget(self,
+                                    self.create_menu, self.getHeaders())
+        self.tHTW.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.tHTW.header().setResizeMode(QHeaderView.Interactive)
+        self.tHTW.header().setStretchLastSection(False)
+        self.tHTW.on_update = self.updateTxInfo
+        vbox = QVBoxLayout()
+        self.setLayout(vbox)
+        vbox.setMargin(0)
+        vbox.setSpacing(0)
+        vbox.addWidget(self.tHTW)
+        self.updateTxInfo()
+        self.show()
+
+    def getHeaders(self):
+            '''Function included in case dynamic in future'''
+            return ['Receiving address','Amount in BTC','Transaction id','Date']
+
+    def updateTxInfo(self, txinfo=None):
+        self.tHTW.clear()
+        if not txinfo:
+            txinfo = self.getTxInfoFromFile()
+        for t in txinfo:
+            t_item = QTreeWidgetItem(t)
+            self.tHTW.addChild(t_item)
+        for i in range(4):
+            self.tHTW.resizeColumnToContents(i)
+
+    def getTxInfoFromFile(self):
+        if not os.path.isfile(history_file):
+            if w:
+                w.statusBar().showMessage("No transaction history found.")
+            return []
+        txhist = []
+        with open(history_file,'rb') as f:
+            txlines = f.readlines()
+            for tl in txlines:
+                txhist.append(tl.strip().split(','))
+                if not len(txhist[-1])==4:
+                    QMessageBox.warning(self,"Error",
+                                "Incorrectedly formatted file jm-tx-history.txt")
+                    w.statusBar().showMessage("No transaction history found.")
+                    return []
+        return txhist[::-1] #appended to file in date order, window shows reverse
+
+    def create_menu(self, position):
+        item = self.tHTW.currentItem()
+        address_valid = False
+        if item:
+            address = str(item.text(0))
+            try:
+                btc.b58check_to_hex(address)
+                address_valid = True
+            except AssertionError:
+                log.debug('no btc address found, not creating menu item')
+
+        menu = QMenu()
+        if address_valid:
+            menu.addAction("Copy address to clipboard",
+                           lambda: app.clipboard().setText(address))
+        menu.addAction("Copy transaction id to clipboard",
+                       lambda: app.clipboard().setText(str(item.text(2))))
+        menu.addAction("Copy full tx info to clipboard",
+                       lambda: app.clipboard().setText(
+                           ','.join([str(item.text(_)) for _ in range(4)])))
+        menu.exec_(self.tHTW.viewport().mapToGlobal(position))
+
 class JMWalletTab(QWidget):
     def __init__(self, mixdepths):
         super(JMWalletTab, self).__init__()
@@ -729,7 +781,7 @@ class JMWalletTab(QWidget):
             "CURRENT WALLET: "+self.wallet_name + ', total balance: 0.0',
                              self)
         #label1.resize(300,120)
-        v = MyTreeWidget(self, None, self.getHeaders())
+        v = MyTreeWidget(self, self.create_menu, self.getHeaders())
         v.setSelectionMode(QAbstractItemView.ExtendedSelection)
         v.on_update = self.updateWalletInfo
         self.history = v
@@ -749,6 +801,25 @@ class JMWalletTab(QWidget):
     def getHeaders(self):
         '''Function included in case dynamic in future'''
         return ['Address','Index','Balance','Used/New']
+
+    def create_menu(self, position):
+        item = self.history.currentItem()
+        address_valid = False
+        if item:
+            address = str(item.text(0))
+            try:
+                btc.b58check_to_hex(address)
+                address_valid = True
+            except AssertionError:
+                print 'no btc address found, not creating menu item'
+
+        menu = QMenu()
+        if address_valid:
+            menu.addAction("Copy address to clipboard",
+                           lambda: app.clipboard().setText(address))
+        menu.addAction("Resync wallet from blockchain", lambda: w.resyncWallet())
+        #TODO add more items to context menu
+        menu.exec_(self.history.viewport().mapToGlobal(position))
 
     def updateWalletInfo(self, walletinfo=None):
         l = self.history
@@ -1067,6 +1138,7 @@ tabWidget.addTab(JMWalletTab(mdepths), "JM Wallet")
 settingsTab = SettingsTab()
 tabWidget.addTab(settingsTab, "Settings")
 tabWidget.addTab(SpendTab(), "Send Payment")
+tabWidget.addTab(TxHistoryTab(),"Tx History")
 w.resize(500, 300)
 #w.move(300, 300)
 suffix = ' - Testnet' if get_network() == 'testnet' else ''
