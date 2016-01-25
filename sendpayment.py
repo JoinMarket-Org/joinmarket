@@ -342,7 +342,8 @@ class PT(object):
         counterparty_count -= len(self.ignored_makers)
         if counterparty_count < self.taker.makercount:
             log.debug('not enough counterparties to fill order, ending')
-            self.taker.msgchan.shutdown()
+            #NB: don't shutdown msgchan here, that is done by the caller
+            #after setting GUI state to reflect the reason for shutdown.
             return None, None
 
         utxos = None

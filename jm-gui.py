@@ -562,6 +562,7 @@ class SpendTab(QWidget):
         self.show()
     
     def startSendPayment(self):
+        self.aborted = False
         if not self.validateSettings():
             return
         #all settings are valid; start
@@ -604,6 +605,7 @@ class SpendTab(QWidget):
     def doTx(self):
         if not self.orders:
             QMessageBox.warning(self,"Error","Not enough matching orders found.")
+            self.giveUp()
             return
         total_fee_pc = 1.0 * self.total_cj_fee / self.taker.amount
         mbinfo = []
@@ -629,13 +631,22 @@ class SpendTab(QWidget):
             thread3.add(partial(self.pt.do_tx,self.total_cj_fee, self.orders), 
                         on_done=None)
         else:
-            log.debug('You rejected the transaction')
+            self.giveUp()
             return
+    
+    def giveUp(self):
+        self.aborted = True
+        log.debug("Transaction aborted.")
+        self.taker.msgchan.shutdown()
+        self.abortButton.setEnabled(False)
+        self.startButton.setEnabled(True)
+        w.statusBar().showMessage("Transaction aborted.")
     
     def cleanUp(self):
         if not self.taker.txid:
-            w.statusBar().showMessage("Transaction aborted.")
-            QMessageBox.warning(self,"Failed","Transaction was not completed.")
+            if not self.aborted:
+                w.statusBar().showMessage("Transaction failed.")
+                QMessageBox.warning(self,"Failed","Transaction was not completed.")
         else:
             w.statusBar().showMessage("Transaction completed successfully.")
             QMessageBox.information(self,"Success",
