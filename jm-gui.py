@@ -53,6 +53,8 @@ import socks
 #from socksipyhandler import SocksiPyHandler
 
 log = get_log()
+donation_address = '1LT6rwv26bV7mgvRosoSCyGM7ttVRsYidP'
+donation_address_testnet = 'mz6FQosuiNe8135XaQqWYmXsa3aD8YsqGL'
 #TODO options/settings not global
 gaplimit = 6
 history_file = 'jm-tx-history.txt'
@@ -504,11 +506,27 @@ class SpendTab(QWidget):
         innerTopLayout = QGridLayout()
         innerTopLayout.setSpacing(4)
         iFrame.setLayout(innerTopLayout)
+
+        donateLayout = QHBoxLayout()
+        self.donateCheckBox = QCheckBox()
+        self.donateCheckBox.setChecked(True)
+        self.donateLimitBox = QDoubleSpinBox()
+        self.donateLimitBox.setMinimum(0.001)
+        self.donateLimitBox.setMaximum(0.100)
+        self.donateLimitBox.setSingleStep(0.001)
+        self.donateLimitBox.setDecimals(3)
+        self.donateLimitBox.setValue(0.010)
+
+        donateLayout.addWidget(self.donateCheckBox)
+        donateLayout.addWidget(QLabel("Check to send change lower than: "))
+        donateLayout.addWidget(self.donateLimitBox)
+        donateLayout.addWidget(QLabel(" BTC as a donation."))
+        innerTopLayout.addLayout(donateLayout, 0, 0, 1, 2)
         
         self.widgets = self.getSettingsWidgets()
         for i, x in enumerate(self.widgets):
-            innerTopLayout.addWidget(x[0],i,0)
-            innerTopLayout.addWidget(x[1],i,1)
+            innerTopLayout.addWidget(x[0],i+1,0)
+            innerTopLayout.addWidget(x[1],i+1,1)
         self.widgets[0][1].editingFinished.connect(lambda : self.checkAddress(
             self.widgets[0][1].text()))
         self.startButton =QPushButton('Start')
@@ -523,7 +541,7 @@ class SpendTab(QWidget):
         buttons.addStretch(1)
         buttons.addWidget(self.startButton)
         buttons.addWidget(self.abortButton)
-        innerTopLayout.addLayout(buttons, len(self.widgets), 0, 1, 2)        
+        innerTopLayout.addLayout(buttons, len(self.widgets)+1, 0, 1, 2)
         splitter1 = QSplitter(QtCore.Qt.Vertical)
         textedit = QTextEdit()
         XStream.stdout().messageWritten.connect(textedit.insertPlainText)
@@ -602,7 +620,15 @@ class SpendTab(QWidget):
             log.debug('You agreed, transaction proceeding')
             w.statusBar().showMessage("Building transaction...")
             thread3 = TaskThread(self)
-            thread3.add(partial(self.pt.do_tx,self.total_cj_fee, self.orders), 
+            log.debug("Trigger is: "+str(self.donateLimitBox.value()))
+            if get_network()=='testnet':
+                da = donation_address_testnet
+            else:
+                da = donation_address
+            thread3.add(partial(self.pt.do_tx,self.total_cj_fee, self.orders,
+                                self.donateCheckBox.isChecked(),
+                                self.donateLimitBox.value(),
+                                da),
                         on_done=None)
         else:
             self.giveUp()
@@ -631,6 +657,7 @@ class SpendTab(QWidget):
                 f.write(','.join([self.destaddr, self.btc_amount_str,
                         self.taker.txid,
                         datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")]))
+                f.write('\n') #TODO: Windows
         self.startButton.setEnabled(True)
         self.abortButton.setEnabled(False)
         
@@ -940,9 +967,12 @@ class JMMainWindow(QMainWindow):
 
     def showAboutDialog(self):
         QMessageBox.about(self, "Joinmarket",
-            "Version"+" %s" % (str(jm_single().JM_VERSION)) + 
-            "\n\n" + 
-            "Joinmarket sendpayment tool")
+            "\n".join(["Joinmarket version: 0.1.2",
+            "Protocol version:"+" %s" % (str(jm_single().JM_VERSION)),
+            "Joinmarket sendpayment tool",
+            "Help support Bitcoin fungibility -"
+            "donate here: ",
+            donation_address]))
         
     def recoverWallet(self):
         if get_network()=='testnet':

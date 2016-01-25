@@ -359,7 +359,8 @@ class PT(object):
             return None, None
         return orders, total_cj_fee
 
-    def do_tx(self, total_cj_fee, orders):
+    def do_tx(self, total_cj_fee, orders,
+              donate=False, donate_trigger=1000000, donation_address=None):
         total_amount = self.taker.amount + total_cj_fee + \
             self.taker.txfee*self.taker.makercount
         log.debug('total estimated amount spent = ' + str(total_amount))
@@ -374,9 +375,20 @@ class PT(object):
         except Exception as e:
             log.debug("Failed to select coins: "+repr(e))
             return
+        my_total_in = sum([va['value'] for u, va in utxos.iteritems()])
         cjamount = self.taker.amount
         log.debug("using coinjoin amount: "+str(cjamount))
-        change_addr = self.taker.wallet.get_internal_addr(self.taker.mixdepth)
+        change_amount = my_total_in-cjamount
+        log.debug("using change amount: "+str(change_amount))
+        if donate and change_amount < donate_trigger*1e8:
+            #sanity check
+            res = validate_address(donation_address)
+            if not res[0]:
+                log.debug("Donation address invalid! Error: "+res[1])
+                return
+            change_addr = donation_address
+        else:
+            change_addr = self.taker.wallet.get_internal_addr(self.taker.mixdepth)
         log.debug("using change address: "+change_addr)
         choose_orders_recover = self.sendpayment_choose_orders
         log.debug("About to start coinjoin")
