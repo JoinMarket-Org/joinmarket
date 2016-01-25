@@ -180,6 +180,30 @@ class CancelButton(QPushButton):
         QPushButton.__init__(self, label or "Cancel")
         self.clicked.connect(dialog.reject)
 
+class HelpLabel(QLabel):
+
+    def __init__(self, text, help_text, wtitle):
+        QLabel.__init__(self, text)
+        self.help_text = help_text
+        self.wtitle = wtitle
+        self.font = QFont()
+        self.setStyleSheet("QLabel {color: blue;}")
+
+    def mouseReleaseEvent(self, x):
+        QMessageBox.information(w, self.wtitle, self.help_text, 'OK')
+
+    def enterEvent(self, event):
+        self.font.setUnderline(True)
+        self.setFont(self.font)
+        app.setOverrideCursor(QCursor(QtCore.Qt.PointingHandCursor))
+        return QLabel.enterEvent(self, event)
+
+    def leaveEvent(self, event):
+        self.font.setUnderline(False)
+        self.setFont(self.font)
+        app.setOverrideCursor(QCursor(QtCore.Qt.ArrowCursor))
+        return QLabel.leaveEvent(self, event)
+
 
 def check_password_strength(password):
     '''
@@ -509,24 +533,48 @@ class SpendTab(QWidget):
 
         donateLayout = QHBoxLayout()
         self.donateCheckBox = QCheckBox()
-        self.donateCheckBox.setChecked(True)
+        self.donateCheckBox.setChecked(False)
+        self.donateCheckBox.setMaximumWidth(30)
         self.donateLimitBox = QDoubleSpinBox()
         self.donateLimitBox.setMinimum(0.001)
         self.donateLimitBox.setMaximum(0.100)
         self.donateLimitBox.setSingleStep(0.001)
         self.donateLimitBox.setDecimals(3)
         self.donateLimitBox.setValue(0.010)
+        self.donateLimitBox.setMaximumWidth(100)
+        self.donateLimitBox.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
 
         donateLayout.addWidget(self.donateCheckBox)
-        donateLayout.addWidget(QLabel("Check to send change lower than: "))
+        label1 = QLabel("Check to send change lower than: ")
+        label1.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        donateLayout.addWidget(label1)
+        donateLayout.setAlignment(label1, QtCore.Qt.AlignLeft)
         donateLayout.addWidget(self.donateLimitBox)
-        donateLayout.addWidget(QLabel(" BTC as a donation."))
+        donateLayout.setAlignment(self.donateLimitBox, QtCore.Qt.AlignLeft)
+        label2 = QLabel(" BTC as a donation.")
+        donateLayout.addWidget(label2)
+        label2.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        donateLayout.setAlignment(label2, QtCore.Qt.AlignLeft)
+        label3 = HelpLabel('More','\n'.join(
+            ['If the calculated change for your transaction',
+             'is smaller than the value you choose (default 0.01 btc)',
+             'then that change is sent as a donation. If your change',
+             'is larger than that, there will be no donation.',
+             '',
+             'As well as helping the developers, this feature can,',
+             'in certain circumstances, improve privacy, because there',
+             'is no change output that can be linked with your inputs later.']),
+             'About the donation feature')
+        label3.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        donateLayout.setAlignment(label3, QtCore.Qt.AlignLeft)
+        donateLayout.addWidget(label3)
+        donateLayout.addStretch(1)
         innerTopLayout.addLayout(donateLayout, 0, 0, 1, 2)
         
         self.widgets = self.getSettingsWidgets()
         for i, x in enumerate(self.widgets):
-            innerTopLayout.addWidget(x[0],i+1,0)
-            innerTopLayout.addWidget(x[1],i+1,1)
+            innerTopLayout.addWidget(x[0], i+1, 0)
+            innerTopLayout.addWidget(x[1], i+1, 1, 1, 2)
         self.widgets[0][1].editingFinished.connect(lambda : self.checkAddress(
             self.widgets[0][1].text()))
         self.startButton =QPushButton('Start')
@@ -548,7 +596,7 @@ class SpendTab(QWidget):
         XStream.stderr().messageWritten.connect(textedit.insertPlainText)        
         splitter1.addWidget(top)
         splitter1.addWidget(textedit)
-        splitter1.setSizes([400,200])
+        splitter1.setSizes([400, 200])
         self.setLayout(vbox)
         vbox.addWidget(splitter1)
         self.show()
@@ -576,10 +624,9 @@ class SpendTab(QWidget):
         amount = int(Decimal(self.btc_amount_str)*Decimal('1e8'))
         makercount = int(self.widgets[1][1].text())
         mixdepth = int(self.widgets[2][1].text())
-        self.taker = SendPayment(self.irc, w.wallet, self.destaddr, amount, makercount,
-                                            5000, 30, mixdepth,
-                                            False, weighted_order_choose,
-                                            isolated=True)        
+        self.taker = SendPayment(self.irc, w.wallet, self.destaddr, amount,
+                                 makercount, 5000, 30, mixdepth, False,
+                                 weighted_order_choose, isolated=True)
         thread = TaskThread(self)
         thread.add(self.runIRC, on_done=self.cleanUp)                
         w.statusBar().showMessage("Connecting to IRC ...")
