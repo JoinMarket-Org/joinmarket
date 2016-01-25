@@ -591,16 +591,20 @@ class SpendTab(QWidget):
         buttons.addWidget(self.abortButton)
         innerTopLayout.addLayout(buttons, len(self.widgets)+1, 0, 1, 2)
         splitter1 = QSplitter(QtCore.Qt.Vertical)
-        textedit = QTextEdit()
-        XStream.stdout().messageWritten.connect(textedit.insertPlainText)
-        XStream.stderr().messageWritten.connect(textedit.insertPlainText)        
+        self.textedit = QTextEdit()
+        self.textedit.verticalScrollBar().rangeChanged.connect(self.resizeScroll)
+        XStream.stdout().messageWritten.connect(self.textedit.insertPlainText)
+        XStream.stderr().messageWritten.connect(self.textedit.insertPlainText)
         splitter1.addWidget(top)
-        splitter1.addWidget(textedit)
+        splitter1.addWidget(self.textedit)
         splitter1.setSizes([400, 200])
         self.setLayout(vbox)
         vbox.addWidget(splitter1)
         self.show()
     
+    def resizeScroll(self, mini, maxi):
+        self.textedit.verticalScrollBar().setValue(maxi)
+
     def startSendPayment(self):
         self.aborted = False
         if not self.validateSettings():
