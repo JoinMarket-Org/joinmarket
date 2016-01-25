@@ -1063,9 +1063,12 @@ class JMMainWindow(QMainWindow):
 
     def selectWallet(self, testnet_seed=None):
         if get_network() != 'testnet':
+            current_path = os.path.dirname(os.path.realpath(__file__))
+            if os.path.isdir(os.path.join(current_path,'wallets')):
+                current_path = os.path.join(current_path,'wallets')
             firstarg = QFileDialog.getOpenFileName(self, 'Choose Wallet File', 
-                    directory='/home/adam/DevRepos/JoinMarket/testing/joinmarket/wallets')
-            #TODO validate the wallet file, set the directory properly
+                    directory=current_path)
+            #TODO validate the file looks vaguely like a wallet file
             log.debug('first arg is: '+firstarg)
             if not firstarg:
                 return
