@@ -45,7 +45,7 @@ import bitcoin as btc
 from joinmarket import load_program_config, get_network, Wallet, encryptData, \
     get_p2pk_vbyte, jm_single, mn_decode, mn_encode, create_wallet_file, \
     validate_address, random_nick, get_log, IRCMessageChannel, \
-    weighted_order_choose 
+    weighted_order_choose, get_blockchain_interface_instance
 
 from sendpayment import SendPayment, PT
 #https://gist.github.com/e000/869791
@@ -485,11 +485,16 @@ class SettingsTab(QDialog):
             else:
                 oname = str(t[0].text())
                 oval = 'true' if checked else 'false'
-            print 'setting sectoin: '+section+' and name: '+oname+' to: '+oval
+            log.debug('setting section: '+section+' and name: '+oname+' to: '+oval)
             jm_single().config.set(section,oname,oval)
     
         else: #currently there is only QLineEdit
+            log.debug('setting section: '+section+' and name: '+
+                      str(t[0].text())+' to: '+str(t[1].text()))
             jm_single().config.set(section, str(t[0].text()),str(t[1].text()))
+            if str(t[0].text())=='blockchain_source':
+                jm_single().bc_interface = get_blockchain_interface_instance(
+                    jm_single().config)
         
     def getSettingsFields(self, section, names):
         results = []
