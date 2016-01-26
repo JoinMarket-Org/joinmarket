@@ -955,7 +955,7 @@ class JMWalletTab(QWidget):
                 btc.b58check_to_hex(address)
                 address_valid = True
             except AssertionError:
-                print 'no btc address found, not creating menu item'
+                log.debug('no btc address found, not creating menu item')
 
         menu = QMenu()
         if address_valid:
@@ -1139,16 +1139,13 @@ class JMMainWindow(QMainWindow):
         layout.addLayout(hbox, 3, 0)
         result = d.exec_()
         if result != QDialog.Accepted:
-            print 'cancelled'
             return
         msg = str(message_e.toPlainText())
         words = msg.split() #splits on any number of ws chars
-        print words
         if not len(words)==12:
             QMessageBox.warning(self, "Error","You did not provide 12 words, aborting.")
         else:
             seed = mn_decode(words)
-            print 'seed is: '+seed
             self.initWallet(seed=seed)
             
 
@@ -1217,7 +1214,7 @@ class JMMainWindow(QMainWindow):
         
 
     def generateWallet(self):
-        print 'generating wallet'
+        log.debug('generating wallet')
         if get_network() == 'testnet':
             seed = self.getTestnetSeed()
             self.selectWallet(testnet_seed=seed)
@@ -1253,8 +1250,7 @@ class JMMainWindow(QMainWindow):
                 QMessageBox.warning(self,"Error","Passwords don't match.")
                 continue
             break
-        
-        print 'got password: '+str(pd.new_pw.text())
+
         walletfile = create_wallet_file(str(pd.new_pw.text()), seed)
         walletname, ok = QInputDialog.getText(self, 'Choose wallet name', 
                     'Enter wallet file name:', QLineEdit.Normal,"wallet.json")
