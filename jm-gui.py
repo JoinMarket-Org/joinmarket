@@ -140,7 +140,7 @@ def update_config_for_gui():
 def persist_config():
     '''This loses all comments in the config file.
     TODO: possibly correct that.'''
-    with open('joinmarket.cfg','wb') as f:
+    with open('joinmarket.cfg','w') as f:
         jm_single().config.write(f)
 
 class QtHandler(logging.Handler):
