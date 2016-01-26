@@ -55,9 +55,7 @@ from sendpayment import SendPayment, PT
 log = get_log()
 donation_address = '1LT6rwv26bV7mgvRosoSCyGM7ttVRsYidP'
 donation_address_testnet = 'mz6FQosuiNe8135XaQqWYmXsa3aD8YsqGL'
-#TODO options/settings not global
-gaplimit = 6
-history_file = 'jm-tx-history.txt'
+
 #configuration types
 config_types = {'rpc_port': int,
                 'port': int,
@@ -66,7 +64,12 @@ config_types = {'rpc_port': int,
                 'network': bool,
                 'socks5_port': int,
                 'maker_timeout_sec': int,
-                'tx_fees': int}
+                'tx_fees': int,
+                'gaplimit': int,
+                'check_high_fee': int,
+                'max_mix_depth': int,
+                'txfee_default': int,
+                'order_wait_time': int}
 config_tips = {'blockchain_source': 
                'options: blockr, bitcoin-rpc',
                'network':
@@ -106,8 +109,39 @@ config_tips = {'blockchain_source':
                'as the value of "tx_fees". This estimate is high if you set N=1, \n'+
                'so we choose N=3 for a more reasonable figure, \n'+
                'as our default. Note that for clients not using a local blockchain \n'+
-               'instance, we retrieve an estimate from the API at blockcypher.com, currently. \n' 
+               'instance, we retrieve an estimate from the API at blockcypher.com, currently. \n',
+               'gaplimit': 'How far forward to search for used addresses in the HD wallet',
+               'check_high_fee': 'Percent fee considered dangerously high, default 2%',
+               'max_mix_depth': 'Total number of mixdepths in the wallet, default 5',
+               'txfee_default': 'Number of satoshis per counterparty for an initial\n'+
+               'tx fee estimate; this value is not usually used and is best left at\n'+
+               'the default of 5000',
+               'order_wait_time': 'How long to wait for orders to arrive on entering\n'+
+               'the message channel, default is 30s'
                }
+
+def update_config_for_gui():
+    '''The default joinmarket config does not contain these GUI settings
+    (they are generally set by command line flags or not needed).
+    If they are set in the file, use them, else set the defaults.
+    These *will* be persisted to joinmarket.cfg, but that will not affect
+    operation of the command line version.
+    '''
+    gui_config_names = ['gaplimit', 'history_file', 'check_high_fee',
+                        'max_mix_depth', 'txfee_default', 'order_wait_time']
+    gui_config_default_vals = ['6', 'jm-tx-history.txt', '2', '5', '5000', '30']
+    if "GUI" not in jm_single().config.sections():
+        jm_single().config.add_section("GUI")
+    gui_items = jm_single().config.items("GUI")
+    for gcn, gcv in zip(gui_config_names, gui_config_default_vals):
+        if gcn not in [_[0] for _ in gui_items]:
+            jm_single().config.set("GUI", gcn, gcv)
+
+def persist_config():
+    '''This loses all comments in the config file.
+    TODO: possibly correct that.'''
+    with open('joinmarket.cfg','wb') as f:
+        jm_single().config.write(f)
 
 class QtHandler(logging.Handler):
     def __init__(self):
@@ -439,6 +473,12 @@ class SettingsTab(QDialog):
         j = 0
         for i,section in enumerate(jm_single().config.sections()):
             pairs = jm_single().config.items(section)
+            #an awkward design element from the core code: maker_timeout_sec
+            #is set outside the config, if it doesn't exist in the config.
+            #Add it here and it will be in the newly updated config file.
+            if section=='MESSAGING' and 'maker_timeout_sec' not in [_[0] for _ in pairs]:
+                jm_single().config.set(section, 'maker_timeout_sec', '60')
+                pairs = jm_single().config.items(section)
             newSettingsFields = self.getSettingsFields(section, 
                                 [_[0] for _ in pairs])
             self.settingsFields.extend(newSettingsFields)
@@ -630,8 +670,11 @@ class SpendTab(QWidget):
         makercount = int(self.widgets[1][1].text())
         mixdepth = int(self.widgets[2][1].text())
         self.taker = SendPayment(self.irc, w.wallet, self.destaddr, amount,
-                                 makercount, 5000, 30, mixdepth, False,
-                                 weighted_order_choose, isolated=True)
+                                 makercount,
+                                 jm_single().config.getint("GUI", "txfee_default"),
+                                 jm_single().config.getint("GUI", "order_wait_time"),
+                                 mixdepth, False, weighted_order_choose,
+                                 isolated=True)
         self.pt = PT(self.taker)
         if ignored_makers:
             self.pt.ignored_makers.extend(ignored_makers)
@@ -665,7 +708,7 @@ class SpendTab(QWidget):
         mbinfo.append('Total coinjoin fee = ' + str(float('%.3g' % (
             100.0 * total_fee_pc))) + '%')
         title = 'Check Transaction'
-        if total_fee_pc > 2:
+        if total_fee_pc > jm_single().config.getint("GUI","check_high_fee"):
             title += ': WARNING: Fee is HIGH!!'
         reply = QMessageBox.question(self,
                                      title,'\n'.join(mbinfo),
@@ -713,6 +756,8 @@ class SpendTab(QWidget):
                     if reply == QMessageBox.Yes:
                         self.startSendPayment(ignored_makers=self.pt.ignored_makers)
                     else:
+                        self.startButton.setEnabled(True)
+                        self.abortButton.setEnabled(False)
                         return
 
         else:
@@ -721,7 +766,7 @@ class SpendTab(QWidget):
                                     "Transaction has been broadcast.\n"+
                                 "Txid: "+str(self.taker.txid))
             #persist the transaction to history
-            with open(history_file,'ab') as f:
+            with open(jm_single().config.get("GUI", "history_file"),'ab') as f:
                 f.write(','.join([self.destaddr, self.btc_amount_str,
                         self.taker.txid,
                         datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")]))
@@ -781,7 +826,8 @@ class SpendTab(QWidget):
                          'The amount IN BITCOINS to send.\n']
         sT = [str, int, int, float]
         #todo maxmixdepth
-        sMM = ['',(2,20),(0,5),(0.00000001,100.0,8)]
+        sMM = ['',(2,20),(0,jm_single().config.getint("GUI","max_mix_depth")-1),
+               (0.00000001,100.0,8)]
         sD = ['', '3', '0', '']
         for x in zip(sN, sH, sT, sD, sMM):
             ql = QLabel(x[0])
@@ -830,18 +876,19 @@ class TxHistoryTab(QWidget):
             self.tHTW.resizeColumnToContents(i)
 
     def getTxInfoFromFile(self):
-        if not os.path.isfile(history_file):
+        hf = jm_single().config.get("GUI", "history_file")
+        if not os.path.isfile(hf):
             if w:
                 w.statusBar().showMessage("No transaction history found.")
             return []
         txhist = []
-        with open(history_file,'rb') as f:
+        with open(hf,'rb') as f:
             txlines = f.readlines()
             for tl in txlines:
                 txhist.append(tl.strip().split(','))
                 if not len(txhist[-1])==4:
                     QMessageBox.warning(self,"Error",
-                                "Incorrectedly formatted file jm-tx-history.txt")
+                                "Incorrectedly formatted file "+hf)
                     w.statusBar().showMessage("No transaction history found.")
                     return []
         return txhist[::-1] #appended to file in date order, window shows reverse
@@ -869,9 +916,8 @@ class TxHistoryTab(QWidget):
         menu.exec_(self.tHTW.viewport().mapToGlobal(position))
 
 class JMWalletTab(QWidget):
-    def __init__(self, mixdepths):
+    def __init__(self):
         super(JMWalletTab, self).__init__()
-        self.mixdepths = mixdepths
         self.wallet_name = 'NONE'
         self.initUI()
     
@@ -879,7 +925,6 @@ class JMWalletTab(QWidget):
         self.label1 = QLabel(
             "CURRENT WALLET: "+self.wallet_name + ', total balance: 0.0',
                              self)
-        #label1.resize(300,120)
         v = MyTreeWidget(self, self.create_menu, self.getHeaders())
         v.setSelectionMode(QAbstractItemView.ExtendedSelection)
         v.on_update = self.updateWalletInfo
@@ -933,7 +978,7 @@ class JMWalletTab(QWidget):
             self.label1.setText(
             "CURRENT WALLET: "+self.wallet_name + ', total balance: '+total_bal)
 
-        for i in range(self.mixdepths):
+        for i in range(jm_single().config.getint("GUI","max_mix_depth")):
             if walletinfo:
                 mdbalance = mbalances[i]
             else:
@@ -1006,6 +1051,16 @@ class JMMainWindow(QMainWindow):
         self.wallet=None
         self.initUI()
     
+    def closeEvent(self, event):
+        quit_msg = "Are you sure you want to quit?"
+        reply = QMessageBox.question(self, "Joinmarket", quit_msg,
+                                     QMessageBox.Yes, QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            persist_config()
+            event.accept()
+        else:
+            event.ignore()
+
     def initUI(self):
         self.statusBar().showMessage("Ready")
         self.setGeometry(300,300,250,150)
@@ -1054,12 +1109,10 @@ class JMMainWindow(QMainWindow):
         d = QDialog(self)
         d.setModal(1)
         d.setWindowTitle('Recover from seed')
-        #d.setMinimumSize(290, 130)
         layout = QGridLayout(d)
         message_e = QTextEdit()
         layout.addWidget(QLabel('Enter 12 words'), 0, 0)
         layout.addWidget(message_e, 1, 0)
-        #layout.setRowStretch(2,3)
         hbox = QHBoxLayout()       
         buttonBox = QDialogButtonBox(self)
         buttonBox.setStandardButtons(QDialogButtonBox.Ok|QDialogButtonBox.Cancel)
@@ -1114,7 +1167,9 @@ class JMMainWindow(QMainWindow):
         
     def loadWalletFromBlockchain(self, firstarg=None, pwd=None):
         if (firstarg and pwd) or (firstarg and get_network()=='testnet'):
-            self.wallet = Wallet(str(firstarg), max_mix_depth=5, pwd=pwd)
+            self.wallet = Wallet(str(firstarg),
+                max_mix_depth=jm_single().config.getint("GUI","max_mix_depth"),
+                pwd=pwd)
             if not self.wallet.decrypted:
                 QMessageBox.warning(self,"Error","Wrong password")
                 return False
@@ -1213,7 +1268,8 @@ def get_wallet_printout(wallet):
         balance_depth = 0
         for forchange in [0,1]:
             rows[m].append([])
-            for k in range(wallet.index[m][forchange] + gaplimit):
+            for k in range(wallet.index[m][forchange] + jm_single().config.getint(
+                "GUI", "gaplimit")):
                 addr = wallet.get_addr(m, forchange, k)
                 balance = 0.0
                 for addrvalue in wallet.unspent.values():
@@ -1234,18 +1290,17 @@ def get_wallet_printout(wallet):
 
 ################################
 load_program_config()
+update_config_for_gui()
 app = QApplication(sys.argv)
 appWindowTitle = 'Joinmarket GUI'
 w = JMMainWindow()
 tabWidget = QTabWidget(w)
-mdepths = 5
-tabWidget.addTab(JMWalletTab(mdepths), "JM Wallet")
+tabWidget.addTab(JMWalletTab(), "JM Wallet")
 settingsTab = SettingsTab()
 tabWidget.addTab(settingsTab, "Settings")
 tabWidget.addTab(SpendTab(), "Send Payment")
-tabWidget.addTab(TxHistoryTab(),"Tx History")
+tabWidget.addTab(TxHistoryTab(), "Tx History")
 w.resize(600, 500)
-#w.move(300, 300)
 suffix = ' - Testnet' if get_network() == 'testnet' else ''
 w.setWindowTitle(appWindowTitle + suffix)
 tabWidget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
