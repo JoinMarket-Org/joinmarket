@@ -610,7 +610,7 @@ class SpendTab(QWidget):
     def resizeScroll(self, mini, maxi):
         self.textedit.verticalScrollBar().setValue(maxi)
 
-    def startSendPayment(self):
+    def startSendPayment(self, ignored_makers = None):
         self.aborted = False
         if not self.validateSettings():
             return
@@ -636,6 +636,9 @@ class SpendTab(QWidget):
         self.taker = SendPayment(self.irc, w.wallet, self.destaddr, amount,
                                  makercount, 5000, 30, mixdepth, False,
                                  weighted_order_choose, isolated=True)
+        self.pt = PT(self.taker)
+        if ignored_makers:
+            self.pt.ignored_makers.extend(ignored_makers)
         thread = TaskThread(self)
         thread.add(self.runIRC, on_done=self.cleanUp)                
         w.statusBar().showMessage("Connecting to IRC ...")
@@ -643,7 +646,6 @@ class SpendTab(QWidget):
         thread2.add(self.createTxThread, on_done=self.doTx)      
     
     def createTxThread(self):
-        self.pt = PT(self.taker)
         self.orders, self.total_cj_fee = self.pt.create_tx()
         log.debug("Finished create_tx")
         #TODO this can't be done in a thread as currently built;
@@ -701,8 +703,22 @@ class SpendTab(QWidget):
     def cleanUp(self):
         if not self.taker.txid:
             if not self.aborted:
-                w.statusBar().showMessage("Transaction failed.")
-                QMessageBox.warning(self,"Failed","Transaction was not completed.")
+                if not self.pt.ignored_makers:
+                    w.statusBar().showMessage("Transaction failed.")
+                    QMessageBox.warning(self,"Failed","Transaction was not completed.")
+                else:
+                    reply = QMessageBox.question(self, "Transaction not completed.",
+                    '\n'.join(["The following counterparties did not respond: ",
+                    ','.join(self.pt.ignored_makers),
+                    "This sometimes happens due to bad network connections.",
+                    "",
+                    "If you would like to try again, ignoring those",
+                    "counterparties, click Yes."]), QMessageBox.Yes, QMessageBox.No)
+                    if reply == QMessageBox.Yes:
+                        self.startSendPayment(ignored_makers=self.pt.ignored_makers)
+                    else:
+                        return
+
         else:
             w.statusBar().showMessage("Transaction completed successfully.")
             QMessageBox.information(self,"Success",

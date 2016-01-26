@@ -412,9 +412,10 @@ class PT(object):
             self.taker.msgchan.shutdown()
             return
         self.ignored_makers += coinjointx.nonrespondants
-        log.debug('recreating the tx, ignored_makers=' + str(
+        log.debug('tx negotation failed, ignored_makers=' + str(
             self.ignored_makers))
-        self.create_tx()
+        #triggers endpoint for GUI
+        self.taker.msgchan.shutdown()
 
     def sendpayment_choose_orders(self,
                                   cj_amount,
