@@ -1093,14 +1093,31 @@ class JMMainWindow(QMainWindow):
         self.show()
 
     def showAboutDialog(self):
-        QMessageBox.about(self, "Joinmarket",
-            "\n".join(["Joinmarket version: 0.1.2",
-            "Protocol version:"+" %s" % (str(jm_single().JM_VERSION)),
-            "Joinmarket sendpayment tool",
-            "Help support Bitcoin fungibility -"
-            "donate here: ",
-            donation_address]))
-        
+        msgbox = QDialog(self)
+        lyt = QVBoxLayout(msgbox)
+        msgbox.setWindowTitle("Joinmarket GUI")
+        label1 = QLabel()
+        label1.setText("<a href="+
+                       "'https://github.com/joinmarket-org/joinmarket/wiki'>"+
+                       "Read more about Joinmarket</a><p>"+
+                       "<p>".join(["Protocol version:"+" %s" % (
+                           str(jm_single().JM_VERSION)),
+                        "Help us support Bitcoin fungibility -",
+                        "donate here: "]))
+        label2 = QLabel(donation_address)
+        for l in [label1, label2]:
+            l.setTextFormat(QtCore.Qt.RichText)
+            l.setTextInteractionFlags(QtCore.Qt.TextBrowserInteraction)
+            l.setOpenExternalLinks(True)
+        label2.setText("<a href='bitcoin:"+donation_address+"'>"+donation_address+"</a>")
+        lyt.addWidget(label1)
+        lyt.addWidget(label2)
+        btnbox = QDialogButtonBox(msgbox)
+        btnbox.setStandardButtons(QDialogButtonBox.Ok)
+        btnbox.accepted.connect(msgbox.accept)
+        lyt.addWidget(btnbox)
+        msgbox.exec_()
+
     def recoverWallet(self):
         if get_network()=='testnet':
             QMessageBox.information(self, 'Error',
