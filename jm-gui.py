@@ -730,6 +730,10 @@ class SpendTab(QWidget):
                         self.taker.txid,
                         datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")]))
                 f.write('\n') #TODO: Windows
+            #update the TxHistory tab
+            txhist = w.centralWidget().widget(3)
+            txhist.updateTxInfo()
+
         self.startButton.setEnabled(True)
         self.abortButton.setEnabled(False)
         
