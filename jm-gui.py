@@ -1,5 +1,10 @@
 
 '''
+Joinmarket GUI using PyQt for doing Sendpayment.
+Some widgets copied and modified from https://github.com/spesmilo/electrum
+The latest version of this code is currently maintained at:
+https://github.com/AdamISZ/joinmarket/tree/gui
+
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -16,7 +21,7 @@
 
 
 import sys, base64, textwrap, re, datetime, os, math, json, logging
-import Queue
+import Queue, platform
 
 from decimal import Decimal
 from functools import partial
@@ -24,8 +29,6 @@ from collections import namedtuple
 
 from PyQt4 import QtCore
 from PyQt4.QtGui import *
-
-import platform
 
 if platform.system() == 'Windows':
     MONOSPACE_FONT = 'Lucida Console'
@@ -48,9 +51,6 @@ from joinmarket import load_program_config, get_network, Wallet, encryptData, \
     weighted_order_choose, get_blockchain_interface_instance
 
 from sendpayment import SendPayment, PT
-#https://gist.github.com/e000/869791
-import socks
-#from socksipyhandler import SocksiPyHandler
 
 log = get_log()
 donation_address = '1LT6rwv26bV7mgvRosoSCyGM7ttVRsYidP'
@@ -253,7 +253,7 @@ def make_password_dialog(self, msg, new_pass=True):
     grid.setSpacing(8)
     grid.setColumnMinimumWidth(0, 70)
     grid.setColumnStretch(1,1)
-
+    #TODO perhaps add an icon here
     logo = QLabel()
     lockfile = ":icons/lock.png"
     logo.setPixmap(QPixmap(lockfile).scaledToWidth(36))
@@ -291,8 +291,7 @@ class PasswordDialog(QDialog):
         super(PasswordDialog, self).__init__()
         self.initUI()
         
-    def initUI(self):      
-        #self.setGeometry(300, 300, 290, 150)
+    def initUI(self):
         self.setWindowTitle('Create a new password')
         msg = "Enter a new password"
         self.setLayout(make_password_dialog(self,msg))
@@ -311,14 +310,11 @@ class MyTreeWidget(QTreeWidget):
         # extend the syntax for consistency
         self.addChild = self.addTopLevelItem
         self.insertChild = self.insertTopLevelItem
-
-        # Control which columns are editable
         self.editor = None
         self.pending_update = False
         if editable_columns is None:
             editable_columns = [stretch_column]
         self.editable_columns = editable_columns
-        #self.setItemDelegate(ElectrumItemDelegate(self))
         self.itemActivated.connect(self.on_activated)
         self.update_headers(headers)
 
