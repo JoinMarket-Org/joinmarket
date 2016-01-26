@@ -1257,6 +1257,9 @@ class JMMainWindow(QMainWindow):
         if not ok:
             QMessageBox.warning(self,"Error","Create wallet aborted")
             return
+        #create wallets subdir if it doesn't exist
+        if not os.path.exists('wallets'):
+            os.makedirs('wallets')
         walletpath = os.path.join('wallets', str(walletname))
         # Does a wallet with the same name exist?
         if os.path.isfile(walletpath):
