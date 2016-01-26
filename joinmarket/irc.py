@@ -395,7 +395,7 @@ class IRCMessageChannel(MessageChannel):
                     oid = int(_chunks[1])
                     if self.on_order_cancel:
                         self.on_order_cancel(nick, oid)
-                except ValueError as e:
+                except (ValueError, IndexError) as e:
                     log.debug("!cancel " + repr(e))
                     return
             elif _chunks[0] == 'orderbook':

@@ -8,7 +8,7 @@ from ConfigParser import SafeConfigParser, NoOptionError
 
 import bitcoin as btc
 from joinmarket.jsonrpc import JsonRpc
-from joinmarket.support import get_log
+from joinmarket.support import get_log, joinmarket_alert, core_alert
 
 # config = SafeConfigParser()
 # config_location = 'joinmarket.cfg'
@@ -56,7 +56,7 @@ class AttributeDict(object):
 
 # global_singleton = AttributeDict(
 #         **{'log': log,
-#            'JM_VERSION': 2,
+#            'JM_VERSION': 3,
 #            'nickname': None,
 #            'DUST_THRESHOLD': 2730,
 #            'bc_interface': None,
@@ -72,7 +72,7 @@ class AttributeDict(object):
 
 # todo: same as above.  decide!!!
 global_singleton = AttributeDict()
-global_singleton.JM_VERSION = 2
+global_singleton.JM_VERSION = 3
 global_singleton.nickname = None
 global_singleton.DUST_THRESHOLD = 2730
 global_singleton.bc_interface = None
@@ -80,8 +80,8 @@ global_singleton.ordername_list = ['absorder', 'relorder']
 global_singleton.maker_timeout_sec = 60
 global_singleton.debug_file_lock = threading.Lock()
 global_singleton.debug_file_handle = None
-global_singleton.core_alert = None
-global_singleton.joinmarket_alert = None
+global_singleton.core_alert = core_alert
+global_singleton.joinmarket_alert = joinmarket_alert
 global_singleton.debug_silence = False
 global_singleton.config = SafeConfigParser()
 global_singleton.config_location = 'joinmarket.cfg'
