@@ -188,11 +188,11 @@ def validate_address(addr):
 
 
 def load_program_config():
+    global_singleton.config.readfp(io.BytesIO(defaultconfig))
     loadedFiles = global_singleton.config.read(
             [global_singleton.config_location])
     # Create default config file if not found
     if len(loadedFiles) != 1:
-        global_singleton.config.readfp(io.BytesIO(defaultconfig))
         with open(global_singleton.config_location, "w") as configfile:
             configfile.write(defaultconfig)
 
