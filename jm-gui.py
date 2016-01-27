@@ -895,6 +895,8 @@ class TxHistoryTab(QWidget):
 
     def create_menu(self, position):
         item = self.tHTW.currentItem()
+        if not item:
+            return
         address_valid = False
         if item:
             address = str(item.text(0))
