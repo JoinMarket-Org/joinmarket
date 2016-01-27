@@ -45,6 +45,9 @@ BLACK_FG = "QWidget {color:black;}"
 
 import bitcoin as btc
 
+JM_CORE_VERSION = '0.1.2'
+JM_GUI_VERSION = '1'
+
 from joinmarket import load_program_config, get_network, Wallet, encryptData, \
     get_p2pk_vbyte, jm_single, mn_decode, mn_encode, create_wallet_file, \
     validate_address, random_nick, get_log, IRCMessageChannel, \
@@ -1102,7 +1105,9 @@ class JMMainWindow(QMainWindow):
         label1.setText("<a href="+
                        "'https://github.com/joinmarket-org/joinmarket/wiki'>"+
                        "Read more about Joinmarket</a><p>"+
-                       "<p>".join(["Protocol version:"+" %s" % (
+                       "<p>".join(["Joinmarket core software version: "+JM_CORE_VERSION,
+                                   "Joinmarket GUI version: "+JM_GUI_VERSION,
+                                   "Messaging protocol version:"+" %s" % (
                            str(jm_single().JM_VERSION)),
                         "Help us support Bitcoin fungibility -",
                         "donate here: "]))
@@ -1310,6 +1315,10 @@ def get_wallet_printout(wallet):
 ################################
 load_program_config()
 update_config_for_gui()
+#we're not downloading from github, so logs dir
+#might not exist
+if not os.path.exists('logs'):
+    os.makedirs('logs')
 app = QApplication(sys.argv)
 appWindowTitle = 'Joinmarket GUI'
 w = JMMainWindow()
