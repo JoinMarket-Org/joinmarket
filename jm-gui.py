@@ -1293,7 +1293,8 @@ def get_wallet_printout(wallet):
                         balance += addrvalue['value']
                 balance_depth += balance
                 used = ('used' if k < wallet.index[m][forchange] else 'new')
-                if balance > 0.0 or k >= wallet.index[m][forchange]:
+                if balance > 0.0 or (
+                    k >= wallet.index[m][forchange] and forchange==0):
                     rows[m][forchange].append([addr, str(k), 
                                                "{0:.8f}".format(balance/1e8),used])
         mbalances.append(balance_depth)
