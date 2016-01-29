@@ -207,6 +207,7 @@ class IRCMessageChannel(MessageChannel):
     def push_tx(self, nick, txhex):
         txb64 = base64.b64encode(txhex.decode('hex'))
         self.__privmsg(nick, 'push', txb64)
+        time.sleep(20) #hardcoded wait time because some network stacks will return even if you're not done sending
 
     # Maker callbacks
     def announce_orders(self, orderlist, nick=None):
