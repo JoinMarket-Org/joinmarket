@@ -581,17 +581,18 @@ def main():
                                 "BLOCKCHAIN", "blockchain_source"),
                             password=nickserv_password)
     maker = YieldGenerator(irc, wallet)
-    try:
-        log.debug('connecting to irc')
-        irc.run()
-    except:
-        log.debug('CRASHING, DUMPING EVERYTHING')
-        debug_dump_object(wallet, ['addr_cache', 'keys', 'seed'])
-        debug_dump_object(maker)
-        debug_dump_object(irc)
-        import traceback
-        log.debug(traceback.format_exc())
-
+    while True:
+        try:
+            log.debug('connecting to irc')
+            irc.run()
+        except:
+            log.debug('CRASHING, DUMPING EVERYTHING')
+            debug_dump_object(wallet, ['addr_cache', 'keys', 'seed'])
+            debug_dump_object(maker)
+            debug_dump_object(irc)
+            import traceback
+            log.debug(traceback.format_exc())
+        time.sleep(60)
 
 if __name__ == "__main__":
     main()
