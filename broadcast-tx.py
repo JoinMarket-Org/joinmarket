@@ -29,6 +29,8 @@ class BroadcastThread(threading.Thread):
         counterparty = crow['counterparty']
         log.debug('sending tx to ' + counterparty)
         self.taker.msgchan.push_tx(counterparty, self.taker.txhex)
+        time.sleep(30) #wait for the irc throttle thread to send everything
+        #when the tx notify callback is written, use that instead of a hardcoded wait
         self.taker.msgchan.shutdown()
 
 class Broadcaster(OrderbookWatch):
