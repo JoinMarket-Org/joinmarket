@@ -98,6 +98,21 @@ def rand_weighted_choice(n, p_arr):
 def chunks(d, n):
     return [d[x:x + n] for x in xrange(0, len(d), n)]
 
+def select_default(unspent, value):
+    value = int(value)
+    high = [u for u in unspent if u["value"] >= value]
+    high.sort(key=lambda u: u["value"])
+    low = [u for u in unspent if u["value"] < value]
+    low.sort(key=lambda u: -u["value"])
+    if len(high):
+        return [high[0]]
+    i, tv = 0, 0
+    while tv < value and i < len(low):
+        tv += low[i]["value"]
+        i += 1
+    if tv < value:
+        raise Exception("Not enough funds")
+    return low[:i]
 
 def select_gradual(unspent, value):
     """
@@ -174,6 +189,21 @@ def select_greediest(unspent, value):
             end += 1
         return low[0:end]
 
+# ordered from most dusty (arguably, most private) to most mergiest (cheaper!)
+selectors = [select_default, select_gradual, select_greedy, select_greediest]
+
+def utxo_selector(configured_levels):
+    def select(unspent, value):
+        length = len(unspent)   # NB - counted only within each mixdepth
+        try:
+            for i in xrange(len(configured_levels)):
+                if length < configured_levels[i]:
+                    return selectors[i](unspent, value)
+            return selectors[len(configured_levels)](unspent, value)
+        except IndexError:
+            log.debug("Excess merge_algorithm levels. Configure fewer!")
+        return selectors[-1](unspent, value) # express operator greed
+    return select
 
 def calc_cj_fee(ordertype, cjfee, cj_amount):
     if ordertype == 'absoffer':

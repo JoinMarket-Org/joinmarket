@@ -34,7 +34,7 @@ vpubs = ["03e9a06e539d6bf5cf1ca5c41b59121fa3df07a338322405a312c67b6349a707e9",
 
 @pytest.mark.parametrize(
     "nw, wallet_structures, mean_amt, sdev_amt, amount, pubs, k", [
-        (1, [[2, 1, 4, 0, 0]], 4, 1.4, 600000000, vpubs[1:4], 2),
+        (1, [[2, 1, 4, 0, 0]], 6, 1, 600000000, vpubs[1:4], 2),
         (1, [[3, 3, 0, 0, 3]], 4, 1.4, 100000000, vpubs[:4], 3),
     ])
 def test_create_p2sh_output_tx(setup_tx_creation, nw, wallet_structures,

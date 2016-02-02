@@ -350,6 +350,41 @@ def test_utxo_selection(setup_wallets, nw, wallet_structures, mean_amt,
                        "failed to select sufficient coins, total: " + \
                        str(total_selected) + ", should be: " + str(amount)
 
+# the following test mainly checks that the algo switching based on
+# number of utxos occurs correctly; it also provides some rough sanity
+# testing on the general behavior of the merge algorithms.
+# TODO: separate & deterministic tests for each merge algo!
+
+def test_merge_algo_switching(setup_wallets):
+    wallet = make_wallets(1, [[5, 50, 75, 0, 0]], 1, 0.72)[0]['wallet']
+    sync_wallet(wallet), sync_wallet(wallet)
+    all_utxos = wallet.get_utxos_by_mixdepth()
+    # test merge-avoiding with small utxo sets - select_default
+    utxos = sorted(map(lambda x:x['value'], all_utxos[0].values()))
+    for i in range(4):
+        amount = (utxos[i]+utxos[i+1])/2
+        selected = wallet.select_utxos(0, amount)
+        assert (1 == len(selected)), "Default selection misbehaved! " + \
+            "Selected " + str(selected) + " to reach sum " + str(amount) + \
+            " from utxos " + str(utxos) + " (should pick SINGLE utxo)"
+    # test merging with larger utxo sets - select_gradual
+    utxos = sorted(map(lambda x:x['value'], all_utxos[1].values()))
+    for i in range(49):
+        amount = utxos[i+1]+1
+        selected = wallet.select_utxos(1, amount)
+        assert (1 < len(selected)), "Default selection misbehaved! "+\
+            "Selected " + str(selected) + " to reach sum " + str(amount) + \
+            " from utxos " + str(utxos) + " (should pick MULTIPLE utxos)"
+    # TODO: test merging with intermediate sets - select_greedy
+    # test merging with even larger utxo sets - select_greediest
+    utxos = sorted(map(lambda x:x['value'], all_utxos[2].values()))
+    for i in range(74):
+        amount = sum(utxos[0:i+2])
+        selected = wallet.select_utxos(2, amount)
+        assert (i+2 <= len(selected)), "Default selection misbehaved! "+\
+            "Selected " + str(selected) + " to reach sum " + str(amount) + \
+            " from utxos " + str(utxos) + " (expected " + str(i+2) + ")"
+
 
 class TestWalletCreation(unittest.TestCase):
 

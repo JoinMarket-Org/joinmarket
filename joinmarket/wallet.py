@@ -3,6 +3,7 @@ import json
 import os
 import pprint
 import sys
+import ast
 from decimal import Decimal
 
 from ConfigParser import NoSectionError
@@ -13,8 +14,7 @@ from joinmarket.slowaes import decryptData
 from joinmarket.blockchaininterface import BitcoinCoreInterface, RegtestBitcoinCoreInterface
 from joinmarket.configure import jm_single, get_network, get_p2pk_vbyte
 
-from joinmarket.support import get_log, select_gradual, select_greedy, \
-    select_greediest
+from joinmarket.support import get_log, utxo_selector
 
 log = get_log()
 
@@ -46,19 +46,27 @@ class AbstractWallet(object):
         #some consumer scripts don't use an unspent, this marks it
         #as specifically absent (rather than just empty).
         self.unspent = None
-        self.utxo_selector = btc.select  # default fallback: upstream
         try:
-            config = jm_single().config
-            if config.get("POLICY", "merge_algorithm") == "gradual":
-                self.utxo_selector = select_gradual
-            elif config.get("POLICY", "merge_algorithm") == "greedy":
-                self.utxo_selector = select_greedy
-            elif config.get("POLICY", "merge_algorithm") == "greediest":
-                self.utxo_selector = select_greediest
-            elif config.get("POLICY", "merge_algorithm") != "default":
-                raise Exception("Unknown merge algorithm")
+            policy = jm_single().config.get("POLICY", "merge_algorithm")
         except NoSectionError:
-            pass
+            policy = "default"  # maintain backwards compatibility!
+        if policy == "default":
+            self.merge_policy = [42] # well, almost (python lacks infinites)
+        elif policy == "gradual":
+            self.merge_policy = [60] # never goes beyond gradual
+        elif policy == "greedy":
+            self.merge_policy = [70, 70] # skip gradual, go greedy
+        elif policy == "greediest":
+            self.merge_policy = [80, 80, 80] # straight to greediest
+        else:
+            try:                # stop supporting word configs, someday...
+                self.merge_policy = ast.literal_eval(policy)
+                if ((type(self.merge_policy) is not list) or
+                    any(type(level) is not int for level in self.merge_policy)):
+                    raise Exception("Merge policy must be a list of ints")
+            except ValueError:
+                raise Exception("Unparseable merge policy: "+policy)
+        self.utxo_selector = utxo_selector(self.merge_policy)
 
     def get_key_from_addr(self, addr):
         return None
