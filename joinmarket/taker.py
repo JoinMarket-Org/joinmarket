@@ -117,16 +117,26 @@ class CoinJoinTX(object):
             log.debug(('ERROR outputs unconfirmed or already spent. '
                        'utxo_data={}').format(pprint.pformat(utxo_data)))
             # when internal reviewing of makers is created, add it here to
-            # immediately quit
+            # immediately quit; currently, the timeout thread suffices.
             return
 
-        # ignore this message, eventually the timeout thread will recover
         total_input = sum([d['value'] for d in utxo_data])
         real_cjfee = calc_cj_fee(order['ordertype'], order['cjfee'],
                                  self.cj_amount)
-        self.outputs.append({'address': change_addr,
-                             'value': total_input - self.cj_amount - order[
-                                 'txfee'] + real_cjfee})
+        change_amount = total_input - self.cj_amount - order[
+            'txfee'] + real_cjfee
+
+        # certain malicious and/or incompetent liquidity providers send
+        # inputs totalling less than the coinjoin amount! this leads to
+        # a change output of zero satoshis, so the invalid transaction
+        # fails harmlessly; let's fail earlier, with a clear message.
+        if change_amount < jm_single().DUST_THRESHOLD:
+            fmt = ('ERROR counterparty requires sub-dust change. nick={}'
+                   'totalin={:d} cjamount={:d} change={:d}').format
+            log.debug(fmt(nick, total_input, self.cj_amount, change_amount))
+            return              # timeout marks this maker as nonresponsive
+
+        self.outputs.append({'address': change_addr, 'value': change_amount})
         fmt = ('fee breakdown for {} totalin={:d} '
                'cjamount={:d} txfee={:d} realcjfee={:d}').format
         log.debug(fmt(nick, total_input, self.cj_amount,
