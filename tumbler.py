@@ -92,6 +92,7 @@ def generate_tumbler_tx(destaddrs, options):
 # thread which does the buy-side algorithm
 # chooses which coinjoins to initiate and when
 class TumblerThread(threading.Thread):
+
     def __init__(self, taker):
         threading.Thread.__init__(self)
         self.daemon = True
@@ -112,8 +113,8 @@ class TumblerThread(threading.Thread):
     def finishcallback(self, coinjointx):
         if coinjointx.all_responded:
             jm_single().bc_interface.add_tx_notify(
-                    coinjointx.latest_tx, self.unconfirm_callback,
-                    self.confirm_callback, coinjointx.my_cj_addr)
+                coinjointx.latest_tx, self.unconfirm_callback,
+                self.confirm_callback, coinjointx.my_cj_addr)
             pushed = coinjointx.self_sign_and_push()
             if pushed:
                 self.taker.wallet.remove_old_utxos(coinjointx.latest_tx)
@@ -123,7 +124,7 @@ class TumblerThread(threading.Thread):
         else:
             self.ignored_makers += coinjointx.nonrespondants
             log.debug('recreating the tx, ignored_makers=' + str(
-                    self.ignored_makers))
+                self.ignored_makers))
             self.create_tx()
 
     def tumbler_choose_orders(self,
@@ -138,28 +139,28 @@ class TumblerThread(threading.Thread):
         self.ignored_makers += nonrespondants
         while True:
             orders, total_cj_fee = choose_orders(
-                    self.taker.db, cj_amount, makercount, weighted_order_choose,
-                    self.ignored_makers + active_nicks)
+                self.taker.db, cj_amount, makercount, weighted_order_choose,
+                self.ignored_makers + active_nicks)
             abs_cj_fee = 1.0 * total_cj_fee / makercount
             rel_cj_fee = abs_cj_fee / cj_amount
             log.debug('rel/abs average fee = ' + str(rel_cj_fee) + ' / ' + str(
-                    abs_cj_fee))
+                abs_cj_fee))
 
             if rel_cj_fee > self.taker.options.maxcjfee[
-                0] and abs_cj_fee > self.taker.options.maxcjfee[1]:
+                    0] and abs_cj_fee > self.taker.options.maxcjfee[1]:
                 log.debug('cj fee higher than maxcjfee, waiting ' + str(
-                        self.taker.options.liquiditywait) + ' seconds')
+                    self.taker.options.liquiditywait) + ' seconds')
                 time.sleep(self.taker.options.liquiditywait)
                 continue
             if orders is None:
                 log.debug('waiting for liquidity ' + str(
-                        self.taker.options.liquiditywait) +
+                    self.taker.options.liquiditywait) +
                           'secs, hopefully more orders should come in')
                 time.sleep(self.taker.options.liquiditywait)
                 continue
             break
         log.debug('chosen orders to fill ' + str(orders) + ' totalcjfee=' + str(
-                total_cj_fee))
+            total_cj_fee))
         return orders, total_cj_fee
 
     def create_tx(self):
@@ -176,39 +177,38 @@ class TumblerThread(threading.Thread):
             #than the default set in option.txfee * makercount, where
             #we have a large number of utxos to spend. If it is smaller,
             #we'll be conservative and retain the original estimate.
-            est_ins = len(utxos)+3*self.tx['makercount']
-            log.debug("Estimated ins: "+str(est_ins))
-            est_outs = 2*self.tx['makercount'] + 1
-            log.debug("Estimated outs: "+str(est_outs))
+            est_ins = len(utxos) + 3 * self.tx['makercount']
+            log.debug("Estimated ins: " + str(est_ins))
+            est_outs = 2 * self.tx['makercount'] + 1
+            log.debug("Estimated outs: " + str(est_outs))
             estimated_fee = estimate_tx_fee(est_ins, est_outs)
-            log.debug("We have a fee estimate: "+str(estimated_fee))
-            log.debug("And a requested fee of: "+str(
-                self.taker.options.txfee * self.tx['makercount']))
-            fee_for_tx = max([estimated_fee,
-                              self.tx['makercount'] * self.taker.options.txfee])
+            log.debug("We have a fee estimate: " + str(estimated_fee))
+            log.debug("And a requested fee of: " + str(self.taker.options.txfee
+                                                       * self.tx['makercount']))
+            fee_for_tx = max([estimated_fee, self.tx['makercount'] *
+                              self.taker.options.txfee])
             fee_for_tx = int(fee_for_tx / self.tx['makercount'])
             total_value = sum([addrval['value'] for addrval in utxos.values()])
             while True:
                 orders, cj_amount = choose_sweep_orders(
                     self.taker.db, total_value, fee_for_tx,
-                        self.tx['makercount'], weighted_order_choose,
-                        self.ignored_makers)
+                    self.tx['makercount'], weighted_order_choose,
+                    self.ignored_makers)
                 if orders is None:
                     log.debug('waiting for liquidity ' + str(
-                            self.taker.options.liquiditywait) +
+                        self.taker.options.liquiditywait) +
                               'secs, hopefully more orders should come in')
                     time.sleep(self.taker.options.liquiditywait)
                     continue
                 abs_cj_fee = 1.0 * (
                     total_value - cj_amount) / self.tx['makercount']
                 rel_cj_fee = abs_cj_fee / cj_amount
-                log.debug(
-                    'rel/abs average fee = ' + str(rel_cj_fee) + ' / ' + str(
-                            abs_cj_fee))
+                log.debug('rel/abs average fee = ' + str(rel_cj_fee) + ' / ' +
+                          str(abs_cj_fee))
                 if rel_cj_fee > self.taker.options.maxcjfee[
-                    0] and abs_cj_fee > self.taker.options.maxcjfee[1]:
+                        0] and abs_cj_fee > self.taker.options.maxcjfee[1]:
                     log.debug('cj fee higher than maxcjfee, waiting ' + str(
-                            self.taker.options.liquiditywait) + ' seconds')
+                        self.taker.options.liquiditywait) + ' seconds')
                     time.sleep(self.taker.options.liquiditywait)
                     continue
                 break
@@ -222,11 +222,11 @@ class TumblerThread(threading.Thread):
             if cj_amount < self.taker.options.mincjamount:
                 log.debug('cj amount too low, bringing up')
                 cj_amount = self.taker.options.mincjamount
-            change_addr = self.taker.wallet.get_internal_addr(
-                self.tx['srcmixdepth'])
+            change_addr = self.taker.wallet.get_internal_addr(self.tx[
+                'srcmixdepth'])
             log.debug('coinjoining ' + str(cj_amount) + ' satoshi')
             orders, total_cj_fee = self.tumbler_choose_orders(
-                    cj_amount, self.tx['makercount'])
+                cj_amount, self.tx['makercount'])
             total_amount = cj_amount + total_cj_fee + \
                 self.taker.options.txfee*self.tx['makercount']
             log.debug('total estimated amount spent = ' + str(total_amount))
@@ -236,17 +236,18 @@ class TumblerThread(threading.Thread):
             #find sufficient utxos extremely rare. Indeed, a tripling of 'normal'
             #txfee indicates undesirable behaviour on maker side anyway.
             try:
-                utxos = self.taker.wallet.select_utxos(self.tx['srcmixdepth'],
-                total_amount+2*self.taker.options.txfee*self.tx['makercount'])
+                utxos = self.taker.wallet.select_utxos(
+                    self.tx['srcmixdepth'], total_amount + 2 *
+                    self.taker.options.txfee * self.tx['makercount'])
             except Exception as e:
                 #we cannot afford to just throw not enough funds; better to
                 #try with a smaller request; it could still fail within
                 #CoinJoinTX.recv_txio, but make every effort to avoid stopping.
                 if repr(e) == "Not enough funds":
-                    log.debug("Failed to select total amount + twice txfee from" +
-                          "wallet; trying to select just total amount.")
-                    utxos = self.taker.wallet.select_utxos(self.tx['srcmixdepth'],
-                            total_amount)
+                    log.debug("Failed to select total amount + twice txfee from"
+                              + "wallet; trying to select just total amount.")
+                    utxos = self.taker.wallet.select_utxos(
+                        self.tx['srcmixdepth'], total_amount)
                 else:
                     raise
             fee_for_tx = self.taker.options.txfee
@@ -254,13 +255,14 @@ class TumblerThread(threading.Thread):
 
         self.taker.start_cj(self.taker.wallet, cj_amount, orders, utxos,
                             self.destaddr, change_addr,
-                            fee_for_tx*self.tx['makercount'],
+                            fee_for_tx * self.tx['makercount'],
                             self.finishcallback, choose_orders_recover)
 
     def init_tx(self, tx, balance, sweep):
         destaddr = None
         if tx['destination'] == 'internal':
-            destaddr = self.taker.wallet.get_internal_addr(tx['srcmixdepth'] + 1)
+            destaddr = self.taker.wallet.get_internal_addr(tx['srcmixdepth'] +
+                                                           1)
         elif tx['destination'] == 'addrask':
             jm_single().debug_silence = True
             while True:
@@ -268,8 +270,8 @@ class TumblerThread(threading.Thread):
                 addr_valid, errormsg = validate_address(destaddr)
                 if addr_valid:
                     break
-                print(
-                'Address ' + destaddr + ' invalid. ' + errormsg + ' try again')
+                print('Address ' + destaddr + ' invalid. ' + errormsg +
+                      ' try again')
             jm_single().debug_silence = False
         else:
             destaddr = tx['destination']
@@ -290,7 +292,7 @@ class TumblerThread(threading.Thread):
         time.sleep(self.taker.options.waittime)
 
         sqlorders = self.taker.db.execute(
-                'SELECT cjfee, ordertype FROM orderbook;').fetchall()
+            'SELECT cjfee, ordertype FROM orderbook;').fetchall()
         orders = [o['cjfee'] for o in sqlorders if o['ordertype'] == 'relorder']
         orders = sorted(orders)
         if len(orders) == 0:
@@ -301,8 +303,9 @@ class TumblerThread(threading.Thread):
         log.debug('relorder fee = ' + str(relorder_fee))
         maker_count = sum([tx['makercount'] for tx in self.taker.tx_list])
         log.debug('uses ' + str(maker_count) + ' makers, at ' + str(
-                relorder_fee * 100) + '% per maker, estimated total cost ' + str(
-                round((1 - (1 - relorder_fee) ** maker_count) * 100, 3)) + '%')
+            relorder_fee * 100) + '% per maker, estimated total cost ' + str(
+                round(
+                    (1 - (1 - relorder_fee)**maker_count) * 100, 3)) + '%')
         log.debug('starting')
         self.lockcond = threading.Condition()
 
@@ -311,7 +314,7 @@ class TumblerThread(threading.Thread):
             if tx['srcmixdepth'] not in self.balance_by_mixdepth:
                 self.balance_by_mixdepth[tx[
                     'srcmixdepth']] = self.taker.wallet.get_balance_by_mixdepth(
-                )[tx['srcmixdepth']]
+                    )[tx['srcmixdepth']]
             sweep = True
             for later_tx in self.taker.tx_list[i + 1:]:
                 if later_tx['srcmixdepth'] == tx['srcmixdepth']:
@@ -332,6 +335,7 @@ class TumblerThread(threading.Thread):
 
 
 class Tumbler(Taker):
+
     def __init__(self, msgchan, wallet, tx_list, options):
         Taker.__init__(self, msgchan)
         self.wallet = wallet
@@ -348,145 +352,146 @@ class Tumbler(Taker):
 
 def main():
     parser = OptionParser(
-            usage='usage: %prog [options] [wallet file] [destaddr(s)...]',
-            description=
-            'Sends bitcoins to many different addresses using coinjoin in'
-            ' an attempt to break the link between them. Sending to multiple '
-            ' addresses is highly recommended for privacy. This tumbler can'
-            ' be configured to ask for more address mid-run, giving the user'
-            ' a chance to click `Generate New Deposit Address` on whatever service'
-            ' they are using.')
+        usage='usage: %prog [options] [wallet file] [destaddr(s)...]',
+        description=
+        'Sends bitcoins to many different addresses using coinjoin in'
+        ' an attempt to break the link between them. Sending to multiple '
+        ' addresses is highly recommended for privacy. This tumbler can'
+        ' be configured to ask for more address mid-run, giving the user'
+        ' a chance to click `Generate New Deposit Address` on whatever service'
+        ' they are using.')
     parser.add_option(
-            '-m',
-            '--mixdepthsource',
-            type='int',
-            dest='mixdepthsrc',
-            help=
-            'Mixing depth to spend from. Useful if a previous tumbler run prematurely ended with '
-            +
-            'coins being left in higher mixing levels, this option can be used to resume without needing'
-            + ' to send to another address. default=0',
-            default=0)
+        '-m',
+        '--mixdepthsource',
+        type='int',
+        dest='mixdepthsrc',
+        help=
+        'Mixing depth to spend from. Useful if a previous tumbler run prematurely ended with '
+        +
+        'coins being left in higher mixing levels, this option can be used to resume without needing'
+        + ' to send to another address. default=0',
+        default=0)
     parser.add_option(
-            '-f',
+        '-f',
         '--txfee',
         action='store',
         type='int',
         dest='txfee',
         default=5000,
-        help='number of satoshis per participant to use as the initial estimate '+
-        'for the total transaction fee, default=5000, note that this is adjusted '+
-        'based on the estimated fee calculated after tx construction, based on '+
-        'policy set in joinmarket.cfg.')
+        help=
+        'number of satoshis per participant to use as the initial estimate ' +
+        'for the total transaction fee, default=5000, note that this is adjusted '
+        +
+        'based on the estimated fee calculated after tx construction, based on '
+        + 'policy set in joinmarket.cfg.')
     parser.add_option(
-            '-a',
-            '--addrcount',
-            type='int',
-            dest='addrcount',
-            default=3,
-            help=
-            'How many destination addresses in total should be used. If not enough are given'
-            ' as command line arguments, the script will ask for more. This parameter is required'
-            ' to stop amount correlation. default=3')
+        '-a',
+        '--addrcount',
+        type='int',
+        dest='addrcount',
+        default=3,
+        help=
+        'How many destination addresses in total should be used. If not enough are given'
+        ' as command line arguments, the script will ask for more. This parameter is required'
+        ' to stop amount correlation. default=3')
     parser.add_option(
-            '-x',
-            '--maxcjfee',
-            type='float',
-            dest='maxcjfee',
-            nargs=2,
-            default=(0.01, 10000),
-            help='maximum coinjoin fee and bitcoin value the tumbler is '
-                 'willing to pay to a single market maker. Both values need to be exceeded, so if '
-                 'the fee is 30% but only 500satoshi is paid the tx will go ahead. default=0.01, 10000 (1%, 10000satoshi)')
+        '-x',
+        '--maxcjfee',
+        type='float',
+        dest='maxcjfee',
+        nargs=2,
+        default=(0.01, 10000),
+        help='maximum coinjoin fee and bitcoin value the tumbler is '
+        'willing to pay to a single market maker. Both values need to be exceeded, so if '
+        'the fee is 30% but only 500satoshi is paid the tx will go ahead. default=0.01, 10000 (1%, 10000satoshi)')
     parser.add_option(
-            '-N',
-            '--makercountrange',
-            type='float',
-            nargs=2,
-            action='store',
-            dest='makercountrange',
-            help=
-            'Input the mean and spread of number of makers to use. e.g. 3 1.5 will be a normal distribution '
-            'with mean 3 and standard deveation 1.5 inclusive, default=3 1.5',
-            default=(3, 1.5))
+        '-N',
+        '--makercountrange',
+        type='float',
+        nargs=2,
+        action='store',
+        dest='makercountrange',
+        help=
+        'Input the mean and spread of number of makers to use. e.g. 3 1.5 will be a normal distribution '
+        'with mean 3 and standard deveation 1.5 inclusive, default=3 1.5',
+        default=(3, 1.5))
     parser.add_option(
-            '--minmakercount',
-            type='int',
-            dest='minmakercount',
-            default=2,
-            help=
-            'The minimum maker count in a transaction, random values below this are clamped at this number. default=2')
+        '--minmakercount',
+        type='int',
+        dest='minmakercount',
+        default=2,
+        help=
+        'The minimum maker count in a transaction, random values below this are clamped at this number. default=2')
+    parser.add_option('-M',
+                      '--mixdepthcount',
+                      type='int',
+                      dest='mixdepthcount',
+                      help='How many mixing depths to mix through',
+                      default=4)
     parser.add_option(
-            '-M',
-            '--mixdepthcount',
-            type='int',
-            dest='mixdepthcount',
-            help='How many mixing depths to mix through',
-            default=4)
+        '-c',
+        '--txcountparams',
+        type='float',
+        nargs=2,
+        dest='txcountparams',
+        default=(4, 1),
+        help=
+        'The number of transactions to take coins from one mixing depth to the next, it is'
+        ' randomly chosen following a normal distribution. Should be similar to --addrask. '
+        'This option controls the parameters of the normal distribution curve. (mean, standard deviation). default=(4, 1)')
     parser.add_option(
-            '-c',
-            '--txcountparams',
-            type='float',
-            nargs=2,
-            dest='txcountparams',
-            default=(4, 1),
-            help=
-            'The number of transactions to take coins from one mixing depth to the next, it is'
-            ' randomly chosen following a normal distribution. Should be similar to --addrask. '
-            'This option controls the parameters of the normal distribution curve. (mean, standard deviation). default=(4, 1)')
+        '--mintxcount',
+        type='int',
+        dest='mintxcount',
+        default=1,
+        help='The minimum transaction count per mixing level, default=1')
     parser.add_option(
-            '--mintxcount',
-            type='int',
-            dest='mintxcount',
-            default=1,
-            help='The minimum transaction count per mixing level, default=1')
+        '--donateamount',
+        type='float',
+        dest='donateamount',
+        default=0,
+        help=
+        'percent of funds to donate to joinmarket development, or zero to opt out (default=0%)')
     parser.add_option(
-            '--donateamount',
-            type='float',
-            dest='donateamount',
-            default=0,
-            help=
-            'percent of funds to donate to joinmarket development, or zero to opt out (default=0%)')
+        '--amountpower',
+        type='float',
+        dest='amountpower',
+        default=100.0,
+        help=
+        'The output amounts follow a power law distribution, this is the power, default=100.0')
     parser.add_option(
-            '--amountpower',
-            type='float',
-            dest='amountpower',
-            default=100.0,
-            help=
-            'The output amounts follow a power law distribution, this is the power, default=100.0')
+        '-l',
+        '--timelambda',
+        type='float',
+        dest='timelambda',
+        default=30,
+        help=
+        'Average the number of minutes to wait between transactions. Randomly chosen '
+        ' following an exponential distribution, which describes the time between uncorrelated'
+        ' events. default=30')
     parser.add_option(
-            '-l',
-            '--timelambda',
-            type='float',
-            dest='timelambda',
-            default=30,
-            help=
-            'Average the number of minutes to wait between transactions. Randomly chosen '
-            ' following an exponential distribution, which describes the time between uncorrelated'
-            ' events. default=30')
+        '-w',
+        '--wait-time',
+        action='store',
+        type='float',
+        dest='waittime',
+        help='wait time in seconds to allow orders to arrive, default=20',
+        default=20)
     parser.add_option(
-            '-w',
-            '--wait-time',
-            action='store',
-            type='float',
-            dest='waittime',
-            help='wait time in seconds to allow orders to arrive, default=20',
-            default=20)
+        '-s',
+        '--mincjamount',
+        type='int',
+        dest='mincjamount',
+        default=100000,
+        help='minimum coinjoin amount in transaction in satoshi, default 100k')
     parser.add_option(
-            '-s',
-            '--mincjamount',
-            type='int',
-            dest='mincjamount',
-            default=100000,
-            help='minimum coinjoin amount in transaction in satoshi, default 100k')
-    parser.add_option(
-            '-q',
-            '--liquiditywait',
-            type='int',
-            dest='liquiditywait',
-            default=60,
-            help=
-            'amount of seconds to wait after failing to choose suitable orders before trying again, default 60')
+        '-q',
+        '--liquiditywait',
+        type='int',
+        dest='liquiditywait',
+        default=60,
+        help=
+        'amount of seconds to wait after failing to choose suitable orders before trying again, default 60')
     (options, args) = parser.parse_args()
 
     if len(args) < 1:
@@ -535,7 +540,7 @@ def main():
     total_wait = sum([tx['wait'] for tx in tx_list])
     print('creates ' + str(len(tx_list)) + ' transactions in total')
     print('waits in total for ' + str(len(tx_list)) + ' blocks and ' + str(
-            total_wait) + ' minutes')
+        total_wait) + ' minutes')
     total_block_and_wait = len(tx_list) * 10 + total_wait
     print('estimated time taken ' + str(total_block_and_wait) + ' minutes or ' +
           str(round(total_block_and_wait / 60.0, 2)) + ' hours')

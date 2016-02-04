@@ -18,6 +18,7 @@ log = get_log()
 
 
 class TakerThread(threading.Thread):
+
     def __init__(self, tmaker):
         threading.Thread.__init__(self)
         self.daemon = True
@@ -43,20 +44,21 @@ class TakerThread(threading.Thread):
                                              self.tmaker.makercount,
                                              weighted_order_choose)
         print 'chosen orders to fill ' + str(orders) + ' totalcjfee=' + str(
-                total_cj_fee)
+            total_cj_fee)
         total_amount = self.tmaker.amount + total_cj_fee + self.tmaker.txfee
         print 'total amount spent = ' + str(total_amount)
 
         utxos = self.tmaker.wallet.select_utxos(self.tmaker.mixdepth,
                                                 total_amount)
         self.tmaker.start_cj(
-                self.tmaker.wallet, self.tmaker.amount, orders, utxos,
-                self.tmaker.destaddr,
-                self.tmaker.wallet.get_internal_addr(self.tmaker.mixdepth),
-                self.tmaker.txfee, self.finishcallback)
+            self.tmaker.wallet, self.tmaker.amount, orders, utxos,
+            self.tmaker.destaddr,
+            self.tmaker.wallet.get_internal_addr(self.tmaker.mixdepth),
+            self.tmaker.txfee, self.finishcallback)
 
 
 class PatientSendPayment(Maker, Taker):
+
     def __init__(self, msgchan, wallet, destaddr, amount, makercount, txfee,
                  cjfee, waittime, mixdepth):
         self.destaddr = destaddr
@@ -98,7 +100,8 @@ class PatientSendPayment(Maker, Taker):
         # its possible this bot will end up paying to the destaddr more than it
         # intended
         utxos = self.wallet.select_utxos(self.mixdepth, amount)
-        return utxos, self.destaddr, self.wallet.get_internal_addr(self.mixdepth)
+        return utxos, self.destaddr, self.wallet.get_internal_addr(
+            self.mixdepth)
 
     def on_tx_unconfirmed(self, cjorder, balance, removed_utxos):
         self.amount -= cjorder.cj_amount
@@ -135,62 +138,60 @@ class PatientSendPayment(Maker, Taker):
 
 def main():
     parser = OptionParser(
-            usage=
-            'usage: %prog [options] [wallet file / fromaccount] [amount] [destaddr]',
-            description='Sends a payment from your wallet to an given address' +
-                        ' using coinjoin. First acts as a maker, announcing an order and ' +
-                        'waiting for someone to fill it. After a set period of time, gives' +
-                        ' up waiting and acts as a taker and coinjoins any remaining coins')
+        usage=
+        'usage: %prog [options] [wallet file / fromaccount] [amount] [destaddr]',
+        description='Sends a payment from your wallet to an given address' +
+        ' using coinjoin. First acts as a maker, announcing an order and ' +
+        'waiting for someone to fill it. After a set period of time, gives' +
+        ' up waiting and acts as a taker and coinjoins any remaining coins')
+    parser.add_option('-f',
+                      '--txfee',
+                      action='store',
+                      type='int',
+                      dest='txfee',
+                      default=10000,
+                      help='miner fee contribution, in satoshis, default=10000')
     parser.add_option(
-            '-f',
-            '--txfee',
-            action='store',
-            type='int',
-            dest='txfee',
-            default=10000,
-            help='miner fee contribution, in satoshis, default=10000')
+        '-N',
+        '--makercount',
+        action='store',
+        type='int',
+        dest='makercount',
+        help=
+        'how many makers to coinjoin with when taking liquidity, default=2',
+        default=2)
     parser.add_option(
-            '-N',
-            '--makercount',
-            action='store',
-            type='int',
-            dest='makercount',
-            help=
-            'how many makers to coinjoin with when taking liquidity, default=2',
-            default=2)
+        '-w',
+        '--wait-time',
+        action='store',
+        type='float',
+        dest='waittime',
+        help='wait time in hours as a maker before becoming a taker, default=8',
+        default=8)
     parser.add_option(
-            '-w',
-            '--wait-time',
-            action='store',
-            type='float',
-            dest='waittime',
-            help='wait time in hours as a maker before becoming a taker, default=8',
-            default=8)
+        '-c',
+        '--cjfee',
+        action='store',
+        type='int',
+        dest='cjfee',
+        help=
+        'coinjoin fee asked for when being a maker, in satoshis per order filled, default=50000',
+        default=50000)
+    parser.add_option('-m',
+                      '--mixdepth',
+                      action='store',
+                      type='int',
+                      dest='mixdepth',
+                      help='mixing depth to spend from, default=0',
+                      default=0)
     parser.add_option(
-            '-c',
-            '--cjfee',
-            action='store',
-            type='int',
-            dest='cjfee',
-            help=
-            'coinjoin fee asked for when being a maker, in satoshis per order filled, default=50000',
-            default=50000)
-    parser.add_option(
-            '-m',
-            '--mixdepth',
-            action='store',
-            type='int',
-            dest='mixdepth',
-            help='mixing depth to spend from, default=0',
-            default=0)
-    parser.add_option(
-            '--rpcwallet',
-            action='store_true',
-            dest='userpcwallet',
-            default=False,
-            help=
-            'Use the Bitcoin Core wallet through json rpc, instead of the internal joinmarket '
-            + 'wallet. Requires blockchain_source=json-rpc')
+        '--rpcwallet',
+        action='store_true',
+        dest='userpcwallet',
+        default=False,
+        help=
+        'Use the Bitcoin Core wallet through json rpc, instead of the internal joinmarket '
+        + 'wallet. Requires blockchain_source=json-rpc')
     (options, args) = parser.parse_args()
 
     if len(args) < 3:
@@ -231,8 +232,7 @@ def main():
 
     irc = IRCMessageChannel(jm_single().nickname)
     PatientSendPayment(irc, wallet, destaddr, amount, options.makercount,
-                             options.txfee, options.cjfee, waittime,
-                             options.mixdepth)
+                       options.txfee, options.cjfee, waittime, options.mixdepth)
     try:
         irc.run()
     except:

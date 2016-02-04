@@ -585,6 +585,7 @@ def ecdsa_recover(msg, sig):
         ecdsa_raw_recover(
             electrum_sig_hash(msg), decode_sig(sig)), 'hex')
 
+
 def estimate_tx_size(ins, outs, txtype='p2pkh'):
     '''Estimate transaction size.
     Assuming p2pkh:
@@ -592,8 +593,8 @@ def estimate_tx_size(ins, outs, txtype='p2pkh'):
     ver:4,seq:4, +2 (len in,out)
     total ~= 34*len_out + 147*len_in + 10 (sig sizes vary slightly)
     '''
-    if txtype=='p2pkh':
-        return 10 + ins*147 +34*outs
+    if txtype == 'p2pkh':
+        return 10 + ins * 147 + 34 * outs
     else:
-        raise NotImplementedError("Non p2pkh transaction size estimation not"+
+        raise NotImplementedError("Non p2pkh transaction size estimation not" +
                                   "yet implemented")

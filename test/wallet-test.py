@@ -1,6 +1,5 @@
 #! /usr/bin/env python
 from __future__ import absolute_import
-
 '''Wallet functionality tests.'''
 
 import sys
@@ -23,6 +22,7 @@ from joinmarket import get_p2pk_vbyte, get_log, Wallet
 from joinmarket.support import chunks
 
 log = get_log()
+
 
 class TestWalletCreation(unittest.TestCase):
 

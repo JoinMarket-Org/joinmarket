@@ -81,7 +81,7 @@ class JsonRpc(object):
             if response.status == 401:
                 conn.close()
                 raise JsonRpcConnectionError(
-                        "authentication for JSON-RPC failed")
+                    "authentication for JSON-RPC failed")
 
             # All of the codes below are 'fine' from a JSON-RPC point of view.
             if response.status not in [200, 404, 500]:

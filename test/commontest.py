@@ -1,6 +1,5 @@
 #! /usr/bin/env python
 from __future__ import absolute_import
-
 '''Some helper functions for testing'''
 
 import sys
@@ -19,7 +18,6 @@ from joinmarket import jm_single, Wallet, get_log
 from joinmarket.support import chunks
 
 log = get_log()
-
 '''This code is intended to provide
 subprocess startup cross-platform with
 some useful options; it could do with
@@ -53,7 +51,11 @@ def local_command(command, bg=False, redirect=''):
         return subprocess.check_output(command)
 
 
-def make_wallets(n, wallet_structures=None, mean_amt=1, sdev_amt=0, start_index=0):
+def make_wallets(n,
+                 wallet_structures=None,
+                 mean_amt=1,
+                 sdev_amt=0,
+                 start_index=0):
     '''n: number of wallets to be created
        wallet_structure: array of n arrays , each subarray
        specifying the number of addresses to be populated with coins
@@ -66,16 +68,17 @@ def make_wallets(n, wallet_structures=None, mean_amt=1, sdev_amt=0, start_index=
     seeds = chunks(binascii.hexlify(os.urandom(15 * n)), n)
     wallets = {}
     for i in range(n):
-        wallets[i+start_index] = {'seed': seeds[i],
-                      'wallet': Wallet(seeds[i],
-                                              max_mix_depth=5)}
+        wallets[i + start_index] = {'seed': seeds[i],
+                                    'wallet': Wallet(seeds[i],
+                                                     max_mix_depth=5)}
         for j in range(5):
             for k in range(wallet_structures[i][j]):
                 deviation = sdev_amt * random.random()
                 amt = mean_amt - sdev_amt / 2.0 + deviation
                 if amt < 0: amt = 0.001
                 jm_single().bc_interface.grab_coins(
-                    wallets[i+start_index]['wallet'].get_external_addr(j), amt)
+                    wallets[i + start_index]['wallet'].get_external_addr(j),
+                    amt)
     return wallets
 
 

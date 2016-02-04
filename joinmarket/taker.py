@@ -40,9 +40,8 @@ class CoinJoinTX(object):
         thats used if you want to entirely coinjoin one utxo with no change left over
         orders is the orders you want to fill {'counterpartynick': oid, 'cp2': oid2}
         """
-        log.debug(
-            'starting cj to ' + str(my_cj_addr) + ' with change at ' + str(
-                    my_change_addr))
+        log.debug('starting cj to ' + str(my_cj_addr) + ' with change at ' +
+                  str(my_change_addr))
         # parameters
         self.msgchan = msgchan
         self.wallet = wallet
@@ -81,8 +80,9 @@ class CoinJoinTX(object):
         if nick not in self.active_orders.keys():
             log.debug("Counterparty not part of this transaction. Ignoring")
             return
-        self.crypto_boxes[nick] = [maker_pk, as_init_encryption(
-                self.kp, init_pubkey(maker_pk))]
+        self.crypto_boxes[nick] = [maker_pk,
+                                   as_init_encryption(self.kp,
+                                                      init_pubkey(maker_pk))]
         # send authorisation request
         if self.auth_addr:
             my_btc_addr = self.auth_addr
@@ -134,13 +134,13 @@ class CoinJoinTX(object):
             fmt = ('ERROR counterparty requires sub-dust change. nick={}'
                    'totalin={:d} cjamount={:d} change={:d}').format
             log.debug(fmt(nick, total_input, self.cj_amount, change_amount))
-            return              # timeout marks this maker as nonresponsive
+            return  # timeout marks this maker as nonresponsive
 
         self.outputs.append({'address': change_addr, 'value': change_amount})
         fmt = ('fee breakdown for {} totalin={:d} '
                'cjamount={:d} txfee={:d} realcjfee={:d}').format
-        log.debug(fmt(nick, total_input, self.cj_amount,
-                      order['txfee'], real_cjfee))
+        log.debug(fmt(nick, total_input, self.cj_amount, order['txfee'],
+                      real_cjfee))
         cj_addr = btc.pubtoaddr(cj_pub, get_p2pk_vbyte())
         self.outputs.append({'address': cj_addr, 'value': self.cj_amount})
         self.cjfee_total += real_cjfee
@@ -155,14 +155,14 @@ class CoinJoinTX(object):
         log.debug('got all parts, enough to build a tx')
         self.nonrespondants = list(self.active_orders.keys())
 
-        my_total_in = sum([va['value'] for u, va in
-                           self.input_utxos.iteritems()])
+        my_total_in = sum([va['value'] for u, va in self.input_utxos.iteritems()
+                          ])
         if self.my_change_addr:
             #Estimate fee per choice of next/3/6 blocks targetting.
-            estimated_fee = estimate_tx_fee(len(sum(
-                self.utxos.values(),[])), len(self.outputs)+2)
-            log.debug("Based on initial guess: "+str(
-                self.total_txfee)+", we estimated a fee of: "+str(estimated_fee))
+            estimated_fee = estimate_tx_fee(
+                len(sum(self.utxos.values(), [])), len(self.outputs) + 2)
+            log.debug("Based on initial guess: " + str(self.total_txfee) +
+                      ", we estimated a fee of: " + str(estimated_fee))
             #reset total
             self.total_txfee = estimated_fee
         my_txfee = max(self.total_txfee - self.maker_txfee_contributions, 0)
@@ -174,16 +174,19 @@ class CoinJoinTX(object):
         #in SendPayment.create_tx(), but it is still a possibility if one maker
         #uses a *lot* of inputs.
         if self.my_change_addr and my_change_value <= 0:
-            raise ValueError("Calculated transaction fee of: "+str(
-                self.total_txfee)+" is too large for our inputs;Please try again.")
-        elif self.my_change_addr and my_change_value <= jm_single().DUST_THRESHOLD:
-            log.debug("Dynamically calculated change lower than dust: "+str(
-                my_change_value)+"; dropping.")
+            raise ValueError("Calculated transaction fee of: " + str(
+                self.total_txfee) +
+                             " is too large for our inputs;Please try again.")
+        elif self.my_change_addr and my_change_value <= jm_single(
+        ).DUST_THRESHOLD:
+            log.debug("Dynamically calculated change lower than dust: " + str(
+                my_change_value) + "; dropping.")
             self.my_change_addr = None
             my_change_value = 0
-        log.debug('fee breakdown for me totalin=%d my_txfee=%d makers_txfee=%d cjfee_total=%d => changevalue=%d'
-                  % (my_total_in, my_txfee, self.maker_txfee_contributions,            
-                  self.cjfee_total, my_change_value))
+        log.debug(
+            'fee breakdown for me totalin=%d my_txfee=%d makers_txfee=%d cjfee_total=%d => changevalue=%d'
+            % (my_total_in, my_txfee, self.maker_txfee_contributions,
+               self.cjfee_total, my_change_value))
         if self.my_change_addr is None:
             if my_change_value != 0 and abs(my_change_value) != 1:
                 # seems you wont always get exactly zero because of integer
@@ -206,8 +209,7 @@ class CoinJoinTX(object):
 
         self.latest_tx = btc.deserialize(tx)
         for index, ins in enumerate(self.latest_tx['ins']):
-            utxo = ins['outpoint']['hash'] + ':' + str(
-                    ins['outpoint']['index'])
+            utxo = ins['outpoint']['hash'] + ':' + str(ins['outpoint']['index'])
             if utxo not in self.input_utxos.keys():
                 continue
             # placeholders required
@@ -216,8 +218,8 @@ class CoinJoinTX(object):
     def add_signature(self, nick, sigb64):
         if nick not in self.nonrespondants:
             log.debug(('add_signature => nick={} '
-                       'not in nonrespondants {}').format(
-                    nick, self.nonrespondants))
+                       'not in nonrespondants {}').format(nick,
+                                                          self.nonrespondants))
             return
         sig = base64.b64decode(sigb64).encode('hex')
         inserted_sig = False
@@ -227,23 +229,22 @@ class CoinJoinTX(object):
         utxo = {}
         ctr = 0
         for index, ins in enumerate(self.latest_tx['ins']):
-            utxo_for_checking = ins['outpoint']['hash'] + ':' + str(
-                    ins['outpoint']['index'])
+            utxo_for_checking = ins['outpoint']['hash'] + ':' + str(ins[
+                'outpoint']['index'])
             if (ins['script'] != '' or
-                        utxo_for_checking in self.input_utxos.keys()):
+                    utxo_for_checking in self.input_utxos.keys()):
                 continue
             utxo[ctr] = [index, utxo_for_checking]
             ctr += 1
-        utxo_data = jm_single().bc_interface.query_utxo_set(
-                [x[1] for x in utxo.values()])
+        utxo_data = jm_single().bc_interface.query_utxo_set([x[
+            1] for x in utxo.values()])
 
         # insert signatures
         for i, u in utxo.iteritems():
             if utxo_data[i] is None:
                 continue
-            sig_good = btc.verify_tx_input(
-                    txhex, u[0], utxo_data[i]['script'],
-                    *btc.deserialize_script(sig))
+            sig_good = btc.verify_tx_input(txhex, u[0], utxo_data[i]['script'],
+                                           *btc.deserialize_script(sig))
             if sig_good:
                 log.debug('found good sig at index=%d' % (u[0]))
                 self.latest_tx['ins'][u[0]]['script'] = sig
@@ -295,8 +296,7 @@ class CoinJoinTX(object):
         # now sign it ourselves
         tx = btc.serialize(self.latest_tx)
         for index, ins in enumerate(self.latest_tx['ins']):
-            utxo = ins['outpoint']['hash'] + ':' + str(
-                    ins['outpoint']['index'])
+            utxo = ins['outpoint']['hash'] + ':' + str(ins['outpoint']['index'])
             if utxo not in self.input_utxos.keys():
                 continue
             addr = self.input_utxos[utxo]['address']
@@ -314,7 +314,7 @@ class CoinJoinTX(object):
         if pushed[0]:
             self.txid = pushed[1]
         else:
-            log.debug('unable to pushtx, reason: '+str(pushed[1]))
+            log.debug('unable to pushtx, reason: ' + str(pushed[1]))
         return pushed[0]
 
     def self_sign_and_push(self):
@@ -338,16 +338,15 @@ class CoinJoinTX(object):
             for nr in self.nonrespondants:
                 del self.active_orders[nr]
             new_orders, new_makers_fee = self.choose_orders_recover(
-                    self.cj_amount, len(self.nonrespondants),
-                    self.nonrespondants,
-                    self.active_orders.keys())
+                self.cj_amount, len(self.nonrespondants), self.nonrespondants,
+                self.active_orders.keys())
             for nick, order in new_orders.iteritems():
                 self.active_orders[nick] = order
             self.nonrespondants = list(new_orders.keys())
             log.debug(('new active_orders = {} \nnew nonrespondants = '
                        '{}').format(
-                    pprint.pformat(self.active_orders),
-                    pprint.pformat(self.nonrespondants)))
+                           pprint.pformat(self.active_orders), pprint.pformat(
+                               self.nonrespondants)))
 
             self.msgchan.fill_orders(new_orders, self.cj_amount,
                                      self.kp.hex_pk())
@@ -376,8 +375,8 @@ class CoinJoinTX(object):
             # after it returns, check a boolean
             # to see if if the messages have arrived
             while not self.cjtx.end_timeout_thread:
-                log.debug('waiting for all replies.. timeout=' + str(
-                        jm_single().maker_timeout_sec))
+                log.debug('waiting for all replies.. timeout=' + str(jm_single(
+                ).maker_timeout_sec))
                 with self.cjtx.timeout_lock:
                     self.cjtx.timeout_lock.wait(jm_single().maker_timeout_sec)
                 if self.cjtx.all_responded:
@@ -392,6 +391,7 @@ class CoinJoinTX(object):
 
 
 class CoinJoinerPeer(object):
+
     def __init__(self, msgchan):
         self.msgchan = msgchan
 
@@ -419,13 +419,14 @@ class CoinJoinerPeer(object):
 
 
 class OrderbookWatch(CoinJoinerPeer):
+
     def __init__(self, msgchan):
         CoinJoinerPeer.__init__(self, msgchan)
         self.msgchan.register_orderbookwatch_callbacks(self.on_order_seen,
                                                        self.on_order_cancel)
         self.msgchan.register_channel_callbacks(
-                self.on_welcome, self.on_set_topic, None, self.on_disconnect,
-                self.on_nick_leave, None)
+            self.on_welcome, self.on_set_topic, None, self.on_disconnect,
+            self.on_nick_leave, None)
 
         con = sqlite3.connect(":memory:", check_same_thread=False)
         con.row_factory = sqlite3.Row
@@ -438,26 +439,27 @@ class OrderbookWatch(CoinJoinerPeer):
                       txfee, cjfee):
         try:
             if int(oid) < 0 or int(oid) > sys.maxint:
-                log.debug(
-                    "Got invalid order ID: " + oid + " from " + counterparty)
+                log.debug("Got invalid order ID: " + oid + " from " +
+                          counterparty)
                 return
             # delete orders eagerly, so in case a buggy maker sends an
             # invalid offer, we won't accidentally !fill based on the ghost
             # of its previous message.
-            self.db.execute(("DELETE FROM orderbook WHERE counterparty=? "
-                             "AND oid=?;"), (counterparty, oid))
+            self.db.execute(
+                ("DELETE FROM orderbook WHERE counterparty=? "
+                 "AND oid=?;"), (counterparty, oid))
             # now validate the remaining fields
-            if int(minsize) < 0 or int(minsize) > 21 * 10 ** 14:
+            if int(minsize) < 0 or int(minsize) > 21 * 10**14:
                 log.debug("Got invalid minsize: {} from {}".format(
-                        minsize, counterparty))
+                    minsize, counterparty))
                 return
-            if int(maxsize) < 0 or int(maxsize) > 21 * 10 ** 14:
+            if int(maxsize) < 0 or int(maxsize) > 21 * 10**14:
                 log.debug("Got invalid maxsize: " + maxsize + " from " +
                           counterparty)
                 return
             if int(txfee) < 0:
-                log.debug("Got invalid txfee: {} from {}".format(
-                        txfee, counterparty))
+                log.debug("Got invalid txfee: {} from {}".format(txfee,
+                                                                 counterparty))
                 return
             if int(minsize) > int(maxsize):
 
@@ -470,21 +472,21 @@ class OrderbookWatch(CoinJoinerPeer):
                     cjfee = int(cjfee)
                 except ValueError:
                     log.debug("Got non integer coinjoin fee: " + str(cjfee) +
-                            " for an absorder from " + counterparty)
+                              " for an absorder from " + counterparty)
                     return
             self.db.execute(
-                    'INSERT INTO orderbook VALUES(?, ?, ?, ?, ?, ?, ?);',
-                    (counterparty, oid, ordertype, minsize, maxsize, txfee,
-                     str(Decimal(
-                         cjfee))))  # any parseable Decimal is a valid cjfee
+                'INSERT INTO orderbook VALUES(?, ?, ?, ?, ?, ?, ?);',
+                (counterparty, oid, ordertype, minsize, maxsize, txfee,
+                 str(Decimal(cjfee))))  # any parseable Decimal is a valid cjfee
         except InvalidOperation:
             log.debug("Got invalid cjfee: " + cjfee + " from " + counterparty)
         except:
             log.debug("Error parsing order " + oid + " from " + counterparty)
 
     def on_order_cancel(self, counterparty, oid):
-        self.db.execute(("DELETE FROM orderbook WHERE "
-                         "counterparty=? AND oid=?;"), (counterparty, oid))
+        self.db.execute(
+            ("DELETE FROM orderbook WHERE "
+             "counterparty=? AND oid=?;"), (counterparty, oid))
 
     def on_welcome(self):
         self.msgchan.request_orderbook()
@@ -498,6 +500,7 @@ class OrderbookWatch(CoinJoinerPeer):
 
 # assume this only has one open cj tx at a time
 class Taker(OrderbookWatch):
+
     def __init__(self, msgchan):
         OrderbookWatch.__init__(self, msgchan)
         msgchan.register_taker_callbacks(self.on_error, self.on_pubkey,
@@ -511,7 +514,8 @@ class Taker(OrderbookWatch):
     def get_crypto_box_from_nick(self, nick):
         if nick in self.cjtx.crypto_boxes:
             return self.cjtx.crypto_boxes[nick][
-                1]  # libsodium encryption object
+                1
+            ]  # libsodium encryption object
         else:
             log.debug('something wrong, no crypto object, nick=' + nick +
                       ', message will be dropped')
@@ -529,11 +533,10 @@ class Taker(OrderbookWatch):
                  choose_orders_recover=None,
                  auth_addr=None):
         self.cjtx = None
-        self.cjtx = CoinJoinTX(
-                self.msgchan, wallet, self.db, cj_amount, orders,
-                input_utxos, my_cj_addr, my_change_addr,
-                total_txfee, finishcallback,
-                choose_orders_recover, auth_addr)
+        self.cjtx = CoinJoinTX(self.msgchan, wallet, self.db, cj_amount, orders,
+                               input_utxos, my_cj_addr, my_change_addr,
+                               total_txfee, finishcallback,
+                               choose_orders_recover, auth_addr)
 
     def on_error(self):
         pass  # TODO implement
@@ -548,7 +551,7 @@ class Taker(OrderbookWatch):
     def on_ioauth(self, nick, utxo_list, cj_pub, change_addr, btc_sig):
         if not self.cjtx.auth_counterparty(nick, btc_sig, cj_pub):
             fmt = ('Authenticated encryption with counterparty: {}'
-                    ' not established. TODO: send rejection message').format
+                   ' not established. TODO: send rejection message').format
             log.debug(fmt(nick))
             return
         with self.cjtx.timeout_thread_lock:
@@ -577,9 +580,8 @@ def donation_address(cjtx):
     global sign_k
     sign_k = btc.deterministic_generate_k(msghash, privkey)
     c = btc.sha256(btc.multiply(reusable_donation_pubkey, sign_k))
-    sender_pubkey = btc.add_pubkeys(
-            reusable_donation_pubkey, btc.multiply(
-                    btc.G, c))
+    sender_pubkey = btc.add_pubkeys(reusable_donation_pubkey,
+                                    btc.multiply(btc.G, c))
     sender_address = btc.pubtoaddr(sender_pubkey, get_p2pk_vbyte())
     log.debug('sending coins to ' + sender_address)
     return sender_address
@@ -593,8 +595,8 @@ def sign_donation_tx(tx, i, priv):
         priv = btc.safe_hexlify(priv)
     pub = btc.privkey_to_pubkey(priv)
     address = btc.pubkey_to_address(pub)
-    signing_tx = btc.signature_form(
-            tx, i, btc.mk_pubkey_script(address), hashcode)
+    signing_tx = btc.signature_form(tx, i, btc.mk_pubkey_script(address),
+                                    hashcode)
 
     msghash = btc.bin_txhash(signing_tx, hashcode)
     z = btc.hash_to_int(msghash)

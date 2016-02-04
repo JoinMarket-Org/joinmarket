@@ -76,9 +76,9 @@ class ThrottleThread(threading.Thread):
         last_msg_time = 0
         while not self.irc.give_up:
             self.irc.lockthrottle.acquire()
-            while not (self.irc.throttleQ.empty() and self.irc.obQ.empty()
-                       and self.irc.pingQ.empty()):
-                time.sleep(0.2) #need to avoid cpu spinning if throttled
+            while not (self.irc.throttleQ.empty() and self.irc.obQ.empty() and
+                       self.irc.pingQ.empty()):
+                time.sleep(0.2)  #need to avoid cpu spinning if throttled
                 try:
                     pingmsg = self.irc.pingQ.get(block=False)
                     #ping messages are not counted to throttling totals,
@@ -93,7 +93,7 @@ class ThrottleThread(threading.Thread):
                 #First throttling mechanism: no more than 1 line
                 #per self.MSG_INTERVAL seconds.
                 x = time.time() - last_msg_time
-                if  x < self.MSG_INTERVAL:
+                if x < self.MSG_INTERVAL:
                     continue
                 #Second throttling mechanism: limited kB/s rate
                 #over the most recent period.
@@ -102,9 +102,9 @@ class ThrottleThread(threading.Thread):
                 self.msg_buffer = [_ for _ in self.msg_buffer if _[1] > q]
                 bytes_recent = sum(len(i[0]) for i in self.msg_buffer)
                 if bytes_recent > self.B_PER_SEC * self.B_PER_SEC_INTERVAL:
-                    log.debug("Throttling triggered, with: "+str(
-                        bytes_recent)+ " bytes in the last "+str(
-                            self.B_PER_SEC_INTERVAL)+" seconds.")
+                    log.debug("Throttling triggered, with: " + str(bytes_recent)
+                              + " bytes in the last " + str(
+                                  self.B_PER_SEC_INTERVAL) + " seconds.")
                     continue
                 try:
                     throttled_msg = self.irc.throttleQ.get(block=False)
@@ -115,7 +115,7 @@ class ThrottleThread(threading.Thread):
                         #this code *should* be unreachable.
                         continue
                 try:
-                    self.irc.sock.sendall(throttled_msg+'\r\n')
+                    self.irc.sock.sendall(throttled_msg + '\r\n')
                     last_msg_time = time.time()
                     self.msg_buffer.append((throttled_msg, last_msg_time))
                 except:
@@ -126,6 +126,7 @@ class ThrottleThread(threading.Thread):
             self.irc.lockthrottle.release()
 
         log.debug("Ended throttling thread.")
+
 
 class PingThread(threading.Thread):
 
@@ -278,7 +279,7 @@ class IRCMessageChannel(MessageChannel):
         if line.startswith("PING") or line.startswith("PONG"):
             self.pingQ.put(line)
         elif "relorder" in line or "absorder" in line:
-                self.obQ.put(line)
+            self.obQ.put(line)
         else:
             self.throttleQ.put(line)
         self.lockthrottle.acquire()
@@ -383,7 +384,7 @@ class IRCMessageChannel(MessageChannel):
             return
         commands = message[1:].split(COMMAND_PREFIX)
         #DOS vector: repeated !orderbook requests, see #298.
-        if commands.count('orderbook')>1:
+        if commands.count('orderbook') > 1:
             return
         for command in commands:
             _chunks = command.split(" ")
@@ -607,9 +608,8 @@ class IRCMessageChannel(MessageChannel):
                 if config.get("MESSAGING", "socks5").lower() == 'true':
                     log.debug("Using socks5 proxy %s:%d" %
                               (self.socks5_host, self.socks5_port))
-                    setdefaultproxy(PROXY_TYPE_SOCKS5,
-                                          self.socks5_host, self.socks5_port,
-                                          True)
+                    setdefaultproxy(PROXY_TYPE_SOCKS5, self.socks5_host,
+                                    self.socks5_port, True)
                     self.sock = socksocket()
                 else:
                     self.sock = socket.socket(socket.AF_INET,
