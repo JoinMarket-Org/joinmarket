@@ -37,22 +37,19 @@ class AttributeDict(object):
     def __setattr__(self, name, value):
         if name == 'nickname' and value:
             logFormatter = logging.Formatter(
-                    ('%(asctime)s [%(threadName)-12.12s] '
-                     '[%(levelname)-5.5s]  %(message)s'))
-            fileHandler = logging.FileHandler(
-                    'logs/{}.log'.format(value))
+                ('%(asctime)s [%(threadName)-12.12s] '
+                 '[%(levelname)-5.5s]  %(message)s'))
+            fileHandler = logging.FileHandler('logs/{}.log'.format(value))
             fileHandler.setFormatter(logFormatter)
             log.addHandler(fileHandler)
 
         super(AttributeDict, self).__setattr__(name, value)
-
 
     def __getitem__(self, key):
         """
         Provides dict-style access to attributes
         """
         return getattr(self, key)
-
 
 # global_singleton = AttributeDict(
 #         **{'log': log,
@@ -188,8 +185,8 @@ def validate_address(addr):
 
 
 def load_program_config():
-    loadedFiles = global_singleton.config.read(
-            [global_singleton.config_location])
+    loadedFiles = global_singleton.config.read([global_singleton.config_location
+                                               ])
     # Create default config file if not found
     if len(loadedFiles) != 1:
         global_singleton.config.readfp(io.BytesIO(defaultconfig))
@@ -200,24 +197,24 @@ def load_program_config():
     for s in required_options:
         if s not in global_singleton.config.sections():
             raise Exception(
-                    "Config file does not contain the required section: " + s)
+                "Config file does not contain the required section: " + s)
     # then check for specific options
     for k, v in required_options.iteritems():
         for o in v:
             if o not in global_singleton.config.options(k):
                 raise Exception(
-                        "Config file does not contain the required option: " + o)
+                    "Config file does not contain the required option: " + o)
 
     try:
         global_singleton.maker_timeout_sec = global_singleton.config.getint(
-                'MESSAGING', 'maker_timeout_sec')
+            'MESSAGING', 'maker_timeout_sec')
     except NoOptionError:
         log.debug('maker_timeout_sec not found in .cfg file, '
                   'using default value')
 
     # configure the interface to the blockchain on startup
     global_singleton.bc_interface = get_blockchain_interface_instance(
-            global_singleton.config)
+        global_singleton.config)
 
 
 def get_blockchain_interface_instance(_config):
@@ -238,7 +235,8 @@ def get_blockchain_interface_instance(_config):
         rpc = JsonRpc(rpc_host, rpc_port, rpc_user, rpc_password)
         bc_interface = BitcoinCoreInterface(rpc, network)
     elif source == 'json-rpc':
-        bitcoin_cli_cmd = _config.get("BLOCKCHAIN", "bitcoin_cli_cmd").split(' ')
+        bitcoin_cli_cmd = _config.get("BLOCKCHAIN",
+                                      "bitcoin_cli_cmd").split(' ')
         rpc = CliJsonRpc(bitcoin_cli_cmd, testnet)
         bc_interface = BitcoinCoreInterface(rpc, network)
     elif source == 'regtest':

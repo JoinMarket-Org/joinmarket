@@ -333,7 +333,8 @@ class YieldGenerator(Maker):
             if cjfee == 0:
                 min_needed = profit_req_per_transaction + txfee
             elif cjfee > 0:
-                min_needed = int((profit_req_per_transaction + txfee + 1) / cjfee)
+                min_needed = int((profit_req_per_transaction + txfee + 1) /
+                                 cjfee)
             elif cjfee < 0:
                 sys.exit('negative fee not supported here')
             if min_needed <= lower:

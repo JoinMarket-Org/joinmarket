@@ -11,7 +11,6 @@ import base64
 import string
 import random
 
-
 from libnacl import public
 
 
@@ -69,7 +68,6 @@ Notes:
  2. Nonce is handled at the implementation layer.
 '''
 
-
 # TODO: Sign, verify. At the moment we are using
 # bitcoin signatures so it isn't necessary.
 
@@ -93,11 +91,11 @@ def test_case(case_name,
               num_iterations=1):
     for i in range(num_iterations):
         ab_message = ''.join(
-                random.choice(string.ascii_letters)
-                for _ in range(100)) if ab_message == 'rand' else ab_message
+            random.choice(string.ascii_letters)
+            for _ in range(100)) if ab_message == 'rand' else ab_message
         ba_message = ''.join(
-                random.choice(string.ascii_letters)
-                for _ in range(100)) if ba_message == 'rand' else ba_message
+            random.choice(string.ascii_letters)
+            for _ in range(100)) if ba_message == 'rand' else ba_message
         otw_amsg = alice_box.encrypt(ab_message)
         bob_ptext = bob_box.decrypt(otw_amsg)
         assert bob_ptext == ab_message, \

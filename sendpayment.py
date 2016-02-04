@@ -65,14 +65,14 @@ class PaymentThread(threading.Thread):
             #than the default set in option.txfee * makercount, where
             #we have a large number of utxos to spend. If it is smaller,
             #we'll be conservative and retain the original estimate.
-            est_ins = len(utxos)+3*self.taker.makercount
-            log.debug("Estimated ins: "+str(est_ins))
-            est_outs = 2*self.taker.makercount + 1
-            log.debug("Estimated outs: "+str(est_outs))
+            est_ins = len(utxos) + 3 * self.taker.makercount
+            log.debug("Estimated ins: " + str(est_ins))
+            est_outs = 2 * self.taker.makercount + 1
+            log.debug("Estimated outs: " + str(est_outs))
             estimated_fee = estimate_tx_fee(est_ins, est_outs)
-            log.debug("We have a fee estimate: "+str(estimated_fee))
-            log.debug("And a requested fee of: "+str(
-                self.taker.txfee * self.taker.makercount))
+            log.debug("We have a fee estimate: " + str(estimated_fee))
+            log.debug("And a requested fee of: " + str(self.taker.txfee *
+                                                       self.taker.makercount))
             if estimated_fee > self.taker.makercount * self.taker.txfee:
                 #both values are integers; we can ignore small rounding errors
                 self.taker.txfee = estimated_fee / self.taker.makercount
@@ -82,7 +82,8 @@ class PaymentThread(threading.Thread):
                 self.taker.makercount, self.taker.chooseOrdersFunc,
                 self.ignored_makers)
             if not orders:
-                raise Exception("Could not find orders to complete transaction.")
+                raise Exception(
+                    "Could not find orders to complete transaction.")
             if not self.taker.answeryes:
                 total_cj_fee = total_value - cjamount - \
                     self.taker.txfee*self.taker.makercount
@@ -102,22 +103,24 @@ class PaymentThread(threading.Thread):
                     'ERROR not enough liquidity in the orderbook, exiting')
                 return
             total_amount = self.taker.amount + total_cj_fee + \
-	        self.taker.txfee*self.taker.makercount
+         self.taker.txfee*self.taker.makercount
             print 'total estimated amount spent = ' + str(total_amount)
             #adjust the required amount upwards to anticipate a tripling of 
             #transaction fee after re-estimation; this is sufficiently conservative
             #to make failures unlikely while keeping the occurence of failure to
             #find sufficient utxos extremely rare. Indeed, a tripling of 'normal'
             #txfee indicates undesirable behaviour on maker side anyway.
-            utxos = self.taker.wallet.select_utxos(self.taker.mixdepth, 
-                total_amount+2*self.taker.txfee*self.taker.makercount)
+            utxos = self.taker.wallet.select_utxos(
+                self.taker.mixdepth,
+                total_amount + 2 * self.taker.txfee * self.taker.makercount)
             cjamount = self.taker.amount
-            change_addr = self.taker.wallet.get_internal_addr(self.taker.mixdepth)
+            change_addr = self.taker.wallet.get_internal_addr(
+                self.taker.mixdepth)
             choose_orders_recover = self.sendpayment_choose_orders
 
         self.taker.start_cj(self.taker.wallet, cjamount, orders, utxos,
-			self.taker.destaddr, change_addr, 
-                         self.taker.makercount*self.taker.txfee,
+                            self.taker.destaddr, change_addr,
+                            self.taker.makercount * self.taker.txfee,
                             self.finishcallback, choose_orders_recover)
 
     def finishcallback(self, coinjointx):
@@ -150,8 +153,8 @@ class PaymentThread(threading.Thread):
             self.ignored_makers + active_nicks)
         if not orders:
             return None, 0
-        print('chosen orders to fill ' + str(orders) + ' totalcjfee=' + str(
-            total_cj_fee))
+        print('chosen orders to fill ' + str(orders) + ' totalcjfee=' +
+              str(total_cj_fee))
         if not self.taker.answeryes:
             if len(self.ignored_makers) > 0:
                 noun = 'total'
@@ -202,16 +205,19 @@ def main():
         'wallet to an given address using coinjoin and then switches off. Also sends from bitcoinqt. '
         +
         'Setting amount to zero will do a sweep, where the entire mix depth is emptied')
-    parser.add_option('-f',
+    parser.add_option(
+        '-f',
         '--txfee',
         action='store',
         type='int',
         dest='txfee',
         default=5000,
-        help='number of satoshis per participant to use as the initial estimate '+
-        'for the total transaction fee, default=5000, note that this is adjusted '+
-        'based on the estimated fee calculated after tx construction, based on '+
-        'policy set in joinmarket.cfg.')
+        help=
+        'number of satoshis per participant to use as the initial estimate ' +
+        'for the total transaction fee, default=5000, note that this is adjusted '
+        +
+        'based on the estimated fee calculated after tx construction, based on '
+        + 'policy set in joinmarket.cfg.')
     parser.add_option(
         '-w',
         '--wait-time',
