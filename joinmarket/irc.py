@@ -8,6 +8,7 @@ import threading
 import time
 import Queue
 
+from ConfigParser import NoOptionError
 from joinmarket.configure import jm_single, get_config_irc_channel
 from joinmarket.message_channel import MessageChannel, CJPeerError
 from joinmarket.enc_wrapper import encrypt_encode, decode_decrypt
@@ -497,8 +498,9 @@ class IRCMessageChannel(MessageChannel):
                 if self.on_nick_leave:
                     self.on_nick_leave(nick)
         elif _chunks[1] == '433':  # nick in use
-            # self.nick = random_nick()
             self.nick += '_'  # helps keep identity constant if just _ added
+            if self.newnyms:
+                self.nick = random_nick()
             self.send_raw('NICK ' + self.nick)
         if self.password:
             if _chunks[1] == 'CAP':
@@ -583,12 +585,42 @@ class IRCMessageChannel(MessageChannel):
         self.socks5_port = int(config.get("MESSAGING", "socks5_port"))
         self.channel = get_config_irc_channel()
         self.userrealname = (username, realname)
+        self.reconnect_delay = 30
+        self.newnyms = False
+        try:
+            self.reconnect_delaty = int(config.get("MESSAGING", "reconnect_delay"))
+            self.newnyms = (config.get("MESSAGING", "newnym").lower() == 'true')
+            self.tor_ctrl_host = config.get("MESSAGING", "tor_ctrl_host")
+            self.tor_ctrl_port = int(config.get("MESSAGING", "tor_ctrl_port"))
+            self.tor_ctrl_pass = config.get("MESSAGING", "tor_ctrl_pass")
+            self.newnym_delay = int(config.get("MESSAGING", "newnym_delay"))
+        except NoOptionError as ex:
+            log.debug('The following newnym option is missing:')
+            log.debug(ex)
+            log.debug('.. disabling the feature.')
+            self.newnyms = False
+
+        if self.newnyms and self.serverport[0].lower().endswith('.onion'):
+            raise Exception("you can't use newnym=true with host=something.onion")
+
         if password and len(password) == 0:
             password = None
         self.given_password = password
         self.pingQ = Queue.Queue()
         self.throttleQ = Queue.Queue()
         self.obQ = Queue.Queue()
+
+    def newnym(self):
+        ctrl = socket.create_connection((self.tor_ctrl_host, self.tor_ctrl_port))
+        ctrl.send('AUTHENTICATE "%s"\r\n'%self.tor_ctrl_pass)
+        resp = ctrl.recv(1024)
+        if resp.startswith('250'):
+            ctrl.send("signal NEWNYM\r\n")
+            if resp.startswith('250'):
+                ctrl.close()
+                return
+        ctrl.close()
+        raise IOError("newnym failed "+resp)
 
     def run(self):
         self.waiting = {}
@@ -604,6 +636,10 @@ class IRCMessageChannel(MessageChannel):
             try:
                 config = jm_single().config
                 log.debug('connecting')
+                if self.newnyms:
+                    log.debug("Grabbing new Tor identity")
+                    self.newnym()
+                    self.nick = random_nick()
                 if config.get("MESSAGING", "socks5").lower() == 'true':
                     log.debug("Using socks5 proxy %s:%d" %
                               (self.socks5_host, self.socks5_port))
@@ -649,6 +685,8 @@ class IRCMessageChannel(MessageChannel):
                 self.on_disconnect()
             log.debug('disconnected irc')
             if not self.give_up:
-                time.sleep(30)
+                time.sleep(self.reconnect_delay)
+                if self.newnyms:
+                    time.sleep(random.randint(0,self.newnym_delay))
         log.debug('ending irc')
         self.give_up = True
