@@ -29,6 +29,8 @@ class MessageChannel(object):
         self.on_seen_auth = None
         self.on_seen_tx = None
         self.on_push_tx = None
+        # chan-specific attributes
+        self.newnyms = False
 
     def run(self):
         pass

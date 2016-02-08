@@ -588,7 +588,7 @@ class IRCMessageChannel(MessageChannel):
         self.reconnect_delay = 30
         self.newnyms = False
         try:
-            self.reconnect_delaty = int(config.get("MESSAGING", "reconnect_delay"))
+            self.reconnect_delay = int(config.get("MESSAGING", "reconnect_delay"))
             self.newnyms = (config.get("MESSAGING", "newnym").lower() == 'true')
             self.tor_ctrl_host = config.get("MESSAGING", "tor_ctrl_host")
             self.tor_ctrl_port = int(config.get("MESSAGING", "tor_ctrl_port"))
