@@ -1196,9 +1196,12 @@ class JMMainWindow(QMainWindow):
         if not len(words)==12:
             QMessageBox.warning(self, "Error","You did not provide 12 words, aborting.")
         else:
-            seed = mn_decode(words)
-            self.initWallet(seed=seed)
-            
+            try:
+                seed = mn_decode(words)
+                self.initWallet(seed=seed)
+            except ValueError as e:
+                QMessageBox.warning(self, "Error",
+                                    "Could not decode seedphrase: "+repr(e))
 
     def selectWallet(self, testnet_seed=None):
         if get_network() != 'testnet':
@@ -1208,7 +1211,7 @@ class JMMainWindow(QMainWindow):
             firstarg = QFileDialog.getOpenFileName(self, 'Choose Wallet File', 
                     directory=current_path)
             #TODO validate the file looks vaguely like a wallet file
-            log.debug('first arg is: '+firstarg)
+            log.debug('Looking for wallet in: '+firstarg)
             if not firstarg:
                 return
             decrypted = False
