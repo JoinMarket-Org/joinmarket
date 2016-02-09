@@ -59,6 +59,11 @@ log = get_log()
 donation_address = '1LT6rwv26bV7mgvRosoSCyGM7ttVRsYidP'
 donation_address_testnet = 'mz6FQosuiNe8135XaQqWYmXsa3aD8YsqGL'
 
+warnings = {"blockr_privacy": """You are using blockr as your method of
+connecting to the blockchain; this means
+that blockr.com can see the addresses you
+query. This is bad for privacy - consider
+using a Bitcoin Core node instead."""}
 #configuration types
 config_types = {'rpc_port': int,
                 'port': int,
@@ -72,7 +77,8 @@ config_types = {'rpc_port': int,
                 'check_high_fee': int,
                 'max_mix_depth': int,
                 'txfee_default': int,
-                'order_wait_time': int}
+                'order_wait_time': int,
+                'privacy_warning': None}
 config_tips = {'blockchain_source': 
                'options: blockr, bitcoin-rpc',
                'network':
@@ -139,6 +145,10 @@ def update_config_for_gui():
     for gcn, gcv in zip(gui_config_names, gui_config_default_vals):
         if gcn not in [_[0] for _ in gui_items]:
             jm_single().config.set("GUI", gcn, gcv)
+    #Extra setting not exposed to the GUI, but only for the GUI app
+    if 'privacy_warning' not in [_[0] for _ in gui_items]:
+        print 'overwriting privacy_warning'
+        jm_single().config.set("GUI", 'privacy_warning', '1')
 
 def persist_config():
     '''This loses all comments in the config file.
@@ -545,6 +555,8 @@ class SettingsTab(QDialog):
                     qt = QCheckBox()
                     if val=='testnet' or val.lower()=='true':
                         qt.setChecked(True)
+                elif not t:
+                    continue
                 else:
                     qt = QLineEdit(val)
                     if t == int:
@@ -653,6 +665,11 @@ class SpendTab(QWidget):
         self.aborted = False
         if not self.validateSettings():
             return
+        if jm_single().config.get("BLOCKCHAIN", "blockchain_source")=='blockr':
+            res = self.showBlockrWarning()
+            if res==True:
+                return
+
         #all settings are valid; start
         QMessageBox.information(self,"Sendpayment","Connecting to IRC.\n"+
                                         "View real-time log in the lower pane.")        
@@ -812,7 +829,34 @@ class SpendTab(QWidget):
             QMessageBox.warning(self,"Error","There is no wallet loaded.")
             return False
         return True
-                
+
+    def showBlockrWarning(self):
+        if jm_single().config.getint("GUI", "privacy_warning") == 0:
+            return False
+        qmb = QMessageBox()
+        qmb.setIcon(QMessageBox.Warning)
+        qmb.setWindowTitle("Privacy Warning")
+        qcb = QCheckBox("Don't show this warning again.")
+        lyt = qmb.layout()
+        lyt.addWidget(QLabel(warnings['blockr_privacy']), 0, 1)
+        lyt.addWidget(qcb, 1, 1)
+        qmb.addButton(QPushButton("Continue"), QMessageBox.YesRole)
+        qmb.addButton(QPushButton("Cancel"), QMessageBox.NoRole)
+
+        qmb.exec_()
+
+        switch_off_warning = '0' if qcb.isChecked() else '1'
+        jm_single().config.set("GUI","privacy_warning", switch_off_warning)
+
+        res = qmb.buttonRole(qmb.clickedButton())
+        if res == QMessageBox.YesRole:
+            return False
+        elif res == QMessageBox.NoRole:
+            return True
+        else:
+            log.debug("GUI error: unrecognized button, canceling.")
+            return True
+
     def checkAddress(self, addr):
         valid, errmsg = validate_address(str(addr))
         if not valid:
