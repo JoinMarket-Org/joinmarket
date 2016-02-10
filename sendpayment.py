@@ -344,52 +344,90 @@ class PT(object):
             log.debug('not enough counterparties to fill order, ending')
             #NB: don't shutdown msgchan here, that is done by the caller
             #after setting GUI state to reflect the reason for shutdown.
-            return None, None
+            return None, None, None, None
 
         utxos = None
         orders = None
-        cjamount = 0
+        cjamount = None
         change_addr = None
         choose_orders_recover = None
-        orders, total_cj_fee = self.sendpayment_choose_orders(
-            self.taker.amount, self.taker.makercount)
-        if not orders:
-            log.debug(
-                'ERROR not enough liquidity in the orderbook, exiting')
-            return None, None
-        return orders, total_cj_fee
+        if self.taker.amount == 0:
+            utxos = self.taker.wallet.get_utxos_by_mixdepth()[
+                self.taker.mixdepth]
+            #do our best to estimate the fee based on the number of
+            #our own utxos; this estimate may be significantly higher
+            #than the default set in option.txfee * makercount, where
+            #we have a large number of utxos to spend. If it is smaller,
+            #we'll be conservative and retain the original estimate.
+            est_ins = len(utxos)+3*self.taker.makercount
+            log.debug("Estimated ins: "+str(est_ins))
+            est_outs = 2*self.taker.makercount + 1
+            log.debug("Estimated outs: "+str(est_outs))
+            estimated_fee = estimate_tx_fee(est_ins, est_outs)
+            log.debug("We have a fee estimate: "+str(estimated_fee))
+            log.debug("And a requested fee of: "+str(
+                self.taker.txfee * self.taker.makercount))
+            if estimated_fee > self.taker.makercount * self.taker.txfee:
+                #both values are integers; we can ignore small rounding errors
+                self.taker.txfee = estimated_fee / self.taker.makercount
+            total_value = sum([va['value'] for va in utxos.values()])
+            orders, cjamount = choose_sweep_orders(
+                self.taker.db, total_value, self.taker.txfee,
+                self.taker.makercount, self.taker.chooseOrdersFunc,
+                self.ignored_makers)
+            if not orders:
+                raise Exception("Could not find orders to complete transaction.")
+            total_cj_fee = total_value - cjamount - \
+                self.taker.txfee*self.taker.makercount
 
-    def do_tx(self, total_cj_fee, orders,
-              donate=False, donate_trigger=1000000, donation_address=None):
-        total_amount = self.taker.amount + total_cj_fee + \
-            self.taker.txfee*self.taker.makercount
-        log.debug('total estimated amount spent = ' + str(total_amount))
-        #adjust the required amount upwards to anticipate a tripling of
-        #transaction fee after re-estimation; this is sufficiently conservative
-        #to make failures unlikely while keeping the occurence of failure to
-        #find sufficient utxos extremely rare. Indeed, a tripling of 'normal'
-        #txfee indicates undesirable behaviour on maker side anyway.
-        try:
-            utxos = self.taker.wallet.select_utxos(self.taker.mixdepth,
-                    total_amount+2*self.taker.txfee*self.taker.makercount)
-        except Exception as e:
-            log.debug("Failed to select coins: "+repr(e))
-            return
-        my_total_in = sum([va['value'] for u, va in utxos.iteritems()])
-        cjamount = self.taker.amount
-        log.debug("using coinjoin amount: "+str(cjamount))
-        change_amount = my_total_in-cjamount
-        log.debug("using change amount: "+str(change_amount))
-        if donate and change_amount < donate_trigger*1e8:
-            #sanity check
-            res = validate_address(donation_address)
-            if not res[0]:
-                log.debug("Donation address invalid! Error: "+res[1])
-                return
-            change_addr = donation_address
         else:
-            change_addr = self.taker.wallet.get_internal_addr(self.taker.mixdepth)
-        log.debug("using change address: "+change_addr)
+            orders, total_cj_fee = self.sendpayment_choose_orders(
+                self.taker.amount, self.taker.makercount)
+            cjamount = self.taker.amount
+            if not orders:
+                log.debug(
+                    'ERROR not enough liquidity in the orderbook, exiting')
+                return None, None, None, None
+        return orders, total_cj_fee, cjamount, utxos
+
+    def do_tx(self, total_cj_fee, orders, cjamount, utxos,
+              donate=False, donate_trigger=1000000, donation_address=None):
+        #for non-sweep, we now have to set amount, change address and utxo selection
+        if self.taker.amount > 0:
+            total_amount = self.taker.amount + total_cj_fee + \
+                self.taker.txfee*self.taker.makercount
+            log.debug('total estimated amount spent = ' + str(total_amount))
+            #adjust the required amount upwards to anticipate a tripling of
+            #transaction fee after re-estimation; this is sufficiently conservative
+            #to make failures unlikely while keeping the occurence of failure to
+            #find sufficient utxos extremely rare. Indeed, a tripling of 'normal'
+            #txfee indicates undesirable behaviour on maker side anyway.
+            try:
+                utxos = self.taker.wallet.select_utxos(self.taker.mixdepth,
+                        total_amount+2*self.taker.txfee*self.taker.makercount)
+            except Exception as e:
+                log.debug("Failed to select coins: "+repr(e))
+                return
+            my_total_in = sum([va['value'] for u, va in utxos.iteritems()])
+            log.debug("using coinjoin amount: "+str(cjamount))
+            change_amount = my_total_in-cjamount
+            log.debug("using change amount: "+str(change_amount))
+            if donate and change_amount < donate_trigger*1e8:
+                #sanity check
+                res = validate_address(donation_address)
+                if not res[0]:
+                    log.debug("Donation address invalid! Error: "+res[1])
+                    return
+                change_addr = donation_address
+            else:
+                change_addr = self.taker.wallet.get_internal_addr(self.taker.mixdepth)
+            log.debug("using change address: "+change_addr)
+
+        #For sweeps, we reset the change address to None, and use the provided
+        #amount and utxos (calculated in the first step)
+        else:
+            change_addr = None
+
         choose_orders_recover = self.sendpayment_choose_orders
         log.debug("About to start coinjoin")
         try:

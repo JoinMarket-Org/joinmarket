@@ -705,7 +705,7 @@ class SpendTab(QWidget):
         thread2.add(self.createTxThread, on_done=self.doTx)      
     
     def createTxThread(self):
-        self.orders, self.total_cj_fee = self.pt.create_tx()
+        self.orders, self.total_cj_fee, self.cjamount, self.utxos = self.pt.create_tx()
         log.debug("Finished create_tx")
         #TODO this can't be done in a thread as currently built;
         #how else? or fix?
@@ -716,10 +716,16 @@ class SpendTab(QWidget):
             QMessageBox.warning(self,"Error","Not enough matching orders found.")
             self.giveUp()
             return
-        total_fee_pc = 1.0 * self.total_cj_fee / self.taker.amount
+
+        total_fee_pc = 1.0 * self.total_cj_fee / self.cjamount
+
+        #reset the btc amount display string if it's a sweep:
+        if self.taker.amount == 0:
+            self.btc_amount_str = str((Decimal(self.cjamount)/Decimal('1e8')))
+
         mbinfo = []
-        mbinfo.append("Sending amount: "+self.btc_amount_str+" BTC")
-        mbinfo.append("to address: "+self.destaddr)
+        mbinfo.append("Sending amount: " + self.btc_amount_str + " BTC")
+        mbinfo.append("to address: " + self.destaddr)
         mbinfo.append(" ")
         mbinfo.append("Counterparties chosen:")
         mbinfo.append('\t'.join(['Name','Order id']))
@@ -743,6 +749,7 @@ class SpendTab(QWidget):
             else:
                 da = donation_address
             thread3.add(partial(self.pt.do_tx,self.total_cj_fee, self.orders,
+                                self.cjamount, self.utxos,
                                 self.donateCheckBox.isChecked(),
                                 self.donateLimitBox.value(),
                                 da),
@@ -776,8 +783,7 @@ class SpendTab(QWidget):
                     if reply == QMessageBox.Yes:
                         self.startSendPayment(ignored_makers=self.pt.ignored_makers)
                     else:
-                        self.startButton.setEnabled(True)
-                        self.abortButton.setEnabled(False)
+                        self.giveUp()
                         return
 
         else:
@@ -870,7 +876,9 @@ class SpendTab(QWidget):
                          'How many other parties to send to; if you enter 4\n'+
                          ', there will be 5 participants, including you',
                          'The mixdepth of the wallet to send the payment from',
-                         'The amount IN BITCOINS to send.\n']
+                         'The amount IN BITCOINS to send.\n'+
+                         'If you enter 0, a SWEEP transaction\nwill be performed,'+
+                         ' spending all the coins \nin the given mixdepth.']
         sT = [str, int, int, float]
         #todo maxmixdepth
         sMM = ['',(2,20),(0,jm_single().config.getint("GUI","max_mix_depth")-1),
