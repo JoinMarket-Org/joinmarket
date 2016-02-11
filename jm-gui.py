@@ -46,7 +46,7 @@ BLACK_FG = "QWidget {color:black;}"
 import bitcoin as btc
 
 JM_CORE_VERSION = '0.1.2'
-JM_GUI_VERSION = '1'
+JM_GUI_VERSION = '2'
 
 from joinmarket import load_program_config, get_network, Wallet, encryptData, \
     get_p2pk_vbyte, jm_single, mn_decode, mn_encode, create_wallet_file, \
@@ -1131,7 +1131,7 @@ class JMMainWindow(QMainWindow):
     
     def closeEvent(self, event):
         quit_msg = "Are you sure you want to quit?"
-        reply = QMessageBox.question(self, "Joinmarket", quit_msg,
+        reply = QMessageBox.question(self, appWindowTitle, quit_msg,
                                      QMessageBox.Yes, QMessageBox.No)
         if reply == QMessageBox.Yes:
             persist_config()
@@ -1173,13 +1173,13 @@ class JMMainWindow(QMainWindow):
     def showAboutDialog(self):
         msgbox = QDialog(self)
         lyt = QVBoxLayout(msgbox)
-        msgbox.setWindowTitle("JoinMarket GUI")
+        msgbox.setWindowTitle(appWindowTitle)
         label1 = QLabel()
         label1.setText("<a href="+
                        "'https://github.com/joinmarket-org/joinmarket/wiki'>"+
                        "Read more about Joinmarket</a><p>"+
                        "<p>".join(["Joinmarket core software version: "+JM_CORE_VERSION,
-                                   "Joinmarket GUI version: "+JM_GUI_VERSION,
+                                   "JoinmarketQt version: "+JM_GUI_VERSION,
                                    "Messaging protocol version:"+" %s" % (
                            str(jm_single().JM_VERSION)),
                         "Help us support Bitcoin fungibility -",
@@ -1397,7 +1397,7 @@ update_config_for_gui()
 if not os.path.exists('logs'):
     os.makedirs('logs')
 app = QApplication(sys.argv)
-appWindowTitle = 'Joinmarket GUI'
+appWindowTitle = 'JoinMarketQt'
 w = JMMainWindow()
 tabWidget = QTabWidget(w)
 tabWidget.addTab(JMWalletTab(), "JM Wallet")
