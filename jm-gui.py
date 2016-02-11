@@ -51,7 +51,8 @@ JM_GUI_VERSION = '1'
 from joinmarket import load_program_config, get_network, Wallet, encryptData, \
     get_p2pk_vbyte, jm_single, mn_decode, mn_encode, create_wallet_file, \
     validate_address, random_nick, get_log, IRCMessageChannel, \
-    weighted_order_choose, get_blockchain_interface_instance
+    weighted_order_choose, get_blockchain_interface_instance, joinmarket_alert, \
+    core_alert
 
 from sendpayment import SendPayment, PT
 
@@ -234,7 +235,7 @@ class HelpLabel(QLabel):
         self.help_text = help_text
         self.wtitle = wtitle
         self.font = QFont()
-        self.setStyleSheet("QLabel {color: blue;}")
+        self.setStyleSheet(BLUE_FG)
 
     def mouseReleaseEvent(self, x):
         QMessageBox.information(w, self.wtitle, self.help_text, 'OK')
@@ -649,8 +650,8 @@ class SpendTab(QWidget):
         splitter1 = QSplitter(QtCore.Qt.Vertical)
         self.textedit = QTextEdit()
         self.textedit.verticalScrollBar().rangeChanged.connect(self.resizeScroll)
-        XStream.stdout().messageWritten.connect(self.textedit.insertPlainText)
-        XStream.stderr().messageWritten.connect(self.textedit.insertPlainText)
+        XStream.stdout().messageWritten.connect(self.updateConsoleText)
+        XStream.stderr().messageWritten.connect(self.updateConsoleText)
         splitter1.addWidget(top)
         splitter1.addWidget(self.textedit)
         splitter1.setSizes([400, 200])
@@ -658,6 +659,18 @@ class SpendTab(QWidget):
         vbox.addWidget(splitter1)
         self.show()
     
+    def updateConsoleText(self, txt):
+        #these alerts are a bit suboptimal;
+        #colored is better, and in the ultra-rare
+        #case of getting both, one will be swallowed.
+        #However, the transaction confirmation dialog
+        #will at least show both in RED and BOLD, and they will be more prominent.
+        if joinmarket_alert[0]:
+            w.statusBar().showMessage("JOINMARKET ALERT: " + joinmarket_alert[0])
+        if core_alert[0]:
+            w.statusBar().showMessage("BITCOIN CORE ALERT: " + core_alert[0])
+        self.textedit.insertPlainText(txt)
+
     def resizeScroll(self, mini, maxi):
         self.textedit.verticalScrollBar().setValue(maxi)
 
@@ -724,6 +737,14 @@ class SpendTab(QWidget):
             self.btc_amount_str = str((Decimal(self.cjamount)/Decimal('1e8')))
 
         mbinfo = []
+        if joinmarket_alert[0]:
+            mbinfo.append("<b><font color=red>JOINMARKET ALERT: " +
+                          joinmarket_alert[0] + "</font></b>")
+            mbinfo.append(" ")
+        if core_alert[0]:
+            mbinfo.append("<b><font color=red>BITCOIN CORE ALERT: " +
+                          core_alert[0] + "</font></b>")
+            mbinfo.append(" ")
         mbinfo.append("Sending amount: " + self.btc_amount_str + " BTC")
         mbinfo.append("to address: " + self.destaddr)
         mbinfo.append(" ")
@@ -737,7 +758,7 @@ class SpendTab(QWidget):
         if total_fee_pc > jm_single().config.getint("GUI","check_high_fee"):
             title += ': WARNING: Fee is HIGH!!'
         reply = QMessageBox.question(self,
-                                     title,'\n'.join(mbinfo),
+                                     title,'\n'.join([m + '<p>' for m in mbinfo]),
                                      QMessageBox.Yes,QMessageBox.No)
         if reply == QMessageBox.Yes:
             log.debug('You agreed, transaction proceeding')
@@ -1152,7 +1173,7 @@ class JMMainWindow(QMainWindow):
     def showAboutDialog(self):
         msgbox = QDialog(self)
         lyt = QVBoxLayout(msgbox)
-        msgbox.setWindowTitle("Joinmarket GUI")
+        msgbox.setWindowTitle("JoinMarket GUI")
         label1 = QLabel()
         label1.setText("<a href="+
                        "'https://github.com/joinmarket-org/joinmarket/wiki'>"+
@@ -1370,6 +1391,7 @@ def get_wallet_printout(wallet):
 ################################
 load_program_config()
 update_config_for_gui()
+
 #we're not downloading from github, so logs dir
 #might not exist
 if not os.path.exists('logs'):
