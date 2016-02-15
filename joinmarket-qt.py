@@ -750,13 +750,23 @@ class SpendTab(QWidget):
         mbinfo.append("to address: " + self.destaddr)
         mbinfo.append(" ")
         mbinfo.append("Counterparties chosen:")
-        mbinfo.append('\t'.join(['Name','Order id']))
+        mbinfo.append('Name,     Order id, Coinjoin fee (sat.)')
         for k,o in self.orders.iteritems():
-            mbinfo.append('\t'.join([k,str(o)]))
-        mbinfo.append('Total coinjoin fee = ' + str(float('%.3g' % (
-            100.0 * total_fee_pc))) + '%')
+            if o['ordertype']=='relorder':
+                display_fee = int(self.cjamount*float(o['cjfee'])) - int(o['txfee'])
+            elif o['ordertype'] ==  'absorder':
+                display_fee = int(o['cjfee']) - int(o['txfee'])
+            else:
+                log.debug("Unsupported order type: " + str(
+                    o['ordertype']) + ", aborting.")
+                self.giveUp()
+                return
+            mbinfo.append(k + ', ' + str(o['oid']) + ',         ' + str(display_fee))
+        mbinfo.append('Total coinjoin fee = ' +str(
+            self.total_cj_fee) + ' satoshis, or ' + str(float('%.3g' % (
+                100.0 * total_fee_pc))) + '%')
         title = 'Check Transaction'
-        if total_fee_pc > jm_single().config.getint("GUI","check_high_fee"):
+        if total_fee_pc * 100 > jm_single().config.getint("GUI","check_high_fee"):
             title += ': WARNING: Fee is HIGH!!'
         reply = QMessageBox.question(self,
                                      title,'\n'.join([m + '<p>' for m in mbinfo]),
