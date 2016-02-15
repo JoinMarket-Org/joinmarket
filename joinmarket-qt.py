@@ -45,8 +45,8 @@ BLACK_FG = "QWidget {color:black;}"
 
 import bitcoin as btc
 
-JM_CORE_VERSION = '0.1.2'
-JM_GUI_VERSION = '2'
+JM_CORE_VERSION = '0.1.3'
+JM_GUI_VERSION = '3'
 
 from joinmarket import load_program_config, get_network, Wallet, encryptData, \
     get_p2pk_vbyte, jm_single, mn_decode, mn_encode, create_wallet_file, \
