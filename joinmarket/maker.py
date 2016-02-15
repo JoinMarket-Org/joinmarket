@@ -213,7 +213,8 @@ class Maker(CoinJoinerPeer):
         self.active_orders = {}
         self.wallet = wallet
         self.nextoid = -1
-        self.orderlist = self.create_my_orders()
+        if not self.msgchan.newnyms:
+            self.orderlist = self.create_my_orders()
         self.wallet_unspent_lock = threading.Lock()
 
     def get_crypto_box_from_nick(self, nick):
@@ -265,6 +266,8 @@ class Maker(CoinJoinerPeer):
             self.msgchan.send_error(nick, 'Unable to push tx')
 
     def on_welcome(self):
+        if self.msgchan.newnyms:
+            self.orderlist = self.create_my_orders()
         self.msgchan.announce_orders(self.orderlist)
         self.active_orders = {}
 
