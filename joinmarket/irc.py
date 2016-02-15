@@ -188,9 +188,9 @@ class IRCMessageChannel(MessageChannel):
         self.__pubmsg(COMMAND_PREFIX + 'orderbook')
 
     # Taker callbacks
-    def fill_orders(self, nickoid_dict, cj_amount, taker_pubkey):
-        for c, oid in nickoid_dict.iteritems():
-            msg = str(oid) + ' ' + str(cj_amount) + ' ' + taker_pubkey
+    def fill_orders(self, nick_order_dict, cj_amount, taker_pubkey):
+        for c, order in nick_order_dict.iteritems():
+            msg = str(order['oid']) + ' ' + str(cj_amount) + ' ' + taker_pubkey
             self.__privmsg(c, 'fill', msg)
 
     def send_auth(self, nick, pubkey, sig):

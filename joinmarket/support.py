@@ -29,6 +29,9 @@ logFormatter = logging.Formatter(
 log = logging.getLogger('joinmarket')
 log.setLevel(logging.DEBUG)
 
+ORDER_KEYS = ['counterparty', 'oid', 'ordertype', 'minsize', 'maxsize',
+	 'txfee', 'cjfee']
+
 joinmarket_alert = ['']
 core_alert = ['']
 
@@ -189,7 +192,7 @@ def calc_cj_fee(ordertype, cjfee, cj_amount):
     return real_cjfee
 
 
-def weighted_order_choose(orders, n, feekey):
+def weighted_order_choose(orders, n):
     """
     Algorithm for choosing the weighting function
     it is an exponential
@@ -203,13 +206,13 @@ def weighted_order_choose(orders, n, feekey):
     phi has a value such that it contains up to the Mth order
     unless M < orderbook size, then phi goes up to the last order
     """
-    minfee = feekey(orders[0])
+    minfee = orders[0][1]
     M = int(3 * n)
     if len(orders) > M:
-        phi = feekey(orders[M]) - minfee
+        phi = orders[M][1] - minfee
     else:
-        phi = feekey(orders[-1]) - minfee
-    fee = [feekey(o) for o in orders]
+        phi = orders[-1][1] - minfee
+    fee = [o[1] for o in orders]
     if phi > 0:
         weight = [exp(-(1.0 * f - minfee) / phi) for f in fee]
     else:
@@ -220,20 +223,18 @@ def weighted_order_choose(orders, n, feekey):
     return orders[chosen_order_index]
 
 
-def cheapest_order_choose(orders, n, feekey):
+def cheapest_order_choose(orders, n):
     """
     Return the cheapest order from the orders.
     """
-    return sorted(orders, key=feekey)[0]
+    return orders[0]
 
 
-def pick_order(orders, n, feekey):
-    i = -1
+def pick_order(orders, n):
     print("Considered orders:")
-    for o in orders:
-        i += 1
-        counterparty = o[0]['counterparty'] if type(o[0]) == dict else o[0]
-        print("    %2d. %20s, CJ fee: %6d, tx fee: %6d" % (i, counterparty, o[2], o[3]))
+    for i, o in enumerate(orders):
+        print("    %2d. %20s, CJ fee: %6s, tx fee: %6d" % (i,
+                 o[0]['counterparty'], str(o[0]['cjfee']), o[0]['txfee']))
     pickedOrderIndex = -1
     if i == 0:
         print("Only one possible pick, picking it.")
@@ -254,18 +255,15 @@ def pick_order(orders, n, feekey):
 def choose_orders(db, cj_amount, n, chooseOrdersBy, ignored_makers=None):
     if ignored_makers is None:
         ignored_makers = []
-    sqlorders = db.execute('SELECT * FROM orderbook;').fetchall()
-    orders = [(o['counterparty'], o['oid'], calc_cj_fee(
-            o['ordertype'], o['cjfee'], cj_amount), o['txfee'])
-              for o in sqlorders
-              if o['minsize'] <= cj_amount <= o['maxsize'] and o[
-                  'counterparty'] not in ignored_makers]
+    sqlorders = db.execute(
+        'SELECT * FROM orderbook WHERE minsize <= :cja AND :cja <= maxsize;',
+        {'cja': cj_amount}).fetchall()
+    orders = [dict([(k, o[k]) for k in ORDER_KEYS])
+                 for o in sqlorders if o['counterparty'] not in ignored_makers]
+    orders_fees = [(o, calc_cj_fee(o['ordertype'], o['cjfee'],
+        cj_amount) - o['txfee']) for o in orders]
 
-    # function that returns the fee for a given order
-    def feekey(o):
-        return o[2] - o[3]
-
-    counterparties = set([o[0] for o in orders])
+    counterparties = set([o['counterparty'] for o in orders])
     if n > len(counterparties):
         log.debug(('ERROR not enough liquidity in the orderbook n=%d '
                    'suitable-counterparties=%d amount=%d totalorders=%d')
@@ -278,26 +276,27 @@ def choose_orders(db, cj_amount, n, chooseOrdersBy, ignored_makers=None):
     cjfee this is done in advance of the order selection algo, so applies to
     all of them. however, if orders are picked manually, allow duplicates.
     """
+    feekey = lambda x : x[1]
     if chooseOrdersBy != pick_order:
-        orders = sorted(
-                dict((v[0], v) for v in sorted(
-                        orders, key=feekey, reverse=True)).values(), key=feekey)
+        orders_fees = sorted(
+                dict((v[0]['counterparty'], v) for v in sorted(orders_fees,
+                        key=feekey, reverse=True)).values(), key=feekey)
     else:
-        orders = sorted(orders,
-                        key=feekey)  # sort from smallest to biggest cj fee
+        orders_fees = sorted(orders_fees, key=feekey) #sort by ascending cjfee
 
-    log.debug('considered orders = \n' + '\n'.join([str(o) for o in orders]))
+    log.debug('considered orders = \n' + '\n'.join([str(o) for o in orders_fees]))
     total_cj_fee = 0
     chosen_orders = []
     for i in range(n):
-        chosen_order = chooseOrdersBy(orders, n, feekey)
-        orders = [o for o in orders if o[0] != chosen_order[0]
-                  ]  # remove all orders from that same counterparty
+        chosen_order, chosen_fee = chooseOrdersBy(orders_fees, n)
+	# remove all orders from that same counterparty
+        orders_fees = [o for o in orders_fees if o[0]['counterparty'] !=
+            chosen_order['counterparty']]
         chosen_orders.append(chosen_order)
-        total_cj_fee += chosen_order[2]
+        total_cj_fee += chosen_fee
     log.debug('chosen orders = \n' + '\n'.join([str(o) for o in chosen_orders]))
-    chosen_orders = [o[:2] for o in chosen_orders]
-    return dict(chosen_orders), total_cj_fee
+    result = dict([(o['counterparty'], o) for o in chosen_orders])
+    return result, total_cj_fee
 
 
 def choose_sweep_orders(db,
@@ -326,14 +325,14 @@ def choose_sweep_orders(db,
         sumrelfee = Decimal('0')
         sumtxfee_contribution = 0
         for order in ordercombo:
-            sumtxfee_contribution += order[0]['txfee']
-            if order[0]['ordertype'] == 'absorder':
-                sumabsfee += int(order[0]['cjfee'])
-            elif order[0]['ordertype'] == 'relorder':
-                sumrelfee += Decimal(order[0]['cjfee'])
+            sumtxfee_contribution += order['txfee']
+            if order['ordertype'] == 'absorder':
+                sumabsfee += int(order['cjfee'])
+            elif order['ordertype'] == 'relorder':
+                sumrelfee += Decimal(order['cjfee'])
             else:
                 raise RuntimeError('unknown order type: {}'.format(
-                        order[0]['ordertype']))
+                        order['ordertype']))
 
         my_txfee = max(total_txfee - sumtxfee_contribution, 0)
         cjamount = (total_input_value - my_txfee - sumabsfee) / (1 + sumrelfee)
@@ -344,51 +343,41 @@ def choose_sweep_orders(db,
             total_input_value))
     sqlorders = db.execute('SELECT * FROM orderbook WHERE minsize <= ?;',
                            (total_input_value,)).fetchall()
-    orderkeys = ['counterparty', 'oid', 'ordertype', 'minsize', 'maxsize',
-                 'txfee', 'cjfee']
-    orderlist = [dict([(k, o[k]) for k in orderkeys])
+    orderlist = [dict([(k, o[k]) for k in ORDER_KEYS])
                  for o in sqlorders if o['counterparty'] not in ignored_makers]
 
-    # uncomment this and comment previous two lines for faster runtime but
-    # less readable output
-    # orderlist = sqlorders
     log.debug('orderlist = \n' + '\n'.join([str(o) for o in orderlist]))
+    orders_fees = [(o, calc_cj_fee(o['ordertype'], o['cjfee'],
+        total_input_value)) for o in orderlist]
 
-    # choose N amount of orders
-    available_orders = [(o, o['oid'], calc_cj_fee(o['ordertype'], o['cjfee'],
-                                                  total_input_value), o['txfee'])
-                        for o in orderlist]
-
-    def feekey(o):
-        return o[2] - o[3]
-
+    feekey = lambda x : x[1]
     # sort from smallest to biggest cj fee
-    available_orders = sorted(available_orders, key=feekey)
+    orders_fees = sorted(orders_fees, key=feekey)
     chosen_orders = []
     while len(chosen_orders) < n:
-        if len(available_orders) < n - len(chosen_orders):
+        if len(orders_fees) < n - len(chosen_orders):
             log.debug('ERROR not enough liquidity in the orderbook')
             # TODO handle not enough liquidity better, maybe an Exception
             return None, 0
         for i in range(n - len(chosen_orders)):
-            chosen_order = chooseOrdersBy(available_orders, n, feekey)
+            chosen_order, chosen_fee = chooseOrdersBy(orders_fees, n)
             log.debug('chosen = ' + str(chosen_order))
             # remove all orders from that same counterparty
-            available_orders = [
+            orders_fees = [
                 o
-                for o in available_orders
-                if o[0]['counterparty'] != chosen_order[0]['counterparty']
+                for o in orders_fees
+                if o[0]['counterparty'] != chosen_order['counterparty']
                 ]
             chosen_orders.append(chosen_order)
         # calc cj_amount and check its in range
         cj_amount, total_fee = calc_zero_change_cj_amount(chosen_orders)
         for c in list(chosen_orders):
-            minsize = c[0]['minsize']
-            maxsize = c[0]['maxsize']
+            minsize = c['minsize']
+            maxsize = c['maxsize']
             if cj_amount > maxsize or cj_amount < minsize:
                 chosen_orders.remove(c)
     log.debug('chosen orders = \n' + '\n'.join([str(o) for o in chosen_orders]))
-    result = dict([(o[0]['counterparty'], o[0]['oid']) for o in chosen_orders])
+    result = dict([(o['counterparty'], o) for o in chosen_orders])
     log.debug('cj amount = ' + str(cj_amount))
     return result, cj_amount
 
