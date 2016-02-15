@@ -692,8 +692,9 @@ class SpendTab(QWidget):
         jm_single().nickname = random_nick()
     
         log.debug('starting sendpayment')
-        #TODO: is this necessary?
-        #jm_single().bc_interface.sync_wallet(wallet)
+
+        w.statusBar().showMessage("Syncing wallet ...")
+        jm_single().bc_interface.sync_wallet(w.wallet)
     
         self.irc = IRCMessageChannel(jm_single().nickname)
         self.destaddr = str(self.widgets[0][1].text())
