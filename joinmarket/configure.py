@@ -72,7 +72,7 @@ class AttributeDict(object):
 
 # todo: same as above.  decide!!!
 global_singleton = AttributeDict()
-global_singleton.JM_VERSION = 3
+global_singleton.JM_VERSION = 4
 global_singleton.nickname = None
 global_singleton.DUST_THRESHOLD = 2730
 global_singleton.bc_interface = None
@@ -141,6 +141,8 @@ tx_fees = 3
 # leaving it unset or empty defers to bitcoind's default values, ie [1, 9999999]
 #listunspent_args = []
 # that's what you should do, unless you have a specific reason, eg:
+#  !!! WARNING !!! CONFIGURING THIS WHILE TAKING LIQUIDITY FROM
+#  !!! WARNING !!! THE PUBLIC ORDERBOOK LEAKS YOUR INPUT MERGES
 #  spend from unconfirmed transactions:  listunspent_args = [0]
 # display only unconfirmed transactions: listunspent_args = [0, 1]
 # defend against small reorganizations:  listunspent_args = [3]

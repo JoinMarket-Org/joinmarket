@@ -38,7 +38,9 @@ class CoinJoinTX(object):
         """
         if my_change is None then there wont be a change address
         thats used if you want to entirely coinjoin one utxo with no change left over
-        orders is the orders you want to fill {'counterpartynick': oid, 'cp2': oid2}
+        orders is the orders you want to fill {'counterpartynick': order1, 'cp2': order2}
+        each order object is a dict of properties {'oid': 0, 'maxsize': 2000000, 'minsize':
+            5000, 'cjfee': 10000, 'txfee': 5000}
         """
         log.debug(
             'starting cj to ' + str(my_cj_addr) + ' with change at ' + str(
@@ -109,9 +111,6 @@ class CoinJoinTX(object):
                        'nonrespondants {}').format(nick, self.nonrespondants))
             return
         self.utxos[nick] = utxo_list
-        order = self.db.execute('SELECT ordertype, txfee, cjfee FROM '
-                                'orderbook WHERE oid=? AND counterparty=?',
-                                (self.active_orders[nick], nick)).fetchone()
         utxo_data = jm_single().bc_interface.query_utxo_set(self.utxos[nick])
         if None in utxo_data:
             log.debug(('ERROR outputs unconfirmed or already spent. '
@@ -122,19 +121,19 @@ class CoinJoinTX(object):
 
         # ignore this message, eventually the timeout thread will recover
         total_input = sum([d['value'] for d in utxo_data])
-        real_cjfee = calc_cj_fee(order['ordertype'], order['cjfee'],
-                                 self.cj_amount)
+        real_cjfee = calc_cj_fee(self.active_orders[nick]['ordertype'],
+                       self.active_orders[nick]['cjfee'], self.cj_amount)
         self.outputs.append({'address': change_addr,
-                             'value': total_input - self.cj_amount - order[
-                                 'txfee'] + real_cjfee})
+              'value': total_input - self.cj_amount -
+               self.active_orders[nick]['txfee'] + real_cjfee})
         fmt = ('fee breakdown for {} totalin={:d} '
                'cjamount={:d} txfee={:d} realcjfee={:d}').format
         log.debug(fmt(nick, total_input, self.cj_amount,
-                      order['txfee'], real_cjfee))
+            self.active_orders[nick]['txfee'], real_cjfee))
         cj_addr = btc.pubtoaddr(cj_pub, get_p2pk_vbyte())
         self.outputs.append({'address': cj_addr, 'value': self.cj_amount})
         self.cjfee_total += real_cjfee
-        self.maker_txfee_contributions += order['txfee']
+        self.maker_txfee_contributions += self.active_orders[nick]['txfee']
         self.nonrespondants.remove(nick)
         if len(self.nonrespondants) > 0:
             log.debug('nonrespondants = ' + str(self.nonrespondants))
