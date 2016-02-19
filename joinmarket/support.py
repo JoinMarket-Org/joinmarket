@@ -2,13 +2,6 @@ from __future__ import absolute_import, print_function
 
 import sys
 
-"""
-Random functions - replacing some NumPy features
-NOTE THESE ARE NEITHER CRYPTOGRAPHICALLY SECURE
-NOR PERFORMANT NOR HIGH PRECISION!
-Only for sampling purposes
-"""
-
 import logging
 import pprint
 import random
@@ -63,6 +56,13 @@ def get_log():
     """
     return log
 
+
+"""
+Random functions - replacing some NumPy features
+NOTE THESE ARE NEITHER CRYPTOGRAPHICALLY SECURE
+NOR PERFORMANT NOR HIGH PRECISION!
+Only for sampling purposes
+"""
 
 def rand_norm_array(mu, sigma, n):
     # use normalvariate instead of gauss for thread safety
