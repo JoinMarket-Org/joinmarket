@@ -8,6 +8,7 @@ import os
 import pprint
 import random
 import re
+import socket
 import sys
 import threading
 import time
@@ -485,6 +486,203 @@ class BlockchaininfoInterface(BlockchainInterface):
             fee_per_kb = bcypher_data["low_fee_per_kb"]
 
         return fee_per_kb
+
+class ElectrumInterface(BlockchainInterface):
+
+    def __init__(self, testnet=False, electrum_server=None):
+        super(ElectrumInterface, self).__init__()
+
+        if testnet:
+            raise Exception(NotImplemented)
+        self.server_domain = electrum_server.split(':')[0]
+        self.last_sync_unspent = 0
+        self.s = socket.create_connection((self.server_domain, int(electrum_server.split(':')[1])))
+
+    def get_from_electrum(self, method, params=[]):
+        params = [params] if type(params) is not list else params
+        self.s.send(json.dumps({"id": 0, "method": method, "params": params}).encode() + b'\n')
+        r = None
+        while True:
+            d = self.s.recv(1024)
+            if not d:
+                break
+            if r is None:
+                r = d
+            else:
+                r = r + d
+            try:
+                json.loads(r[:-1].decode())
+            except Exception:
+                pass
+            else:
+                break
+        return json.loads(r[:-1].decode())
+
+    def sync_addresses(self, wallet):
+        log.debug("downloading wallet history from electrum server")
+        for mix_depth in range(wallet.max_mix_depth):
+            for forchange in [0, 1]:
+                unused_addr_count = 0
+                last_used_addr = ''
+                while (unused_addr_count < wallet.gaplimit or not is_index_ahead_of_cache(wallet, mix_depth, forchange)):
+                    addr = wallet.get_new_addr(mix_depth, forchange)
+                    addr_hist_info = self.get_from_electrum('blockchain.address.get_history', addr)
+                    if len(addr_hist_info['result']) > 0:
+                        last_used_addr = addr
+                        unused_addr_count = 0
+                    else:
+                        unused_addr_count += 1
+                if last_used_addr == '':
+                    wallet.index[mix_depth][forchange] = 0
+                else:
+                    wallet.index[mix_depth][forchange] = wallet.addr_cache[last_used_addr][2] + 1
+
+    def sync_unspent(self, wallet):
+        # finds utxos in the wallet
+        st = time.time()
+        # dont refresh unspent dict more often than 5 minutes
+        rate_limit_time = 5 * 60
+        if st - self.last_sync_unspent < rate_limit_time:
+            log.debug('electrum sync_unspent() happened too recently (%dsec), skipping' % (st - self.last_sync_unspent))
+            return
+        wallet.unspent = {}
+        addrs = wallet.addr_cache.keys()
+        if len(addrs) == 0:
+            log.debug('no tx used')
+            return
+        for a in addrs:
+            unspent_info = self.get_from_electrum('blockchain.address.listunspent', a)
+            res = unspent_info['result']
+            for u in res:
+                wallet.unspent[str(u['tx_hash']) + ':' + str(u['tx_pos'])] = {'address': a, 'value': int(u['value'])}
+        for u in wallet.spent_utxos:
+            wallet.unspent.pop(u, None)
+        self.last_sync_unspent = time.time()
+        log.debug('electrum sync_unspent took ' + str((self.last_sync_unspent - st)) + 'sec')
+
+    def add_tx_notify(self, txd, unconfirmfun, confirmfun, notifyaddr):
+        unconfirm_timeout = 10 * 60  # seconds
+        unconfirm_poll_period = 5
+        confirm_timeout = 2 * 60 * 60
+        confirm_poll_period = 5 * 60
+
+        class NotifyThread(threading.Thread):
+
+            def __init__(self, blockchaininterface, txd, unconfirmfun, confirmfun):
+                threading.Thread.__init__(self)
+                self.daemon = True
+                self.blockchaininterface = blockchaininterface
+                self.unconfirmfun = unconfirmfun
+                self.confirmfun = confirmfun
+                self.tx_output_set = set([(sv['script'], sv['value']) for sv in txd['outs']])
+                self.output_addresses = [btc.script_to_address(scrval[0], get_p2pk_vbyte()) for scrval in self.tx_output_set]
+                log.debug('txoutset=' + pprint.pformat(self.tx_output_set))
+                log.debug('outaddrs=' + ','.join(self.output_addresses))
+
+            def run(self):
+                st = int(time.time())
+                unconfirmed_txid = None
+                unconfirmed_txhex = None
+                while not unconfirmed_txid:
+                    time.sleep(unconfirm_poll_period)
+                    if int(time.time()) - st > unconfirm_timeout:
+                        log.debug('checking for unconfirmed tx timed out')
+                        return
+                    shared_txid = None
+                    for a in self.output_addresses:
+                        unconftx = self.blockchaininterface.get_from_electrum('blockchain.address.get_mempool', a).get('result')
+                        unconftxs = set([str(t['tx_hash']) for t in unconftx])
+                        if not shared_txid:
+                            shared_txid = unconftxs
+                        else:
+                            shared_txid = shared_txid.intersection(unconftxs)
+                    log.debug('sharedtxid = ' + str(shared_txid))
+                    if len(shared_txid) == 0:
+                        continue
+                    data = []
+                    for txid in shared_txid:
+                        txdata = self.blockchaininterface.get_from_electrum('blockchain.transaction.get', txid).get('result')
+                        data.append({'hex':txdata,'id':txid})
+                    for txdata in data:
+                        txhex = txdata['hex']
+                        outs = set([(sv['script'], sv['value']) for sv in btc.deserialize(txhex)['outs']])
+                        log.debug('unconfirm query outs = ' + str(outs))
+                        if outs == self.tx_output_set:
+                            unconfirmed_txid = txdata['id']
+                            unconfirmed_txhex = txhex
+                            break
+                self.unconfirmfun(btc.deserialize(unconfirmed_txhex), unconfirmed_txid)
+                st = int(time.time())
+                confirmed_txid = None
+                confirmed_txhex = None
+                while not confirmed_txid:
+                    time.sleep(confirm_poll_period)
+                    if int(time.time()) - st > confirm_timeout:
+                        log.debug('checking for confirmed tx timed out')
+                        return
+                    shared_txid = None
+                    for a in self.output_addresses:
+                        conftx = self.blockchaininterface.get_from_electrum('blockchain.address.listunspent', a).get('result')
+                        conftxs = set([str(t['tx_hash']) for t in conftx])
+                        if not shared_txid:
+                            shared_txid = conftxs
+                        else:
+                            shared_txid = shared_txid.intersection(conftxs)
+                    log.debug('sharedtxid = ' + str(shared_txid))
+                    if len(shared_txid) == 0:
+                        continue
+                    data = []
+                    for txid in shared_txid:
+                        txdata = self.blockchaininterface.get_from_electrum('blockchain.transaction.get', txid).get('result')
+                        data.append({'hex':txdata,'id':txid})
+                    for txdata in data:
+                        txhex = txdata['hex']
+                        outs = set([(sv['script'], sv['value']) for sv in btc.deserialize(txhex)['outs']])
+                        log.debug('confirm query outs = ' + str(outs))
+                        if outs == self.tx_output_set:
+                            confirmed_txid = txdata['id']
+                            confirmed_txhex = txhex
+                            break
+                self.confirmfun(btc.deserialize(confirmed_txhex), confirmed_txid, 1)
+
+        NotifyThread(self, txd, unconfirmfun, confirmfun).start()
+
+    def pushtx(self, txhex):
+        brcst_res = self.get_from_electrum('blockchain.transaction.broadcast', txhex)
+        brcst_status = brcst_res['result']
+        if isinstance(brcst_status, str) and len(brcst_status) == 64:
+            return (True, brcst_status)
+        log.debug(brcst_status)
+        return (False, None)
+
+    def query_utxo_set(self, txout):
+        if not isinstance(txout, list):
+            txout = [txout]
+        utxos = [t.split(':') for t in txout]
+        result = []
+        for ut in utxos:
+            address = self.get_from_electrum("blockchain.utxo.get_address", ut)['result']
+            utxo_info = self.get_from_electrum("blockchain.address.listunspent", address)['result']
+            for u in utxo_info:
+                utxo = None
+                if u['tx_hash'] == ut[0] and u['tx_pos'] == ut[1]:
+                    utxo = u
+            if utxo is None:
+                raise Exception("UTXO Not Found")
+            r = {
+                'value': u['value'],
+                'address': address,
+                'script': btc.address_to_script(address)
+            }
+            result.append(r)
+        return result
+
+    def estimate_fee_per_kb(self, N):
+        fee_info = self.get_from_electrum('blockchain.estimatefee', N)
+        fee = fee_info.get('result')
+        fee_per_kb_sat = int(float(fee) * 100000000)
+        return fee_per_kb_sat
+
 
 class BlockrInterface(BlockchainInterface):
     BLOCKR_MAX_ADDR_REQ_COUNT = 20
