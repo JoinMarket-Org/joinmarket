@@ -6,6 +6,7 @@ import ast
 import json
 import os
 import pprint
+import Queue
 import random
 import re
 import socket
@@ -118,6 +119,51 @@ class BlockchainInterface(object):
 
 class ElectrumInterface(BlockchainInterface):
 
+    class ElectrumConn(threading.Thread):
+
+        def __init__(self, electrum_server):
+            threading.Thread.__init__(self)
+            self.daemon = True
+            self.msg_id = 0
+            self.RetQueue = Queue.Queue()
+            self.s = socket.create_connection((electrum_server.split(':')[0], int(electrum_server.split(':')[1])))
+
+        def run(self):
+            while True:
+                all_data = None
+                while True:
+                    data = self.s.recv(1024)
+                    if data is None:
+                        continue
+                    if all_data is None:
+                        all_data = data
+                    else:
+                        all_data = all_data + data
+                    if '\n' in all_data:
+                        break
+                data_json = json.loads(all_data[:-1].decode())
+                self.RetQueue.put(data_json)
+
+        def send_json(self, json_data):
+            data = json.dumps(json_data).encode()
+            self.s.send(data + b'\n')
+
+        def call_server_method(self, method, params=[]):
+            self.msg_id = self.msg_id + 1
+            current_id = self.msg_id
+            method_dict = {
+                'id': current_id,
+                'method': method,
+                'params': params
+            }
+            self.send_json(method_dict)
+            while True:
+                ret_data = self.RetQueue.get()
+                if ret_data.get('id', None) == current_id:
+                    return ret_data
+                else:
+                    log.debug(json.dumps(ret_data))
+
     def __init__(self, testnet=False, electrum_server=None):
         super(ElectrumInterface, self).__init__()
 
@@ -125,27 +171,14 @@ class ElectrumInterface(BlockchainInterface):
             raise Exception(NotImplemented)
         self.server_domain = electrum_server.split(':')[0]
         self.last_sync_unspent = 0
-        self.s = socket.create_connection((self.server_domain, int(electrum_server.split(':')[1])))
+        self.electrum_conn = self.ElectrumConn(electrum_server)
+        self.electrum_conn.start()
+        # used to hold open server conn
+        self.electrum_conn.call_server_method('blockchain.numblocks.subscribe')
 
     def get_from_electrum(self, method, params=[]):
         params = [params] if type(params) is not list else params
-        self.s.send(json.dumps({"id": 0, "method": method, "params": params}).encode() + b'\n')
-        r = None
-        while True:
-            d = self.s.recv(1024)
-            if not d:
-                break
-            if r is None:
-                r = d
-            else:
-                r = r + d
-            try:
-                json.loads(r[:-1].decode())
-            except Exception:
-                pass
-            else:
-                break
-        return json.loads(r[:-1].decode())
+        return self.electrum_conn.call_server_method(method, params)
 
     def sync_addresses(self, wallet):
         log.debug("downloading wallet history from electrum server")
