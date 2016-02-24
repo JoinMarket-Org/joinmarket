@@ -498,6 +498,7 @@ class ElectrumInterface(BlockchainInterface):
             self.msg_id = 0
             self.RetQueue = Queue.Queue()
             self.s = socket.create_connection((electrum_server.split(':')[0], int(electrum_server.split(':')[1])))
+            self.ping()
 
         def run(self):
             while True:
@@ -514,6 +515,13 @@ class ElectrumInterface(BlockchainInterface):
                         break
                 data_json = json.loads(all_data[:-1].decode())
                 self.RetQueue.put(data_json)
+
+        def ping(self):
+            log.debug('sending server ping')
+            self.send_json({'id':0,'method':'server.version','params':[]})
+            t = threading.Timer(60, self.ping)
+            t.daemon = True
+            t.start()
 
         def send_json(self, json_data):
             data = json.dumps(json_data).encode()
@@ -691,19 +699,19 @@ class ElectrumInterface(BlockchainInterface):
     def query_utxo_set(self, txout):
         if not isinstance(txout, list):
             txout = [txout]
-        utxos = [t.split(':') for t in txout]
+        utxos = [[t[:64],int(t[65:])] for t in txout]
         result = []
         for ut in utxos:
             address = self.get_from_electrum("blockchain.utxo.get_address", ut)['result']
             utxo_info = self.get_from_electrum("blockchain.address.listunspent", address)['result']
+            utxo = None
             for u in utxo_info:
-                utxo = None
                 if u['tx_hash'] == ut[0] and u['tx_pos'] == ut[1]:
                     utxo = u
             if utxo is None:
                 raise Exception("UTXO Not Found")
             r = {
-                'value': u['value'],
+                'value': utxo['value'],
                 'address': address,
                 'script': btc.address_to_script(address)
             }
