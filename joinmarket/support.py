@@ -27,6 +27,7 @@ ORDER_KEYS = ['counterparty', 'oid', 'ordertype', 'minsize', 'maxsize',
 
 joinmarket_alert = ['']
 core_alert = ['']
+debug_silence = [False]
 
 #consoleHandler = logging.StreamHandler(stream=sys.stdout)
 class JoinMarketStreamHandler(logging.StreamHandler):
@@ -38,7 +39,8 @@ class JoinMarketStreamHandler(logging.StreamHandler):
             print('JoinMarket Alert Message: ' + joinmarket_alert[0])
         if core_alert[0]:
             print('Core Alert Message: ' + core_alert[0])
-        super(JoinMarketStreamHandler, self).emit(record)
+        if not debug_silence[0]:
+            super(JoinMarketStreamHandler, self).emit(record)
 
 consoleHandler = JoinMarketStreamHandler(stream=sys.stdout)
 consoleHandler.setFormatter(logFormatter)
