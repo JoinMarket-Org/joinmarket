@@ -8,7 +8,7 @@ import os
 import pprint
 import random
 import re
-import requests
+import urllib2
 import sys
 import threading
 import time
@@ -444,7 +444,9 @@ class NotifyRequestHeader(BaseHTTPServer.BaseHTTPRequestHandler):
         else:
             log.debug('ERROR: This is not a handled URL path.  You may want to check your notify URL for typos.')
 
-        requests.head('http://localhost:' + str(self.base_server.server_address[1] + 1) + self.path)
+        request = urllib2.Request('http://localhost:' + str(self.base_server.server_address[1] + 1) + self.path)
+        request.get_method = lambda : 'HEAD'
+        urllib2.urlopen(request)
         self.send_response(200)
         # self.send_header('Connection', 'close')
         self.end_headers()
