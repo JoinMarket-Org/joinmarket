@@ -120,7 +120,9 @@ class ThrottleThread(threading.Thread):
                     self.msg_buffer.append((throttled_msg, last_msg_time))
                 except:
                     log.debug("failed to send on socket")
-                    self.irc.fd.close()
+                    try:
+                        self.irc.fd.close()
+                    except: pass
                     break
             self.irc.lockthrottle.wait()
             self.irc.lockthrottle.release()
