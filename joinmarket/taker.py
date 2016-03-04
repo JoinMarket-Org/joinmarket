@@ -351,8 +351,8 @@ class CoinJoinTX(object):
             self.msgchan.fill_orders(new_orders, self.cj_amount,
                                      self.kp.hex_pk())
         else:
-            log.debug('nonresponse to !sig')
-            # nonresponding to !sig, have to restart tx from the beginning
+            log.debug('nonresponse to !tx')
+            # nonresponding to !tx, have to restart tx from the beginning
             self.end_timeout_thread = True
             if self.finishcallback is not None:
                 self.finishcallback(self)
@@ -379,14 +379,14 @@ class CoinJoinTX(object):
                         jm_single().maker_timeout_sec))
                 with self.cjtx.timeout_lock:
                     self.cjtx.timeout_lock.wait(jm_single().maker_timeout_sec)
-                if self.cjtx.all_responded:
-                    log.debug(('timeout thread woken by notify(), '
-                               'makers responded in time'))
-                    self.cjtx.all_responded = False
-                else:
-                    log.debug('timeout thread woken by timeout, '
-                              'makers didnt respond')
-                    with self.cjtx.timeout_thread_lock:
+                with self.cjtx.timeout_thread_lock:
+                    if self.cjtx.all_responded:
+                        log.debug(('timeout thread woken by notify(), '
+                                   'makers responded in time'))
+                        self.cjtx.all_responded = False
+                    else:
+                        log.debug('timeout thread woken by timeout, '
+                                  'makers didnt respond')
                         self.cjtx.recover_from_nonrespondants()
 
 
