@@ -381,7 +381,7 @@ def choose_sweep_orders(db,
     log.debug('chosen orders = \n' + '\n'.join([str(o) for o in chosen_orders]))
     result = dict([(o['counterparty'], o) for o in chosen_orders])
     log.debug('cj amount = ' + str(cj_amount))
-    return result, cj_amount
+    return result, cj_amount, total_fee
 
 
 def debug_dump_object(obj, skip_fields=None):

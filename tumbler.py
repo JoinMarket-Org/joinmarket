@@ -189,7 +189,7 @@ class TumblerThread(threading.Thread):
             fee_for_tx = int(fee_for_tx / self.tx['makercount'])
             total_value = sum([addrval['value'] for addrval in utxos.values()])
             while True:
-                orders, cj_amount = choose_sweep_orders(
+                orders, cj_amount, total_cj_fee = choose_sweep_orders(
                     self.taker.db, total_value, fee_for_tx,
                         self.tx['makercount'], weighted_order_choose,
                         self.ignored_makers)
@@ -199,8 +199,7 @@ class TumblerThread(threading.Thread):
                               'secs, hopefully more orders should come in')
                     time.sleep(self.taker.options.liquiditywait)
                     continue
-                abs_cj_fee = 1.0 * (
-                    total_value - cj_amount) / self.tx['makercount']
+                abs_cj_fee = 1.0 * total_cj_fee / self.tx['makercount']
                 rel_cj_fee = abs_cj_fee / cj_amount
                 log.debug(
                     'rel/abs average fee = ' + str(rel_cj_fee) + ' / ' + str(

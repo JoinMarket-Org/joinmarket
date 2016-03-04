@@ -77,15 +77,13 @@ class PaymentThread(threading.Thread):
                 #both values are integers; we can ignore small rounding errors
                 self.taker.txfee = estimated_fee / self.taker.makercount
             total_value = sum([va['value'] for va in utxos.values()])
-            orders, cjamount = choose_sweep_orders(
+            orders, cjamount, total_cj_fee = choose_sweep_orders(
                 self.taker.db, total_value, self.taker.txfee,
                 self.taker.makercount, self.taker.chooseOrdersFunc,
                 self.ignored_makers)
             if not orders:
                 raise Exception("Could not find orders to complete transaction.")
             if not self.taker.answeryes:
-                total_cj_fee = total_value - cjamount - \
-                    self.taker.txfee*self.taker.makercount
                 log.debug('total cj fee = ' + str(total_cj_fee))
                 total_fee_pc = 1.0 * total_cj_fee / cjamount
                 log.debug('total coinjoin fee = ' + str(float('%.3g' % (

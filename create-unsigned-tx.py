@@ -50,12 +50,11 @@ class PaymentThread(threading.Thread):
         choose_orders_recover = None
         if self.taker.cjamount == 0:
             total_value = sum([va['value'] for va in utxos.values()])
-            orders, cjamount = choose_sweep_orders(
+            orders, cjamount, total_cj_fee = choose_sweep_orders(
                     self.taker.db, total_value, self.taker.options.txfee,
                     self.taker.options.makercount, self.taker.chooseOrdersFunc,
                     self.ignored_makers)
             if not self.taker.options.answeryes:
-                total_cj_fee = total_value - cjamount - self.taker.options.txfee
                 log.debug('total cj fee = ' + str(total_cj_fee))
                 total_fee_pc = 1.0 * total_cj_fee / cjamount
                 log.debug('total coinjoin fee = ' + str(float('%.3g' % (
