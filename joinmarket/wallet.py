@@ -3,13 +3,14 @@ import json
 import os
 import pprint
 import sys
+import datetime
 from decimal import Decimal
 
 from ConfigParser import NoSectionError
 from getpass import getpass
 
 import bitcoin as btc
-from joinmarket.slowaes import decryptData
+from joinmarket.slowaes import decryptData, encryptData
 from joinmarket.blockchaininterface import BitcoinCoreInterface
 from joinmarket.configure import jm_single, get_network, get_p2pk_vbyte
 
@@ -29,6 +30,15 @@ def estimate_tx_fee(ins, outs, txtype='p2pkh'):
         jm_single().config.getint("POLICY","tx_fees"))
     log.debug("got estimated tx bytes: "+str(tx_estimated_bytes))
     return int((tx_estimated_bytes * fee_per_kb)/Decimal(1000.0))
+
+def create_wallet_file(pwd, seed):
+    password_key = btc.bin_dbl_sha256(pwd)
+    encrypted_seed = encryptData(password_key, seed.decode('hex'))
+    timestamp = datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+    return json.dumps({'creator': 'joinmarket project',
+                             'creation_time': timestamp,
+                             'encrypted_seed': encrypted_seed.encode('hex'),
+                                 'network': get_network()})
 
 class AbstractWallet(object):
     """
@@ -111,7 +121,8 @@ class Wallet(AbstractWallet):
                  max_mix_depth=2,
                  gaplimit=6,
                  extend_mixdepth=False,
-                 storepassword=False):
+                 storepassword=False,
+                 pwd = None):
         super(Wallet, self).__init__()
         self.max_mix_depth = max_mix_depth
         self.storepassword = storepassword
@@ -121,7 +132,10 @@ class Wallet(AbstractWallet):
         self.unspent = {}
         self.spent_utxos = []
         self.imported_privkeys = {}
-        self.seed = self.read_wallet_file_data(seedarg)
+        self.decrypted = False
+        self.seed = self.read_wallet_file_data(seedarg, pwd)
+        if not self.seed:
+            return
         if extend_mixdepth and len(self.index_cache) > max_mix_depth:
             self.max_mix_depth = len(self.index_cache)
         self.gaplimit = gaplimit
@@ -131,13 +145,14 @@ class Wallet(AbstractWallet):
                              for c in range(self.max_mix_depth)]
         self.keys = [(btc.bip32_ckd(m, 0), btc.bip32_ckd(m, 1))
                      for m in mixing_depth_keys]
+        self.init_index()
 
-        # self.index = [[0, 0]]*max_mix_depth
+    def init_index(self):
         self.index = []
         for i in range(self.max_mix_depth):
             self.index.append([0, 0])
 
-    def read_wallet_file_data(self, filename):
+    def read_wallet_file_data(self, filename, pwd = None):
         self.path = None
         self.index_cache = [[0, 0]] * self.max_mix_depth
         path = os.path.join('wallets', filename)
@@ -145,6 +160,7 @@ class Wallet(AbstractWallet):
             if get_network() == 'testnet':
                 log.debug('filename interpreted as seed, only available in '
                           'testnet because this probably has lower entropy')
+                self.decrypted = True
                 return filename
             else:
                 raise IOError('wallet file not found')
@@ -160,9 +176,12 @@ class Wallet(AbstractWallet):
             sys.exit(0)
         if 'index_cache' in walletdata:
             self.index_cache = walletdata['index_cache']
-        decrypted = False
-        while not decrypted:
-            password = getpass('Enter wallet decryption passphrase: ')
+        self.decrypted = False
+        while not self.decrypted:
+            if pwd:
+                password = pwd
+            else:
+                password = getpass('Enter wallet decryption passphrase: ')
             password_key = btc.bin_dbl_sha256(password)
             encrypted_seed = walletdata['encrypted_seed']
             try:
@@ -173,12 +192,15 @@ class Wallet(AbstractWallet):
                 # padding by chance from a wrong password; sanity check the
                 # seed length
                 if len(decrypted_seed) == 32:
-                    decrypted = True
+                    self.decrypted = True
                 else:
                     raise ValueError
             except ValueError:
                 print('Incorrect password')
-                decrypted = False
+                self.decrypted = False
+                if pwd:
+                    decrypted_seed = None
+                    break
         if self.storepassword:
             self.password_key = password_key
             self.walletdata = walletdata
