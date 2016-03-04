@@ -361,7 +361,7 @@ class CoinJoinTX(object):
     class TimeoutThread(threading.Thread):
 
         def __init__(self, cjtx):
-            threading.Thread.__init__(self)
+            threading.Thread.__init__(self, name='TimeoutThread')
             self.cjtx = cjtx
 
         def run(self):

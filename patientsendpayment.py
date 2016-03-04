@@ -19,7 +19,7 @@ log = get_log()
 
 class TakerThread(threading.Thread):
     def __init__(self, tmaker):
-        threading.Thread.__init__(self)
+        threading.Thread.__init__(self, name='TakerThread')
         self.daemon = True
         self.tmaker = tmaker
         self.finished = False

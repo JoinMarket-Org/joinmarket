@@ -62,7 +62,7 @@ def get_irc_nick(source):
 class ThrottleThread(threading.Thread):
 
     def __init__(self, irc):
-        threading.Thread.__init__(self)
+        threading.Thread.__init__(self, name='ThrottleThread')
         self.daemon = True
         self.irc = irc
         self.msg_buffer = []
@@ -132,7 +132,7 @@ class ThrottleThread(threading.Thread):
 class PingThread(threading.Thread):
 
     def __init__(self, irc):
-        threading.Thread.__init__(self)
+        threading.Thread.__init__(self, name='PingThread')
         self.daemon = True
         self.irc = irc
 

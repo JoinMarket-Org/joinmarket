@@ -93,7 +93,7 @@ def generate_tumbler_tx(destaddrs, options):
 # chooses which coinjoins to initiate and when
 class TumblerThread(threading.Thread):
     def __init__(self, taker):
-        threading.Thread.__init__(self)
+        threading.Thread.__init__(self, name='TumblerThread')
         self.daemon = True
         self.taker = taker
         self.ignored_makers = []

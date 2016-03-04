@@ -220,7 +220,7 @@ class BlockrInterface(BlockchainInterface):
         class NotifyThread(threading.Thread):
 
             def __init__(self, blockr_domain, txd, unconfirmfun, confirmfun):
-                threading.Thread.__init__(self)
+                threading.Thread.__init__(self, name='BlockrNotifyThread')
                 self.daemon = True
                 self.blockr_domain = blockr_domain
                 self.unconfirmfun = unconfirmfun
@@ -454,7 +454,7 @@ class NotifyRequestHeader(BaseHTTPServer.BaseHTTPRequestHandler):
 
 class BitcoinCoreNotifyThread(threading.Thread):
     def __init__(self, btcinterface):
-        threading.Thread.__init__(self)
+        threading.Thread.__init__(self, name='CoreNotifyThread')
         self.daemon = True
         self.btcinterface = btcinterface
 
@@ -700,7 +700,7 @@ class RegtestBitcoinCoreInterface(BitcoinCoreInterface):
 
         class TickChainThread(threading.Thread):
             def __init__(self, bcinterface):
-                threading.Thread.__init__(self)
+                threading.Thread.__init__(self, name='TickChainThread')
                 self.bcinterface = bcinterface
 
             def run(self):

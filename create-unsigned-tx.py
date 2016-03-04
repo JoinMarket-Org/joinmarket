@@ -28,7 +28,7 @@ log = get_log()
 # chooses which coinjoins to initiate and when
 class PaymentThread(threading.Thread):
     def __init__(self, taker):
-        threading.Thread.__init__(self)
+        threading.Thread.__init__(self, name='PaymentThread')
         self.daemon = True
         self.taker = taker
         self.ignored_makers = []
