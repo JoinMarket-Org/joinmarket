@@ -18,6 +18,24 @@ MAX_PRIVMSG_LEN = 450
 COMMAND_PREFIX = '!'
 PING_INTERVAL = 300
 PING_TIMEOUT = 60
+
+#Throttling parameters; data from
+#tests by @chris-belcher:
+##worked (bytes per sec/bytes per sec interval / counterparties / max_privmsg_len)
+#300/4 / 6 / 400
+#600/4 / 6 / 400
+#450/4 / 10 / 400
+#450/4 / 10 / 450
+#525/4 / 10 / 450
+##didnt work
+#600/4 / 10 / 450
+#600/4 / 10 / 400
+#2000/2 / 10 / 400
+#450/4 / 10 / 475
+MSG_INTERVAL = 0.001
+B_PER_SEC = 450
+B_PER_SEC_INTERVAL = 4.0
+
 encrypted_commands = ["auth", "ioauth", "tx", "sig"]
 plaintext_commands = ["fill", "error", "pubkey", "orderbook", "relorder",
                       "absorder", "push"]
@@ -66,21 +84,6 @@ class ThrottleThread(threading.Thread):
         self.daemon = True
         self.irc = irc
         self.msg_buffer = []
-        #TODO - probably global configuration?
-        self.MSG_INTERVAL = 0.001
-        self.B_PER_SEC = 450
-        self.B_PER_SEC_INTERVAL = 4.0
-        ##worked (bytes per sec/bytes per sec interval / counterparties / max_privmsg_len)
-        #300/4 / 6 / 400
-        #600/4 / 6 / 400
-        #450/4 / 10 / 400
-        #450/4 / 10 / 450
-        #525/4 / 10 / 450
-        ##didnt work
-        #600/4 / 10 / 450
-        #600/4 / 10 / 400
-        #2000/2 / 10 / 400
-        #450/4 / 10 / 475
 
     def run(self):
         log.debug("starting throttle thread")
@@ -103,21 +106,21 @@ class ThrottleThread(threading.Thread):
                     log.debug("failed to send ping message on socket")
                     break
                 #First throttling mechanism: no more than 1 line
-                #per self.MSG_INTERVAL seconds.
+                #per MSG_INTERVAL seconds.
                 x = time.time() - last_msg_time
-                if  x < self.MSG_INTERVAL:
+                if  x < MSG_INTERVAL:
                     continue
                 #Second throttling mechanism: limited kB/s rate
                 #over the most recent period.
-                q = time.time() - self.B_PER_SEC_INTERVAL
+                q = time.time() - B_PER_SEC_INTERVAL
                 #clean out old messages
                 self.msg_buffer = [_ for _ in self.msg_buffer if _[1] > q]
                 bytes_recent = sum(len(i[0]) for i in self.msg_buffer)
-                if bytes_recent > self.B_PER_SEC * self.B_PER_SEC_INTERVAL:
+                if bytes_recent > B_PER_SEC * B_PER_SEC_INTERVAL:
                     if print_throttle_msg:
                         log.debug("Throttling triggered, with: "+str(
                             bytes_recent)+ " bytes in the last "+str(
-                                self.B_PER_SEC_INTERVAL)+" seconds.")
+                                B_PER_SEC_INTERVAL)+" seconds.")
                     print_throttle_msg = False
                     continue
                 print_throttle_msg = True

@@ -15,6 +15,7 @@ from joinmarket.configure import jm_single, get_p2pk_vbyte
 from joinmarket.enc_wrapper import init_keypair, as_init_encryption, init_pubkey
 from joinmarket.support import get_log, calc_cj_fee
 from joinmarket.wallet import estimate_tx_fee
+from joinmarket.irc import B_PER_SEC
 
 log = get_log()
 
@@ -62,6 +63,7 @@ class CoinJoinTX(object):
         # used to restrict access to certain variables across threads
         self.timeout_thread_lock = threading.Condition()
         self.end_timeout_thread = False
+        self.maker_timeout_sec = jm_single().maker_timeout_sec
         CoinJoinTX.TimeoutThread(self).start()
         # state variables
         self.txid = None
@@ -148,9 +150,6 @@ class CoinJoinTX(object):
         if len(self.nonrespondants) > 0:
             log.debug('nonrespondants = ' + str(self.nonrespondants))
             return
-        self.all_responded = True
-        with self.timeout_lock:
-            self.timeout_lock.notify()
         log.debug('got all parts, enough to build a tx')
         self.nonrespondants = list(self.active_orders.keys())
 
@@ -201,6 +200,21 @@ class CoinJoinTX(object):
         random.shuffle(self.outputs)
         tx = btc.mktx(self.utxo_tx, self.outputs)
         log.debug('obtained tx\n' + pprint.pformat(btc.deserialize(tx)))
+        #Re-calculate a sensible timeout wait based on the throttling
+        #settings and the tx size.
+        #Calculation: Let tx size be S; tx undergoes two b64 expansions, 1.8*S
+        #So we're sending N*1.8*S over the wire, and the
+        #maximum bytes/sec = B, means we need (1.8*N*S/B) seconds,
+        #and need to add some leeway for network delays, we just add the
+        #contents of jm_single().maker_timeout_sec (the user configured value)
+        self.maker_timeout_sec = (len(tx) * 1.8 * len(
+            self.active_orders.keys()))/(B_PER_SEC) + jm_single().maker_timeout_sec
+        log.debug("Based on transaction size: " + str(
+            len(tx)) + ", calculated time to wait for replies: " + str(
+            self.maker_timeout_sec))
+        self.all_responded = True
+        with self.timeout_lock:
+            self.timeout_lock.notify()
         self.msgchan.send_tx(self.active_orders.keys(), tx)
 
         self.latest_tx = btc.deserialize(tx)
@@ -376,9 +390,9 @@ class CoinJoinTX(object):
             # to see if if the messages have arrived
             while not self.cjtx.end_timeout_thread:
                 log.debug('waiting for all replies.. timeout=' + str(
-                        jm_single().maker_timeout_sec))
+                        self.cjtx.maker_timeout_sec))
                 with self.cjtx.timeout_lock:
-                    self.cjtx.timeout_lock.wait(jm_single().maker_timeout_sec)
+                    self.cjtx.timeout_lock.wait(self.cjtx.maker_timeout_sec)
                 with self.cjtx.timeout_thread_lock:
                     if self.cjtx.all_responded:
                         log.debug(('timeout thread woken by notify(), '
