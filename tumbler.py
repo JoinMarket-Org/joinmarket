@@ -241,7 +241,7 @@ class TumblerThread(threading.Thread):
                 #we cannot afford to just throw not enough funds; better to
                 #try with a smaller request; it could still fail within
                 #CoinJoinTX.recv_txio, but make every effort to avoid stopping.
-                if repr(e) == "Not enough funds":
+                if str(e) == "Not enough funds":
                     log.debug("Failed to select total amount + twice txfee from" +
                           "wallet; trying to select just total amount.")
                     utxos = self.taker.wallet.select_utxos(self.tx['srcmixdepth'],
