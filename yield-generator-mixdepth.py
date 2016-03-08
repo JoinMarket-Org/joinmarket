@@ -218,15 +218,15 @@ class YieldGenerator(Maker):
 		'''
 
         myorders = self.create_my_orders()
-        oldorders = self.orderlist
+        oldorderlist = self.orderlist
         if len(myorders) == 0:
-            return ([o['oid'] for o in oldorders], [])
+            return ([o['oid'] for o in oldorderlist], [])
 
         cancel_orders = []
         ann_orders = []
 
         neworders = [o for o in myorders if o['ordertype'] == 'relorder']
-        oldorders = [o for o in oldorders if o['ordertype'] == 'relorder']
+        oldorders = [o for o in oldorderlist if o['ordertype'] == 'relorder']
         #new_setdiff_old = The relative complement of `new` in `old` = members in `new` which are not in `old`
         new_setdiff_old = [o for o in neworders if o not in oldorders]
         old_setdiff_new = [o for o in oldorders if o not in neworders]
@@ -250,7 +250,7 @@ class YieldGenerator(Maker):
 
         #check if the absorder has changed, or if it needs to be newly announced
         new_abs = [o for o in myorders if o['ordertype'] == 'absorder']
-        old_abs = [o for o in oldorders if o['ordertype'] == 'absorder']
+        old_abs = [o for o in oldorderlist if o['ordertype'] == 'absorder']
         if len(new_abs) > len(old_abs):
             #announce an absorder where there wasnt one before
             ann_orders = [new_abs[0]] + ann_orders
