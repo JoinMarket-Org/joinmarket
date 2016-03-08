@@ -855,7 +855,7 @@ class SpendTab(QWidget):
         if not valid:
             QMessageBox.warning(self,"Error", errmsg)
             return False
-        errs = ["Number of counterparties must be provided.",
+        errs = ["Non-zero number of counterparties must be provided.",
                 "Mixdepth must be chosen.",
                 "Amount, in bitcoins, must be provided."
                 ]
@@ -863,6 +863,11 @@ class SpendTab(QWidget):
             if self.widgets[i][1].text().size()==0:
                 QMessageBox.warning(self, "Error",errs[i-1])
                 return False
+        #QIntValidator does not prevent entry of 0 for counterparties.
+        #Note, use of '1' is not recommended, but not prevented here.
+        if self.widgets[1][1].text() == '0':
+            QMessageBox.warning(self, "Error", errs[0])
+            return False
         if not w.wallet:
             QMessageBox.warning(self,"Error","There is no wallet loaded.")
             return False
