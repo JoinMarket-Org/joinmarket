@@ -112,7 +112,7 @@ class CoinJoinTX(object):
             log.debug(('recv_txio => nick={} not in '
                        'nonrespondants {}').format(nick, self.nonrespondants))
             return
-        duplicate_utxos = set(sum(self.utxos, [])).intersection(set(utxo_list))
+        duplicate_utxos = set(sum(self.utxos.values(), [])).intersection(set(utxo_list))
         if len(duplicate_utxos) > 0:
             log.debug('ERROR duplicate UTXOs: \n' + pprint.pformat(
                 duplicate_utxos))
