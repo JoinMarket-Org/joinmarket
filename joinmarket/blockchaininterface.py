@@ -399,7 +399,11 @@ class NotifyRequestHeader(BaseHTTPServer.BaseHTTPRequestHandler):
             if not re.match('^[0-9a-fA-F]*$', txid):
                 log.debug('not a txid')
                 return
-            tx = self.btcinterface.rpc('getrawtransaction', [txid])
+            try:
+                tx = self.btcinterface.rpc('getrawtransaction', [txid])
+            except (JsonRpcError, JsonRpcConnectionError) as e:
+                log.debug('transaction not found, probably a conflict')
+                return
             if not re.match('^[0-9a-fA-F]*$', tx):
                 log.debug('not a txhex')
                 return
