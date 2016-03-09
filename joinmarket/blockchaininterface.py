@@ -661,10 +661,12 @@ class BitcoinCoreInterface(BlockchainInterface):
         try:
             txid = self.rpc('sendrawtransaction', [txhex])
         except JsonRpcConnectionError as e:
-	    return (False, repr(e))
+            log.debug('error pushing = ' + repr(e))
+	    return False
         except JsonRpcError as e:
-	    return (False, str(e.code) + " " + str(e.message))
-        return (True, txid)
+            log.debug('error pushing = ' + str(e.code) + " " + str(e.message))
+	    return False
+        return txid
 
     def query_utxo_set(self, txout):
         if not isinstance(txout, list):

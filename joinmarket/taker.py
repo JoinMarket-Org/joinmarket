@@ -320,15 +320,14 @@ class CoinJoinTX(object):
         tx = btc.serialize(txd)
         log.debug('\n' + tx)
         log.debug('txid = ' + btc.txhash(tx))
+        self.txid = btc.txhash(tx)
         # TODO send to a random maker or push myself
         # TODO need to check whether the other party sent it
         # self.msgchan.push_tx(self.active_orders.keys()[0], txhex)
         pushed = jm_single().bc_interface.pushtx(tx)
-        if pushed[0]:
-            self.txid = pushed[1]
-        else:
-            log.debug('unable to pushtx, reason: '+str(pushed[1]))
-        return pushed[0]
+        if not pushed:
+            log.debug('unable to pushtx')
+        return pushed
 
     def self_sign_and_push(self):
         self.self_sign()
