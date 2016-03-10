@@ -64,7 +64,7 @@ class CoinJoinOrder(object):
         while None in utxo_data:
             log.debug('wrongly selected stale utxos! utxo_data = ' +
                       pprint.pformat(utxo_data))
-            self.maker.unspent_lock.acquire()
+            self.maker.wallet_unspent_lock.acquire()
             try:
                 jm_single().bc_interface.sync_unspent(self.maker.wallet)
             finally:
