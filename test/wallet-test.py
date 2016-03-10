@@ -57,7 +57,7 @@ class TestWalletCreation(unittest.TestCase):
                 print f.read()
             if p.exitstatus != 0:
                 print 'failed due to exit status: ' + str(p.exitstatus)
-                print 'signal status is: ' + str(p.signalstatus)
+                print 'signal status is:' + str(p.signalstatus)
                 return False
             #check the wallet exists (and contains appropriate json?)
             if not os.path.isfile('wallets/testwallet.json'):
