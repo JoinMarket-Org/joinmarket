@@ -48,8 +48,10 @@ custom_cjfees = [
 ]  # used when cjfee_spread is set to custom
 
 txfee_spread = 'fibonacci'  # fibonacci, evenly, random, custom
-txfee_low = random.randrange(1, 100)
-txfee_high = random.randrange(3000, 5000)
+txfee_low = 0
+txfee_high = 0
+#txfee_low = random.randrange(1, 100)
+#txfee_high = random.randrange(3000, 5000)
 custom_txfees = [
     250, 500, 1000, 2000, 5000
 ]  # used when txfee_spread is set to custom
