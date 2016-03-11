@@ -125,11 +125,9 @@ class DummyMatch:
     def group(self, i):
         return ''
 
-counter = {}
+counter = dict([(p[2], 0) for p in patterns])
 current_pattern = None
 def sub_func(m):
-    if current_pattern[2] not in counter:
-        counter[current_pattern[2]] = 0
     counter[current_pattern[2]] += 1
     format_args = (counter[current_pattern[2]],) * current_pattern[1](DummyMatch()).count('%')
     return current_pattern[1](m) % format_args
