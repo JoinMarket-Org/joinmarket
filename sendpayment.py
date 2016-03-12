@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 from __future__ import absolute_import
 
+import random
 import sys
 import threading
 from optparse import OptionParser
@@ -223,8 +224,8 @@ def main():
                       action='store',
                       type='int',
                       dest='makercount',
-                      help='how many makers to coinjoin with, default=2',
-                      default=2)
+                      help='how many makers to coinjoin with, default random from 2 to 4',
+                      default=random.randint(2, 4))
     parser.add_option(
         '-C',
         '--choose-cheapest',
