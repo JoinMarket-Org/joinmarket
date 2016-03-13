@@ -642,7 +642,7 @@ class ElectrumInterface(BlockchainInterface):
                         continue
                     data = []
                     for txid in shared_txid:
-                        txdata = self.blockchaininterface.get_from_electrum('blockchain.transaction.get', txid).get('result')
+                        txdata = str(self.blockchaininterface.get_from_electrum('blockchain.transaction.get', txid).get('result'))
                         data.append({'hex':txdata,'id':txid})
                     for txdata in data:
                         txhex = txdata['hex']
@@ -674,7 +674,7 @@ class ElectrumInterface(BlockchainInterface):
                         continue
                     data = []
                     for txid in shared_txid:
-                        txdata = self.blockchaininterface.get_from_electrum('blockchain.transaction.get', txid).get('result')
+                        txdata = str(self.blockchaininterface.get_from_electrum('blockchain.transaction.get', txid).get('result'))
                         data.append({'hex':txdata,'id':txid})
                     for txdata in data:
                         txhex = txdata['hex']
