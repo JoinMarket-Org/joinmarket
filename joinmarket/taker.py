@@ -463,6 +463,11 @@ class OrderbookWatch(CoinJoinerPeer):
                 log.debug("Got invalid minsize: {} from {}".format(
                         minsize, counterparty))
                 return
+            if int(minsize) < jm_single().DUST_THRESHOLD:
+                minsize = jm_single().DUST_THRESHOLD
+                log.debug("{} has dusty minsize, capping at {}".format(
+                        counterparty, minsize))
+                # do not pass return, go not drop this otherwise fine offer
             if int(maxsize) < 0 or int(maxsize) > 21 * 10 ** 14:
                 log.debug("Got invalid maxsize: " + maxsize + " from " +
                           counterparty)
