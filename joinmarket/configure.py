@@ -364,8 +364,8 @@ def get_blockchain_interface_instance(_config):
     # todo: refactor joinmarket module to get rid of loops
     # importing here is necessary to avoid import loops
     from joinmarket.blockchaininterface import BitcoinCoreInterface, \
-        RegtestBitcoinCoreInterface, BlockrInterface, ElectrumInterface, \
-        ElectrumInterface
+    RegtestBitcoinCoreInterface, BlockrInterface, BlockchaininfoInterface
+    from joinmarket.electruminterface import ElectrumInterface
     from joinmarket.blockchaininterface import CliJsonRpc
 
     source = _config.get("BLOCKCHAIN", "blockchain_source")
