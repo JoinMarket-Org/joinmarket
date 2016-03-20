@@ -19,7 +19,7 @@ from .wallet import AbstractWallet, BitcoinCoreInterface, Wallet, \
 from .configure import load_program_config, jm_single, get_p2pk_vbyte, \
     get_network, jm_single, get_network, validate_address
 from .blockchaininterface import BlockrInterface
-from .blockchaininterface import ElectrumInterface
+from .electruminterface import ElectrumInterface
 # Set default logging handler to avoid "No handler found" warnings.
 
 try:
