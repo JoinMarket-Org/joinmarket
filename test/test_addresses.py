@@ -1,0 +1,35 @@
+from joinmarket.configure import validate_address, load_program_config
+from joinmarket import jm_single
+import json
+import pytest
+
+def test_b58_invalid_addresses(setup):
+    #none of these are valid as any kind of key or address
+    with open("test/base58_keys_invalid.json", "r") as f:
+        json_data = f.read()
+    invalid_key_list = json.loads(json_data)
+    for k in invalid_key_list:
+        bad_key = k[0]
+        res, message = validate_address(bad_key)
+        assert res==False, "Incorrectly validated address: " + bad_key + " with message: " + message
+
+def test_b58_valid_addresses():
+    with open("test/base58_keys_valid.json", "r") as f:
+        json_data = f.read()
+    valid_keys_list = json.loads(json_data)
+    for a in valid_keys_list:
+        addr, pubkey, prop_dict = a
+        if not prop_dict["isPrivkey"]:
+            if prop_dict["isTestnet"]:
+                jm_single().config.set("BLOCKCHAIN", "network", "testnet")
+            else:
+                jm_single().config.set("BLOCKCHAIN", "network", "mainnet")
+            #if using py.test -s ; sanity check to see what's actually being tested
+            print 'testing this address: ' + addr
+            res, message = validate_address(addr)
+            assert res==True, "Incorrectly failed to validate address: " + addr + " with message: " + message
+
+@pytest.fixture(scope="module")
+def setup():
+    load_program_config()
+
