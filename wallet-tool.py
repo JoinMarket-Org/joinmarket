@@ -5,29 +5,14 @@ import getpass
 import json
 import os
 import sys
+import sqlite3
 from optparse import OptionParser
 
 from joinmarket import load_program_config, get_network, Wallet, encryptData, \
-    get_p2pk_vbyte, jm_single, mn_decode, mn_encode
+    get_p2pk_vbyte, jm_single, mn_decode, mn_encode, BitcoinCoreInterface, \
+    JsonRpcError
 
 import bitcoin as btc
-
-# data_dir = os.path.dirname(os.path.realpath(__file__))
-# sys.path.insert(0, os.path.join(data_dir, 'joinmarket'))
-
-# structure for cj market wallet
-# m/0/ root key
-# m/0/n/ nth mixing depth, where n=0 is unmixed, n=1 is coinjoined once, etc
-# pay in coins to mix at n=0 addresses
-
-# coins move up a level when they are cj'd and stay at same level if they're
-# the change from a coinjoin
-
-# using coins from different levels as inputs to the same tx is probably
-# detrimental to privacy
-
-# m/0/n/0/k kth external address, for mixing depth n
-# m/0/n/1/k kth internal address, for mixing depth n
 
 description = (
     'Does useful little tasks involving your bip32 wallet. The '
@@ -38,7 +23,8 @@ description = (
     'word recovery seed. (showseed) Shows the wallet recovery seed '
     'and hex seed. (importprivkey) Adds privkeys to this wallet, '
     'privkeys are spaces or commas separated. (listwallets) Lists '
-    'all wallets with creator and timestamp.')
+    'all wallets with creator and timestamp. (history) Show all '
+	'historical transaction details. Requires Bitcoin Core.')
 
 parser = OptionParser(usage='usage: %prog [options] [wallet file] [method]',
                       description=description)
@@ -68,6 +54,11 @@ parser.add_option('-M',
                   dest='mixdepth',
                   help='mixing depth to import private key into',
                   default=0)
+parser.add_option('--csv',
+                  action='store_true',
+                  dest='csv',
+                  default=False,
+                  help=('When using the history method, output as csv'))
 (options, args) = parser.parse_args()
 
 # if the index_cache stored in wallet.json is longer than the default
@@ -78,7 +69,8 @@ if not options.maxmixdepth:
     options.maxmixdepth = 5
 
 noseed_methods = ['generate', 'recover', 'listwallets']
-methods = ['display', 'displayall', 'summary', 'showseed', 'importprivkey']
+methods = ['display', 'displayall', 'summary', 'showseed', 'importprivkey',
+    'history']
 methods.extend(noseed_methods)
 noscan_methods = ['showseed', 'importprivkey']
 
@@ -98,6 +90,11 @@ else:
                     options.gaplimit,
                     extend_mixdepth=not maxmixdepth_configured,
                     storepassword=(method == 'importprivkey'))
+    if method == 'history' and not isinstance(jm_single().bc_interface,
+            BitcoinCoreInterface):
+        print('showing history only available when using the Bitcoin Core ' +
+            'blockchain interface')
+        sys.exit(0)
     if method not in noscan_methods:
         # if nothing was configured, we override bitcoind's options so that
         # unconfirmed balance is included in the wallet display by default
@@ -269,3 +266,204 @@ elif method == 'listwallets':
         print(' ')
         i += 1
     print(str(i - 1) + ' Wallets have been found.')
+elif method == 'history':
+    #sort txes in a db because python can be really bad with large lists
+    con = sqlite3.connect(":memory:")
+    con.row_factory = sqlite3.Row
+    tx_db = con.cursor()
+    tx_db.execute("CREATE TABLE transactions(txid TEXT, "
+                  "blockhash TEXT, blocktime INTEGER);")
+    jm_single().debug_silence[0] = True
+    wallet_name = jm_single().bc_interface.get_wallet_name(wallet)
+    for wn in [wallet_name, ""]:
+        buf = range(1000)
+        t = 0
+        while len(buf) == 1000:
+            buf = jm_single().bc_interface.rpc('listtransactions', [wn,
+                1000, t, True])
+            t += len(buf)
+            tx_data = ((tx['txid'], tx['blockhash'], tx['blocktime']) for tx
+                in buf if 'txid' in tx and 'blockhash' in tx and 'blocktime'
+                in tx)
+            tx_db.executemany('INSERT INTO transactions VALUES(?, ?, ?);',
+                tx_data)
+    txes = tx_db.execute('SELECT DISTINCT txid, blockhash, blocktime '
+                         'FROM transactions ORDER BY blocktime').fetchall()
+    wallet_addr_cache = wallet.addr_cache
+    wallet_addr_set = set(wallet_addr_cache.keys())
+
+    def s():
+        return ',' if options.csv else ' '
+    def sat_to_str(sat):
+        return '%.8f'%(sat/1e8)
+    def sat_to_str_p(sat):
+        return '%+.8f'%(sat/1e8)
+    def skip_n1(v):
+        return '% 2s'%(str(v)) if v != -1 else ' #'
+    def skip_n1_btc(v):
+        return sat_to_str(v) if v != -1 else '#' + ' '*10
+
+    field_names = ['tx#', 'timestamp', 'type', 'amount/btc',
+        'balance-change/btc', 'balance/btc', 'coinjoin-n', 'total-fees',
+        'utxo-count', 'mixdepth-from', 'mixdepth-to']
+    if options.csv:
+        field_names += ['txid']
+    l = s().join(field_names)
+    print(l)
+    balance = 0
+    utxo_count = 0
+    deposits = []
+    deposit_times = []
+    for i, tx in enumerate(txes):
+        rpctx = jm_single().bc_interface.rpc('gettransaction', [tx['txid']])
+        txhex = str(rpctx['hex'])
+        txd = btc.deserialize(txhex)
+        output_addr_values = dict(((btc.script_to_address(sv['script'],
+            get_p2pk_vbyte()), sv['value']) for sv in txd['outs']))
+        our_output_addrs = wallet_addr_set.intersection(
+            output_addr_values.keys())
+
+        from collections import Counter
+        value_freq_list = sorted(Counter(output_addr_values.values())
+            .most_common(), key=lambda x: -x[1])
+        non_cj_freq = 0 if len(value_freq_list)==1 else sum(zip(
+            *value_freq_list[1:])[1])
+        is_coinjoin = (value_freq_list[0][1] > 1 and value_freq_list[0][1] in
+            [non_cj_freq, non_cj_freq+1])
+        cj_amount = value_freq_list[0][0]
+        cj_n = value_freq_list[0][1]
+
+        rpc_inputs = []
+        for ins in txd['ins']:
+            try:
+                wallet_tx = jm_single().bc_interface.rpc('gettransaction',
+                    [ins['outpoint']['hash']])
+            except JsonRpcError:
+                continue
+            input_dict = btc.deserialize(str(wallet_tx['hex']))['outs'][ins[
+                'outpoint']['index']]
+            rpc_inputs.append(input_dict)
+
+        rpc_input_addrs = set((btc.script_to_address(ind['script'],
+            get_p2pk_vbyte()) for ind in rpc_inputs))
+        our_input_addrs = wallet_addr_set.intersection(rpc_input_addrs)
+        our_input_values = [ind['value'] for ind in rpc_inputs if btc.
+            script_to_address(ind['script'], get_p2pk_vbyte()) in
+            our_input_addrs]
+        our_input_value = sum(our_input_values)
+        utxos_consumed = len(our_input_values)
+
+        tx_type = None
+        amount = 0
+        delta_balance = 0
+        fees = -1
+        mixdepth_src = -1
+        mixdepth_dst = -1
+        #TODO this seems to assume all the input addresses are from the same
+        # mixdepth, which might not be true
+        if len(our_input_addrs) == 0 and len(our_output_addrs) > 0:
+            #payment to us
+            amount = sum([output_addr_values[a] for a in our_output_addrs])
+            tx_type = 'deposit    '
+            cj_n = -1
+            delta_balance = amount
+            mixdepth_dst = tuple(wallet_addr_cache[a][0] for a in
+                our_output_addrs)
+            if len(mixdepth_dst) == 1:
+                mixdepth_dst = mixdepth_dst[0]
+        elif len(our_input_addrs) > 0 and len(our_output_addrs) == 0:
+            #we swept coins elsewhere
+            if is_coinjoin:
+                tx_type = 'cj sweepout'
+                amount = cj_amount
+                fees = our_input_value - cj_amount
+            else:
+                tx_type = 'sweep out  '
+                amount = sum([v for v in output_addr_values.values()])
+                fees = our_input_value - amount
+            delta_balance = -our_input_value
+            mixdepth_src = wallet_addr_cache[list(our_input_addrs)[0]][0]
+        elif len(our_input_addrs) > 0 and len(our_output_addrs) == 1:
+            #payment out somewhere with our change address getting the remaining
+            change_value = output_addr_values[list(our_output_addrs)[0]]
+            if is_coinjoin:
+                tx_type = 'cj withdraw'
+                amount = cj_amount
+            else:
+                tx_type = 'withdraw'
+                #TODO does tx_fee go here? not my_tx_fee only?
+                amount = our_input_value - change_value
+                cj_n = -1
+            delta_balance = change_value - our_input_value
+            fees = our_input_value - change_value - cj_amount
+            mixdepth_src = wallet_addr_cache[list(our_input_addrs)[0]][0]
+        elif len(our_input_addrs) > 0 and len(our_output_addrs) == 2:
+            #payment to self
+            out_value = sum([output_addr_values[a] for a in our_output_addrs])
+            if not is_coinjoin:
+                print('this is wrong TODO handle non-coinjoin internal')
+            tx_type = 'cj internal'
+            amount = cj_amount
+            delta_balance = out_value - our_input_value
+            mixdepth_src = wallet_addr_cache[list(our_input_addrs)[0]][0]
+            cj_addr = list(set([a for a,v in output_addr_values.iteritems()
+                if v == cj_amount]).intersection(our_output_addrs))[0]
+            mixdepth_dst = wallet_addr_cache[cj_addr][0]
+        else:
+            tx_type = 'unknown type'
+        balance += delta_balance
+        utxo_count += (len(our_output_addrs) - utxos_consumed)
+        index = '% 4d'%(i)
+        timestamp = datetime.datetime.fromtimestamp(rpctx['blocktime']
+            ).strftime("%Y-%m-%d %H:%M")
+        utxo_count_str = '% 3d' % (utxo_count)
+        printable_data = [index, timestamp, tx_type, sat_to_str(amount),
+            sat_to_str_p(delta_balance), sat_to_str(balance), skip_n1(cj_n),
+            skip_n1_btc(fees), utxo_count_str, skip_n1(mixdepth_src),
+            skip_n1(mixdepth_dst)]
+        if options.csv:
+            printable_data += [tx['txid']]
+        l = s().join(printable_data)
+        print(l)
+
+        if tx_type != 'cj internal':
+            deposits.append(delta_balance)
+            deposit_times.append(rpctx['blocktime'])
+
+    bestblockhash = jm_single().bc_interface.rpc('getbestblockhash', [])
+    try:
+        #works with pruning enabled, but only after v0.12
+        now = jm_single().bc_interface.rpc('getblockheader', [bestblockhash]
+            )['time']
+    except JsonRpcError:
+        now = jm_single().bc_interface.rpc('getblock', [bestblockhash])['time']
+    print('     %s best block is %s' % (datetime.datetime.fromtimestamp(now)
+        .strftime("%Y-%m-%d %H:%M"), bestblockhash))
+    try:
+        #https://gist.github.com/chris-belcher/647da261ce718fc8ca10
+        import numpy as np
+        from scipy.optimize import brentq
+        deposit_times = np.array(deposit_times)
+        now -= deposit_times[0]
+        deposit_times -= deposit_times[0]
+        deposits = np.array(deposits)
+        def f(r, deposits, deposit_times, now, final_balance):
+            return np.sum(np.exp((now - deposit_times) / 60.0 / 60 / 24 /
+                365)**r * deposits) - final_balance
+        r = brentq(f, a=0.1, b=-0.1, args=(deposits, deposit_times, now,
+            balance))
+        print('continuously compounded equivalent annual interest rate = ' +
+            str(r * 100) + ' %')
+        print('(as if yield generator was a bank account)')
+    except ImportError:
+        print('numpy/scipy not installed, unable to calculate effective ' +
+            'interest rate')
+
+    total_wallet_balance = sum(wallet.get_balance_by_mixdepth().values())
+    if balance != total_wallet_balance:
+        print(('BUG ERROR: wallet balance (%s) does not match balance from ' +
+            'history (%s)') % (sat_to_str(total_wallet_balance),
+            sat_to_str(balance)))
+    if utxo_count != len(wallet.unspent):
+        print(('BUG ERROR: wallet utxo count (%d) does not match utxo count from ' +
+            'history (%s)') % (len(wallet.unspent), utxo_count))
