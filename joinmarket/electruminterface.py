@@ -1,7 +1,9 @@
 import bitcoin as btc
 import json
 import Queue
+import os
 import pprint
+import random
 import socket
 import threading
 import time
@@ -10,6 +12,26 @@ from joinmarket.configure import get_p2pk_vbyte
 from joinmarket.support import get_log
 
 log = get_log()
+
+# Default server list from electrum client
+# https://github.com/spesmilo/electrum/blob/753a28b452dca1023fbde548469c36a34555dc95/lib/network.py
+DEFAULT_ELECTRUM_SERVER_LIST = [
+    'erbium1.sytes.net:50001',
+    'ecdsa.net:50001',
+    'electrum0.electricnewyear.net:50001',
+    'VPS.hsmiths.com:50001',
+    'ELECTRUM.jdubya.info:50001',
+    'electrum.no-ip.org:50001',
+    'us.electrum.be:50001',
+    'bitcoins.sk:50001',
+    'electrum.petrkr.net:50001',
+    'electrum.dragonzone.net:50001',
+    'Electrum.hsmiths.com:8080',
+    'electrum3.hachre.de:50001',
+    'elec.luggs.co:80',
+    'btc.smsys.me:110',
+    'electrum.online:50001',
+]
 
 class ElectrumInterface(BlockchainInterface):
 
@@ -20,7 +42,11 @@ class ElectrumInterface(BlockchainInterface):
             self.daemon = True
             self.msg_id = 0
             self.RetQueue = Queue.Queue()
-            self.s = socket.create_connection((electrum_server.split(':')[0], int(electrum_server.split(':')[1])))
+            try:
+                self.s = socket.create_connection((electrum_server.split(':')[0], int(electrum_server.split(':')[1])))
+            except Exception as e:
+                log.error("Error connecting to electrum server. Try again to connect to a random server or set a server in the config.")
+                os._exit(1)
             self.ping()
 
         def run(self):
@@ -71,6 +97,8 @@ class ElectrumInterface(BlockchainInterface):
 
         if testnet:
             raise Exception(NotImplemented)
+        if electrum_server is None:
+            electrum_server = random.choice(DEFAULT_ELECTRUM_SERVER_LIST)
         self.server_domain = electrum_server.split(':')[0]
         self.last_sync_unspent = 0
         self.electrum_conn = self.ElectrumConn(electrum_server)

@@ -254,8 +254,12 @@ def get_blockchain_interface_instance(_config):
     elif source == 'blockr':
         bc_interface = BlockrInterface(testnet)
     elif source == 'electrum':
-        electrum_server = _config.get("BLOCKCHAIN", "electrum_server")
-        bc_interface = ElectrumInterface(testnet, electrum_server)
+        try:
+            electrum_server = _config.get("BLOCKCHAIN", "electrum_server")
+        except NoOptionError:
+            bc_interface = ElectrumInterface(testnet)
+        else:
+            bc_interface = ElectrumInterface(testnet, electrum_server)
     else:
         raise ValueError("Invalid blockchain source")
     return bc_interface
