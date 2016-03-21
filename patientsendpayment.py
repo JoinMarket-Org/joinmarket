@@ -19,7 +19,7 @@ log = get_log()
 
 class TakerThread(threading.Thread):
     def __init__(self, tmaker):
-        threading.Thread.__init__(self)
+        threading.Thread.__init__(self, name='TakerThread')
         self.daemon = True
         self.tmaker = tmaker
         self.finished = False
@@ -140,7 +140,11 @@ def main():
             description='Sends a payment from your wallet to an given address' +
                         ' using coinjoin. First acts as a maker, announcing an order and ' +
                         'waiting for someone to fill it. After a set period of time, gives' +
-                        ' up waiting and acts as a taker and coinjoins any remaining coins')
+                        ' up waiting and acts as a taker and coinjoins any remaining coins.' +
+                        ' NOTE: In the current state of JoinMarket software, this script' +
+                        ' only works if your JoinMarket wallet contains the private key of your' +
+                        ' destination address. So you can only send to yourself and you need' +
+                        ' to import the privkey')
     parser.add_option(
             '-f',
             '--txfee',

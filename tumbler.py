@@ -93,7 +93,7 @@ def generate_tumbler_tx(destaddrs, options):
 # chooses which coinjoins to initiate and when
 class TumblerThread(threading.Thread):
     def __init__(self, taker):
-        threading.Thread.__init__(self)
+        threading.Thread.__init__(self, name='TumblerThread')
         self.daemon = True
         self.taker = taker
         self.ignored_makers = []
@@ -189,7 +189,7 @@ class TumblerThread(threading.Thread):
             fee_for_tx = int(fee_for_tx / self.tx['makercount'])
             total_value = sum([addrval['value'] for addrval in utxos.values()])
             while True:
-                orders, cj_amount = choose_sweep_orders(
+                orders, cj_amount, total_cj_fee = choose_sweep_orders(
                     self.taker.db, total_value, fee_for_tx,
                         self.tx['makercount'], weighted_order_choose,
                         self.ignored_makers)
@@ -199,8 +199,7 @@ class TumblerThread(threading.Thread):
                               'secs, hopefully more orders should come in')
                     time.sleep(self.taker.options.liquiditywait)
                     continue
-                abs_cj_fee = 1.0 * (
-                    total_value - cj_amount) / self.tx['makercount']
+                abs_cj_fee = 1.0 * total_cj_fee / self.tx['makercount']
                 rel_cj_fee = abs_cj_fee / cj_amount
                 log.debug(
                     'rel/abs average fee = ' + str(rel_cj_fee) + ' / ' + str(
@@ -242,7 +241,7 @@ class TumblerThread(threading.Thread):
                 #we cannot afford to just throw not enough funds; better to
                 #try with a smaller request; it could still fail within
                 #CoinJoinTX.recv_txio, but make every effort to avoid stopping.
-                if repr(e) == "Not enough funds":
+                if str(e) == "Not enough funds":
                     log.debug("Failed to select total amount + twice txfee from" +
                           "wallet; trying to select just total amount.")
                     utxos = self.taker.wallet.select_utxos(self.tx['srcmixdepth'],
@@ -262,7 +261,7 @@ class TumblerThread(threading.Thread):
         if tx['destination'] == 'internal':
             destaddr = self.taker.wallet.get_internal_addr(tx['srcmixdepth'] + 1)
         elif tx['destination'] == 'addrask':
-            jm_single().debug_silence = True
+            jm_single().debug_silence[0] = True
             while True:
                 destaddr = raw_input('insert new address: ')
                 addr_valid, errormsg = validate_address(destaddr)
@@ -270,7 +269,7 @@ class TumblerThread(threading.Thread):
                     break
                 print(
                 'Address ' + destaddr + ' invalid. ' + errormsg + ' try again')
-            jm_single().debug_silence = False
+            jm_single().debug_silence[0] = False
         else:
             destaddr = tx['destination']
         self.sweep = sweep

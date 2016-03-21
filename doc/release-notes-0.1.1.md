@@ -1,6 +1,6 @@
-JoinMarket 0.1.3:
+Joinmarket 0.1.1:
 
-  <https://github.com/joinmarket-org/joinmarket/releases/tag/v0.1.3>
+  <https://github.com/joinmarket-org/joinmarket/releases/tag/v0.1.1>
 
 This is a minor bugfix release. Please update immediately.
 
@@ -23,11 +23,20 @@ it on first startup.
 Notable changes
 ===============
 
-Fixing a race condition that allowed makers to get a higher amount of the takers
-coins as fees than advertised.
+Preventing failure on receipt of invalid orders
+------------------------------------
+
+See [391](https://github.com/joinmarket-org/joinmarket/issues/391) and
+[390](https://github.com/joinmarket-org/joinmarket/issues/390).
+Makers publishing orders with non-integer amounts for an `absorder` were causing 
+a ValueError exception to be raised, preventing Takers from running successfully. 
+This fix prevents that.
 
 
-0.1.3 Change log
+0.1.1 Change log
 =================
 
-- `508d65f` fix for race condition involving orders
+
+- #391 `7f5e06e` Disallow non-integer absorder in on_order_seen.
+
+

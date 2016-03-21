@@ -48,8 +48,10 @@ custom_cjfees = [
 ]  # used when cjfee_spread is set to custom
 
 txfee_spread = 'fibonacci'  # fibonacci, evenly, random, custom
-txfee_low = random.randrange(1, 100)
-txfee_high = random.randrange(3000, 5000)
+txfee_low = 0
+txfee_high = 0
+#txfee_low = random.randrange(1, 100)
+#txfee_high = random.randrange(3000, 5000)
 custom_txfees = [
     250, 500, 1000, 2000, 5000
 ]  # used when txfee_spread is set to custom
@@ -65,11 +67,8 @@ min_output_size = random.randrange(15000, 300000)  # varied
 #min_output_size = 15000 
 #min_output_size = jm_single().DUST_THRESHOLD # 546 satoshis
 
-# minimum revenue you require for a transaction (exact absorders for dust exempt)
-min_revenue = random.randrange(txfee_low, 12000)  # varied
-#min_revenue = txfee_low # break even
-#min_revenue = int(txfee_low * 1.5) # 50% net revenue
-#min_revenue = random.randrange(txfee_low, txfee_low * 3)
+# minimum profit you require for a transaction (exact absorders for dust exempt)
+profit_req_per_transaction = 1
 
 # You can override the above autogenerate options for maximum customization
 override_offers = None  # comment this line if using below
@@ -98,7 +97,8 @@ log.debug('txfee_low = ' + str(txfee_low))
 log.debug('txfee_high = ' + str(txfee_high))
 log.debug('min_output_size = ' + str(min_output_size) + " (" + str(
     min_output_size / 1e8) + " btc)")
-log.debug('min_revenue = ' + str(min_revenue))
+profit_req_per_transaction = max(profit_req_per_transaction, -250)  # safe guard
+log.debug('profit_req_per_transaction = ' + str(profit_req_per_transaction))
 
 
 def fib(n):
@@ -114,10 +114,9 @@ def fib_seq(low, high, num, upper_bound=False):
         num += 1
     else:
         x.append(low)
-    fib_sec = high / decimal.Decimal(fib(num))
-    for y in range(2, num):
+    fib_sec = (high - low) / decimal.Decimal(fib(num))
+    for y in range(2, (num + 1)):
         x.append(low + (fib_sec * fib(y)))
-    x.append(high)
     return x
 
 
@@ -332,10 +331,13 @@ class YieldGenerator(Maker):
                 break
 
         for upper, lower, cjfee, txfee in offer_ranges:
-            if float(cjfee) > 0:
-                min_needed = int(min_revenue / float(cjfee))
-            else:
-                min_needed = min_revenue
+            cjfee = float(cjfee)
+            if cjfee == 0:
+                min_needed = profit_req_per_transaction + txfee
+            elif cjfee > 0:
+                min_needed = int((profit_req_per_transaction + txfee + 1) / cjfee)
+            elif cjfee < 0:
+                sys.exit('negative fee not supported here')
             if min_needed <= lower:
                 # create a regular relorder
                 offer = {'oid': oid,
@@ -351,7 +353,7 @@ class YieldGenerator(Maker):
                          'minsize': lower,
                          'maxsize': min_needed - 1,
                          'txfee': txfee,
-                         'cjfee': min_revenue}
+                         'cjfee': profit_req_per_transaction + txfee}
                 oid += 1
                 offers.append(offer)
                 offer = {'oid': oid,
@@ -367,7 +369,7 @@ class YieldGenerator(Maker):
                          'minsize': lower,
                          'maxsize': upper,
                          'txfee': txfee,
-                         'cjfee': min_revenue}
+                         'cjfee': profit_req_per_transaction + txfee}
                 # todo: combine neighboring absorders into a single one
             oid += 1
             offers.append(offer)
@@ -443,19 +445,24 @@ class YieldGenerator(Maker):
                           'amount, cjfee, and min_output_size.')
                 return None, None, None
 
+        # prioritize by mixdepths sequencially
+        # keep coins moving towards last mixdepth, clumps once they get there
+        # makes sure coins sent to mixdepth 0 will get mixed to max mixdepth
+        filtered_mix_balance = sorted(filtered_mix_balance, key=lambda x: x[0])
+
         # clumping. push all coins towards the largest mixdepth
         # the largest amount of coins are available to join with (since joins always come from a single depth)
         # the maker commands a higher fee for the larger amounts 
         # order ascending but circularly with largest last
         # note, no need to consider max_offer_size here
-        largest_mixdepth = sorted(
-            filtered_mix_balance,
-            key=lambda x: x[1],)[-1]  # find largest amount
-        smb = sorted(filtered_mix_balance,
-                     key=lambda x: x[0])  # seq of mixdepth num
-        next_index = smb.index(largest_mixdepth) + 1
-        mmd = self.wallet.max_mix_depth
-        filtered_mix_balance = smb[next_index % mmd:] + smb[:next_index % mmd]
+        #largest_mixdepth = sorted(
+        #    filtered_mix_balance,
+        #    key=lambda x: x[1],)[-1]  # find largest amount
+        #smb = sorted(filtered_mix_balance,
+        #             key=lambda x: x[0])  # seq of mixdepth num
+        #next_index = smb.index(largest_mixdepth) + 1
+        #mmd = self.wallet.max_mix_depth
+        #filtered_mix_balance = smb[next_index % mmd:] + smb[:next_index % mmd]
 
         # use mix depth that has the closest amount of coins to what this transaction needs
         # keeps coins moving through mix depths more quickly
@@ -481,8 +488,8 @@ class YieldGenerator(Maker):
         log.debug('filling offer, mixdepth=' + str(mixdepth))
 
         # mixdepth is the chosen depth we'll be spending from
-        cj_addr = self.wallet.get_internal_addr(
-            (mixdepth + 1) % self.wallet.max_mix_depth)
+        cj_addr = self.wallet.get_internal_addr((mixdepth + 1) %
+                                                self.wallet.max_mix_depth)
         change_addr = self.wallet.get_internal_addr(mixdepth)
 
         utxos = self.wallet.select_utxos(mixdepth, total_amount)

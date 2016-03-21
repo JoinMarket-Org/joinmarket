@@ -8,7 +8,7 @@ from ConfigParser import SafeConfigParser, NoOptionError
 
 import bitcoin as btc
 from joinmarket.jsonrpc import JsonRpc
-from joinmarket.support import get_log
+from joinmarket.support import get_log, joinmarket_alert, core_alert, debug_silence
 
 # config = SafeConfigParser()
 # config_location = 'joinmarket.cfg'
@@ -56,7 +56,7 @@ class AttributeDict(object):
 
 # global_singleton = AttributeDict(
 #         **{'log': log,
-#            'JM_VERSION': 2,
+#            'JM_VERSION': 3,
 #            'nickname': None,
 #            'DUST_THRESHOLD': 2730,
 #            'bc_interface': None,
@@ -72,7 +72,7 @@ class AttributeDict(object):
 
 # todo: same as above.  decide!!!
 global_singleton = AttributeDict()
-global_singleton.JM_VERSION = 2
+global_singleton.JM_VERSION = 4
 global_singleton.nickname = None
 global_singleton.DUST_THRESHOLD = 2730
 global_singleton.bc_interface = None
@@ -80,9 +80,9 @@ global_singleton.ordername_list = ['absorder', 'relorder']
 global_singleton.maker_timeout_sec = 60
 global_singleton.debug_file_lock = threading.Lock()
 global_singleton.debug_file_handle = None
-global_singleton.core_alert = None
-global_singleton.joinmarket_alert = None
-global_singleton.debug_silence = False
+global_singleton.core_alert = core_alert
+global_singleton.joinmarket_alert = joinmarket_alert
+global_singleton.debug_silence = debug_silence
 global_singleton.config = SafeConfigParser()
 global_singleton.config_location = 'joinmarket.cfg'
 
@@ -117,7 +117,8 @@ socks5_host = localhost
 socks5_port = 9050
 #for tor
 #host = 6dvj6v5imhny3anf.onion
-#port = 6697
+#onion / i2p have their own ports on CGAN
+#port = 6698
 #usessl = true
 #socks5 = true
 maker_timeout_sec = 30
@@ -141,6 +142,8 @@ tx_fees = 3
 # leaving it unset or empty defers to bitcoind's default values, ie [1, 9999999]
 #listunspent_args = []
 # that's what you should do, unless you have a specific reason, eg:
+#  !!! WARNING !!! CONFIGURING THIS WHILE TAKING LIQUIDITY FROM
+#  !!! WARNING !!! THE PUBLIC ORDERBOOK LEAKS YOUR INPUT MERGES
 #  spend from unconfirmed transactions:  listunspent_args = [0]
 # display only unconfirmed transactions: listunspent_args = [0, 1]
 # defend against small reorganizations:  listunspent_args = [3]
@@ -188,11 +191,11 @@ def validate_address(addr):
 
 
 def load_program_config():
+    global_singleton.config.readfp(io.BytesIO(defaultconfig))
     loadedFiles = global_singleton.config.read(
             [global_singleton.config_location])
     # Create default config file if not found
     if len(loadedFiles) != 1:
-        global_singleton.config.readfp(io.BytesIO(defaultconfig))
         with open(global_singleton.config_location, "w") as configfile:
             configfile.write(defaultconfig)
 

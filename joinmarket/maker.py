@@ -46,23 +46,31 @@ class CoinJoinOrder(object):
         self.txfee = order['txfee']
         self.cjfee = order['cjfee']
         log.debug('new cjorder nick=%s oid=%d amount=%d' % (nick, oid, amount))
-        self.utxos, self.cj_addr, self.change_addr = maker.oid_to_order(
+
+        def populate_utxo_data():
+            self.utxos, self.cj_addr, self.change_addr = maker.oid_to_order(
                 self, oid, amount)
-        self.maker.wallet.update_cache_index()
-        if not self.utxos:
-            self.maker.msgchan.send_error(
+            self.maker.wallet.update_cache_index()
+            if not self.utxos:
+                self.maker.msgchan.send_error(
                     nick, 'unable to fill order constrained by dust avoidance')
             # TODO make up orders offers in a way that this error cant appear
             #  check nothing has messed up with the wallet code, remove this
             # code after a while
-        import pprint
-        log.debug('maker utxos = ' + pprint.pformat(self.utxos))
-        utxo_list = self.utxos.keys()
-        utxo_data = jm_single().bc_interface.query_utxo_set(utxo_list)
-        if None in utxo_data:
-            log.debug('wrongly using an already spent utxo. utxo_data = ' +
+            log.debug('maker utxos = ' + pprint.pformat(self.utxos))
+            utxos = self.utxos.keys()
+            return (utxos, jm_single().bc_interface.query_utxo_set(utxos))
+        utxo_list, utxo_data = populate_utxo_data()
+        while None in utxo_data:
+            log.debug('wrongly selected stale utxos! utxo_data = ' +
                       pprint.pformat(utxo_data))
-            sys.exit(0)
+            self.maker.wallet_unspent_lock.acquire()
+            try:
+                jm_single().bc_interface.sync_unspent(self.maker.wallet)
+            finally:
+                self.maker.wallet_unspent_lock.release()
+            utxo_list, utxo_data = populate_utxo_data()
+
         for utxo, data in zip(utxo_list, utxo_data):
             if self.utxos[utxo]['value'] != data['value']:
                 fmt = 'wrongly labeled utxo, expected value: {} got {}'.format
@@ -214,7 +222,7 @@ class Maker(CoinJoinerPeer):
         self.wallet = wallet
         self.nextoid = -1
         self.orderlist = self.create_my_orders()
-        self.wallet_unspent_lock = threading.Lock()
+        self.wallet_unspent_lock = threading.RLock()
 
     def get_crypto_box_from_nick(self, nick):
         if nick not in self.active_orders:

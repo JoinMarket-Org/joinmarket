@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 from __future__ import absolute_import
 
+import random
 import sys
 import threading
 from optparse import OptionParser
@@ -37,7 +38,7 @@ def check_high_fee(total_fee_pc):
 class PaymentThread(threading.Thread):
 
     def __init__(self, taker):
-        threading.Thread.__init__(self)
+        threading.Thread.__init__(self, name='PaymentThread')
         self.daemon = True
         self.taker = taker
         self.ignored_makers = []
@@ -77,15 +78,13 @@ class PaymentThread(threading.Thread):
                 #both values are integers; we can ignore small rounding errors
                 self.taker.txfee = estimated_fee / self.taker.makercount
             total_value = sum([va['value'] for va in utxos.values()])
-            orders, cjamount = choose_sweep_orders(
+            orders, cjamount, total_cj_fee = choose_sweep_orders(
                 self.taker.db, total_value, self.taker.txfee,
                 self.taker.makercount, self.taker.chooseOrdersFunc,
                 self.ignored_makers)
             if not orders:
                 raise Exception("Could not find orders to complete transaction.")
             if not self.taker.answeryes:
-                total_cj_fee = total_value - cjamount - \
-                    self.taker.txfee*self.taker.makercount
                 log.debug('total cj fee = ' + str(total_cj_fee))
                 total_fee_pc = 1.0 * total_cj_fee / cjamount
                 log.debug('total coinjoin fee = ' + str(float('%.3g' % (
@@ -225,8 +224,8 @@ def main():
                       action='store',
                       type='int',
                       dest='makercount',
-                      help='how many makers to coinjoin with, default=2',
-                      default=2)
+                      help='how many makers to coinjoin with, default random from 2 to 4',
+                      default=random.randint(2, 4))
     parser.add_option(
         '-C',
         '--choose-cheapest',

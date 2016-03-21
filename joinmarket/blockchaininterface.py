@@ -8,6 +8,7 @@ import os
 import pprint
 import random
 import re
+import urllib2
 import sys
 import threading
 import time
@@ -219,7 +220,7 @@ class BlockrInterface(BlockchainInterface):
         class NotifyThread(threading.Thread):
 
             def __init__(self, blockr_domain, txd, unconfirmfun, confirmfun):
-                threading.Thread.__init__(self)
+                threading.Thread.__init__(self, name='BlockrNotifyThread')
                 self.daemon = True
                 self.blockr_domain = blockr_domain
                 self.unconfirmfun = unconfirmfun
@@ -398,7 +399,11 @@ class NotifyRequestHeader(BaseHTTPServer.BaseHTTPRequestHandler):
             if not re.match('^[0-9a-fA-F]*$', txid):
                 log.debug('not a txid')
                 return
-            tx = self.btcinterface.rpc('getrawtransaction', [txid])
+            try:
+                tx = self.btcinterface.rpc('getrawtransaction', [txid])
+            except (JsonRpcError, JsonRpcConnectionError) as e:
+                log.debug('transaction not found, probably a conflict')
+                return
             if not re.match('^[0-9a-fA-F]*$', tx):
                 log.debug('not a txhex')
                 return
@@ -437,11 +442,18 @@ class NotifyRequestHeader(BaseHTTPServer.BaseHTTPRequestHandler):
                     log.debug('ran confirmfun')
 
         elif self.path.startswith('/alertnotify?'):
-            jm_single().core_alert = urllib.unquote(self.path[len(pages[1]):])
-            log.debug('Got an alert!\nMessage=' + jm_single().core_alert)
+            jm_single().core_alert[0] = urllib.unquote(self.path[len(pages[1]):])
+            log.debug('Got an alert!\nMessage=' + jm_single().core_alert[0])
 
-        os.system('curl -sI --connect-timeout 1 http://localhost:' + str(
-                self.base_server.server_address[1] + 1) + self.path)
+        else:
+            log.debug('ERROR: This is not a handled URL path.  You may want to check your notify URL for typos.')
+
+        request = urllib2.Request('http://localhost:' + str(self.base_server.server_address[1] + 1) + self.path)
+        request.get_method = lambda : 'HEAD'
+        try:
+            urllib2.urlopen(request)
+        except urllib2.URLError:
+            pass
         self.send_response(200)
         # self.send_header('Connection', 'close')
         self.end_headers()
@@ -449,7 +461,7 @@ class NotifyRequestHeader(BaseHTTPServer.BaseHTTPRequestHandler):
 
 class BitcoinCoreNotifyThread(threading.Thread):
     def __init__(self, btcinterface):
-        threading.Thread.__init__(self)
+        threading.Thread.__init__(self, name='CoreNotifyThread')
         self.daemon = True
         self.btcinterface = btcinterface
 
@@ -653,10 +665,12 @@ class BitcoinCoreInterface(BlockchainInterface):
         try:
             txid = self.rpc('sendrawtransaction', [txhex])
         except JsonRpcConnectionError as e:
-	    return (False, repr(e))
+            log.debug('error pushing = ' + repr(e))
+	    return False
         except JsonRpcError as e:
-	    return (False, str(e.code) + " " + str(e.message))
-        return (True, txid)
+            log.debug('error pushing = ' + str(e.code) + " " + str(e.message))
+	    return False
+        return txid
 
     def query_utxo_set(self, txout):
         if not isinstance(txout, list):
@@ -695,7 +709,7 @@ class RegtestBitcoinCoreInterface(BitcoinCoreInterface):
 
         class TickChainThread(threading.Thread):
             def __init__(self, bcinterface):
-                threading.Thread.__init__(self)
+                threading.Thread.__init__(self, name='TickChainThread')
                 self.bcinterface = bcinterface
 
             def run(self):

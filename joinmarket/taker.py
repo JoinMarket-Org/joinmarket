@@ -15,6 +15,7 @@ from joinmarket.configure import jm_single, get_p2pk_vbyte
 from joinmarket.enc_wrapper import init_keypair, as_init_encryption, init_pubkey
 from joinmarket.support import get_log, calc_cj_fee
 from joinmarket.wallet import estimate_tx_fee
+from joinmarket.irc import B_PER_SEC
 
 log = get_log()
 
@@ -38,7 +39,9 @@ class CoinJoinTX(object):
         """
         if my_change is None then there wont be a change address
         thats used if you want to entirely coinjoin one utxo with no change left over
-        orders is the orders you want to fill {'counterpartynick': oid, 'cp2': oid2}
+        orders is the orders you want to fill {'counterpartynick': order1, 'cp2': order2}
+        each order object is a dict of properties {'oid': 0, 'maxsize': 2000000, 'minsize':
+            5000, 'cjfee': 10000, 'txfee': 5000}
         """
         log.debug(
             'starting cj to ' + str(my_cj_addr) + ' with change at ' + str(
@@ -60,6 +63,7 @@ class CoinJoinTX(object):
         # used to restrict access to certain variables across threads
         self.timeout_thread_lock = threading.Condition()
         self.end_timeout_thread = False
+        self.maker_timeout_sec = jm_single().maker_timeout_sec
         CoinJoinTX.TimeoutThread(self).start()
         # state variables
         self.txid = None
@@ -109,39 +113,43 @@ class CoinJoinTX(object):
                        'nonrespondants {}').format(nick, self.nonrespondants))
             return
         self.utxos[nick] = utxo_list
-        order = self.db.execute('SELECT ordertype, txfee, cjfee FROM '
-                                'orderbook WHERE oid=? AND counterparty=?',
-                                (self.active_orders[nick], nick)).fetchone()
         utxo_data = jm_single().bc_interface.query_utxo_set(self.utxos[nick])
         if None in utxo_data:
             log.debug(('ERROR outputs unconfirmed or already spent. '
                        'utxo_data={}').format(pprint.pformat(utxo_data)))
             # when internal reviewing of makers is created, add it here to
-            # immediately quit
+            # immediately quit; currently, the timeout thread suffices.
             return
 
-        # ignore this message, eventually the timeout thread will recover
         total_input = sum([d['value'] for d in utxo_data])
-        real_cjfee = calc_cj_fee(order['ordertype'], order['cjfee'],
-                                 self.cj_amount)
-        self.outputs.append({'address': change_addr,
-                             'value': total_input - self.cj_amount - order[
-                                 'txfee'] + real_cjfee})
+        real_cjfee = calc_cj_fee(self.active_orders[nick]['ordertype'],
+                       self.active_orders[nick]['cjfee'], self.cj_amount)
+        change_amount = (total_input - self.cj_amount -
+            self.active_orders[nick]['txfee'] + real_cjfee)
+
+        # certain malicious and/or incompetent liquidity providers send
+        # inputs totalling less than the coinjoin amount! this leads to
+        # a change output of zero satoshis, so the invalid transaction
+        # fails harmlessly; let's fail earlier, with a clear message.
+        if change_amount < jm_single().DUST_THRESHOLD:
+            fmt = ('ERROR counterparty requires sub-dust change. nick={}'
+                   'totalin={:d} cjamount={:d} change={:d}').format
+            log.debug(fmt(nick, total_input, self.cj_amount, change_amount))
+            return              # timeout marks this maker as nonresponsive
+
+        self.outputs.append({'address': change_addr, 'value': change_amount})
         fmt = ('fee breakdown for {} totalin={:d} '
                'cjamount={:d} txfee={:d} realcjfee={:d}').format
         log.debug(fmt(nick, total_input, self.cj_amount,
-                      order['txfee'], real_cjfee))
+            self.active_orders[nick]['txfee'], real_cjfee))
         cj_addr = btc.pubtoaddr(cj_pub, get_p2pk_vbyte())
         self.outputs.append({'address': cj_addr, 'value': self.cj_amount})
         self.cjfee_total += real_cjfee
-        self.maker_txfee_contributions += order['txfee']
+        self.maker_txfee_contributions += self.active_orders[nick]['txfee']
         self.nonrespondants.remove(nick)
         if len(self.nonrespondants) > 0:
             log.debug('nonrespondants = ' + str(self.nonrespondants))
             return
-        self.all_responded = True
-        with self.timeout_lock:
-            self.timeout_lock.notify()
         log.debug('got all parts, enough to build a tx')
         self.nonrespondants = list(self.active_orders.keys())
 
@@ -192,6 +200,21 @@ class CoinJoinTX(object):
         random.shuffle(self.outputs)
         tx = btc.mktx(self.utxo_tx, self.outputs)
         log.debug('obtained tx\n' + pprint.pformat(btc.deserialize(tx)))
+        #Re-calculate a sensible timeout wait based on the throttling
+        #settings and the tx size.
+        #Calculation: Let tx size be S; tx undergoes two b64 expansions, 1.8*S
+        #So we're sending N*1.8*S over the wire, and the
+        #maximum bytes/sec = B, means we need (1.8*N*S/B) seconds,
+        #and need to add some leeway for network delays, we just add the
+        #contents of jm_single().maker_timeout_sec (the user configured value)
+        self.maker_timeout_sec = (len(tx) * 1.8 * len(
+            self.active_orders.keys()))/(B_PER_SEC) + jm_single().maker_timeout_sec
+        log.debug("Based on transaction size: " + str(
+            len(tx)) + ", calculated time to wait for replies: " + str(
+            self.maker_timeout_sec))
+        self.all_responded = True
+        with self.timeout_lock:
+            self.timeout_lock.notify()
         self.msgchan.send_tx(self.active_orders.keys(), tx)
 
         self.latest_tx = btc.deserialize(tx)
@@ -297,15 +320,14 @@ class CoinJoinTX(object):
         tx = btc.serialize(txd)
         log.debug('\n' + tx)
         log.debug('txid = ' + btc.txhash(tx))
+        self.txid = btc.txhash(tx)
         # TODO send to a random maker or push myself
         # TODO need to check whether the other party sent it
         # self.msgchan.push_tx(self.active_orders.keys()[0], txhex)
         pushed = jm_single().bc_interface.pushtx(tx)
-        if pushed[0]:
-            self.txid = pushed[1]
-        else:
-            log.debug('unable to pushtx, reason: '+str(pushed[1]))
-        return pushed[0]
+        if not pushed:
+            log.debug('unable to pushtx')
+        return pushed
 
     def self_sign_and_push(self):
         self.self_sign()
@@ -342,8 +364,8 @@ class CoinJoinTX(object):
             self.msgchan.fill_orders(new_orders, self.cj_amount,
                                      self.kp.hex_pk())
         else:
-            log.debug('nonresponse to !sig')
-            # nonresponding to !sig, have to restart tx from the beginning
+            log.debug('nonresponse to !tx')
+            # nonresponding to !tx, have to restart tx from the beginning
             self.end_timeout_thread = True
             if self.finishcallback is not None:
                 self.finishcallback(self)
@@ -352,7 +374,7 @@ class CoinJoinTX(object):
     class TimeoutThread(threading.Thread):
 
         def __init__(self, cjtx):
-            threading.Thread.__init__(self)
+            threading.Thread.__init__(self, name='TimeoutThread')
             self.cjtx = cjtx
 
         def run(self):
@@ -367,17 +389,17 @@ class CoinJoinTX(object):
             # to see if if the messages have arrived
             while not self.cjtx.end_timeout_thread:
                 log.debug('waiting for all replies.. timeout=' + str(
-                        jm_single().maker_timeout_sec))
+                        self.cjtx.maker_timeout_sec))
                 with self.cjtx.timeout_lock:
-                    self.cjtx.timeout_lock.wait(jm_single().maker_timeout_sec)
-                if self.cjtx.all_responded:
-                    log.debug(('timeout thread woken by notify(), '
-                               'makers responded in time'))
-                    self.cjtx.all_responded = False
-                else:
-                    log.debug('timeout thread woken by timeout, '
-                              'makers didnt respond')
-                    with self.cjtx.timeout_thread_lock:
+                    self.cjtx.timeout_lock.wait(self.cjtx.maker_timeout_sec)
+                with self.cjtx.timeout_thread_lock:
+                    if self.cjtx.all_responded:
+                        log.debug(('timeout thread woken by notify(), '
+                                   'makers responded in time'))
+                        self.cjtx.all_responded = False
+                    else:
+                        log.debug('timeout thread woken by timeout, '
+                                  'makers didnt respond')
                         self.cjtx.recover_from_nonrespondants()
 
 
@@ -405,8 +427,7 @@ class CoinJoinerPeer(object):
                 print('JOINMARKET ALERT')
                 print(alert)
                 print('=' * 60)
-                # todo: is this right?
-                jm_single().joinmarket_alert = alert
+                jm_single().joinmarket_alert[0] = alert
 
 
 class OrderbookWatch(CoinJoinerPeer):
@@ -442,6 +463,11 @@ class OrderbookWatch(CoinJoinerPeer):
                 log.debug("Got invalid minsize: {} from {}".format(
                         minsize, counterparty))
                 return
+            if int(minsize) < jm_single().DUST_THRESHOLD:
+                minsize = jm_single().DUST_THRESHOLD
+                log.debug("{} has dusty minsize, capping at {}".format(
+                        counterparty, minsize))
+                # do not pass return, go not drop this otherwise fine offer
             if int(maxsize) < 0 or int(maxsize) > 21 * 10 ** 14:
                 log.debug("Got invalid maxsize: " + maxsize + " from " +
                           counterparty)
@@ -456,6 +482,13 @@ class OrderbookWatch(CoinJoinerPeer):
                        "from {}").format
                 log.debug(fmt(minsize, maxsize, counterparty))
                 return
+            if ordertype == 'absorder' and not isinstance(cjfee, int):
+                try:
+                    cjfee = int(cjfee)
+                except ValueError:
+                    log.debug("Got non integer coinjoin fee: " + str(cjfee) +
+                            " for an absorder from " + counterparty)
+                    return
             self.db.execute(
                     'INSERT INTO orderbook VALUES(?, ?, ?, ?, ?, ?, ?);',
                     (counterparty, oid, ordertype, minsize, maxsize, txfee,
