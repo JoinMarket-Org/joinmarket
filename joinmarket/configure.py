@@ -187,6 +187,8 @@ def validate_address(addr):
         return False, 'Checksum wrong. Typo in address?'
     if ver != get_p2pk_vbyte() and ver != get_p2sh_vbyte():
         return False, 'Wrong address version. Testnet/mainnet confused?'
+    if len(btc.b58check_to_bin(addr)) != 20:
+        return False, "Address has correct checksum but wrong length."
     return True, 'address validated'
 
 

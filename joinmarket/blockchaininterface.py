@@ -713,7 +713,7 @@ class RegtestBitcoinCoreInterface(BitcoinCoreInterface):
                 self.bcinterface = bcinterface
 
             def run(self):
-                time.sleep(15)
+                time.sleep(2)
                 self.bcinterface.tick_forward_chain(1)
 
         TickChainThread(self).start()
@@ -724,7 +724,15 @@ class RegtestBitcoinCoreInterface(BitcoinCoreInterface):
         Special method for regtest only;
         instruct to mine n blocks.
         """
-        self.rpc('generate', [n])
+	try:
+	    self.rpc('generate', [n])
+	except JsonRpcConnectionError:
+	    #can happen if the blockchain is shut down
+	    #automatically at the end of tests; this shouldn't
+	    #trigger an error
+	    log.debug("Failed to generate blocks, looks like the bitcoin daemon \
+	    has been shut down. Ignoring.")
+	    pass
 
     def grab_coins(self, receiving_addr, amt=50):
         """

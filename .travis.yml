@@ -10,11 +10,6 @@ before_install:
 install:
  - pip install -r requirements-dev.txt
 script:
-#required for local IRC pit simulation
- - git clone git://github.com/joinmarket-org/miniircd.git
- - cd miniircd
- - ./miniircd --daemon --motd=/home/travis/miniircd/testmotd
- - cd ..
 #install and test libsodium
  - git clone git://github.com/jedisct1/libsodium.git
  - cd libsodium
@@ -26,20 +21,16 @@ script:
  - cd ..
 #set up joinmarket.cfg
  - cp test/regtest_joinmarket.cfg joinmarket.cfg
-#E2E encryption (libnacl) tests
- - PYTHONPATH=.:$PYTHONPATH py.test
-#start bitcoin regtest daemon and 101 blocks
+#setup bitcoin config file
  - mkdir /home/travis/.bitcoin
  - cp test/bitcoin.conf /home/travis/.bitcoin/.
  - chmod 600 /home/travis/.bitcoin/bitcoin.conf
- - bitcoind -regtest -daemon
- - sleep 5
- - bitcoin-cli -regtest generate 101
- - cd test
- - python regtest.py
- - python wallet-test.py
- - cd ../logs
+ - PYTHONPATH=.$PYTHONPATH py.test --cov-report html --btcconf=/home/travis/.bitcoin/bitcoin.conf --btcpwd=123456abcdef
+ - cd logs
  - for x in `ls`; do tail -50 $x; done
+ - cd ..
+after_success:
+ - coveralls
 branches:
  only:
   - develop 

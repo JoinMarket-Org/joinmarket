@@ -1,7 +1,8 @@
 # matplotlib
-numpy
+# numpy
 pexpect
 pytest
 pytest-cov
+python-coveralls
 
 -r requirements.txt

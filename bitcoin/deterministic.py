@@ -3,66 +3,6 @@ import hmac
 import hashlib
 from binascii import hexlify
 
-# Electrum wallets
-
-
-def electrum_stretch(seed):
-    return slowsha(seed)
-
-# Accepts seed or stretched seed, returns master public key
-
-
-def electrum_mpk(seed):
-    if len(seed) == 32:
-        seed = electrum_stretch(seed)
-    return privkey_to_pubkey(seed)[2:]
-
-# Accepts (seed or stretched seed), index and secondary index
-# (conventionally 0 for ordinary addresses, 1 for change) , returns privkey
-
-
-def electrum_privkey(seed, n, for_change=0):
-    if len(seed) == 32:
-        seed = electrum_stretch(seed)
-    mpk = electrum_mpk(seed)
-    offset = dbl_sha256(from_int_representation_to_bytes(
-        n) + b':' + from_int_representation_to_bytes(for_change) + b':' +
-                        binascii.unhexlify(mpk))
-    return add_privkeys(seed, offset)
-
-# Accepts (seed or stretched seed or master pubkey), index and secondary index
-# (conventionally 0 for ordinary addresses, 1 for change) , returns pubkey
-
-
-def electrum_pubkey(masterkey, n, for_change=0):
-    if len(masterkey) == 32:
-        mpk = electrum_mpk(electrum_stretch(masterkey))
-    elif len(masterkey) == 64:
-        mpk = electrum_mpk(masterkey)
-    else:
-        mpk = masterkey
-    bin_mpk = encode_pubkey(mpk, 'bin_electrum')
-    offset = bin_dbl_sha256(from_int_representation_to_bytes(
-        n) + b':' + from_int_representation_to_bytes(for_change) + b':' +
-                            bin_mpk)
-    return add_pubkeys('04' + mpk, privtopub(offset))
-
-# seed/stretched seed/pubkey -> address (convenience method)
-
-
-def electrum_address(masterkey, n, for_change=0, version=0):
-    return pubkey_to_address(electrum_pubkey(masterkey, n, for_change), version)
-
-# Given a master public key, a private key from that wallet and its index,
-# cracks the secret exponent which can be used to generate all other private
-# keys in the wallet
-
-
-def crack_electrum_wallet(mpk, pk, n, for_change=0):
-    bin_mpk = encode_pubkey(mpk, 'bin_electrum')
-    offset = dbl_sha256(str(n) + ':' + str(for_change) + ':' + bin_mpk)
-    return subtract_privkeys(pk, offset)
-
 # Below code ASSUMES binary inputs and compressed pubkeys
 MAINNET_PRIVATE = b'\x04\x88\xAD\xE4'
 MAINNET_PUBLIC = b'\x04\x88\xB2\x1E'
@@ -72,7 +12,6 @@ PRIVATE = [MAINNET_PRIVATE, TESTNET_PRIVATE]
 PUBLIC = [MAINNET_PUBLIC, TESTNET_PUBLIC]
 
 # BIP32 child key derivation
-
 
 def raw_bip32_ckd(rawtuple, i):
     vbytes, depth, fingerprint, oldi, chaincode, key = rawtuple
@@ -158,7 +97,6 @@ def bip32_extract_key(data):
 # Takes a BIP32 pubkey and one of the child privkeys of its corresponding
 # privkey and returns the BIP32 privkey associated with that pubkey
 
-
 def raw_crack_bip32_privkey(parent_pub, priv):
     vbytes, depth, fingerprint, i, chaincode, key = priv
     pvbytes, pdepth, pfingerprint, pi, pchaincode, pkey = parent_pub
@@ -179,26 +117,6 @@ def crack_bip32_privkey(parent_pub, priv):
     dsppub = bip32_deserialize(parent_pub)
     dspriv = bip32_deserialize(priv)
     return bip32_serialize(raw_crack_bip32_privkey(dsppub, dspriv))
-
-
-def coinvault_pub_to_bip32(*args):
-    if len(args) == 1:
-        args = args[0].split(' ')
-    vals = map(int, args[34:])
-    I1 = ''.join(map(chr, vals[:33]))
-    I2 = ''.join(map(chr, vals[35:67]))
-    return bip32_serialize((MAINNET_PUBLIC, 0, b'\x00' * 4, 0, I2, I1))
-
-
-def coinvault_priv_to_bip32(*args):
-    if len(args) == 1:
-        args = args[0].split(' ')
-    vals = map(int, args[34:])
-    I2 = ''.join(map(chr, vals[35:67]))
-    I3 = ''.join(map(chr, vals[72:104]))
-    return bip32_serialize((MAINNET_PRIVATE, 0, b'\x00' * 4, 0, I2, I3 + b'\x01'
-                           ))
-
 
 def bip32_descend(*args):
     if len(args) == 2:
