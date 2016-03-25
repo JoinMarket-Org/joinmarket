@@ -3,6 +3,7 @@ from __future__ import absolute_import
 '''Tests of joinmarket bots end-to-end (including IRC and bitcoin) '''
 
 import subprocess
+import signal
 from commontest import local_command, make_wallets
 import os
 import pytest
@@ -30,15 +31,14 @@ yg_cmd = 'yield-generator-basic.py'
         (2, [[1, 0, 0, 0, 0]] * 3, 10, 0, 100000000),
         # 1sp 4yg, 2 mixdepths
         (4, [[1, 2, 0, 0, 0]] * 5, 4, 1, 1234500),
+        # 1sp 3yg, 2 mixdepths, sweep from depth1
+        (3, [[1, 3, 0, 0, 0]] * 4, 4, 1, 0),
     ])
 def test_sendpayment(setup_regtest, num_ygs, wallet_structures, mean_amt,
                      mixdepth, sending_amt):
-    """Simplest simulation possible of sendpayment, for now.
-    Just 2 yield generators run in background, only 1 utxo in
-    each wallet.
+    """Test of sendpayment code, with yield generators in background.
     """
     log = get_log()
-    #hardcoded command line options
     makercount = num_ygs
     answeryes = True
     txfee = 5000
@@ -89,13 +89,18 @@ def test_sendpayment(setup_regtest, num_ygs, wallet_structures, mean_amt,
     finally:
         if any(yigen_procs):
             for ygp in yigen_procs:
-                ygp.kill()
+                #NB *GENTLE* shutdown is essential for
+                #test coverage reporting!
+                ygp.send_signal(signal.SIGINT)
+                ygp.wait()
     #wait for block generation
     time.sleep(5)
     received = jm_single().bc_interface.get_received_by_addr(
         [destaddr], None)['data'][0]['balance']
-    assert received == amount, "sendpayment test failed - coins not arrived, " +\
+    if amount != 0:
+        assert received == amount, "sendpayment failed - coins not arrived, " +\
            "received: " + str(received)
+    #TODO: how to check success for sweep case?
 
 
 @pytest.fixture(scope="module")
