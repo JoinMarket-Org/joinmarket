@@ -53,9 +53,11 @@ has to be done separately; this is only testing the code logic,
 *given* a fee estimate.
 '''
 
+
 class FeeEstimateTests(unittest.TestCase):
     '''Estimation of fees test case.
     '''
+
     def setUp(self):
         self.n = 2
         #create n new random wallets.
@@ -64,35 +66,36 @@ class FeeEstimateTests(unittest.TestCase):
         #for a 0.2% fee for 1 counterparty + a large tx fee.
         #(but not large enough to handle the bad wallet)
         wallet_structures = [[1, 0, 0, 0, 0]] * (self.n)
-        self.wallets = make_wallets(
-            self.n,
-            wallet_structures=wallet_structures,
-            mean_amt=1.00300000)
+        self.wallets = make_wallets(self.n,
+                                    wallet_structures=wallet_structures,
+                                    mean_amt=1.00300000)
         #the sender is wallet (n), i.e. index wallets[n-1]
         #we need a counterparty with a huge set of utxos.
-        bad_wallet_struct = [[1,0,0,0,0]]
-        self.wallets.update(make_wallets(1, 
-                            wallet_structures=bad_wallet_struct, 
-                            mean_amt=0.01, start_index=2))
+        bad_wallet_struct = [[1, 0, 0, 0, 0]]
+        self.wallets.update(make_wallets(1,
+                                         wallet_structures=bad_wallet_struct,
+                                         mean_amt=0.01,
+                                         start_index=2))
         #having created the bad wallet, add lots of utxos to 
         #the same mixdepth
         print 'creating a crazy amount of utxos in one wallet...'
         r_addr = self.wallets[2]['wallet'].get_external_addr(0)
         for i in range(60):
-            jm_single().bc_interface.grab_coins(r_addr,0.02)
+            jm_single().bc_interface.grab_coins(r_addr, 0.02)
             time.sleep(1)
         #for sweep, create a yg wallet with enough for the mix
         #of the bad wallet above (acting as sender)
         self.wallets.update(make_wallets(1,
-                            wallet_structures=[[1,0,0,0,0]],
-                            mean_amt=3, start_index=3))
+                                         wallet_structures=[[1, 0, 0, 0, 0]],
+                                         mean_amt=3,
+                                         start_index=3))
 
     def test_sweep(self):
         self.failUnless(self.run_sweep())
 
     def test_send_without_bad(self):
         self.failUnless(self.run_send(bad=False))
-    
+
     def test_send_with_bad(self):
         self.failIf(self.run_send(bad=True))
 
@@ -108,11 +111,11 @@ class FeeEstimateTests(unittest.TestCase):
         #A significant delay is needed to wait for the yield generators to sync
         time.sleep(20)
 
-        dest_address = btc.privkey_to_address(
-            os.urandom(32), get_p2pk_vbyte())
+        dest_address = btc.privkey_to_address(os.urandom(32), get_p2pk_vbyte())
         try:
-            sp_proc = local_command([python_cmd,'sendpayment.py','--yes',
-                        '-N', '1',self.wallets[2]['seed'], '0', dest_address])
+            sp_proc = local_command([python_cmd, 'sendpayment.py', '--yes',
+                                     '-N', '1', self.wallets[2][
+                                         'seed'], '0', dest_address])
         except subprocess.CalledProcessError, e:
             for ygp in yigen_procs:
                 ygp.kill()
@@ -126,12 +129,12 @@ class FeeEstimateTests(unittest.TestCase):
             [dest_address], None)['data'][0]['balance']
         return True
 
-    def run_send(self,bad=False):
+    def run_send(self, bad=False):
         yigen_procs = []
         if bad:
-            i=2
+            i = 2
         else:
-            i=0
+            i = 0
         ygp = local_command([python_cmd,yg_cmd,\
                                  str(self.wallets[i]['seed'])], bg=True)
         time.sleep(2)  #give it a chance
@@ -142,12 +145,11 @@ class FeeEstimateTests(unittest.TestCase):
 
         #run a single sendpayment call
         amt = 100000000  #in satoshis
-        dest_address = btc.privkey_to_address(
-            os.urandom(32), get_p2pk_vbyte())
+        dest_address = btc.privkey_to_address(os.urandom(32), get_p2pk_vbyte())
         try:
-            sp_proc = local_command([python_cmd,'sendpayment.py','--yes',
-                                                '-N', '1',
-                                self.wallets[1]['seed'], str(amt), dest_address])
+            sp_proc = local_command([python_cmd, 'sendpayment.py', '--yes',
+                                     '-N', '1', self.wallets[1]['seed'], str(
+                                         amt), dest_address])
         except subprocess.CalledProcessError, e:
             for ygp in yigen_procs:
                 ygp.kill()

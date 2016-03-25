@@ -1,6 +1,5 @@
 #! /usr/bin/env python
 from __future__ import absolute_import
-
 '''Wallet functionality tests.'''
 
 import sys
@@ -13,9 +12,6 @@ import subprocess
 import unittest
 from commontest import local_command, interact
 
-data_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-sys.path.insert(0, os.path.join(data_dir))
-
 import bitcoin as btc
 
 from joinmarket import load_program_config, jm_single
@@ -23,6 +19,7 @@ from joinmarket import get_p2pk_vbyte, get_log, Wallet
 from joinmarket.support import chunks
 
 log = get_log()
+
 
 class TestWalletCreation(unittest.TestCase):
 
@@ -109,9 +106,3 @@ class TestWalletRecovery(unittest.TestCase):
         except:
             return False
         return True
-
-
-if __name__ == '__main__':
-    os.chdir(data_dir)
-    load_program_config()
-    unittest.main()

@@ -1,3 +1,7 @@
+[![Build Status](https://travis-ci.org/JoinMarket-Org/joinmarket.svg?branch=develop)](https://travis-ci.org/JoinMarket-Org/joinmarket.svg?branch=develop)
+
+[![Coverage Status](https://coveralls.io/repos/github/JoinMarket-Org/joinmarket/badge.svg?branch=develop)](https://coveralls.io/github/JoinMarket-Org/joinmarket?branch=develop)
+
 ##What is JoinMarket ?
 
 The idea behind JoinMarket is to help create a special kind of bitcoin transaction called a CoinJoin transaction. It's aim is to improve the confidentiality and privacy of bitcoin transactions, as well as improve the capacity of the blockchain therefore reduce costs. The concept has enormous potential, but had not seen much usage despite the multiple projects that implement it. This is probably because the incentive structure was not right.
@@ -17,8 +21,8 @@ Widespread use of JoinMarket could improve bitcoin's fungibility as a commodity.
 + You will need libsodium installed
 
  - Either get it via apt-get as `libsodium-dev` or build:
- 
-    ``` 
+
+    ```
     git clone git://github.com/jedisct1/libsodium.git
     cd libsodium
     git checkout tags/1.0.3
@@ -27,8 +31,6 @@ Widespread use of JoinMarket could improve bitcoin's fungibility as a commodity.
     make check
     sudo make install
     ```
-    
- - After installation of JoinMarket, use this line to check it was installed correctly: `PYTHONPATH=.:$PYTHONPATH python joinmarket/enc_wrapper.py`
 
 + Matplotlib for displaying the graphs in orderbook-watcher (optional)
 
@@ -48,6 +50,27 @@ Widespread use of JoinMarket could improve bitcoin's fungibility as a commodity.
 ###CONTRIBUTING TO JOINMARKET AS A DEVELOPER
 
 Clone the repo, then read the notes [here](./CONTRIBUTING.md).
+
+###TESTING
+
+Install the developement requirements:
+
+    ```
+    pip install -r requirements-dev.txt
+    ```
+
+Run the tests:
+
+    ```
+    PYTHONPATH=.:$PYTHONPATH py.test
+    ```
+
+Generating html code coverage reports:
+
+    ```
+    PYTHONPATH=.:$PYTHONPATH py.test --cov-report html
+    open htmlcov/index.html
+    ```
 
 ---
 
