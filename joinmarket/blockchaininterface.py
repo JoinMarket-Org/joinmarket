@@ -81,23 +81,19 @@ class BlockchainInterface(object):
     def sync_addresses(self, wallet):
         """Finds which addresses have been used and sets
         wallet.index appropriately"""
-        pass
 
     @abc.abstractmethod
     def sync_unspent(self, wallet):
         """Finds the unspent transaction outputs belonging to this wallet,
         sets wallet.unspent """
-        pass
 
     @abc.abstractmethod
     def add_tx_notify(self, txd, unconfirmfun, confirmfun, notifyaddr):
         """Invokes unconfirmfun and confirmfun when tx is seen on the network"""
-        pass
 
     @abc.abstractmethod
     def pushtx(self, txhex):
         """pushes tx to the network, returns txhash, or None if failed"""
-        pass
 
     @abc.abstractmethod
     def query_utxo_set(self, txouts):

@@ -22,19 +22,7 @@ Gx = 550662630222773436695787188951685343262506034537775941755001873603891167292
 Gy = 32670510020758816978083085130507043184471273380659243275938904335757337482424
 G = (Gx, Gy)
 
-
-def change_curve(p, n, a, b, gx, gy):
-    global P, N, A, B, Gx, Gy, G
-    P, N, A, B, Gx, Gy = p, n, a, b, gx, gy
-    G = (Gx, Gy)
-
-
-def getG():
-    return G
-
 # Extended Euclidean Algorithm
-
-
 def inv(a, n):
     lm, hm = 1, 0
     low, high = a % n, n
@@ -44,42 +32,8 @@ def inv(a, n):
         lm, low, hm, high = nm, new, lm, low
     return lm % n
 
-# JSON access (for pybtctool convenience)
-
-
-def access(obj, prop):
-    if isinstance(obj, dict):
-        if prop in obj:
-            return obj[prop]
-        elif '.' in prop:
-            return obj[float(prop)]
-        else:
-            return obj[int(prop)]
-    else:
-        return obj[int(prop)]
-
-
-def multiaccess(obj, prop):
-    return [access(o, prop) for o in obj]
-
-
-def slice(obj, start=0, end=2**200):
-    return obj[int(start):int(end)]
-
-
-def count(obj):
-    return len(obj)
-
-
-_sum = sum
-
-
-def sum(obj):
-    return _sum(obj)
-
 # Elliptic curve Jordan form functions
 # P = (m, n, p, q) where m/n = x, p/q = y
-
 
 def isinf(p):
     return p[0] == 0 and p[1] == 0
@@ -158,8 +112,6 @@ def to_jordan(p):
 
 def from_jordan(p):
     return (p[0][0] * inv(p[0][1], P) % P, p[1][0] * inv(p[1][1], P) % P)
-    return (p[0][0] * inv(p[0][1], P) % P, p[1][0] * inv(p[1][1], P) % P)
-
 
 def fast_multiply(a, n):
     return from_jordan(jordan_multiply(to_jordan(a), n))
@@ -449,23 +401,7 @@ def electrum_sig_hash(message):
         message)) + from_string_to_bytes(message)
     return bin_dbl_sha256(padded)
 
-
-def random_key():
-    # Gotta be secure after that java.SecureRandom fiasco...
-    entropy = random_string(32) \
-        + str(random.randrange(2**256)) \
-        + str(int(time.time() * 1000000))
-    return sha256(entropy)
-
-
-def random_electrum_seed():
-    entropy = os.urandom(32) \
-        + str(random.randrange(2**256)) \
-        + str(int(time.time() * 1000000))
-    return sha256(entropy)[:32]
-
 # Encodings
-
 
 def b58check_to_bin(inp):
     leadingzbytes = len(re.match('^1*', inp).group(0))
@@ -545,7 +481,6 @@ def ecdsa_raw_sign(msghash, priv):
 def ecdsa_sign(msg, priv):
     return encode_sig(*ecdsa_raw_sign(electrum_sig_hash(msg), priv))
 
-
 def ecdsa_raw_verify(msghash, vrs, pub):
     v, r, s = vrs
 
@@ -557,33 +492,8 @@ def ecdsa_raw_verify(msghash, vrs, pub):
 
     return r == x
 
-
 def ecdsa_verify(msg, sig, pub):
     return ecdsa_raw_verify(electrum_sig_hash(msg), decode_sig(sig), pub)
-
-
-def ecdsa_raw_recover(msghash, vrs):
-    v, r, s = vrs
-
-    x = r
-    beta = pow(x * x * x + A * x + B, (P + 1) // 4, P)
-    y = beta if v % 2 ^ beta % 2 else (P - beta)
-    z = hash_to_int(msghash)
-    Gz = jordan_multiply(((Gx, 1), (Gy, 1)), (N - z) % N)
-    XY = jordan_multiply(((x, 1), (y, 1)), s)
-    Qr = jordan_add(Gz, XY)
-    Q = jordan_multiply(Qr, inv(r, N))
-    Q = from_jordan(Q)
-
-    if ecdsa_raw_verify(msghash, vrs, Q):
-        return Q
-    return False
-
-
-def ecdsa_recover(msg, sig):
-    return encode_pubkey(
-        ecdsa_raw_recover(
-            electrum_sig_hash(msg), decode_sig(sig)), 'hex')
 
 def estimate_tx_size(ins, outs, txtype='p2pkh'):
     '''Estimate transaction size.

@@ -200,16 +200,7 @@ def ecdsa_tx_sign(tx, priv, hashcode=SIGHASH_ALL):
 def ecdsa_tx_verify(tx, sig, pub, hashcode=SIGHASH_ALL):
     return ecdsa_raw_verify(bin_txhash(tx, hashcode), der_decode_sig(sig), pub)
 
-
-def ecdsa_tx_recover(tx, sig, hashcode=SIGHASH_ALL):
-    z = bin_txhash(tx, hashcode)
-    _, r, s = der_decode_sig(sig)
-    left = ecdsa_raw_recover(z, (0, r, s))
-    right = ecdsa_raw_recover(z, (1, r, s))
-    return (encode_pubkey(left, 'hex'), encode_pubkey(right, 'hex'))
-
 # Scripts
-
 
 def mk_pubkey_script(addr):
     # Keep the auxiliary functions around for altcoins' sake

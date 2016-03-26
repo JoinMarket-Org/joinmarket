@@ -1,14 +1,20 @@
 language: python
 python:
  - "2.7_with_system_site_packages"
+
 before_install:
  - sudo apt-add-repository ppa:bitcoin/bitcoin -y
  - sudo apt-get update -q
  - sudo apt-get install --no-install-recommends --no-upgrade -qq bitcoind
  - sudo apt-get install -y build-essential
  - sudo apt-get install -y automake
+ - sudo apt-get install -y pkg-config
+ - sudo apt-get install -y libtool
+ - sudo apt-get install -y libffi-dev
+ - sudo apt-get install -y libgmp-dev
 install:
  - pip install -r requirements-dev.txt
+ - sudo pip install secp256k1
 script:
 #install and test libsodium
  - git clone git://github.com/jedisct1/libsodium.git
@@ -25,7 +31,7 @@ script:
  - mkdir /home/travis/.bitcoin
  - cp test/bitcoin.conf /home/travis/.bitcoin/.
  - chmod 600 /home/travis/.bitcoin/bitcoin.conf
- - PYTHONPATH=.$PYTHONPATH py.test --cov-report html --btcconf=/home/travis/.bitcoin/bitcoin.conf --btcpwd=123456abcdef
+ - PYTHONPATH=.:$PYTHONPATH py.test --cov-report html --btcconf=/home/travis/.bitcoin/bitcoin.conf --btcpwd=123456abcdef --ignore test/test_tumbler.py
  - cd logs
  - for x in `ls`; do tail -50 $x; done
  - cd ..
@@ -34,3 +40,4 @@ after_success:
 branches:
  only:
   - develop 
+  - more_tests

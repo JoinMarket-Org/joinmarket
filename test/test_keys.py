@@ -10,7 +10,39 @@ import json
 import pytest
 
 
+def test_read_raw_privkeys():
+    if not btc.secp_present:
+        #these are tests of format which the pybtc library didnt do
+        return
+    badkeys = ['', '\x07'*31,'\x07'*34, '\x07'*33]
+    for b in badkeys:
+        with pytest.raises(Exception) as e_info:
+            c, k = btc.read_privkey(b)
+    goodkeys = [('\x07'*32, False), ('\x07'*32 + '\x01', True)]
+    for g in goodkeys:
+        c, k = btc.read_privkey(g[0])
+        assert c == g[1]
+
 def test_wif_privkeys_invalid(setup_keys):
+    #first try to create wif privkey from key of wrong length
+    bad_privs = ['\x01\x02'*17] #some silly private key but > 33 bytes
+
+    #next try to create wif with correct length but wrong compression byte
+    bad_privs.append('\x07'*32 + '\x02')
+    
+    for priv in bad_privs:
+        with pytest.raises(Exception) as e_info:
+            fake_wif = btc.wif_compressed_privkey(binascii.hexlify(priv))
+
+    #Create a wif with wrong length
+    bad_wif1 = btc.bin_to_b58check('\x01\x02'*34, 128)
+    #Create a wif with wrong compression byte
+    bad_wif2 = btc.bin_to_b58check('\x07'*33, 128)
+    for bw in [bad_wif1, bad_wif2]:
+        with pytest.raises(Exception) as e_info:
+            fake_priv = btc.from_wif_privkey(bw)
+
+    #Some invalid b58 from bitcoin repo;
     #none of these are valid as any kind of key or address
     with open("test/base58_keys_invalid.json", "r") as f:
         json_data = f.read()
