@@ -191,7 +191,7 @@ class Wallet(AbstractWallet):
                 if epk_m['mixdepth'] not in self.imported_privkeys:
                     self.imported_privkeys[epk_m['mixdepth']] = []
                 self.addr_cache[btc.privtoaddr(
-                        privkey, get_p2pk_vbyte())] = (epk_m['mixdepth'], -1,
+                        privkey, magicbyte=get_p2pk_vbyte())] = (epk_m['mixdepth'], -1,
                     len(self.imported_privkeys[epk_m['mixdepth']]))
                 self.imported_privkeys[epk_m['mixdepth']].append(privkey)
         return decrypted_seed
@@ -217,7 +217,7 @@ class Wallet(AbstractWallet):
 
     def get_addr(self, mixing_depth, forchange, i):
         return btc.privtoaddr(
-                self.get_key(mixing_depth, forchange, i), get_p2pk_vbyte())
+                self.get_key(mixing_depth, forchange, i), magicbyte=get_p2pk_vbyte())
 
     def get_new_addr(self, mixing_depth, forchange):
         index = self.index[mixing_depth]
