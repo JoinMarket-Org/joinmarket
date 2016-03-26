@@ -80,12 +80,6 @@ def test_sendpayment(setup_regtest, num_ygs, wallet_structures, mean_amt,
     try:
         log.debug('starting irc')
         irc.run()
-    except:
-        log.debug('CRASHING, DUMPING EVERYTHING')
-        debug_dump_object(wallet, ['addr_cache', 'keys', 'wallet_name', 'seed'])
-        debug_dump_object(taker)
-        import traceback
-        log.debug(traceback.format_exc())
     finally:
         if any(yigen_procs):
             for ygp in yigen_procs:
