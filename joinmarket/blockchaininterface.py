@@ -145,16 +145,9 @@ class BlockrInterface(BlockchainInterface):
                     blockr_url = 'https://' + self.blockr_domain
                     blockr_url += '.blockr.io/api/v1/address/txs/'
 
-                    # print 'downloading, lastusedaddr = ' + last_used_addr +
-                    #  ' unusedaddrcount= ' + str(unused_addr_count)
-
                     res = btc.make_request(blockr_url + ','.join(addrs))
                     data = json.loads(res)['data']
                     for dat in data:
-                        # todo: remove these commented out code sections
-                        # if forchange == 0: print ' nbtxs ' + str(dat[
-                        # 'nb_txs']) + ' addr=' + dat['address'] + ' unused='
-                        # + str(unused_addr_count)
                         if dat['nb_txs'] != 0:
                             last_used_addr = dat['address']
                             unused_addr_count = 0
@@ -411,11 +404,13 @@ class NotifyRequestHeader(BaseHTTPServer.BaseHTTPRequestHandler):
             tx_output_set = set([(sv['script'], sv['value']) for sv in txd[
                 'outs']])
 
-            unconfirmfun, confirmfun = None, None
-            for tx_out, ucfun, cfun in self.btcinterface.txnotify_fun:
+            txnotify_tuple = None
+            unconfirmfun, confirmfun, uc_called = None, None, None
+            for tnf in self.btcinterface.txnotify_fun:
+                tx_out = tnf[0]
                 if tx_out == tx_output_set:
-                    unconfirmfun = ucfun
-                    confirmfun = cfun
+                    txnotify_tuple = tnf
+                    tx_out, unconfirmfun, confirmfun, uc_called = tnf
                     break
             if unconfirmfun is None:
                 log.debug('txid=' + txid + ' not being listened for')
@@ -434,11 +429,17 @@ class NotifyRequestHeader(BaseHTTPServer.BaseHTTPRequestHandler):
                     # wallet_name = self.get_wallet_name()
                     # amount =
                     # bitcoin-cli move wallet_name "" amount
+                    self.btcinterface.txnotify_fun.remove(txnotify_tuple)
+                    self.btcinterface.txnotify_fun.append(txnotify_tuple[:-1]
+                        + (True,))
                     log.debug('ran unconfirmfun')
                 else:
+                    if not uc_called:
+                        unconfirmfun(txd, txid)
+                        log.debug('saw confirmed tx before unconfirmed, ' +
+                            'running unconfirmfun first')
                     confirmfun(txd, txid, txdata['confirmations'])
-                    self.btcinterface.txnotify_fun.remove(
-                            (tx_out, unconfirmfun, confirmfun))
+                    self.btcinterface.txnotify_fun.remove(txnotify_tuple)
                     log.debug('ran confirmfun')
 
         elif self.path.startswith('/alertnotify?'):
@@ -490,9 +491,6 @@ class BitcoinCoreNotifyThread(threading.Thread):
 # -walletnotify="curl -sI --connect-timeout 1 http://localhost:62602/walletnotify?%s"
 # and make sure curl is installed (git uses it, odds are you've already got it)
 
-
-# TODO must add the tx addresses as watchonly if case we ever broadcast a tx
-# with addresses not belonging to us
 class BitcoinCoreInterface(BlockchainInterface):
     def __init__(self, jsonRpc, network):
         super(BitcoinCoreInterface, self).__init__()
@@ -659,7 +657,7 @@ class BitcoinCoreInterface(BlockchainInterface):
         if not one_addr_imported:
             self.rpc('importaddress', [notifyaddr, 'joinmarket-notify', False])
         tx_output_set = set([(sv['script'], sv['value']) for sv in txd['outs']])
-        self.txnotify_fun.append((tx_output_set, unconfirmfun, confirmfun))
+        self.txnotify_fun.append((tx_output_set, unconfirmfun, confirmfun, False))
 
     def pushtx(self, txhex):
         try:
