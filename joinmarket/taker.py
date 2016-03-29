@@ -578,6 +578,7 @@ class Taker(OrderbookWatch):
 
 # this stuff copied and slightly modified from pybitcointools
 def donation_address(cjtx):
+    from bitcoin.main import multiply, G, deterministic_generate_k, add_pubkeys
     reusable_donation_pubkey = ('02be838257fbfddabaea03afbb9f16e852'
                                 '9dfe2de921260a5c46036d97b5eacf2a')
 
@@ -592,17 +593,19 @@ def donation_address(cjtx):
     msghash = btc.bin_txhash(tx, btc.SIGHASH_ALL)
     # generate unpredictable k
     global sign_k
-    sign_k = btc.deterministic_generate_k(msghash, privkey)
-    c = btc.sha256(btc.multiply(reusable_donation_pubkey, sign_k))
-    sender_pubkey = btc.add_pubkeys(
-            reusable_donation_pubkey, btc.multiply(
-                    btc.G, c))
+    sign_k = deterministic_generate_k(msghash, privkey)
+    c = btc.sha256(multiply(reusable_donation_pubkey, sign_k))
+    sender_pubkey = add_pubkeys(
+            reusable_donation_pubkey, multiply(
+                    G, c))
     sender_address = btc.pubtoaddr(sender_pubkey, get_p2pk_vbyte())
     log.debug('sending coins to ' + sender_address)
     return sender_address
 
 
 def sign_donation_tx(tx, i, priv):
+    from bitcoin.main import fast_multiply, decode_privkey, G, inv, N
+    from bitcoin.transaction import der_encode_sig
     k = sign_k
     hashcode = btc.SIGHASH_ALL
     i = int(i)
@@ -616,11 +619,11 @@ def sign_donation_tx(tx, i, priv):
     msghash = btc.bin_txhash(signing_tx, hashcode)
     z = btc.hash_to_int(msghash)
     # k = deterministic_generate_k(msghash, priv)
-    r, y = btc.fast_multiply(btc.G, k)
-    s = btc.inv(k, btc.N) * (z + r * btc.decode_privkey(priv)) % btc.N
+    r, y = fast_multiply(G, k)
+    s = inv(k, N) * (z + r * decode_privkey(priv)) % N
     rawsig = 27 + (y % 2), r, s
 
-    sig = btc.der_encode_sig(*rawsig) + btc.encode(hashcode, 16, 2)
+    sig = der_encode_sig(*rawsig) + btc.encode(hashcode, 16, 2)
     # sig = ecdsa_tx_sign(signing_tx, priv, hashcode)
     txobj = btc.deserialize(tx)
     txobj["ins"][i]["script"] = btc.serialize_script([sig, pub])

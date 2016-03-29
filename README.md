@@ -31,19 +31,26 @@ Widespread use of JoinMarket could improve bitcoin's fungibility as a commodity.
     make check
     sudo make install
     ```
++ (optional, recommended): Install the libsecp256k1 Python library:
 
+    ```
+    pip install secp256k1
+    ```
+
+ Note that this requires `pip`. This library will make use of libsecp256k1 if you already have it installed on your system. Most likely you won't, and it will try to build libsecp256k1 automatically for you. This requires some development packages; please read the installation details [here](https://github.com/ludbb/secp256k1-py#installation), provided for Debian/Ubuntu and OS X. Please also note that if you can't complete this step, Joinmarket will still run correctly, with two disadvantages: wallet loading is much slower without libsecp256k1, and the ECC crypto code is far less robust and well tested.
 + Matplotlib for displaying the graphs in orderbook-watcher (optional)
 
 ###DEBIAN / UBUNTU QUICK INSTALL FOR USERS:
 
 1. `sudo apt-get update -y && sudo apt-get upgrade -y && sudo apt-get install python libsodium-dev -y`
+2. `pip install secp256k1` (optional but recommended)
 2. `sudo apt-get install python-matplotlib -y` (optional)
-3. Download JoinMarket 0.1.2 source from [here](https://github.com/joinmarket-org/joinmarket/releases/tag/v0.1.3)
-4. Extract or unzip and `cd joinmarket-0.1.2`
+3. Download JoinMarket 0.1.3 source from [here](https://github.com/joinmarket-org/joinmarket/releases/tag/v0.1.3)
+4. Extract or unzip and `cd joinmarket-0.1.3`
 4. Generating your first wallet will populate the configuration file: `joinmarket.cfg`.
    Check if the default settings suit your needs.
 
-###[INSTALL FOR WINDOWS USERS](https://github.com/joinmarket-org/joinmarket/wiki/Installing-JoinMarket-on-Windows-7-(temporary))
+###[INSTALL FOR WINDOWS USERS](https://github.com/JoinMarket-Org/joinmarket/wiki/Installing-JoinMarket-on-Windows)
 
 ###[WIKI PAGES FOR DETAILED ARTICLES/GUIDES](https://github.com/joinmarket-org/joinmarket/wiki)
 
@@ -53,24 +60,20 @@ Clone the repo, then read the notes [here](./CONTRIBUTING.md).
 
 ###TESTING
 
-Install the developement requirements:
+Install the development requirements:
 
-    ```
     pip install -r requirements-dev.txt
-    ```
 
 Run the tests:
 
-    ```
     PYTHONPATH=.:$PYTHONPATH py.test
-    ```
 
 Generating html code coverage reports:
 
-    ```
-    PYTHONPATH=.:$PYTHONPATH py.test --cov-report html
+    PYTHONPATH=.:$PYTHONPATH py.test --cov-report html --btcroot=/path/to/bitcoin/bin/ --btcconf=/path/to/bitcoin.conf --btcpwd=123456abcdef
     open htmlcov/index.html
-    ```
+
+See more information on testing in the [Wiki page](https://github.com/JoinMarket-Org/joinmarket/wiki/Testing)
 
 ---
 
