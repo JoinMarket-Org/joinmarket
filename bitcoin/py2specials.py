@@ -50,17 +50,11 @@ if sys.version_info.major == 2:
     def safe_from_hex(s):
         return s.decode('hex')
 
-    def from_int_representation_to_bytes(a):
-        return str(a)
-
     def from_int_to_byte(a):
         return chr(a)
 
     def from_byte_to_int(a):
         return ord(a)
-
-    def from_bytes_to_string(s):
-        return s
 
     def from_string_to_bytes(a):
         return a
@@ -89,5 +83,3 @@ if sys.version_info.major == 2:
             string = string[1:]
         return result
 
-    def random_string(x):
-        return os.urandom(x)

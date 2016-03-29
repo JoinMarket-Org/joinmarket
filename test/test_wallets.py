@@ -144,8 +144,7 @@ class TestWalletRecovery(unittest.TestCase):
         except:
             return False
         return True
-
-
+    
 @pytest.fixture(scope="module")
 def setup_wallets():
     load_program_config()
