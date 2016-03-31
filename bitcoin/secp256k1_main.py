@@ -116,20 +116,22 @@ pubtoaddr = pubkey_to_address
 def wif_compressed_privkey(priv, vbyte=0):
     """Convert privkey in hex compressed to WIF compressed
     """
-    if len(priv) != 33:
+    if len(priv) != 66:
         raise Exception("Wrong length of compressed private key")
-    if priv[-1] != '\x01':
+    if priv[-2:] != '01':
         raise Exception("Private key has wrong compression byte")
     return bin_to_b58check(binascii.unhexlify(priv), 128 + int(vbyte))
 
 
 def from_wif_privkey(wif_priv, compressed=True, vbyte=0):
-    """Convert WIF compressed privkey to hex compressed
+    """Convert WIF compressed privkey to hex compressed.
+    Caller specifies the network version byte (0 for mainnet, 0x6f
+    for testnet) that the key should correspond to; if there is
+    a mismatch an error is thrown. WIF encoding uses 128+ this number.
     """
     bin_key = b58check_to_bin(wif_priv)
-    print "got this binkey: " + binascii.hexlify(bin_key)
     claimed_version_byte = get_version_byte(wif_priv)
-    if not vbyte == claimed_version_byte:
+    if not 128+vbyte == claimed_version_byte:
         raise Exception(
             "WIF key version byte is wrong network (mainnet/testnet?)")
     if compressed and not len(bin_key) == 33:

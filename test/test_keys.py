@@ -68,7 +68,7 @@ def test_wif_privkeys_valid(setup_keys):
                 from_wif_key = btc.from_wif_privkey(
                     key,
                     compressed=comp,
-                    vbyte=btc.get_version_byte(key))
+                    vbyte=btc.get_version_byte(key)-128)
                 expected_key = hex_key
                 if comp: expected_key += '01'
             assert from_wif_key == expected_key, "Incorrect key decoding: " + \

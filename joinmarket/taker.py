@@ -588,8 +588,6 @@ def donation_address(cjtx):
     privkey = cjtx.wallet.get_key_from_addr(donation_utxo_data[1]['address'])
     # tx without our inputs and outputs
     tx = btc.mktx(cjtx.utxo_tx, cjtx.outputs)
-    # address = privtoaddr(privkey)
-    # signing_tx = signature_form(tx, 0, mk_pubkey_script(address), SIGHASH_ALL)
     msghash = btc.bin_txhash(tx, btc.SIGHASH_ALL)
     # generate unpredictable k
     global sign_k
