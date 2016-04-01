@@ -21,6 +21,58 @@ from joinmarket.support import chunks, select_gradual, \
 
 log = get_log()
 
+@pytest.mark.parametrize(
+    "pwd, in_privs",
+    [
+        ("import-pwd", ["L1RrrnXkcKut5DEMwtDthjwRcTTwED36thyL1DebVrKuwvohjMNi",
+                        "Kz6UJmQACJmLtaQj5A3JAge4kVTNQ8gbvXuwbmCj7bsaabudb3RD"]
+         ),
+    ])
+def test_import_privkey(setup_wallets, setup_import, pwd, in_privs):
+    """This tests successful import of WIF compressed private keys
+    into the wallet for mainnet.
+    """
+    test_in = [pwd, ' '.join(in_privs)]
+    expected = ['Enter wallet decryption passphrase:',
+                'to import:']
+    testlog = open('test/testlog-' + pwd, 'wb')
+    p = pexpect.spawn('python wallet-tool.py test_import_wallet.json importprivkey',
+                      logfile=testlog)
+    interact(p, test_in, expected)
+    #p.expect('Private key(s) successfully imported')
+    #time.sleep(1)
+    #p.close()
+    testlog.close()
+
+@pytest.fixture(scope='function')
+def setup_import(request):
+    try:
+        os.remove("wallets/test_import_wallet.json")
+    except:
+        pass
+    #generate a new *mainnet* wallet
+    jm_single().config.set("BLOCKCHAIN", "network", "mainnet")
+    pwd = 'import-pwd'
+    test_in = [pwd, pwd, 'test_import_wallet.json']
+    expected = ['Enter wallet encryption passphrase:',
+                'Reenter wallet encryption passphrase:',
+                'Input wallet file name']
+    testlog = open('test/testlog-' + pwd, 'wb')
+    p = pexpect.spawn('python wallet-tool.py generate', logfile=testlog)
+    interact(p, test_in, expected)
+    p.expect('saved to')
+    time.sleep(1)
+    p.close()
+    testlog.close()
+    #anything to check in the log?
+    with open(os.path.join('test', 'testlog-' + pwd)) as f:
+        print f.read()
+    if p.exitstatus != 0:
+        raise Exception('failed due to exit status: ' + str(p.exitstatus))
+    def import_teardown():
+        jm_single().config.set("BLOCKCHAIN", "network", "testnet")
+    request.addfinalizer(import_teardown)
+
 
 @pytest.mark.parametrize(
     "nw, wallet_structures, mean_amt, sdev_amt, amount",
@@ -144,7 +196,6 @@ class TestWalletRecovery(unittest.TestCase):
         except:
             return False
         return True
-
 
 @pytest.fixture(scope="module")
 def setup_wallets():
