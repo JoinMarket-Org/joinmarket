@@ -56,7 +56,8 @@ def make_wallets(n,
                  wallet_structures=None,
                  mean_amt=1,
                  sdev_amt=0,
-                 start_index=0):
+                 start_index=0,
+                 fixed_seeds=None):
     '''n: number of wallets to be created
        wallet_structure: array of n arrays , each subarray
        specifying the number of addresses to be populated with coins
@@ -66,7 +67,10 @@ def make_wallets(n,
        Returns: a dict of dicts of form {0:{'seed':seed,'wallet':Wallet object},1:..,}'''
     if len(wallet_structures) != n:
         raise Exception("Number of wallets doesn't match wallet structures")
-    seeds = chunks(binascii.hexlify(os.urandom(15 * n)), 15 * 2)
+    if not fixed_seeds:
+        seeds = chunks(binascii.hexlify(os.urandom(15 * n)), 15 * 2)
+    else:
+        seeds = fixed_seeds
     wallets = {}
     for i in range(n):
         wallets[i + start_index] = {'seed': seeds[i],

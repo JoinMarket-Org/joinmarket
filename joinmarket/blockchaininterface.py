@@ -545,7 +545,7 @@ class BitcoinCoreInterface(BlockchainInterface):
         # simpler to add to the same account here
         for privkey_list in wallet.imported_privkeys.values():
             for privkey in privkey_list:
-                imported_addr = btc.privtoaddr(privkey, get_p2pk_vbyte())
+                imported_addr = btc.privtoaddr(privkey, magicbyte=get_p2pk_vbyte())
                 wallet_addr_list.append(imported_addr)
         imported_addr_list = self.rpc('getaddressesbyaccount', [wallet_name])
         if not set(wallet_addr_list).issubset(set(imported_addr_list)):
