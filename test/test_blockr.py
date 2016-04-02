@@ -58,7 +58,7 @@ def test_blockr_estimate_fee(setup_blockr):
          "display"),
     ])
 def test_blockr_sync(setup_blockr, net, seed, gaplimit, showprivkey, method):
-    jm_single().config.set("BLOCKCHAIN", "blockchain_source", net)
+    jm_single().config.set("BLOCKCHAIN", "network", net)
     wallet = Wallet(seed, max_mix_depth = 5)
     jm_single().bc_interface.sync_wallet(wallet)
     
@@ -83,9 +83,15 @@ def test_blockr_sync(setup_blockr, net, seed, gaplimit, showprivkey, method):
                         balance += addrvalue['value']
                 balance_depth += balance
                 used = ('used' if k < wallet.index[m][forchange] else ' new')
-                privkey = btc.encode_privkey(
-                    wallet.get_key(m, forchange, k), 'wif_compressed',
-                    get_p2pk_vbyte()) if showprivkey else ''
+                if showprivkey:
+                    if btc.secp_present:
+                        privkey = btc.wif_compressed_privkey(
+                    wallet.get_key(m, forchange, k), get_p2pk_vbyte())
+                    else:
+                        privkey = btc.encode_privkey(wallet.get_key(m,
+                                forchange, k), 'wif_compressed', get_p2pk_vbyte())
+                else:
+                    privkey = ''
                 if (method == 'displayall' or balance > 0 or
                     (used == ' new' and forchange == 0)):
                     cus_print('  m/0/%d/%d/%03d %-35s%s %.8f btc %s' %
@@ -97,8 +103,11 @@ def test_blockr_sync(setup_blockr, net, seed, gaplimit, showprivkey, method):
     
 
 @pytest.fixture(scope="module")
-def setup_blockr():
+def setup_blockr(request):
+    def blockr_teardown():
+        jm_single().config.set("BLOCKCHAIN", "blockchain_source", "regtest")
+        jm_single().config.set("BLOCKCHAIN", "network", "testnet")
+    request.addfinalizer(blockr_teardown)    
     load_program_config()
     jm_single().config.set("BLOCKCHAIN", "blockchain_source", "blockr")
-    jm_single().config.set("BLOCKCHAIN", "network", "testnet")
     jm_single().bc_interface = BlockrInterface(True)

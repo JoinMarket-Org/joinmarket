@@ -85,8 +85,8 @@ def make_wallets(n,
                 jm_single().bc_interface.grab_coins(
                     wallets[i + start_index]['wallet'].get_external_addr(j),
                     amt)
-                #reset the index so the coins can be seen if running in same script
-                wallets[i + start_index]['wallet'].index[j][0] -= 1
+            #reset the index so the coins can be seen if running in same script
+            wallets[i + start_index]['wallet'].index[j][0] -= wallet_structures[i][j]
     return wallets
 
 

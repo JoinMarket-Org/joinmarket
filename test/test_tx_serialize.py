@@ -223,7 +223,6 @@ def test_serialization_roundtrip2():
     #only currently of very limited significance
     with open("test/tx_valid.json", "r") as f:
         json_data = f.read()
-    print 'read the tx data'
     valid_txs = json.loads(json_data)
     for j in valid_txs:
         #ignore comment entries
