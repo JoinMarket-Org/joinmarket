@@ -18,7 +18,7 @@ from joinmarket import Wallet
 
 # import blockchaininterface
 
-txfee = 5000
+txfee = 1000
 cjfee_a = 200
 cjfee_r = '0.002'
 ordertype = 'relorder'
