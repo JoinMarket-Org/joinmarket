@@ -10,7 +10,6 @@ import base64
 import time
 import random
 import hmac
-from bitcoin.ripemd import *
 import secp256k1
 
 ctx = secp256k1.lib.secp256k1_context_create(secp256k1.ALL_FLAGS)
@@ -23,12 +22,7 @@ privtoaddr = privkey_to_address
 # Hashes
 def bin_hash160(string):
     intermed = hashlib.sha256(string).digest()
-    digest = ''
-    try:
-        digest = hashlib.new('ripemd160', intermed).digest()
-    except:
-        digest = RIPEMD160(intermed).digest()
-    return digest
+    return hashlib.new('ripemd160', intermed).digest()
 
 def hash160(string):
     return safe_hexlify(bin_hash160(string))
@@ -41,32 +35,12 @@ def bin_sha256(string):
 def sha256(string):
     return bytes_to_hex_string(bin_sha256(string))
 
-def bin_ripemd160(string):
-    try:
-        digest = hashlib.new('ripemd160', string).digest()
-    except:
-        digest = RIPEMD160(string).digest()
-    return digest
-
-def ripemd160(string):
-    return safe_hexlify(bin_ripemd160(string))
-
 def bin_dbl_sha256(s):
     bytes_to_hash = from_string_to_bytes(s)
     return hashlib.sha256(hashlib.sha256(bytes_to_hash).digest()).digest()
 
 def dbl_sha256(string):
     return safe_hexlify(bin_dbl_sha256(string))
-
-def bin_slowsha(string):
-    string = from_string_to_bytes(string)
-    orig_input = string
-    for i in range(100000):
-        string = hashlib.sha256(string + orig_input).digest()
-    return string
-
-def slowsha(string):
-    return safe_hexlify(bin_slowsha(string))
 
 def hash_to_int(x):
     if len(x) in [40, 64]:
@@ -161,9 +135,6 @@ def ecdsa_verify(msg, sig, pub, usehex=True):
     sig = base64.b64decode(sig)
     #see comments to legacy* functions
     sig = legacy_ecdsa_verify_convert(sig)
-    if not sig:
-        print 'legacy returned false'
-        return False
     if usehex:
         #arguments to raw_verify must be consistently hex or bin
         hashed_msg = binascii.hexlify(hashed_msg)
@@ -213,11 +184,7 @@ def legacy_ecdsa_sign_convert(dersig):
 
 def legacy_ecdsa_verify_convert(sig):
     sig = sig[1:]  #ignore parity byte
-    try:
-        r, s = sig[:32], sig[32:]
-    except:
-        #signature is invalid.
-        return False
+    r, s = sig[:32], sig[32:]
     if not len(s) == 32:
         #signature is invalid.
         return False

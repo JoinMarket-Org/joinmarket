@@ -199,7 +199,21 @@ import json
 def test_serialization_roundtrip(tx_type, tx_id, tx_hex):
     assert tx_hex == btc.serialize(btc.deserialize(tx_hex))
 
+@pytest.mark.parametrize(
+    "ins, outs, txtype, valid",
+    [
+        (4, 3, "p2pkh", True),
+        (4, 3, "p2sh", False),
+    ])
+def test_estimate_tx_size(ins, outs, txtype, valid):
+    #TODO: this function should throw on invalid number of ins or outs
+    if valid:
+        assert btc.estimate_tx_size(ins, outs, txtype)== 10 + 147*ins + 34*outs
+    else:
+        with pytest.raises(NotImplementedError) as e_info:
+            btc.estimate_tx_size(ins, outs, txtype)
 
+        
 def test_serialization_roundtrip2():
     #Data extracted from:
     #https://github.com/bitcoin/bitcoin/blob/master/src/test/data/tx_valid.json
@@ -209,7 +223,6 @@ def test_serialization_roundtrip2():
     #only currently of very limited significance
     with open("test/tx_valid.json", "r") as f:
         json_data = f.read()
-    print 'read the tx data'
     valid_txs = json.loads(json_data)
     for j in valid_txs:
         #ignore comment entries

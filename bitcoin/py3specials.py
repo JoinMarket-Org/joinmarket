@@ -57,9 +57,6 @@ if sys.version_info.major == 3:
     def safe_from_hex(s):
         return bytes.fromhex(s)
 
-    def from_int_representation_to_bytes(a):
-        return bytes(str(a), 'utf-8')
-
     def from_int_to_byte(a):
         return bytes([a])
 
@@ -116,5 +113,3 @@ if sys.version_info.major == 3:
             string = string[1:]
         return result
 
-    def random_string(x):
-        return str(os.urandom(x))
