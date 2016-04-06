@@ -4,6 +4,7 @@ from __future__ import absolute_import, print_function
 import datetime
 import os
 import time
+from optparse import OptionParser
 
 from joinmarket import Maker, IRCMessageChannel
 from joinmarket import BlockrInterface
@@ -18,17 +19,16 @@ from joinmarket import Wallet
 # import blockchaininterface
 
 txfee = 1000
-cjfee = '0.002'  # 0.2% fee
-jm_single().nickname = random_nick()
+cjfee_a = 200
+cjfee_r = '0.002'
+ordertype = 'relorder'
+jm_single().nickname = ''
 nickserv_password = ''
-
-# minimum size is such that you always net profit at least 20% of the miner fee
-minsize = int(1.2 * txfee / float(cjfee))
-
+minsize = 100000
 mix_levels = 5
 
-log = get_log()
 
+log = get_log()
 
 # is a maker for the purposes of generating a yield from held
 # bitcoins without ruining privacy for the taker, the taker could easily check
@@ -77,12 +77,17 @@ class YieldGenerator(Maker):
 
         # print mix_balance
         max_mix = max(mix_balance, key=mix_balance.get)
+        f = '0'
+        if ordertype == 'relorder':
+            f = cjfee_r
+        elif ordertype == 'absorder':
+            f = str(txfee + cjfee_a)
         order = {'oid': 0,
-                 'ordertype': 'relorder',
+                 'ordertype': ordertype,
                  'minsize': minsize,
                  'maxsize': mix_balance[max_mix] - jm_single().DUST_THRESHOLD,
                  'txfee': txfee,
-                 'cjfee': cjfee}
+                 'cjfee': f}
 
         # sanity check
         assert order['minsize'] >= 0
@@ -156,9 +161,51 @@ class YieldGenerator(Maker):
 
 
 def main():
-    load_program_config()
+    global txfee, cjfee_a, cjfee_r, ordertype, nickserv_password, minsize, mix_levels
     import sys
-    seed = sys.argv[1]
+
+    parser = OptionParser(usage='usage: %prog [options] [wallet file]')
+    parser.add_option('-o', '--ordertype', action='store', type='string', dest='ordertype', default=ordertype,
+                      help='type of order; can be either relorder or absorder')
+    parser.add_option('-t', '--txfee', action='store', type='int', dest='txfee', default=txfee,
+                      help='minimum miner fee in satoshis')
+    parser.add_option('-c', '--cjfee', action='store', type='string', dest='cjfee', default='',
+                      help='requested coinjoin fee in satoshis or proportion')
+    parser.add_option('-n', '--nickname', action='store', type='string', dest='nickname', default=jm_single().nickname,
+                      help='irc nickname')
+    parser.add_option('-p', '--password', action='store', type='string', dest='password', default=nickserv_password,
+                      help='irc nickserv password')
+    parser.add_option('-s', '--minsize', action='store', type='int', dest='minsize', default=minsize,
+                      help='minimum coinjoin size in satoshis')
+    parser.add_option('-m', '--mixlevels', action='store', type='int', dest='mixlevels', default=mix_levels,
+                      help='number of mixdepths to use')
+    (options, args) = parser.parse_args()
+    if len(args) < 1:
+        parser.error('Needs a wallet')
+        sys.exit(0)
+    seed = args[0]
+    ordertype = options.ordertype
+    txfee = options.txfee
+    if ordertype == 'relorder':
+        if options.cjfee != '':
+            cjfee_r = options.cjfee
+        # minimum size is such that you always net profit at least 20% of the miner fee
+        minsize = max(int(1.2 * txfee / float(cjfee_r)), options.minsize)
+    elif ordertype == 'absorder':
+        if options.cjfee != '':
+            cjfee_a = int(options.cjfee)
+        minsize = options.minsize
+    else:
+        parser.error('You specified an incorrect order type which can be either relorder or absorder')
+        sys.exit(0)
+    if jm_single().nickname == options.nickname:
+        jm_single().nickname = random_nick()
+    else:
+        jm_single().nickname = options.nickname
+    nickserv_password = options.password
+    mix_levels = options.mixlevels
+
+    load_program_config()
     if isinstance(jm_single().bc_interface, BlockrInterface):
         c = ('\nYou are running a yield generator by polling the blockr.io '
              'website. This is quite bad for privacy. That site is owned by '
