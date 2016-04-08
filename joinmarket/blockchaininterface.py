@@ -8,7 +8,6 @@ import os
 import pprint
 import random
 import re
-import urllib2
 import sys
 import threading
 import time
