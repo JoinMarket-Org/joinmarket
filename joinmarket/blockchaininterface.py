@@ -12,6 +12,7 @@ import sys
 import threading
 import time
 import urllib
+import urllib2
 from decimal import Decimal
 
 import bitcoin as btc
