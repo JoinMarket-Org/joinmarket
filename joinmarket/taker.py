@@ -316,14 +316,20 @@ class CoinJoinTX(object):
             tx = self.sign_tx(tx, index, self.wallet.get_key_from_addr(addr))
         self.latest_tx = btc.deserialize(tx)
 
-    def push(self, txd):
-        tx = btc.serialize(txd)
+    def push(self):
+        tx = btc.serialize(self.latest_tx)
         log.debug('\n' + tx)
         log.debug('txid = ' + btc.txhash(tx))
         self.txid = btc.txhash(tx)
         # TODO send to a random maker or push myself
         # TODO need to check whether the other party sent it
         # self.msgchan.push_tx(self.active_orders.keys()[0], txhex)
+        '''
+        import random
+        if random.random() < 0.4:
+            log.debug('randomly not broadcasting 40% of the time')
+            return True
+        '''
         pushed = jm_single().bc_interface.pushtx(tx)
         if not pushed:
             log.debug('unable to pushtx')
@@ -331,7 +337,7 @@ class CoinJoinTX(object):
 
     def self_sign_and_push(self):
         self.self_sign()
-        return self.push(self.latest_tx)
+        return self.push()
 
     def recover_from_nonrespondants(self):
         log.debug('nonresponding makers = ' + str(self.nonrespondants))
