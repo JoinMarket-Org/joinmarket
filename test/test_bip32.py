@@ -69,3 +69,33 @@ def test_bip32_vector(vector):
         print vector['keys'][i][1]
         assert pub == vector['keys'][i][
             1], 'failed: child pub key, should be: ' + vector['keys'][i][1]
+
+def test_invalid_bip32_key():
+    #keys with invalid checksum
+    bad_keys = (
+    'xprv9uHRZZhk6KAJC1avXpDAp4MDc3sQKNxDiPvvkX8BrrngLNv1TxvUxt4cV1rGL5hj6KCesnDYUhd7oWgT11eZG7XnxHrnYeSvkzY7d2bhkJ7',
+    'xpub68Gmy5EdvgibQVfPdqkBBCHxA5htiqg55crXYuXoQQKfDBFA1WEjWgP6LHhwBZeNK1VTsfTFUHCdrfp1bgwQ9xv5ski8PX9rL2dZXvgGDnw'
+    )
+    for x in bad_keys:
+        with pytest.raises(Exception) as e_info:
+            fake_tuple = btc.bip32_deserialize(x)
+
+def test_ckd_pubkeys():
+    pub = 'xpub68Gmy5EdvgibQVfPdqkBBCHxA5htiqg55crXYuXoQRKfDBFA1WEjWgP6LHhwBZeNK1VTsfTFUHCdrfp1bgwQ9xv5ski8PX9rL2dZXvgGDnw'
+    new_pub = btc.bip32_ckd(pub, 4)
+    #how to check it's right?
+    print new_pub
+    #try to do on hardened, should fail, that's the idea:
+    with pytest.raises(Exception) as e_info:
+        new_pub = btc.bip32_ckd(pub, 2**31+1)
+
+def test_bip32_descend():
+    master = btc.bip32_master_key('\x07'*32)
+    end_key = btc.bip32_descend(master, [2, 3, 10000])
+    assert end_key=="6856ef965940a1a7b1311dc041050ac0013e326c7ff4e2c677a7694b4f0405c901"
+    end_key = btc.bip32_descend(master, 2, 5, 4, 5)
+    assert end_key=="d2d816b6485103c0d7ff95482788f0e8e73fa11817079e006d47979d8196c4b101"
+
+    
+
+    

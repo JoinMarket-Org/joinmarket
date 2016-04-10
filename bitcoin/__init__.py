@@ -7,7 +7,7 @@ try:
     from bitcoin.secp256k1_main import *
     from bitcoin.secp256k1_transaction import *
     from bitcoin.secp256k1_deterministic import *    
-except ImportError:
+except ImportError as e:
     from bitcoin.main import *
     from bitcoin.deterministic import *
     from bitcoin.transaction import *

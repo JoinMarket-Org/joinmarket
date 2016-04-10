@@ -13,7 +13,6 @@ PUBLIC = [MAINNET_PUBLIC, TESTNET_PUBLIC]
 
 # BIP32 child key derivation
 
-
 def raw_bip32_ckd(rawtuple, i):
     vbytes, depth, fingerprint, oldi, chaincode, key = rawtuple
     i = int(i)
@@ -42,7 +41,6 @@ def raw_bip32_ckd(rawtuple, i):
 
     return (vbytes, depth + 1, fingerprint, i, I[32:], newkey)
 
-
 def bip32_serialize(rawtuple):
     vbytes, depth, fingerprint, i, chaincode, key = rawtuple
     i = encode(i, 256, 4)
@@ -51,7 +49,6 @@ def bip32_serialize(rawtuple):
     bindata = vbytes + from_int_to_byte(
         depth % 256) + fingerprint + i + chaincode + keydata
     return changebase(bindata + bin_dbl_sha256(bindata)[:4], 256, 58)
-
 
 def bip32_deserialize(data):
     dbin = changebase(data, 58, 256)
@@ -65,20 +62,16 @@ def bip32_deserialize(data):
     key = dbin[46:78] + b'\x01' if vbytes in PRIVATE else dbin[45:78]
     return (vbytes, depth, fingerprint, i, chaincode, key)
 
-
 def raw_bip32_privtopub(rawtuple):
     vbytes, depth, fingerprint, i, chaincode, key = rawtuple
     newvbytes = MAINNET_PUBLIC if vbytes == MAINNET_PRIVATE else TESTNET_PUBLIC
     return (newvbytes, depth, fingerprint, i, chaincode, privtopub(key, False))
 
-
 def bip32_privtopub(data):
     return bip32_serialize(raw_bip32_privtopub(bip32_deserialize(data)))
 
-
 def bip32_ckd(data, i):
     return bip32_serialize(raw_bip32_ckd(bip32_deserialize(data), i))
-
 
 def bip32_master_key(seed, vbytes=MAINNET_PRIVATE):
     I = hmac.new(
@@ -86,14 +79,8 @@ def bip32_master_key(seed, vbytes=MAINNET_PRIVATE):
     return bip32_serialize((vbytes, 0, b'\x00' * 4, 0, I[32:], I[:32] + b'\x01'
                            ))
 
-
-def bip32_bin_extract_key(data):
-    return bip32_deserialize(data)[-1]
-
-
 def bip32_extract_key(data):
     return safe_hexlify(bip32_deserialize(data)[-1])
-
 
 def bip32_descend(*args):
     if len(args) == 2:
