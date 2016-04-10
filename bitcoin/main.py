@@ -10,7 +10,8 @@ import base64
 import time
 import random
 import hmac
-from bitcoin.ripemd import *
+
+is_python2 = sys.version_info.major == 2
 
 # Elliptic curve parameters (secp256k1)
 
@@ -327,10 +328,7 @@ def subtract_privkeys(p1, p2):
 def bin_hash160(string):
     intermed = hashlib.sha256(string).digest()
     digest = ''
-    try:
-        digest = hashlib.new('ripemd160', intermed).digest()
-    except:
-        digest = RIPEMD160(intermed).digest()
+    digest = hashlib.new('ripemd160', intermed).digest()
     return digest
 
 
@@ -349,10 +347,7 @@ def sha256(string):
 
 
 def bin_ripemd160(string):
-    try:
-        digest = hashlib.new('ripemd160', string).digest()
-    except:
-        digest = RIPEMD160(string).digest()
+    digest = hashlib.new('ripemd160', string).digest()
     return digest
 
 
