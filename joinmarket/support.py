@@ -2,13 +2,6 @@ from __future__ import absolute_import, print_function
 
 import sys
 
-"""
-Random functions - replacing some NumPy features
-NOTE THESE ARE NEITHER CRYPTOGRAPHICALLY SECURE
-NOR PERFORMANT NOR HIGH PRECISION!
-Only for sampling purposes
-"""
-
 import logging
 import pprint
 import random
@@ -34,6 +27,7 @@ ORDER_KEYS = ['counterparty', 'oid', 'ordertype', 'minsize', 'maxsize',
 
 joinmarket_alert = ['']
 core_alert = ['']
+debug_silence = [False]
 
 #consoleHandler = logging.StreamHandler(stream=sys.stdout)
 class JoinMarketStreamHandler(logging.StreamHandler):
@@ -45,7 +39,8 @@ class JoinMarketStreamHandler(logging.StreamHandler):
             print('JoinMarket Alert Message: ' + joinmarket_alert[0])
         if core_alert[0]:
             print('Core Alert Message: ' + core_alert[0])
-        super(JoinMarketStreamHandler, self).emit(record)
+        if not debug_silence[0]:
+            super(JoinMarketStreamHandler, self).emit(record)
 
 consoleHandler = JoinMarketStreamHandler(stream=sys.stdout)
 consoleHandler.setFormatter(logFormatter)
@@ -63,6 +58,13 @@ def get_log():
     """
     return log
 
+
+"""
+Random functions - replacing some NumPy features
+NOTE THESE ARE NEITHER CRYPTOGRAPHICALLY SECURE
+NOR PERFORMANT NOR HIGH PRECISION!
+Only for sampling purposes
+"""
 
 def rand_norm_array(mu, sigma, n):
     # use normalvariate instead of gauss for thread safety
@@ -379,7 +381,7 @@ def choose_sweep_orders(db,
     log.debug('chosen orders = \n' + '\n'.join([str(o) for o in chosen_orders]))
     result = dict([(o['counterparty'], o) for o in chosen_orders])
     log.debug('cj amount = ' + str(cj_amount))
-    return result, cj_amount
+    return result, cj_amount, total_fee
 
 
 def debug_dump_object(obj, skip_fields=None):

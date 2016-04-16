@@ -12,6 +12,7 @@ import sys
 import threading
 import time
 import urllib
+import urllib2
 from decimal import Decimal
 
 import bitcoin as btc
@@ -80,23 +81,19 @@ class BlockchainInterface(object):
     def sync_addresses(self, wallet):
         """Finds which addresses have been used and sets
         wallet.index appropriately"""
-        pass
 
     @abc.abstractmethod
     def sync_unspent(self, wallet):
         """Finds the unspent transaction outputs belonging to this wallet,
         sets wallet.unspent """
-        pass
 
     @abc.abstractmethod
     def add_tx_notify(self, txd, unconfirmfun, confirmfun, notifyaddr):
         """Invokes unconfirmfun and confirmfun when tx is seen on the network"""
-        pass
 
     @abc.abstractmethod
     def pushtx(self, txhex):
         """pushes tx to the network, returns txhash, or None if failed"""
-        pass
 
     @abc.abstractmethod
     def query_utxo_set(self, txouts):
@@ -156,16 +153,9 @@ class BlockrInterface(BlockchainInterface):
                     blockr_url = 'https://' + self.blockr_domain()
                     blockr_url += '.blockr.io/api/v1/address/txs/'
 
-                    # print 'downloading, lastusedaddr = ' + last_used_addr +
-                    #  ' unusedaddrcount= ' + str(unused_addr_count)
-
                     res = btc.make_request(blockr_url + ','.join(addrs))
                     data = json.loads(res)['data']
                     for dat in data:
-                        # todo: remove these commented out code sections
-                        # if forchange == 0: print ' nbtxs ' + str(dat[
-                        # 'nb_txs']) + ' addr=' + dat['address'] + ' unused='
-                        # + str(unused_addr_count)
                         if dat['nb_txs'] != 0:
                             last_used_addr = dat['address']
                             unused_addr_count = 0
@@ -231,7 +221,7 @@ class BlockrInterface(BlockchainInterface):
         class NotifyThread(threading.Thread):
 
             def __init__(self, blockr_domain, txd, unconfirmfun, confirmfun):
-                threading.Thread.__init__(self)
+                threading.Thread.__init__(self, name='BlockrNotifyThread')
                 self.daemon = True
                 self.blockr_domain = blockr_domain
                 self.unconfirmfun = unconfirmfun
@@ -410,7 +400,11 @@ class NotifyRequestHeader(BaseHTTPServer.BaseHTTPRequestHandler):
             if not re.match('^[0-9a-fA-F]*$', txid):
                 log.debug('not a txid')
                 return
-            tx = self.btcinterface.rpc('getrawtransaction', [txid])
+            try:
+                tx = self.btcinterface.rpc('getrawtransaction', [txid])
+            except (JsonRpcError, JsonRpcConnectionError) as e:
+                log.debug('transaction not found, probably a conflict')
+                return
             if not re.match('^[0-9a-fA-F]*$', tx):
                 log.debug('not a txhex')
                 return
@@ -418,11 +412,13 @@ class NotifyRequestHeader(BaseHTTPServer.BaseHTTPRequestHandler):
             tx_output_set = set([(sv['script'], sv['value']) for sv in txd[
                 'outs']])
 
-            unconfirmfun, confirmfun = None, None
-            for tx_out, ucfun, cfun in self.btcinterface.txnotify_fun:
+            txnotify_tuple = None
+            unconfirmfun, confirmfun, uc_called = None, None, None
+            for tnf in self.btcinterface.txnotify_fun:
+                tx_out = tnf[0]
                 if tx_out == tx_output_set:
-                    unconfirmfun = ucfun
-                    confirmfun = cfun
+                    txnotify_tuple = tnf
+                    tx_out, unconfirmfun, confirmfun, uc_called = tnf
                     break
             if unconfirmfun is None:
                 log.debug('txid=' + txid + ' not being listened for')
@@ -441,11 +437,17 @@ class NotifyRequestHeader(BaseHTTPServer.BaseHTTPRequestHandler):
                     # wallet_name = self.get_wallet_name()
                     # amount =
                     # bitcoin-cli move wallet_name "" amount
+                    self.btcinterface.txnotify_fun.remove(txnotify_tuple)
+                    self.btcinterface.txnotify_fun.append(txnotify_tuple[:-1]
+                        + (True,))
                     log.debug('ran unconfirmfun')
                 else:
+                    if not uc_called:
+                        unconfirmfun(txd, txid)
+                        log.debug('saw confirmed tx before unconfirmed, ' +
+                            'running unconfirmfun first')
                     confirmfun(txd, txid, txdata['confirmations'])
-                    self.btcinterface.txnotify_fun.remove(
-                        (tx_out, unconfirmfun, confirmfun))
+                    self.btcinterface.txnotify_fun.remove(txnotify_tuple)
                     log.debug('ran confirmfun')
 
         elif self.path.startswith('/alertnotify?'):
@@ -455,8 +457,12 @@ class NotifyRequestHeader(BaseHTTPServer.BaseHTTPRequestHandler):
         else:
             log.debug('ERROR: This is not a handled URL path.  You may want to check your notify URL for typos.')
 
-        os.system('curl -sI --connect-timeout 1 http://localhost:' + str(
-            self.base_server.server_address[1] + 1) + self.path)
+        request = urllib2.Request('http://localhost:' + str(self.base_server.server_address[1] + 1) + self.path)
+        request.get_method = lambda : 'HEAD'
+        try:
+            urllib2.urlopen(request)
+        except urllib2.URLError:
+            pass
         self.send_response(200)
         # self.send_header('Connection', 'close')
         self.end_headers()
@@ -464,7 +470,7 @@ class NotifyRequestHeader(BaseHTTPServer.BaseHTTPRequestHandler):
 
 class BitcoinCoreNotifyThread(threading.Thread):
     def __init__(self, btcinterface):
-        threading.Thread.__init__(self)
+        threading.Thread.__init__(self, name='CoreNotifyThread')
         self.daemon = True
         self.btcinterface = btcinterface
 
@@ -493,9 +499,6 @@ class BitcoinCoreNotifyThread(threading.Thread):
 # -walletnotify="curl -sI --connect-timeout 1 http://localhost:62602/walletnotify?%s"
 # and make sure curl is installed (git uses it, odds are you've already got it)
 
-
-# TODO must add the tx addresses as watchonly if case we ever broadcast a tx
-# with addresses not belonging to us
 class BitcoinCoreInterface(BlockchainInterface):
     def __init__(self, jsonRpc, network):
         super(BitcoinCoreInterface, self).__init__()
@@ -554,7 +557,7 @@ class BitcoinCoreInterface(BlockchainInterface):
         # simpler to add to the same account here
         for privkey_list in wallet.imported_privkeys.values():
             for privkey in privkey_list:
-                imported_addr = btc.privtoaddr(privkey, get_p2pk_vbyte())
+                imported_addr = btc.privtoaddr(privkey, magicbyte=get_p2pk_vbyte())
                 wallet_addr_list.append(imported_addr)
         imported_addr_list = self.rpc('getaddressesbyaccount', [wallet_name])
         if not set(wallet_addr_list).issubset(set(imported_addr_list)):
@@ -662,16 +665,18 @@ class BitcoinCoreInterface(BlockchainInterface):
         if not one_addr_imported:
             self.rpc('importaddress', [notifyaddr, 'joinmarket-notify', False])
         tx_output_set = set([(sv['script'], sv['value']) for sv in txd['outs']])
-        self.txnotify_fun.append((tx_output_set, unconfirmfun, confirmfun))
+        self.txnotify_fun.append((tx_output_set, unconfirmfun, confirmfun, False))
 
     def pushtx(self, txhex):
         try:
             txid = self.rpc('sendrawtransaction', [txhex])
         except JsonRpcConnectionError as e:
-            return (False, repr(e))
+            log.debug('error pushing = ' + repr(e))
+	    return False
         except JsonRpcError as e:
-            return (False, str(e.code) + " " + str(e.message))
-        return (True, txid)
+            log.debug('error pushing = ' + str(e.code) + " " + str(e.message))
+	    return False
+        return txid
 
     def query_utxo_set(self, txout):
         if not isinstance(txout, list):
@@ -710,11 +715,11 @@ class RegtestBitcoinCoreInterface(BitcoinCoreInterface):
 
         class TickChainThread(threading.Thread):
             def __init__(self, bcinterface):
-                threading.Thread.__init__(self)
+                threading.Thread.__init__(self, name='TickChainThread')
                 self.bcinterface = bcinterface
 
             def run(self):
-                time.sleep(15)
+                time.sleep(2)
                 self.bcinterface.tick_forward_chain(1)
 
         TickChainThread(self).start()
@@ -725,7 +730,15 @@ class RegtestBitcoinCoreInterface(BitcoinCoreInterface):
         Special method for regtest only;
         instruct to mine n blocks.
         """
-        self.rpc('generate', [n])
+	try:
+	    self.rpc('generate', [n])
+	except JsonRpcConnectionError:
+	    #can happen if the blockchain is shut down
+	    #automatically at the end of tests; this shouldn't
+	    #trigger an error
+	    log.debug("Failed to generate blocks, looks like the bitcoin daemon \
+	    has been shut down. Ignoring.")
+	    pass
 
     def grab_coins(self, receiving_addr, amt=50):
         """

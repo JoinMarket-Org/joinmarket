@@ -14,10 +14,28 @@ from joinmarket.enc_wrapper import encrypt_encode, decode_decrypt
 from joinmarket.support import get_log, chunks
 from joinmarket.socks import socksocket, setdefaultproxy, PROXY_TYPE_SOCKS5
 
-MAX_PRIVMSG_LEN = 400
+MAX_PRIVMSG_LEN = 450
 COMMAND_PREFIX = '!'
-PING_INTERVAL = 180
-PING_TIMEOUT = 30
+PING_INTERVAL = 300
+PING_TIMEOUT = 60
+
+#Throttling parameters; data from
+#tests by @chris-belcher:
+##worked (bytes per sec/bytes per sec interval / counterparties / max_privmsg_len)
+#300/4 / 6 / 400
+#600/4 / 6 / 400
+#450/4 / 10 / 400
+#450/4 / 10 / 450
+#525/4 / 10 / 450
+##didnt work
+#600/4 / 10 / 450
+#600/4 / 10 / 400
+#2000/2 / 10 / 400
+#450/4 / 10 / 475
+MSG_INTERVAL = 0.001
+B_PER_SEC = 450
+B_PER_SEC_INTERVAL = 4.0
+
 encrypted_commands = ["auth", "ioauth", "tx", "sig"]
 plaintext_commands = ["fill", "error", "pubkey", "orderbook", "relorder",
                       "absorder", "push"]
@@ -62,23 +80,20 @@ def get_irc_nick(source):
 class ThrottleThread(threading.Thread):
 
     def __init__(self, irc):
-        threading.Thread.__init__(self)
+        threading.Thread.__init__(self, name='ThrottleThread')
         self.daemon = True
         self.irc = irc
         self.msg_buffer = []
-        #TODO - probably global configuration?
-        self.MSG_INTERVAL = 1.0
-        self.B_PER_SEC = 300
-        self.B_PER_SEC_INTERVAL = 10.0
 
     def run(self):
         log.debug("starting throttle thread")
         last_msg_time = 0
+        print_throttle_msg = True
         while not self.irc.give_up:
             self.irc.lockthrottle.acquire()
             while not (self.irc.throttleQ.empty() and self.irc.obQ.empty()
                        and self.irc.pingQ.empty()):
-                time.sleep(0.2) #need to avoid cpu spinning if throttled
+                time.sleep(0.0001) #need to avoid cpu spinning if throttled
                 try:
                     pingmsg = self.irc.pingQ.get(block=False)
                     #ping messages are not counted to throttling totals,
@@ -91,21 +106,24 @@ class ThrottleThread(threading.Thread):
                     log.debug("failed to send ping message on socket")
                     break
                 #First throttling mechanism: no more than 1 line
-                #per self.MSG_INTERVAL seconds.
+                #per MSG_INTERVAL seconds.
                 x = time.time() - last_msg_time
-                if  x < self.MSG_INTERVAL:
+                if  x < MSG_INTERVAL:
                     continue
                 #Second throttling mechanism: limited kB/s rate
                 #over the most recent period.
-                q = time.time() - self.B_PER_SEC_INTERVAL
+                q = time.time() - B_PER_SEC_INTERVAL
                 #clean out old messages
                 self.msg_buffer = [_ for _ in self.msg_buffer if _[1] > q]
                 bytes_recent = sum(len(i[0]) for i in self.msg_buffer)
-                if bytes_recent > self.B_PER_SEC * self.B_PER_SEC_INTERVAL:
-                    log.debug("Throttling triggered, with: "+str(
-                        bytes_recent)+ " bytes in the last "+str(
-                            self.B_PER_SEC_INTERVAL)+" seconds.")
+                if bytes_recent > B_PER_SEC * B_PER_SEC_INTERVAL:
+                    if print_throttle_msg:
+                        log.debug("Throttling triggered, with: "+str(
+                            bytes_recent)+ " bytes in the last "+str(
+                                B_PER_SEC_INTERVAL)+" seconds.")
+                    print_throttle_msg = False
                     continue
+                print_throttle_msg = True
                 try:
                     throttled_msg = self.irc.throttleQ.get(block=False)
                 except Queue.Empty:
@@ -120,7 +138,9 @@ class ThrottleThread(threading.Thread):
                     self.msg_buffer.append((throttled_msg, last_msg_time))
                 except:
                     log.debug("failed to send on socket")
-                    self.irc.fd.close()
+                    try:
+                        self.irc.fd.close()
+                    except: pass
                     break
             self.irc.lockthrottle.wait()
             self.irc.lockthrottle.release()
@@ -130,7 +150,7 @@ class ThrottleThread(threading.Thread):
 class PingThread(threading.Thread):
 
     def __init__(self, irc):
-        threading.Thread.__init__(self)
+        threading.Thread.__init__(self, name='PingThread')
         self.daemon = True
         self.irc = irc
 
@@ -201,8 +221,6 @@ class IRCMessageChannel(MessageChannel):
         txb64 = base64.b64encode(txhex.decode('hex'))
         for nick in nick_list:
             self.__privmsg(nick, 'tx', txb64)
-            # HACK! really there should be rate limiting, see issue#31
-            time.sleep(1)
 
     def push_tx(self, nick, txhex):
         txb64 = base64.b64encode(txhex.decode('hex'))
@@ -638,7 +656,8 @@ class IRCMessageChannel(MessageChannel):
                         break
                     self.__handle_line(line)
             except IOError as e:
-                log.debug(repr(e))
+                import traceback
+                log.debug(traceback.format_exc())
             finally:
                 try:
                     self.fd.close()

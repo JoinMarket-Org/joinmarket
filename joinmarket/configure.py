@@ -8,7 +8,7 @@ from ConfigParser import SafeConfigParser, NoOptionError
 
 import bitcoin as btc
 from joinmarket.jsonrpc import JsonRpc
-from joinmarket.support import get_log, joinmarket_alert, core_alert
+from joinmarket.support import get_log, joinmarket_alert, core_alert, debug_silence
 
 # config = SafeConfigParser()
 # config_location = 'joinmarket.cfg'
@@ -82,7 +82,7 @@ global_singleton.debug_file_lock = threading.Lock()
 global_singleton.debug_file_handle = None
 global_singleton.core_alert = core_alert
 global_singleton.joinmarket_alert = joinmarket_alert
-global_singleton.debug_silence = False
+global_singleton.debug_silence = debug_silence
 global_singleton.config = SafeConfigParser()
 global_singleton.config_location = 'joinmarket.cfg'
 
@@ -117,7 +117,8 @@ socks5_host = localhost
 socks5_port = 9050
 #for tor
 #host = 6dvj6v5imhny3anf.onion
-#port = 6697
+#onion / i2p have their own ports on CGAN
+#port = 6698
 #usessl = true
 #socks5 = true
 maker_timeout_sec = 30
@@ -186,15 +187,17 @@ def validate_address(addr):
         return False, 'Checksum wrong. Typo in address?'
     if ver != get_p2pk_vbyte() and ver != get_p2sh_vbyte():
         return False, 'Wrong address version. Testnet/mainnet confused?'
+    if len(btc.b58check_to_bin(addr)) != 20:
+        return False, "Address has correct checksum but wrong length."
     return True, 'address validated'
 
 
 def load_program_config():
+    global_singleton.config.readfp(io.BytesIO(defaultconfig))
     loadedFiles = global_singleton.config.read(
             [global_singleton.config_location])
     # Create default config file if not found
     if len(loadedFiles) != 1:
-        global_singleton.config.readfp(io.BytesIO(defaultconfig))
         with open(global_singleton.config_location, "w") as configfile:
             configfile.write(defaultconfig)
 
@@ -220,6 +223,13 @@ def load_program_config():
     # configure the interface to the blockchain on startup
     global_singleton.bc_interface = get_blockchain_interface_instance(
             global_singleton.config)
+
+    #print warning if not using libsecp256k1
+    if not btc.secp_present:
+        log.debug("WARNING: You are not using the binding to libsecp256k1. The "
+                  "crypto code in use has poorer performance and security "
+                  "properties. Consider installing the binding with `pip install "
+                  "secp256k1`.")
 
 
 def get_blockchain_interface_instance(_config):

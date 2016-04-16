@@ -6,8 +6,9 @@ from .support import get_log, calc_cj_fee, debug_dump_object, \
     choose_sweep_orders, choose_orders, \
     pick_order, cheapest_order_choose, weighted_order_choose, \
     rand_norm_array, rand_pow_array, rand_exp_array, joinmarket_alert, core_alert
-from .enc_wrapper import decode_decrypt, encrypt_encode, get_pubkey
-from .irc import IRCMessageChannel, random_nick
+from .enc_wrapper import as_init_encryption, decode_decrypt, \
+    encrypt_encode, init_keypair, init_pubkey, get_pubkey
+from .irc import IRCMessageChannel, random_nick, B_PER_SEC
 from .jsonrpc import JsonRpcError, JsonRpcConnectionError, JsonRpc
 from .maker import Maker
 from .message_channel import MessageChannel

@@ -31,13 +31,13 @@ class MessageChannel(object):
         self.on_push_tx = None
 
     def run(self):
-        pass
+        pass #pragma: no cover
 
     def shutdown(self):
-        pass
+        pass #pragma: no cover
 
     def send_error(self, nick, errormsg):
-        pass
+        pass #pragma: no cover
 
     # callbacks for everyone
     # some of these many not have meaning in a future channel, like bitmessage
@@ -63,7 +63,7 @@ class MessageChannel(object):
         self.on_order_cancel = on_order_cancel
 
     def request_orderbook(self):
-        pass
+        pass #pragma: no cover
 
     # taker commands
     def register_taker_callbacks(self,
@@ -77,16 +77,16 @@ class MessageChannel(object):
         self.on_sig = on_sig
 
     def fill_orders(self, nickoid_dict, cj_amount, taker_pubkey):
-        pass
+        pass #pragma: no cover
 
     def send_auth(self, nick, pubkey, sig):
-        pass
+        pass #pragma: no cover
 
     def send_tx(self, nick_list, txhex):
-        pass
+        pass #pragma: no cover
 
     def push_tx(self, nick, txhex):
-        pass
+        pass #pragma: no cover
 
     # maker commands
     def register_maker_callbacks(self,
@@ -102,16 +102,17 @@ class MessageChannel(object):
         self.on_push_tx = on_push_tx
 
     def announce_orders(self, orderlist, nick=None):
-        pass  # nick=None means announce publicly
+        # nick=None means announce publicly
+        pass  #pragma: no cover
 
     def cancel_orders(self, oid_list):
-        pass
+        pass #pragma: no cover
 
     def send_pubkey(self, nick, pubkey):
-        pass
+        pass #pragma: no cover
 
     def send_ioauth(self, nick, utxo_list, cj_pubkey, change_addr, sig):
-        pass
+        pass #pragma: no cover
 
     def send_sigs(self, nick, sig_list):
-        pass
+        pass #pragma: no cover

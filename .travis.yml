@@ -1,21 +1,21 @@
 language: python
 python:
  - "2.7_with_system_site_packages"
+
 before_install:
  - sudo apt-add-repository ppa:bitcoin/bitcoin -y
  - sudo apt-get update -q
  - sudo apt-get install --no-install-recommends --no-upgrade -qq bitcoind
- - sudo apt-get install -y build-essential 
+ - sudo apt-get install -y build-essential
  - sudo apt-get install -y automake
+ - sudo apt-get install -y pkg-config
+ - sudo apt-get install -y libtool
+ - sudo apt-get install -y libffi-dev
+ - sudo apt-get install -y libgmp-dev
 install:
- - pip install numpy
- - pip install pexpect
+ - pip install -r requirements-dev.txt
+ - sudo pip install secp256k1
 script:
-#required for local IRC pit simulation
- - git clone git://github.com/joinmarket-org/miniircd.git
- - cd miniircd
- - ./miniircd --daemon --motd=/home/travis/miniircd/testmotd
- - cd ..
 #install and test libsodium
  - git clone git://github.com/jedisct1/libsodium.git
  - cd libsodium
@@ -27,20 +27,17 @@ script:
  - cd ..
 #set up joinmarket.cfg
  - cp test/regtest_joinmarket.cfg joinmarket.cfg
-#E2E encryption (libnacl) tests
- - PYTHONPATH=.:$PYTHONPATH python joinmarket/enc_wrapper.py
-#start bitcoin regtest daemon and 101 blocks
+#setup bitcoin config file
  - mkdir /home/travis/.bitcoin
  - cp test/bitcoin.conf /home/travis/.bitcoin/.
  - chmod 600 /home/travis/.bitcoin/bitcoin.conf
- - bitcoind -regtest -daemon 
- - sleep 5
- - bitcoin-cli -regtest generate 101
- - cd test
- - python regtest.py
- - python wallet-test.py
- - cd ../logs
+ - PYTHONPATH=.:$PYTHONPATH py.test --cov-report html --btcconf=/home/travis/.bitcoin/bitcoin.conf --btcpwd=123456abcdef --ignore test/test_tumbler.py
+ - cd logs
  - for x in `ls`; do tail -50 $x; done
+ - cd ..
+after_success:
+ - coveralls
 branches:
  only:
   - develop 
+  - more_tests
