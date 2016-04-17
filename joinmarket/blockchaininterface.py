@@ -745,8 +745,15 @@ class BitcoinCoreInterface(BlockchainInterface):
 class RegtestBitcoinCoreInterface(BitcoinCoreInterface):
     def __init__(self, jsonRpc):
         super(RegtestBitcoinCoreInterface, self).__init__(jsonRpc, 'regtest')
+        self.pushtx_failure_prob = 0
 
     def pushtx(self, txhex):
+        if self.pushtx_failure_prob != 0 and random.random() <\
+                self.pushtx_failure_prob:
+            log.debug('randomly not broadcasting %0.1f%% of the time' %
+                (self.pushtx_failure_prob*100))
+            return True
+
         ret = super(RegtestBitcoinCoreInterface, self).pushtx(txhex)
 
         class TickChainThread(threading.Thread):

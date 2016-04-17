@@ -148,7 +148,7 @@ class TumblerThread(threading.Thread):
 
     def finishcallback(self, coinjointx):
         if coinjointx.all_responded:
-            self.broadcast_attempts = self.taker.options['maxbroadcasts']
+            self.broadcast_attempts = self.taker.options.maxbroadcasts
             coinjointx.self_sign()
             pushed = self.pushtx()
             if not pushed:
@@ -316,7 +316,7 @@ class TumblerThread(threading.Thread):
         self.balance = balance
         self.tx = tx
         self.destaddr = destaddr
-        self.create_tx_attempts = self.taker.options['maxcreatetx']
+        self.create_tx_attempts = self.taker.options.maxcreatetx
         self.create_tx()
         with self.lockcond:
             self.lockcond.wait()

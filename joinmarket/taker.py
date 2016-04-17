@@ -324,12 +324,6 @@ class CoinJoinTX(object):
         # TODO send to a random maker or push myself
         # TODO need to check whether the other party sent it
         # self.msgchan.push_tx(self.active_orders.keys()[0], txhex)
-        '''
-        import random
-        if random.random() < 0.4:
-            log.debug('randomly not broadcasting 40% of the time')
-            return True
-        '''
         pushed = jm_single().bc_interface.pushtx(tx)
         if not pushed:
             log.debug('unable to pushtx')
