@@ -13,6 +13,7 @@ from joinmarket import validate_address, jm_single
 from joinmarket import random_nick, get_p2pk_vbyte
 from joinmarket import get_log, choose_sweep_orders, choose_orders, \
     pick_order, cheapest_order_choose, weighted_order_choose, debug_dump_object
+import joinmarket.irc
 import json
 import sendpayment
 import bitcoin as btc
@@ -59,8 +60,16 @@ def test_sendpayment(setup_regtest, num_ygs, wallet_structures, mean_amt,
 
     #A significant delay is needed to wait for the yield generators to sync
     time.sleep(20)
+    if btc.secp_present:
+        destaddr = btc.privkey_to_address(
+            os.urandom(32),
+            from_hex=False,
+            magicbyte=get_p2pk_vbyte())
+    else:
+        destaddr = btc.privkey_to_address(
+            os.urandom(32),
+            magicbyte=get_p2pk_vbyte())
 
-    destaddr = btc.privkey_to_address(os.urandom(32), get_p2pk_vbyte())
     addr_valid, errormsg = validate_address(destaddr)
     assert addr_valid, "Invalid destination address: " + destaddr + \
            ", error message: " + errormsg
@@ -73,6 +82,10 @@ def test_sendpayment(setup_regtest, num_ygs, wallet_structures, mean_amt,
     log.debug('starting sendpayment')
 
     jm_single().bc_interface.sync_wallet(wallet)
+    
+    #Trigger PING LAG sending artificially
+    joinmarket.irc.PING_INTERVAL = 3
+    
     irc = IRCMessageChannel(jm_single().nickname)
     taker = sendpayment.SendPayment(irc, wallet, destaddr, amount, makercount,
                                     txfee, waittime, mixdepth, answeryes,
@@ -80,12 +93,6 @@ def test_sendpayment(setup_regtest, num_ygs, wallet_structures, mean_amt,
     try:
         log.debug('starting irc')
         irc.run()
-    except:
-        log.debug('CRASHING, DUMPING EVERYTHING')
-        debug_dump_object(wallet, ['addr_cache', 'keys', 'wallet_name', 'seed'])
-        debug_dump_object(taker)
-        import traceback
-        log.debug(traceback.format_exc())
     finally:
         if any(yigen_procs):
             for ygp in yigen_procs:
@@ -101,6 +108,8 @@ def test_sendpayment(setup_regtest, num_ygs, wallet_structures, mean_amt,
         assert received == amount, "sendpayment failed - coins not arrived, " +\
            "received: " + str(received)
     #TODO: how to check success for sweep case?
+    else:
+        assert received != 0
 
 
 @pytest.fixture(scope="module")

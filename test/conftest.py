@@ -8,6 +8,7 @@ from joinmarket import load_program_config
 bitcoin_path = None
 bitcoin_conf = None
 bitcoin_rpcpassword = None
+bitcoin_rpcusername = None
 miniircd_proc = None
 
 
@@ -22,7 +23,10 @@ def pytest_addoption(parser):
     parser.addoption("--btcpwd",
                      action="store",
                      help="the RPC password for your test bitcoin instance")
-
+    parser.addoption("--btcuser",
+                     action="store",
+                     default='bitcoinrpc',
+                     help="the RPC username for your test bitcoin instance (default=bitcoinrpc)")
 
 def teardown():
     #didn't find a stop command in miniircd, so just kill
@@ -30,8 +34,8 @@ def teardown():
     miniircd_proc.kill()
 
     #shut down bitcoin and remove the regtest dir
-    local_command([bitcoin_path + "bitcoin-cli", "-regtest", "-rpcpassword=" +
-                   bitcoin_rpcpassword, "stop"])
+    local_command([bitcoin_path + "bitcoin-cli", "-regtest", "-rpcuser=" + bitcoin_rpcusername,
+                   "-rpcpassword=" + bitcoin_rpcpassword, "stop"])
     #note, it is better to clean out ~/.bitcoin/regtest but too
     #dangerous to automate it here perhaps
 
@@ -40,10 +44,11 @@ def teardown():
 def setup(request):
     request.addfinalizer(teardown)
 
-    global bitcoin_conf, bitcoin_path, bitcoin_rpcpassword
+    global bitcoin_conf, bitcoin_path, bitcoin_rpcpassword, bitcoin_rpcusername
     bitcoin_path = request.config.getoption("--btcroot")
     bitcoin_conf = request.config.getoption("--btcconf")
     bitcoin_rpcpassword = request.config.getoption("--btcpwd")
+    bitcoin_rpcusername = request.config.getoption("--btcuser")
 
     #start up miniircd
     #minor bug in miniircd (seems); need *full* unqualified path for motd file
@@ -57,5 +62,5 @@ def setup(request):
                                 "-daemon", "-conf=" + bitcoin_conf])
     time.sleep(3)
     #generate blocks
-    local_command([bitcoin_path + "bitcoin-cli", "-regtest", "-rpcpassword=" +
-                   bitcoin_rpcpassword, "generate", "101"])
+    local_command([bitcoin_path + "bitcoin-cli", "-regtest", "-rpcuser=" + bitcoin_rpcusername,
+                   "-rpcpassword=" + bitcoin_rpcpassword, "generate", "101"])

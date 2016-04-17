@@ -8,11 +8,11 @@ import os
 import pprint
 import random
 import re
-import urllib2
 import sys
 import threading
 import time
 import urllib
+import urllib2
 from decimal import Decimal
 
 import bitcoin as btc
@@ -81,13 +81,11 @@ class BlockchainInterface(object):
     def sync_addresses(self, wallet):
         """Finds which addresses have been used and sets
         wallet.index appropriately"""
-        pass
 
     @abc.abstractmethod
     def sync_unspent(self, wallet):
         """Finds the unspent transaction outputs belonging to this wallet,
         sets wallet.unspent """
-        pass
 
     @abc.abstractmethod
     def add_tx_notify(self, txd, unconfirmfun, confirmfun,
@@ -586,7 +584,7 @@ class BitcoinCoreInterface(BlockchainInterface):
         # simpler to add to the same account here
         for privkey_list in wallet.imported_privkeys.values():
             for privkey in privkey_list:
-                imported_addr = btc.privtoaddr(privkey, get_p2pk_vbyte())
+                imported_addr = btc.privtoaddr(privkey, magicbyte=get_p2pk_vbyte())
                 wallet_addr_list.append(imported_addr)
         imported_addr_list = self.rpc('getaddressesbyaccount', [wallet_name])
         if not set(wallet_addr_list).issubset(set(imported_addr_list)):

@@ -10,6 +10,7 @@ import pexpect
 import random
 import subprocess
 import platform
+from decimal import Decimal
 
 data_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, os.path.join(data_dir))
@@ -55,7 +56,8 @@ def make_wallets(n,
                  wallet_structures=None,
                  mean_amt=1,
                  sdev_amt=0,
-                 start_index=0):
+                 start_index=0,
+                 fixed_seeds=None):
     '''n: number of wallets to be created
        wallet_structure: array of n arrays , each subarray
        specifying the number of addresses to be populated with coins
@@ -65,7 +67,10 @@ def make_wallets(n,
        Returns: a dict of dicts of form {0:{'seed':seed,'wallet':Wallet object},1:..,}'''
     if len(wallet_structures) != n:
         raise Exception("Number of wallets doesn't match wallet structures")
-    seeds = chunks(binascii.hexlify(os.urandom(15 * n)), 15 * 2)
+    if not fixed_seeds:
+        seeds = chunks(binascii.hexlify(os.urandom(15 * n)), 15 * 2)
+    else:
+        seeds = fixed_seeds
     wallets = {}
     for i in range(n):
         wallets[i + start_index] = {'seed': seeds[i],
@@ -76,11 +81,12 @@ def make_wallets(n,
                 deviation = sdev_amt * random.random()
                 amt = mean_amt - sdev_amt / 2.0 + deviation
                 if amt < 0: amt = 0.001
+                amt = float(Decimal(amt).quantize(Decimal(10)**-8))
                 jm_single().bc_interface.grab_coins(
                     wallets[i + start_index]['wallet'].get_external_addr(j),
                     amt)
-                #reset the index so the coins can be seen if running in same script
-                wallets[i + start_index]['wallet'].index[j][0] -= 1
+            #reset the index so the coins can be seen if running in same script
+            wallets[i + start_index]['wallet'].index[j][0] -= wallet_structures[i][j]
     return wallets
 
 
