@@ -1,4 +1,3 @@
-
 '''
 Joinmarket GUI using PyQt for doing Sendpayment.
 Some widgets copied and modified from https://github.com/spesmilo/electrum
@@ -18,7 +17,6 @@ https://github.com/JoinMarket-Org/joinmarket/tree/gui
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
-
 
 import sys, base64, textwrap, re, datetime, os, math, json, logging
 import Queue, platform, csv, threading, time
@@ -80,67 +78,56 @@ config_types = {'rpc_port': int,
                 'txfee_default': int,
                 'order_wait_time': int,
                 'privacy_warning': None}
-config_tips = {'blockchain_source': 
-               'options: blockr, bitcoin-rpc',
-               'network':
-               'one of "testnet" or "mainnet"',
-               'rpc_host':
-               'the host for bitcoind; only used if blockchain_source is bitcoin-rpc',
-               'rpc_port':
-               'port for connecting to bitcoind over rpc',
-               'rpc_user':
-               'user for connecting to bitcoind over rpc',
-               'rpc_password':
-               'password for connecting to bitcoind over rpc',
-               'host':
-               'hostname for IRC server',
-               'channel':
-               'channel name on IRC server',
-               'port':
-               'port for connecting to IRC server',
-               'usessl':
-               'check to use SSL for connection to IRC',
-               'socks5':
-               'check to use SOCKS5 proxy for IRC connection',
-               'socks5_host':
-               'host for SOCKS5 proxy',
-               'socks5_port':
-               'port for SOCKS5 proxy',
-               'maker_timeout_sec':
-               'timeout for waiting for replies from makers',
-               'merge_algorithm':
-               'for dust sweeping, try merge_algorithm = gradual, \n'+
-               'for more rapid dust sweeping, try merge_algorithm = greedy \n'+
-               'for most rapid dust sweeping, try merge_algorithm = greediest \n' +
-               ' but dont forget to bump your miner fees!',
-               'tx_fees':
-               'the fee estimate is based on a projection of how many satoshis \n'+
-               'per kB are needed to get in one of the next N blocks, N set here \n'+
-               'as the value of "tx_fees". This estimate is high if you set N=1, \n'+
-               'so we choose N=3 for a more reasonable figure, \n'+
-               'as our default. Note that for clients not using a local blockchain \n'+
-               'instance, we retrieve an estimate from the API at blockcypher.com, currently. \n',
-               'gaplimit': 'How far forward to search for used addresses in the HD wallet',
-               'check_high_fee': 'Percent fee considered dangerously high, default 2%',
-               'max_mix_depth': 'Total number of mixdepths in the wallet, default 5',
-               'txfee_default': 'Number of satoshis per counterparty for an initial\n'+
-               'tx fee estimate; this value is not usually used and is best left at\n'+
-               'the default of 5000',
-               'order_wait_time': 'How long to wait for orders to arrive on entering\n'+
-               'the message channel, default is 30s'
-               }
+config_tips = {
+    'blockchain_source': 'options: blockr, bitcoin-rpc',
+    'network': 'one of "testnet" or "mainnet"',
+    'rpc_host':
+    'the host for bitcoind; only used if blockchain_source is bitcoin-rpc',
+    'rpc_port': 'port for connecting to bitcoind over rpc',
+    'rpc_user': 'user for connecting to bitcoind over rpc',
+    'rpc_password': 'password for connecting to bitcoind over rpc',
+    'host': 'hostname for IRC server',
+    'channel': 'channel name on IRC server',
+    'port': 'port for connecting to IRC server',
+    'usessl': 'check to use SSL for connection to IRC',
+    'socks5': 'check to use SOCKS5 proxy for IRC connection',
+    'socks5_host': 'host for SOCKS5 proxy',
+    'socks5_port': 'port for SOCKS5 proxy',
+    'maker_timeout_sec': 'timeout for waiting for replies from makers',
+    'merge_algorithm': 'for dust sweeping, try merge_algorithm = gradual, \n' +
+    'for more rapid dust sweeping, try merge_algorithm = greedy \n' +
+    'for most rapid dust sweeping, try merge_algorithm = greediest \n' +
+    ' but dont forget to bump your miner fees!',
+    'tx_fees':
+    'the fee estimate is based on a projection of how many satoshis \n' +
+    'per kB are needed to get in one of the next N blocks, N set here \n' +
+    'as the value of "tx_fees". This estimate is high if you set N=1, \n' +
+    'so we choose N=3 for a more reasonable figure, \n' +
+    'as our default. Note that for clients not using a local blockchain \n' +
+    'instance, we retrieve an estimate from the API at blockcypher.com, currently. \n',
+    'gaplimit': 'How far forward to search for used addresses in the HD wallet',
+    'check_high_fee': 'Percent fee considered dangerously high, default 2%',
+    'max_mix_depth': 'Total number of mixdepths in the wallet, default 5',
+    'txfee_default': 'Number of satoshis per counterparty for an initial\n' +
+    'tx fee estimate; this value is not usually used and is best left at\n' +
+    'the default of 5000',
+    'order_wait_time': 'How long to wait for orders to arrive on entering\n' +
+    'the message channel, default is 30s'
+}
 
-def JMQtMessageBox(obj, msg, mbtype='info', title= ''):
+
+def JMQtMessageBox(obj, msg, mbtype='info', title=''):
     mbtypes = {'info': QMessageBox.information,
                'crit': QMessageBox.critical,
                'warn': QMessageBox.warning,
                'question': QMessageBox.question}
     title = "JoinmarketQt - " + title
-    if mbtype=='question':
-        return QMessageBox.question(obj, title, msg,
-                                    QMessageBox.Yes, QMessageBox.No)
+    if mbtype == 'question':
+        return QMessageBox.question(obj, title, msg, QMessageBox.Yes,
+                                    QMessageBox.No)
     else:
         mbtypes[mbtype](obj, title, msg)
+
 
 def update_config_for_gui():
     '''The default joinmarket config does not contain these GUI settings
@@ -163,82 +150,106 @@ def update_config_for_gui():
         print 'overwriting privacy_warning'
         jm_single().config.set("GUI", 'privacy_warning', '1')
 
+
 def persist_config():
     '''This loses all comments in the config file.
     TODO: possibly correct that.'''
-    with open('joinmarket.cfg','w') as f:
+    with open('joinmarket.cfg', 'w') as f:
         jm_single().config.write(f)
 
+
 class QtHandler(logging.Handler):
+
     def __init__(self):
         logging.Handler.__init__(self)
+
     def emit(self, record):
         record = self.format(record)
-        if record: XStream.stdout().write('%s\n'%record)
+        if record: XStream.stdout().write('%s\n' % record)
+
 
 handler = QtHandler()
 handler.setFormatter(logging.Formatter("%(levelname)s:%(message)s"))
 log.addHandler(handler)
 
+
 class XStream(QtCore.QObject):
     _stdout = None
     _stderr = None
     messageWritten = QtCore.pyqtSignal(str)
-    def flush( self ):
+
+    def flush(self):
         pass
-    def fileno( self ):
+
+    def fileno(self):
         return -1
-    def write( self, msg ):
-        if ( not self.signalsBlocked() ):
+
+    def write(self, msg):
+        if (not self.signalsBlocked()):
             self.messageWritten.emit(unicode(msg))
+
     @staticmethod
     def stdout():
-        if ( not XStream._stdout ):
+        if (not XStream._stdout):
             XStream._stdout = XStream()
             sys.stdout = XStream._stdout
         return XStream._stdout
+
     @staticmethod
     def stderr():
-        if ( not XStream._stderr ):
+        if (not XStream._stderr):
             XStream._stderr = XStream()
             sys.stderr = XStream._stderr
         return XStream._stderr
 
+
 class Buttons(QHBoxLayout):
+
     def __init__(self, *buttons):
         QHBoxLayout.__init__(self)
         self.addStretch(1)
         for b in buttons:
             self.addWidget(b)
 
+
 class CloseButton(QPushButton):
+
     def __init__(self, dialog):
         QPushButton.__init__(self, "Close")
         self.clicked.connect(dialog.close)
         self.setDefault(True)
 
+
 class CopyButton(QPushButton):
+
     def __init__(self, text_getter, app):
         QPushButton.__init__(self, "Copy")
         self.clicked.connect(lambda: app.clipboard().setText(text_getter()))
 
+
 class CopyCloseButton(QPushButton):
+
     def __init__(self, text_getter, app, dialog):
         QPushButton.__init__(self, "Copy and Close")
         self.clicked.connect(lambda: app.clipboard().setText(text_getter()))
         self.clicked.connect(dialog.close)
         self.setDefault(True)
 
+
 class OkButton(QPushButton):
+
     def __init__(self, dialog, label=None):
         QPushButton.__init__(self, label or "OK")
         self.clicked.connect(dialog.accept)
         self.setDefault(True)
 
+
 class CancelButton(QPushButton):
+
     def __init__(self, dialog, label=None):
         QPushButton.__init__(self, label or "Cancel")
         self.clicked.connect(dialog.reject)
+
 
 class HelpLabel(QLabel):
 
@@ -273,14 +284,16 @@ def check_password_strength(password):
     '''
     password = unicode(password)
     n = math.log(len(set(password)))
-    num = re.search("[0-9]", password) is not None and re.match("^[0-9]*$", password) is None
+    num = re.search("[0-9]", password) is not None and re.match(
+        "^[0-9]*$", password) is None
     caps = password != password.upper() and password != password.lower()
     extra = re.match("^[a-zA-Z0-9]*$", password) is None
-    score = len(password)*( n + caps + num + extra)/20
-    password_strength = {0:"Weak",1:"Medium",2:"Strong",3:"Very Strong"}
+    score = len(password) * (n + caps + num + extra) / 20
+    password_strength = {0: "Weak", 1: "Medium", 2: "Strong", 3: "Very Strong"}
     return password_strength[min(3, int(score))]
 
-def update_password_strength(pw_strength_label,password):
+
+def update_password_strength(pw_strength_label, password):
     '''
     call the function check_password_strength and update the label pw_strength 
     interactively as the user is typing the password
@@ -289,14 +302,17 @@ def update_password_strength(pw_strength_label,password):
     :return: None
     '''
     if password:
-        colors = {"Weak":"Red","Medium":"Blue","Strong":"Green", 
-                  "Very Strong":"Green"}
+        colors = {"Weak": "Red",
+                  "Medium": "Blue",
+                  "Strong": "Green",
+                  "Very Strong": "Green"}
         strength = check_password_strength(password)
         label = "Password Strength"+ ": "+"<font color=" + \
         colors[strength] + ">" + strength + "</font>"
     else:
         label = ""
     pw_strength_label.setText(label)
+
 
 def make_password_dialog(self, msg, new_pass=True):
 
@@ -312,21 +328,21 @@ def make_password_dialog(self, msg, new_pass=True):
     grid = QGridLayout()
     grid.setSpacing(8)
     grid.setColumnMinimumWidth(0, 70)
-    grid.setColumnStretch(1,1)
+    grid.setColumnStretch(1, 1)
     #TODO perhaps add an icon here
     logo = QLabel()
     lockfile = ":icons/lock.png"
     logo.setPixmap(QPixmap(lockfile).scaledToWidth(36))
     logo.setAlignment(QtCore.Qt.AlignCenter)
 
-    grid.addWidget(logo,  0, 0)
+    grid.addWidget(logo, 0, 0)
     grid.addWidget(label, 0, 1, 1, 2)
     vbox.addLayout(grid)
 
     grid = QGridLayout()
     grid.setSpacing(8)
     grid.setColumnMinimumWidth(0, 250)
-    grid.setColumnStretch(1,1)
+    grid.setColumnStretch(1, 1)
 
     grid.addWidget(QLabel('New Password' if new_pass else 'Password'), 1, 0)
     grid.addWidget(self.new_pw, 1, 1)
@@ -338,28 +354,34 @@ def make_password_dialog(self, msg, new_pass=True):
     #Password Strength Label
     self.pw_strength = QLabel()
     grid.addWidget(self.pw_strength, 3, 0, 1, 2)
-    self.new_pw.textChanged.connect(lambda: update_password_strength(
-        self.pw_strength, self.new_pw.text()))
+    self.new_pw.textChanged.connect(
+        lambda: update_password_strength(self.pw_strength, self.new_pw.text()))
 
     vbox.addStretch(1)
     vbox.addLayout(Buttons(CancelButton(self), OkButton(self)))
     return vbox
 
+
 class PasswordDialog(QDialog):
-    
+
     def __init__(self):
         super(PasswordDialog, self).__init__()
         self.initUI()
-        
+
     def initUI(self):
         self.setWindowTitle('Create a new password')
         msg = "Enter a new password"
-        self.setLayout(make_password_dialog(self,msg))
+        self.setLayout(make_password_dialog(self, msg))
         self.show()
+
 
 class MyTreeWidget(QTreeWidget):
 
-    def __init__(self, parent, create_menu, headers, stretch_column=None,
+    def __init__(self,
+                 parent,
+                 create_menu,
+                 headers,
+                 stretch_column=None,
                  editable_columns=None):
         QTreeWidget.__init__(self, parent)
         self.parent = parent
@@ -401,8 +423,8 @@ class MyTreeWidget(QTreeWidget):
             QTreeWidget.keyPressEvent(self, event)
 
     def permit_edit(self, item, column):
-        return (column in self.editable_columns
-                and self.on_permit_edit(item, column))
+        return (column in self.editable_columns and
+                self.on_permit_edit(item, column))
 
     def on_permit_edit(self, item, column):
         return True
@@ -413,7 +435,8 @@ class MyTreeWidget(QTreeWidget):
         else:
             pt = self.visualItemRect(item).bottomLeft()
             pt.setX(50)
-            self.emit(QtCore.SIGNAL('customContextMenuRequested(const QPoint&)'), pt)
+            self.emit(
+                QtCore.SIGNAL('customContextMenuRequested(const QPoint&)'), pt)
 
     def createEditor(self, parent, option, index):
         self.editor = QStyledItemDelegate.createEditor(self.itemDelegate(),
@@ -434,7 +457,7 @@ class MyTreeWidget(QTreeWidget):
             if self.editor.text() == prior_text:
                 self.editor = None  # Unchanged - ignore any 2nd call
             elif item.text(column) == prior_text:
-                pass # Buggy first call on Enter key, item not yet updated
+                pass  # Buggy first call on Enter key, item not yet updated
             else:
                 # What we want - the updated item
                 self.on_edited(*self.editing_itemcol)
@@ -484,7 +507,9 @@ class MyTreeWidget(QTreeWidget):
             item.setHidden(all([unicode(item.text(column)).lower().find(p) == -1
                                 for column in columns]))
 
+
 class SettingsTab(QDialog):
+
     def __init__(self):
         super(SettingsTab, self).__init__()
         self.initUI()
@@ -497,41 +522,43 @@ class SettingsTab(QDialog):
         grid = QGridLayout()
         self.settingsFields = []
         j = 0
-        for i,section in enumerate(jm_single().config.sections()):
+        for i, section in enumerate(jm_single().config.sections()):
             pairs = jm_single().config.items(section)
             #an awkward design element from the core code: maker_timeout_sec
             #is set outside the config, if it doesn't exist in the config.
             #Add it here and it will be in the newly updated config file.
-            if section=='MESSAGING' and 'maker_timeout_sec' not in [_[0] for _ in pairs]:
+            if section == 'MESSAGING' and 'maker_timeout_sec' not in [
+                    _[0] for _ in pairs
+            ]:
                 jm_single().config.set(section, 'maker_timeout_sec', '60')
                 pairs = jm_single().config.items(section)
-            newSettingsFields = self.getSettingsFields(section, 
-                                [_[0] for _ in pairs])
+            newSettingsFields = self.getSettingsFields(section,
+                                                       [_[0] for _ in pairs])
             self.settingsFields.extend(newSettingsFields)
             sL = QLabel(section)
             sL.setStyleSheet("QLabel {color: blue;}")
             grid.addWidget(sL)
             j += 1
             for k, ns in enumerate(newSettingsFields):
-                grid.addWidget(ns[0],j,0)
+                grid.addWidget(ns[0], j, 0)
                 #try to find the tooltip for this label from config tips;
                 #it might not be there
                 if str(ns[0].text()) in config_tips:
                     ttS = config_tips[str(ns[0].text())]
                     ns[0].setToolTip(ttS)
-                grid.addWidget(ns[1],j,1)
-                sfindex = len(self.settingsFields)-len(newSettingsFields)+k
+                grid.addWidget(ns[1], j, 1)
+                sfindex = len(self.settingsFields) - len(newSettingsFields) + k
                 if isinstance(ns[1], QCheckBox):
-                    ns[1].toggled.connect(lambda checked, s=section, 
+                    ns[1].toggled.connect(lambda checked, s=section,
                                           q=sfindex: self.handleEdit(
                                     s, self.settingsFields[q], checked))
                 else:
                     ns[1].editingFinished.connect(
-                    lambda q=sfindex, s=section: self.handleEdit(s, 
+                    lambda q=sfindex, s=section: self.handleEdit(s,
                                                       self.settingsFields[q]))
-                j+=1
+                j += 1
         outerGrid.addWidget(sA)
-        sA.setWidget(frame)        
+        sA.setWidget(frame)
         frame.setLayout(grid)
         frame.adjustSize()
         self.setLayout(outerGrid)
@@ -543,21 +570,22 @@ class SettingsTab(QDialog):
                 oname = 'network'
                 oval = 'testnet' if checked else 'mainnet'
                 add = '' if not checked else ' - Testnet'
-                w.setWindowTitle(appWindowTitle + add)                
+                w.setWindowTitle(appWindowTitle + add)
             else:
                 oname = str(t[0].text())
                 oval = 'true' if checked else 'false'
-            log.debug('setting section: '+section+' and name: '+oname+' to: '+oval)
-            jm_single().config.set(section,oname,oval)
-    
-        else: #currently there is only QLineEdit
-            log.debug('setting section: '+section+' and name: '+
-                      str(t[0].text())+' to: '+str(t[1].text()))
-            jm_single().config.set(section, str(t[0].text()),str(t[1].text()))
-            if str(t[0].text())=='blockchain_source':
+            log.debug('setting section: ' + section + ' and name: ' + oname +
+                      ' to: ' + oval)
+            jm_single().config.set(section, oname, oval)
+
+        else:  #currently there is only QLineEdit
+            log.debug('setting section: ' + section + ' and name: ' + str(t[
+                0].text()) + ' to: ' + str(t[1].text()))
+            jm_single().config.set(section, str(t[0].text()), str(t[1].text()))
+            if str(t[0].text()) == 'blockchain_source':
                 jm_single().bc_interface = get_blockchain_interface_instance(
                     jm_single().config)
-        
+
     def getSettingsFields(self, section, names):
         results = []
         for name in names:
@@ -566,7 +594,7 @@ class SettingsTab(QDialog):
                 t = config_types[name]
                 if t == bool:
                     qt = QCheckBox()
-                    if val=='testnet' or val.lower()=='true':
+                    if val == 'testnet' or val.lower() == 'true':
                         qt.setChecked(True)
                 elif not t:
                     continue
@@ -576,11 +604,13 @@ class SettingsTab(QDialog):
                         qt.setValidator(QIntValidator(0, 65535))
             else:
                 qt = QLineEdit(val)
-            label = 'Testnet' if name=='network' else name
+            label = 'Testnet' if name == 'network' else name
             results.append((QLabel(label), qt))
         return results
 
+
 class SpendTab(QWidget):
+
     def __init__(self):
         super(SpendTab, self).__init__()
         self.initUI()
@@ -624,32 +654,32 @@ class SpendTab(QWidget):
         donateLayout.addWidget(label2)
         label2.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         donateLayout.setAlignment(label2, QtCore.Qt.AlignLeft)
-        label3 = HelpLabel('More','\n'.join(
+        label3 = HelpLabel('More', '\n'.join(
             ['If the calculated change for your transaction',
              'is smaller than the value you choose (default 0.01 btc)',
              'then that change is sent as a donation. If your change',
-             'is larger than that, there will be no donation.',
-             '',
+             'is larger than that, there will be no donation.', '',
              'As well as helping the developers, this feature can,',
              'in certain circumstances, improve privacy, because there',
              'is no change output that can be linked with your inputs later.']),
-             'About the donation feature')
+                           'About the donation feature')
         label3.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         donateLayout.setAlignment(label3, QtCore.Qt.AlignLeft)
         donateLayout.addWidget(label3)
         donateLayout.addStretch(1)
         innerTopLayout.addLayout(donateLayout, 0, 0, 1, 2)
-        
+
         self.widgets = self.getSettingsWidgets()
         for i, x in enumerate(self.widgets):
-            innerTopLayout.addWidget(x[0], i+1, 0)
-            innerTopLayout.addWidget(x[1], i+1, 1, 1, 2)
-        self.widgets[0][1].editingFinished.connect(lambda : self.checkAddress(
-            self.widgets[0][1].text()))
-        self.startButton =QPushButton('Start')
-        self.startButton.setToolTip('You will be prompted to decide whether to accept\n'+
-                               'the transaction after connecting, and shown the\n'+
-                               'fees to pay; you can cancel at that point if you wish.')
+            innerTopLayout.addWidget(x[0], i + 1, 0)
+            innerTopLayout.addWidget(x[1], i + 1, 1, 1, 2)
+        self.widgets[0][1].editingFinished.connect(
+            lambda: self.checkAddress(self.widgets[0][1].text()))
+        self.startButton = QPushButton('Start')
+        self.startButton.setToolTip(
+            'You will be prompted to decide whether to accept\n' +
+            'the transaction after connecting, and shown the\n' +
+            'fees to pay; you can cancel at that point if you wish.')
         self.startButton.clicked.connect(self.startSendPayment)
         #TODO: how to make the Abort button work, at least some of the time..
         self.abortButton = QPushButton('Abort')
@@ -658,10 +688,11 @@ class SpendTab(QWidget):
         buttons.addStretch(1)
         buttons.addWidget(self.startButton)
         buttons.addWidget(self.abortButton)
-        innerTopLayout.addLayout(buttons, len(self.widgets)+1, 0, 1, 2)
+        innerTopLayout.addLayout(buttons, len(self.widgets) + 1, 0, 1, 2)
         splitter1 = QSplitter(QtCore.Qt.Vertical)
         self.textedit = QTextEdit()
-        self.textedit.verticalScrollBar().rangeChanged.connect(self.resizeScroll)
+        self.textedit.verticalScrollBar().rangeChanged.connect(
+            self.resizeScroll)
         XStream.stdout().messageWritten.connect(self.updateConsoleText)
         XStream.stderr().messageWritten.connect(self.updateConsoleText)
         splitter1.addWidget(top)
@@ -670,7 +701,7 @@ class SpendTab(QWidget):
         self.setLayout(vbox)
         vbox.addWidget(splitter1)
         self.show()
-    
+
     def updateConsoleText(self, txt):
         #these alerts are a bit suboptimal;
         #colored is better, and in the ultra-rare
@@ -678,7 +709,8 @@ class SpendTab(QWidget):
         #However, the transaction confirmation dialog
         #will at least show both in RED and BOLD, and they will be more prominent.
         if joinmarket_alert[0]:
-            w.statusBar().showMessage("JOINMARKET ALERT: " + joinmarket_alert[0])
+            w.statusBar().showMessage("JOINMARKET ALERT: " + joinmarket_alert[
+                0])
         if core_alert[0]:
             w.statusBar().showMessage("BITCOIN CORE ALERT: " + core_alert[0])
         self.textedit.insertPlainText(txt)
@@ -686,62 +718,73 @@ class SpendTab(QWidget):
     def resizeScroll(self, mini, maxi):
         self.textedit.verticalScrollBar().setValue(maxi)
 
-    def startSendPayment(self, ignored_makers = None):
+    def startSendPayment(self, ignored_makers=None):
         self.aborted = False
         if not self.validateSettings():
             return
-        if jm_single().config.get("BLOCKCHAIN", "blockchain_source")=='blockr':
+        if jm_single().config.get("BLOCKCHAIN",
+                                  "blockchain_source") == 'blockr':
             res = self.showBlockrWarning()
-            if res==True:
+            if res == True:
                 return
 
         #all settings are valid; start
-        JMQtMessageBox(self,
-                       "Connecting to IRC.\nView real-time log in the lower pane.",
-                       title="Sendpayment")
+        JMQtMessageBox(
+            self,
+            "Connecting to IRC.\nView real-time log in the lower pane.",
+            title="Sendpayment")
         self.startButton.setEnabled(False)
         self.abortButton.setEnabled(True)
-    
+
         jm_single().nickname = random_nick()
-    
+
         log.debug('starting sendpayment')
 
         w.statusBar().showMessage("Syncing wallet ...")
         jm_single().bc_interface.sync_wallet(w.wallet)
-    
+
         self.irc = IRCMessageChannel(jm_single().nickname)
         self.destaddr = str(self.widgets[0][1].text())
         #convert from bitcoins (enforced by QDoubleValidator) to satoshis
         self.btc_amount_str = str(self.widgets[3][1].text())
-        amount = int(Decimal(self.btc_amount_str)*Decimal('1e8'))
+        amount = int(Decimal(self.btc_amount_str) * Decimal('1e8'))
         makercount = int(self.widgets[1][1].text())
         mixdepth = int(self.widgets[2][1].text())
-        self.taker = SendPayment(self.irc, w.wallet, self.destaddr, amount,
-                                 makercount,
-                                 jm_single().config.getint("GUI", "txfee_default"),
-                                 jm_single().config.getint("GUI", "order_wait_time"),
-                                 mixdepth, False, weighted_order_choose,
-                                 isolated=True)
+        self.taker = SendPayment(
+            self.irc,
+            w.wallet,
+            self.destaddr,
+            amount,
+            makercount,
+            jm_single().config.getint("GUI", "txfee_default"),
+            jm_single().config.getint("GUI", "order_wait_time"),
+            mixdepth,
+            False,
+            weighted_order_choose,
+            isolated=True)
         self.pt = PT(self.taker)
         if ignored_makers:
             self.pt.ignored_makers.extend(ignored_makers)
         thread = TaskThread(self)
-        thread.add(self.runIRC, on_done=self.cleanUp)                
+        thread.add(self.runIRC, on_done=self.cleanUp)
         w.statusBar().showMessage("Connecting to IRC ...")
         thread2 = TaskThread(self)
-        thread2.add(self.createTxThread, on_done=self.doTx)      
-    
+        thread2.add(self.createTxThread, on_done=self.doTx)
+
     def createTxThread(self):
-        self.orders, self.total_cj_fee, self.cjamount, self.utxos = self.pt.create_tx()
+        self.orders, self.total_cj_fee, self.cjamount, self.utxos = self.pt.create_tx(
+        )
         log.debug("Finished create_tx")
         #TODO this can't be done in a thread as currently built;
         #how else? or fix?
         #w.statusBar().showMessage("Found counterparties...")
-    
+
     def doTx(self):
         if not self.orders:
-            JMQtMessageBox(self, "Not enough matching orders found.",
-                           mbtype='warn', title="Error")
+            JMQtMessageBox(self,
+                           "Not enough matching orders found.",
+                           mbtype='warn',
+                           title="Error")
             self.giveUp()
             return
 
@@ -749,7 +792,7 @@ class SpendTab(QWidget):
 
         #reset the btc amount display string if it's a sweep:
         if self.taker.amount == 0:
-            self.btc_amount_str = str((Decimal(self.cjamount)/Decimal('1e8')))
+            self.btc_amount_str = str((Decimal(self.cjamount) / Decimal('1e8')))
 
         mbinfo = []
         if joinmarket_alert[0]:
@@ -765,44 +808,49 @@ class SpendTab(QWidget):
         mbinfo.append(" ")
         mbinfo.append("Counterparties chosen:")
         mbinfo.append('Name,     Order id, Coinjoin fee (sat.)')
-        for k,o in self.orders.iteritems():
-            if o['ordertype']=='relorder':
-                display_fee = int(self.cjamount*float(o['cjfee'])) - int(o['txfee'])
-            elif o['ordertype'] ==  'absorder':
+        for k, o in self.orders.iteritems():
+            if o['ordertype'] == 'relorder':
+                display_fee = int(self.cjamount *
+                                  float(o['cjfee'])) - int(o['txfee'])
+            elif o['ordertype'] == 'absorder':
                 display_fee = int(o['cjfee']) - int(o['txfee'])
             else:
-                log.debug("Unsupported order type: " + str(
-                    o['ordertype']) + ", aborting.")
+                log.debug("Unsupported order type: " + str(o['ordertype']) +
+                          ", aborting.")
                 self.giveUp()
                 return
-            mbinfo.append(k + ', ' + str(o['oid']) + ',         ' + str(display_fee))
-        mbinfo.append('Total coinjoin fee = ' +str(
-            self.total_cj_fee) + ' satoshis, or ' + str(float('%.3g' % (
-                100.0 * total_fee_pc))) + '%')
+            mbinfo.append(k + ', ' + str(o['oid']) + ',         ' + str(
+                display_fee))
+        mbinfo.append('Total coinjoin fee = ' + str(self.total_cj_fee) +
+                      ' satoshis, or ' + str(float('%.3g' % (
+                          100.0 * total_fee_pc))) + '%')
         title = 'Check Transaction'
-        if total_fee_pc * 100 > jm_single().config.getint("GUI","check_high_fee"):
+        if total_fee_pc * 100 > jm_single().config.getint("GUI",
+                                                          "check_high_fee"):
             title += ': WARNING: Fee is HIGH!!'
-        reply = JMQtMessageBox(self, '\n'.join([m + '<p>' for m in mbinfo]),
-                               mbtype='question', title=title)
+        reply = JMQtMessageBox(self,
+                               '\n'.join([m + '<p>' for m in mbinfo]),
+                               mbtype='question',
+                               title=title)
         if reply == QMessageBox.Yes:
             log.debug('You agreed, transaction proceeding')
             w.statusBar().showMessage("Building transaction...")
             thread3 = TaskThread(self)
-            log.debug("Trigger is: "+str(self.donateLimitBox.value()))
-            if get_network()=='testnet':
+            log.debug("Trigger is: " + str(self.donateLimitBox.value()))
+            if get_network() == 'testnet':
                 da = donation_address_testnet
             else:
                 da = donation_address
-            thread3.add(partial(self.pt.do_tx,self.total_cj_fee, self.orders,
-                                self.cjamount, self.utxos,
-                                self.donateCheckBox.isChecked(),
-                                self.donateLimitBox.value(),
-                                da),
-                        on_done=None)
+            thread3.add(
+                partial(self.pt.do_tx, self.total_cj_fee, self.orders,
+                        self.cjamount, self.utxos,
+                        self.donateCheckBox.isChecked(),
+                        self.donateLimitBox.value(), da),
+                on_done=None)
         else:
             self.giveUp()
             return
-    
+
     def giveUp(self):
         self.aborted = True
         log.debug("Transaction aborted.")
@@ -810,74 +858,81 @@ class SpendTab(QWidget):
         self.abortButton.setEnabled(False)
         self.startButton.setEnabled(True)
         w.statusBar().showMessage("Transaction aborted.")
-    
+
     def cleanUp(self):
         if not self.taker.txid:
             if not self.aborted:
                 if not self.pt.ignored_makers:
                     w.statusBar().showMessage("Transaction failed.")
-                    JMQtMessageBox(self, "Transaction was not completed.",
-                                   mbtype='warn', title="Failed")
+                    JMQtMessageBox(self,
+                                   "Transaction was not completed.",
+                                   mbtype='warn',
+                                   title="Failed")
                 else:
-                    reply = JMQtMessageBox(self, '\n'.join(
-                    ["The following counterparties did not respond: ",
-                    ','.join(self.pt.ignored_makers),
-                    "This sometimes happens due to bad network connections.",
-                    "",
-                    "If you would like to try again, ignoring those",
-                    "counterparties, click Yes."]),
-                    mbtype='question',
-                    title="Transaction not completed.")
+                    reply = JMQtMessageBox(
+                        self,
+                        '\n'.join([
+                            "The following counterparties did not respond: ",
+                            ','.join(self.pt.ignored_makers),
+                            "This sometimes happens due to bad network connections.",
+                            "",
+                            "If you would like to try again, ignoring those",
+                            "counterparties, click Yes."
+                        ]),
+                        mbtype='question',
+                        title="Transaction not completed.")
                     if reply == QMessageBox.Yes:
-                        self.startSendPayment(ignored_makers=self.pt.ignored_makers)
+                        self.startSendPayment(
+                            ignored_makers=self.pt.ignored_makers)
                     else:
                         self.giveUp()
                         return
 
         else:
             w.statusBar().showMessage("Transaction completed successfully.")
-            JMQtMessageBox(self, "Transaction has been broadcast.\n"+
-                                "Txid: "+str(self.taker.txid),
-                                title="Success")
+            JMQtMessageBox(self,
+                           "Transaction has been broadcast.\n" + "Txid: " +
+                           str(self.taker.txid),
+                           title="Success")
             #persist the transaction to history
-            with open(jm_single().config.get("GUI", "history_file"),'ab') as f:
+            with open(jm_single().config.get("GUI", "history_file"), 'ab') as f:
                 f.write(','.join([self.destaddr, self.btc_amount_str,
-                        self.taker.txid,
-                        datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")]))
-                f.write('\n') #TODO: Windows
+                                  self.taker.txid, datetime.datetime.now(
+                                  ).strftime("%Y/%m/%d %H:%M:%S")]))
+                f.write('\n')  #TODO: Windows
             #update the TxHistory tab
             txhist = w.centralWidget().widget(3)
             txhist.updateTxInfo()
 
         self.startButton.setEnabled(True)
         self.abortButton.setEnabled(False)
-        
+
     def runIRC(self):
         try:
             log.debug('starting irc')
             self.irc.run()
         except:
             log.debug('CRASHING, DUMPING EVERYTHING')
-            debug_dump_object(w.wallet, ['addr_cache', 'keys', 'wallet_name', 'seed'])
+            debug_dump_object(w.wallet, ['addr_cache', 'keys', 'wallet_name',
+                                         'seed'])
             debug_dump_object(self.taker)
             import traceback
             log.debug(traceback.format_exc())
 
     def finishPayment(self):
         log.debug("Done")
-        
+
     def validateSettings(self):
         valid, errmsg = validate_address(self.widgets[0][1].text())
         if not valid:
-            JMQtMessageBox(self, errmsg,mbtype='warn', title="Error")
+            JMQtMessageBox(self, errmsg, mbtype='warn', title="Error")
             return False
         errs = ["Non-zero number of counterparties must be provided.",
                 "Mixdepth must be chosen.",
-                "Amount, in bitcoins, must be provided."
-                ]
-        for i in range(1,4):
-            if self.widgets[i][1].text().size()==0:
-                JMQtMessageBox(self, errs[i-1], mbtype='warn', title="Error")
+                "Amount, in bitcoins, must be provided."]
+        for i in range(1, 4):
+            if self.widgets[i][1].text().size() == 0:
+                JMQtMessageBox(self, errs[i - 1], mbtype='warn', title="Error")
                 return False
         #QIntValidator does not prevent entry of 0 for counterparties.
         #Note, use of '1' is not recommended, but not prevented here.
@@ -885,7 +940,10 @@ class SpendTab(QWidget):
             JMQtMessageBox(self, errs[0], mbtype='warn', title="Error")
             return False
         if not w.wallet:
-            JMQtMessageBox(self, "There is no wallet loaded.", mbtype='warn', title="Error")
+            JMQtMessageBox(self,
+                           "There is no wallet loaded.",
+                           mbtype='warn',
+                           title="Error")
             return False
         return True
 
@@ -905,7 +963,7 @@ class SpendTab(QWidget):
         qmb.exec_()
 
         switch_off_warning = '0' if qcb.isChecked() else '1'
-        jm_single().config.set("GUI","privacy_warning", switch_off_warning)
+        jm_single().config.set("GUI", "privacy_warning", switch_off_warning)
 
         res = qmb.buttonRole(qmb.clickedButton())
         if res == QMessageBox.YesRole:
@@ -919,45 +977,48 @@ class SpendTab(QWidget):
     def checkAddress(self, addr):
         valid, errmsg = validate_address(str(addr))
         if not valid:
-            JMQtMessageBox(self, "Bitcoin address not valid.\n"+errmsg,
-                           mbtype='warn', title="Error")
+            JMQtMessageBox(self,
+                           "Bitcoin address not valid.\n" + errmsg,
+                           mbtype='warn',
+                           title="Error")
 
     def getSettingsWidgets(self):
         results = []
-        sN = ['Recipient address', 'Number of counterparties',
-                         'Mixdepth','Amount in bitcoins (BTC)']
+        sN = ['Recipient address', 'Number of counterparties', 'Mixdepth',
+              'Amount in bitcoins (BTC)']
         sH = ['The address you want to send the payment to',
-                         'How many other parties to send to; if you enter 4\n'+
-                         ', there will be 5 participants, including you',
-                         'The mixdepth of the wallet to send the payment from',
-                         'The amount IN BITCOINS to send.\n'+
-                         'If you enter 0, a SWEEP transaction\nwill be performed,'+
-                         ' spending all the coins \nin the given mixdepth.']
+              'How many other parties to send to; if you enter 4\n' +
+              ', there will be 5 participants, including you',
+              'The mixdepth of the wallet to send the payment from',
+              'The amount IN BITCOINS to send.\n' +
+              'If you enter 0, a SWEEP transaction\nwill be performed,' +
+              ' spending all the coins \nin the given mixdepth.']
         sT = [str, int, int, float]
         #todo maxmixdepth
-        sMM = ['',(2,20),(0,jm_single().config.getint("GUI","max_mix_depth")-1),
-               (0.00000001,100.0,8)]
+        sMM = ['', (2, 20),
+               (0, jm_single().config.getint("GUI", "max_mix_depth") - 1),
+               (0.00000001, 100.0, 8)]
         sD = ['', '3', '0', '']
         for x in zip(sN, sH, sT, sD, sMM):
             ql = QLabel(x[0])
             ql.setToolTip(x[1])
             qle = QLineEdit(x[3])
-            if x[2]==int:
+            if x[2] == int:
                 qle.setValidator(QIntValidator(*x[4]))
-            if x[2]==float:
+            if x[2] == float:
                 qle.setValidator(QDoubleValidator(*x[4]))
             results.append((ql, qle))
         return results
-        
+
 
 class TxHistoryTab(QWidget):
+
     def __init__(self):
         super(TxHistoryTab, self).__init__()
         self.initUI()
 
     def initUI(self):
-        self.tHTW = MyTreeWidget(self,
-                                    self.create_menu, self.getHeaders())
+        self.tHTW = MyTreeWidget(self, self.create_menu, self.getHeaders())
         self.tHTW.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.tHTW.header().setResizeMode(QHeaderView.Interactive)
         self.tHTW.header().setStretchLastSection(False)
@@ -971,8 +1032,8 @@ class TxHistoryTab(QWidget):
         self.show()
 
     def getHeaders(self):
-            '''Function included in case dynamic in future'''
-            return ['Receiving address','Amount in BTC','Transaction id','Date']
+        '''Function included in case dynamic in future'''
+        return ['Receiving address', 'Amount in BTC', 'Transaction id', 'Date']
 
     def updateTxInfo(self, txinfo=None):
         self.tHTW.clear()
@@ -991,16 +1052,19 @@ class TxHistoryTab(QWidget):
                 w.statusBar().showMessage("No transaction history found.")
             return []
         txhist = []
-        with open(hf,'rb') as f:
+        with open(hf, 'rb') as f:
             txlines = f.readlines()
             for tl in txlines:
                 txhist.append(tl.strip().split(','))
-                if not len(txhist[-1])==4:
-                    JMQtMessageBox(self, "Incorrectedly formatted file "+hf,
-                                   mbtype='warn', title="Error")
+                if not len(txhist[-1]) == 4:
+                    JMQtMessageBox(self,
+                                   "Incorrectedly formatted file " + hf,
+                                   mbtype='warn',
+                                   title="Error")
                     w.statusBar().showMessage("No transaction history found.")
                     return []
-        return txhist[::-1] #appended to file in date order, window shows reverse
+        return txhist[::-1
+                     ]  #appended to file in date order, window shows reverse
 
     def create_menu(self, position):
         item = self.tHTW.currentItem()
@@ -1026,16 +1090,18 @@ class TxHistoryTab(QWidget):
                            ','.join([str(item.text(_)) for _ in range(4)])))
         menu.exec_(self.tHTW.viewport().mapToGlobal(position))
 
+
 class JMWalletTab(QWidget):
+
     def __init__(self):
         super(JMWalletTab, self).__init__()
         self.wallet_name = 'NONE'
         self.initUI()
-    
+
     def initUI(self):
         self.label1 = QLabel(
-            "CURRENT WALLET: "+self.wallet_name + ', total balance: 0.0',
-                             self)
+            "CURRENT WALLET: " + self.wallet_name + ', total balance: 0.0',
+            self)
         v = MyTreeWidget(self, self.create_menu, self.getHeaders())
         v.setSelectionMode(QAbstractItemView.ExtendedSelection)
         v.on_update = self.updateWalletInfo
@@ -1052,10 +1118,10 @@ class JMWalletTab(QWidget):
         #vBoxLayout.addWidget(self.label2)
         #vBoxLayout.addWidget(self.table)
         self.show()
-    
+
     def getHeaders(self):
         '''Function included in case dynamic in future'''
-        return ['Address','Index','Balance','Used/New']
+        return ['Address', 'Index', 'Balance', 'Used/New']
 
     def create_menu(self, position):
         item = self.history.currentItem()
@@ -1072,7 +1138,8 @@ class JMWalletTab(QWidget):
         if address_valid:
             menu.addAction("Copy address to clipboard",
                            lambda: app.clipboard().setText(address))
-        menu.addAction("Resync wallet from blockchain", lambda: w.resyncWallet())
+        menu.addAction("Resync wallet from blockchain",
+                       lambda: w.resyncWallet())
         #TODO add more items to context menu
         menu.exec_(self.history.viewport().mapToGlobal(position))
 
@@ -1086,22 +1153,22 @@ class JMWalletTab(QWidget):
                 self.wallet_name = self.mainwindow.wallet.seed
             else:
                 self.wallet_name = os.path.basename(self.mainwindow.wallet.path)
-            self.label1.setText(
-            "CURRENT WALLET: "+self.wallet_name + ', total balance: '+total_bal)
+            self.label1.setText("CURRENT WALLET: " + self.wallet_name +
+                                ', total balance: ' + total_bal)
 
-        for i in range(jm_single().config.getint("GUI","max_mix_depth")):
+        for i in range(jm_single().config.getint("GUI", "max_mix_depth")):
             if walletinfo:
                 mdbalance = mbalances[i]
             else:
                 mdbalance = "{0:.8f}".format(0)
-            m_item = QTreeWidgetItem(["Mixdepth " +str(i) + " , balance: "+mdbalance,
-                                      '','','',''])
+            m_item = QTreeWidgetItem(["Mixdepth " + str(i) + " , balance: " +
+                                      mdbalance, '', '', '', ''])
             l.addChild(m_item)
-            for forchange in [0,1]:
-                heading = 'EXTERNAL' if forchange==0 else 'INTERNAL'
+            for forchange in [0, 1]:
+                heading = 'EXTERNAL' if forchange == 0 else 'INTERNAL'
                 heading_end = ' addresses m/0/%d/%d/' % (i, forchange)
                 heading += heading_end
-                seq_item = QTreeWidgetItem([ heading, '', '', '', ''])
+                seq_item = QTreeWidgetItem([heading, '', '', '', ''])
                 m_item.addChild(seq_item)
                 if not forchange:
                     seq_item.setExpanded(True)
@@ -1111,11 +1178,11 @@ class JMWalletTab(QWidget):
                 else:
                     for j in range(len(rows[i][forchange])):
                         item = QTreeWidgetItem(rows[i][forchange][j])
-                        item.setFont(0,QFont(MONOSPACE_FONT))
+                        item.setFont(0, QFont(MONOSPACE_FONT))
                         if rows[i][forchange][j][3] == 'used':
                             item.setForeground(3, QBrush(QColor('red')))
                         seq_item.addChild(item)
-        
+
 
 class TaskThread(QtCore.QThread):
     '''Thread that runs background tasks.  Callbacks are guaranteed
@@ -1156,12 +1223,14 @@ class TaskThread(QtCore.QThread):
     def stop(self):
         self.tasks.put(None)
 
+
 class JMMainWindow(QMainWindow):
+
     def __init__(self):
         super(JMMainWindow, self).__init__()
-        self.wallet=None
+        self.wallet = None
         self.initUI()
-    
+
     def closeEvent(self, event):
         quit_msg = "Are you sure you want to quit?"
         reply = JMQtMessageBox(self, quit_msg, mbtype='question')
@@ -1173,8 +1242,8 @@ class JMMainWindow(QMainWindow):
 
     def initUI(self):
         self.statusBar().showMessage("Ready")
-        self.setGeometry(300,300,250,150)
-        exitAction = QAction(QIcon('exit.png'), '&Exit', self)        
+        self.setGeometry(300, 300, 250, 150)
+        exitAction = QAction(QIcon('exit.png'), '&Exit', self)
         exitAction.setShortcut('Ctrl+Q')
         exitAction.setStatusTip('Exit application')
         exitAction.triggered.connect(qApp.quit)
@@ -1193,7 +1262,7 @@ class JMMainWindow(QMainWindow):
         exportPrivAction.setStatusTip('Export all private keys to a csv file')
         exportPrivAction.triggered.connect(self.exportPrivkeysCsv)
         menubar = QMenuBar()
-        
+
         walletMenu = menubar.addMenu('&Wallet')
         walletMenu.addAction(loadAction)
         walletMenu.addAction(generateAction)
@@ -1202,7 +1271,7 @@ class JMMainWindow(QMainWindow):
         walletMenu.addAction(exitAction)
         aboutMenu = menubar.addMenu('&About')
         aboutMenu.addAction(aboutAction)
-        
+
         self.setMenuBar(menubar)
         self.show()
 
@@ -1211,21 +1280,21 @@ class JMMainWindow(QMainWindow):
         lyt = QVBoxLayout(msgbox)
         msgbox.setWindowTitle(appWindowTitle)
         label1 = QLabel()
-        label1.setText("<a href="+
-                       "'https://github.com/joinmarket-org/joinmarket/wiki'>"+
-                       "Read more about Joinmarket</a><p>"+
-                       "<p>".join(["Joinmarket core software version: "+JM_CORE_VERSION,
-                                   "JoinmarketQt version: "+JM_GUI_VERSION,
-                                   "Messaging protocol version:"+" %s" % (
-                           str(jm_single().JM_VERSION)),
-                        "Help us support Bitcoin fungibility -",
-                        "donate here: "]))
+        label1.setText(
+            "<a href=" + "'https://github.com/joinmarket-org/joinmarket/wiki'>"
+            + "Read more about Joinmarket</a><p>" + "<p>".join(
+                ["Joinmarket core software version: " + JM_CORE_VERSION,
+                 "JoinmarketQt version: " + JM_GUI_VERSION,
+                 "Messaging protocol version:" + " %s" % (
+                     str(jm_single().JM_VERSION)
+                 ), "Help us support Bitcoin fungibility -", "donate here: "]))
         label2 = QLabel(donation_address)
         for l in [label1, label2]:
             l.setTextFormat(QtCore.Qt.RichText)
             l.setTextInteractionFlags(QtCore.Qt.TextBrowserInteraction)
             l.setOpenExternalLinks(True)
-        label2.setText("<a href='bitcoin:"+donation_address+"'>"+donation_address+"</a>")
+        label2.setText("<a href='bitcoin:" + donation_address + "'>" +
+                       donation_address + "</a>")
         lyt.addWidget(label1)
         lyt.addWidget(label2)
         btnbox = QDialogButtonBox(msgbox)
@@ -1236,7 +1305,10 @@ class JMMainWindow(QMainWindow):
 
     def exportPrivkeysCsv(self):
         if not self.wallet:
-            JMQtMessageBox(self, "No wallet loaded.", mbtype='crit', title="Error")
+            JMQtMessageBox(self,
+                           "No wallet loaded.",
+                           mbtype='crit',
+                           title="Error")
             return
         #TODO add password protection; too critical
         d = QDialog(self)
@@ -1244,9 +1316,11 @@ class JMMainWindow(QMainWindow):
         d.setMinimumSize(850, 300)
         vbox = QVBoxLayout(d)
 
-        msg = "%s\n%s\n%s" % ("WARNING: ALL your private keys are secret.",
-                              "Exposing a single private key can compromise your entire wallet!",
-                              "In particular, DO NOT use 'redeem private key' services proposed by third parties.")
+        msg = "%s\n%s\n%s" % (
+            "WARNING: ALL your private keys are secret.",
+            "Exposing a single private key can compromise your entire wallet!",
+            "In particular, DO NOT use 'redeem private key' services proposed by third parties."
+        )
         vbox.addWidget(QLabel(msg))
         e = QTextEdit()
         e.setReadOnly(True)
@@ -1268,25 +1342,28 @@ class JMMainWindow(QMainWindow):
                     if float(addr_info[2]) > 0:
                         addresses.append(addr_info[0])
         done = False
+
         def privkeys_thread():
             for addr in addresses:
                 time.sleep(0.1)
                 if done:
                     break
                 priv = self.wallet.get_key_from_addr(addr)
-                private_keys[addr] = btc.wif_compressed_privkey(priv,
-                                                            vbyte=get_p2pk_vbyte())
+                private_keys[addr] = btc.wif_compressed_privkey(
+                    priv,
+                    vbyte=get_p2pk_vbyte())
                 d.emit(QtCore.SIGNAL('computing_privkeys'))
             d.emit(QtCore.SIGNAL('show_privkeys'))
 
         def show_privkeys():
-            s = "\n".join( map( lambda x: x[0] + "\t"+ x[1], private_keys.items()))
+            s = "\n".join(map(lambda x: x[0] + "\t" + x[1], private_keys.items(
+            )))
             e.setText(s)
             b.setEnabled(True)
 
-        d.connect(d, QtCore.SIGNAL('computing_privkeys'),
-                  lambda: e.setText("Please wait... %d/%d"%(len(private_keys),
-                                                            len(addresses))))
+        d.connect(
+            d, QtCore.SIGNAL('computing_privkeys'),
+            lambda: e.setText("Please wait... %d/%d" % (len(private_keys), len(addresses))))
         d.connect(d, QtCore.SIGNAL('show_privkeys'), show_privkeys)
 
         threading.Thread(target=privkeys_thread).start()
@@ -1305,30 +1382,36 @@ class JMMainWindow(QMainWindow):
                 transaction.writerow(["address", "private_key"])
                 for addr, pk in private_keys.items():
                     #sanity check
-                    if not btc.privtoaddr(btc.from_wif_privkey(
-                        pk, vbyte=get_p2pk_vbyte()),
-                        magicbyte=get_p2pk_vbyte())==addr:
+                    if not btc.privtoaddr(
+                            btc.from_wif_privkey(pk,
+                                                 vbyte=get_p2pk_vbyte()),
+                            magicbyte=get_p2pk_vbyte()) == addr:
                         JMQtMessageBox(None, "Failed to create privkey export -" +\
                                        " critical error in key parsing.",
                                        mbtype='crit')
-                        return                    
-                    transaction.writerow(["%34s"%addr,pk])
+                        return
+                    transaction.writerow(["%34s" % addr, pk])
         except (IOError, os.error), reason:
             export_error_label = "JoinmarketQt was unable to produce a private key-export."
-            JMQtMessageBox(None, export_error_label + "\n" + str(reason),
-                           mbtype='crit', title= "Unable to create csv")
+            JMQtMessageBox(None,
+                           export_error_label + "\n" + str(reason),
+                           mbtype='crit',
+                           title="Unable to create csv")
 
         except Exception as e:
             JMQtMessageBox(self, str(e), mbtype='crit', title="Error")
             return
 
-        JMQtMessageBox(self, "Private keys exported to: " + privkeys_fn + '.csv',
-                       title= "Success")   
+        JMQtMessageBox(self,
+                       "Private keys exported to: " + privkeys_fn + '.csv',
+                       title="Success")
 
     def recoverWallet(self):
-        if get_network()=='testnet':
-            JMQtMessageBox(self, 'recover from seedphrase not supported for testnet',
-                           mbtype='crit', title="Error")
+        if get_network() == 'testnet':
+            JMQtMessageBox(self,
+                           'recover from seedphrase not supported for testnet',
+                           mbtype='crit',
+                           title="Error")
             return
         d = QDialog(self)
         d.setModal(1)
@@ -1337,9 +1420,10 @@ class JMMainWindow(QMainWindow):
         message_e = QTextEdit()
         layout.addWidget(QLabel('Enter 12 words'), 0, 0)
         layout.addWidget(message_e, 1, 0)
-        hbox = QHBoxLayout()       
+        hbox = QHBoxLayout()
         buttonBox = QDialogButtonBox(self)
-        buttonBox.setStandardButtons(QDialogButtonBox.Ok|QDialogButtonBox.Cancel)
+        buttonBox.setStandardButtons(QDialogButtonBox.Ok |
+                                     QDialogButtonBox.Cancel)
         buttonBox.button(QDialogButtonBox.Ok).clicked.connect(d.accept)
         buttonBox.button(QDialogButtonBox.Cancel).clicked.connect(d.reject)
         hbox.addWidget(buttonBox)
@@ -1348,81 +1432,96 @@ class JMMainWindow(QMainWindow):
         if result != QDialog.Accepted:
             return
         msg = str(message_e.toPlainText())
-        words = msg.split() #splits on any number of ws chars
-        if not len(words)==12:
-            JMQtMessageBox(self, "You did not provide 12 words, aborting.",
-                           mbtype='warn', title="Error")
+        words = msg.split()  #splits on any number of ws chars
+        if not len(words) == 12:
+            JMQtMessageBox(self,
+                           "You did not provide 12 words, aborting.",
+                           mbtype='warn',
+                           title="Error")
         else:
             try:
                 seed = mn_decode(words)
                 self.initWallet(seed=seed)
             except ValueError as e:
-                JMQtMessageBox(self, "Could not decode seedphrase: "+repr(e),
-                               mbtype='warn', title="Error")
+                JMQtMessageBox(self,
+                               "Could not decode seedphrase: " + repr(e),
+                               mbtype='warn',
+                               title="Error")
 
     def selectWallet(self, testnet_seed=None):
         if get_network() != 'testnet':
             current_path = os.path.dirname(os.path.realpath(__file__))
-            if os.path.isdir(os.path.join(current_path,'wallets')):
-                current_path = os.path.join(current_path,'wallets')
-            firstarg = QFileDialog.getOpenFileName(self, 'Choose Wallet File', 
-                    directory=current_path)
+            if os.path.isdir(os.path.join(current_path, 'wallets')):
+                current_path = os.path.join(current_path, 'wallets')
+            firstarg = QFileDialog.getOpenFileName(self,
+                                                   'Choose Wallet File',
+                                                   directory=current_path)
             #TODO validate the file looks vaguely like a wallet file
-            log.debug('Looking for wallet in: '+firstarg)
+            log.debug('Looking for wallet in: ' + firstarg)
             if not firstarg:
                 return
             decrypted = False
             while not decrypted:
-                text, ok = QInputDialog.getText(self, 'Decrypt wallet', 
-                    'Enter your password:', mode=QLineEdit.Password)
+                text, ok = QInputDialog.getText(self,
+                                                'Decrypt wallet',
+                                                'Enter your password:',
+                                                mode=QLineEdit.Password)
                 if not ok:
                     return
                 pwd = str(text).strip()
                 decrypted = self.loadWalletFromBlockchain(firstarg, pwd)
         else:
             if not testnet_seed:
-                testnet_seed, ok = QInputDialog.getText(self, 'Load Testnet wallet',
-                    'Enter a testnet seed:', mode=QLineEdit.Normal)
+                testnet_seed, ok = QInputDialog.getText(self,
+                                                        'Load Testnet wallet',
+                                                        'Enter a testnet seed:',
+                                                        mode=QLineEdit.Normal)
                 if not ok:
                     return
             firstarg = str(testnet_seed)
             pwd = None
             #ignore return value as there is no decryption failure possible
-            self.loadWalletFromBlockchain(firstarg, pwd)        
-        
+            self.loadWalletFromBlockchain(firstarg, pwd)
+
     def loadWalletFromBlockchain(self, firstarg=None, pwd=None):
-        if (firstarg and pwd) or (firstarg and get_network()=='testnet'):
-            self.wallet = Wallet(str(firstarg),
-                max_mix_depth=jm_single().config.getint("GUI","max_mix_depth"),
+        if (firstarg and pwd) or (firstarg and get_network() == 'testnet'):
+            self.wallet = Wallet(
+                str(firstarg),
+                max_mix_depth=jm_single().config.getint("GUI", "max_mix_depth"),
                 pwd=pwd)
             if not self.wallet.decrypted:
-                JMQtMessageBox(self, "Wrong password", mbtype='warn', title="Error")
+                JMQtMessageBox(self,
+                               "Wrong password",
+                               mbtype='warn',
+                               title="Error")
                 return False
         if 'listunspent_args' not in jm_single().config.options('POLICY'):
-            jm_single().config.set('POLICY','listunspent_args', '[0]')
+            jm_single().config.set('POLICY', 'listunspent_args', '[0]')
         assert self.wallet, "No wallet loaded"
         thread = TaskThread(self)
         task = partial(jm_single().bc_interface.sync_wallet, self.wallet)
-        thread.add(task, on_done=self.updateWalletInfo)                
+        thread.add(task, on_done=self.updateWalletInfo)
         self.statusBar().showMessage("Reading wallet from blockchain ...")
         return True
 
     def updateWalletInfo(self):
         t = self.centralWidget().widget(0)
-        if not self.wallet: #failure to sync in constructor means object is not created
+        if not self.wallet:  #failure to sync in constructor means object is not created
             newstmsg = "Unable to sync wallet - see error in console."
         else:
             t.updateWalletInfo(get_wallet_printout(self.wallet))
             newstmsg = "Wallet synced successfully."
         self.statusBar().showMessage(newstmsg)
-    
+
     def resyncWallet(self):
         if not self.wallet:
-            JMQtMessageBox(self, "No wallet loaded", mbtype='warn', title="Error")
+            JMQtMessageBox(self,
+                           "No wallet loaded",
+                           mbtype='warn',
+                           title="Error")
             return
-        self.wallet.init_index() #sync operation assumes index is empty
+        self.wallet.init_index()  #sync operation assumes index is empty
         self.loadWalletFromBlockchain()
-        
 
     def generateWallet(self):
         log.debug('generating wallet')
@@ -1431,17 +1530,19 @@ class JMMainWindow(QMainWindow):
             self.selectWallet(testnet_seed=seed)
         else:
             self.initWallet()
-    
+
     def getTestnetSeed(self):
-        text, ok = QInputDialog.getText(self, 'Testnet seed', 
-                        'Enter a string as seed (can be anything):')
+        text, ok = QInputDialog.getText(
+            self, 'Testnet seed', 'Enter a string as seed (can be anything):')
         if not ok or not text:
-            JMQtMessageBox(self, "No seed entered, aborting", mbtype='warn',
+            JMQtMessageBox(self,
+                           "No seed entered, aborting",
+                           mbtype='warn',
                            title="Error")
             return
         return str(text).strip()
-        
-    def initWallet(self, seed = None):
+
+    def initWallet(self, seed=None):
         '''Creates a new mainnet
         wallet
         '''
@@ -1452,24 +1553,28 @@ class JMMainWindow(QMainWindow):
             seed_recovery_warning = [
                 "WRITE DOWN THIS WALLET RECOVERY SEED.",
                 "If you fail to do this, your funds are",
-                "at risk. Do NOT ignore this step!!!"]
+                "at risk. Do NOT ignore this step!!!"
+            ]
             mb.setText("\n".join(seed_recovery_warning))
             mb.setInformativeText(' '.join(words))
             mb.setStandardButtons(QMessageBox.Ok)
             ret = mb.exec_()
-        
+
         pd = PasswordDialog()
         while True:
             pd.exec_()
             if pd.new_pw.text() != pd.conf_pw.text():
-                JMQtMessageBox(self, "Passwords don't match.", mbtype='warn',
+                JMQtMessageBox(self,
+                               "Passwords don't match.",
+                               mbtype='warn',
                                title="Error")
                 continue
             break
 
         walletfile = create_wallet_file(str(pd.new_pw.text()), seed)
-        walletname, ok = QInputDialog.getText(self, 'Choose wallet name', 
-                    'Enter wallet file name:', QLineEdit.Normal,"wallet.json")
+        walletname, ok = QInputDialog.getText(self, 'Choose wallet name',
+                                              'Enter wallet file name:',
+                                              QLineEdit.Normal, "wallet.json")
         if not ok:
             JMQtMessageBox(self, "Create wallet aborted", mbtype='warn')
             return
@@ -1479,17 +1584,21 @@ class JMMainWindow(QMainWindow):
         walletpath = os.path.join('wallets', str(walletname))
         # Does a wallet with the same name exist?
         if os.path.isfile(walletpath):
-            JMQtMessageBox(self, walletpath + ' already exists. Aborting.',
-                           mbtype='warn', title="Error")
+            JMQtMessageBox(self,
+                           walletpath + ' already exists. Aborting.',
+                           mbtype='warn',
+                           title="Error")
             return
         else:
             fd = open(walletpath, 'w')
             fd.write(walletfile)
             fd.close()
-            JMQtMessageBox(self, 'Wallet saved to ' + str(walletname),
+            JMQtMessageBox(self,
+                           'Wallet saved to ' + str(walletname),
                            title="Wallet created")
-            self.loadWalletFromBlockchain(str(walletname), str(pd.new_pw.text()))
-            
+            self.loadWalletFromBlockchain(
+                str(walletname), str(pd.new_pw.text()))
+
 
 def get_wallet_printout(wallet):
     """Given a joinmarket wallet, retrieve the list of
@@ -1509,10 +1618,10 @@ def get_wallet_printout(wallet):
     for m in range(wallet.max_mix_depth):
         rows.append([])
         balance_depth = 0
-        for forchange in [0,1]:
+        for forchange in [0, 1]:
             rows[m].append([])
-            for k in range(wallet.index[m][forchange] + jm_single().config.getint(
-                "GUI", "gaplimit")):
+            for k in range(wallet.index[m][forchange] + jm_single(
+            ).config.getint("GUI", "gaplimit")):
                 addr = wallet.get_addr(m, forchange, k)
                 balance = 0.0
                 for addrvalue in wallet.unspent.values():
@@ -1520,15 +1629,15 @@ def get_wallet_printout(wallet):
                         balance += addrvalue['value']
                 balance_depth += balance
                 used = ('used' if k < wallet.index[m][forchange] else 'new')
-                if balance > 0.0 or (
-                    k >= wallet.index[m][forchange] and forchange==0):
-                    rows[m][forchange].append([addr, str(k), 
-                                               "{0:.8f}".format(balance/1e8),used])
+                if balance > 0.0 or (k >= wallet.index[m][forchange] and
+                                     forchange == 0):
+                    rows[m][forchange].append([addr, str(k), "{0:.8f}".format(
+                        balance / 1e8), used])
         mbalances.append(balance_depth)
         total_balance += balance_depth
-    
-    return (rows, ["{0:.8f}".format(x/1e8) for x in mbalances], 
-            "{0:.8f}".format(total_balance/1e8))
+
+    return (rows, ["{0:.8f}".format(x / 1e8) for x in mbalances],
+            "{0:.8f}".format(total_balance / 1e8))
 
 ################################
 load_program_config()
