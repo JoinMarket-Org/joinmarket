@@ -3,7 +3,7 @@
 Joinmarket GUI using PyQt for doing Sendpayment.
 Some widgets copied and modified from https://github.com/spesmilo/electrum
 The latest version of this code is currently maintained at:
-https://github.com/AdamISZ/joinmarket/tree/gui
+https://github.com/JoinMarket-Org/joinmarket/tree/gui
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -21,7 +21,7 @@ https://github.com/AdamISZ/joinmarket/tree/gui
 
 
 import sys, base64, textwrap, re, datetime, os, math, json, logging
-import Queue, platform
+import Queue, platform, csv, threading, time
 
 from decimal import Decimal
 from functools import partial
@@ -1173,12 +1173,16 @@ class JMMainWindow(QMainWindow):
         recoverAction.triggered.connect(self.recoverWallet)
         aboutAction = QAction('About Joinmarket', self)
         aboutAction.triggered.connect(self.showAboutDialog)
+        exportPrivAction = QAction('&Export keys', self)
+        exportPrivAction.setStatusTip('Export all private keys to a csv file')
+        exportPrivAction.triggered.connect(self.exportPrivkeysCsv)
         menubar = QMenuBar()
         
         walletMenu = menubar.addMenu('&Wallet')
         walletMenu.addAction(loadAction)
         walletMenu.addAction(generateAction)
         walletMenu.addAction(recoverAction)
+        walletMenu.addAction(exportPrivAction)
         walletMenu.addAction(exitAction)
         aboutMenu = menubar.addMenu('&About')
         aboutMenu.addAction(aboutAction)
@@ -1213,6 +1217,95 @@ class JMMainWindow(QMainWindow):
         btnbox.accepted.connect(msgbox.accept)
         lyt.addWidget(btnbox)
         msgbox.exec_()
+
+    def exportPrivkeysCsv(self):
+        if not self.wallet:
+            QMessageBox.critical(self, "Error", "No wallet loaded.")
+            return
+        #TODO add password protection; too critical
+        d = QDialog(self)
+        d.setWindowTitle('Private keys')
+        d.setMinimumSize(850, 300)
+        vbox = QVBoxLayout(d)
+
+        msg = "%s\n%s\n%s" % ("WARNING: ALL your private keys are secret.",
+                              "Exposing a single private key can compromise your entire wallet!",
+                              "In particular, DO NOT use 'redeem private key' services proposed by third parties.")
+        vbox.addWidget(QLabel(msg))
+        e = QTextEdit()
+        e.setReadOnly(True)
+        vbox.addWidget(e)
+        b = OkButton(d, 'Export')
+        b.setEnabled(False)
+        vbox.addLayout(Buttons(CancelButton(d), b))
+        private_keys = {}
+        #prepare list of addresses with non-zero balance
+        #TODO: consider adding a 'export insanely huge amount'
+        #option for anyone with gaplimit troubles, although
+        #that is a complete mess for a user, mostly changing
+        #the gaplimit in the Settings tab should address it.
+        rows = get_wallet_printout(self.wallet)
+        addresses = []
+        for forchange in rows[0]:
+            for mixdepth in forchange:
+                for addr_info in mixdepth:
+                    if float(addr_info[2]) > 0:
+                        addresses.append(addr_info[0])
+        done = False
+        def privkeys_thread():
+            for addr in addresses:
+                time.sleep(0.1)
+                if done:
+                    break
+                priv = self.wallet.get_key_from_addr(addr)
+                private_keys[addr] = btc.wif_compressed_privkey(priv,
+                                                            vbyte=get_p2pk_vbyte())
+                d.emit(QtCore.SIGNAL('computing_privkeys'))
+            d.emit(QtCore.SIGNAL('show_privkeys'))
+
+        def show_privkeys():
+            s = "\n".join( map( lambda x: x[0] + "\t"+ x[1], private_keys.items()))
+            e.setText(s)
+            b.setEnabled(True)
+
+        d.connect(d, QtCore.SIGNAL('computing_privkeys'),
+                  lambda: e.setText("Please wait... %d/%d"%(len(private_keys),
+                                                            len(addresses))))
+        d.connect(d, QtCore.SIGNAL('show_privkeys'), show_privkeys)
+
+        threading.Thread(target=privkeys_thread).start()
+        if not d.exec_():
+            done = True
+            return
+        privkeys_fn_base = 'joinmarket-private-keys'
+        i = 0
+        privkeys_fn = privkeys_fn_base
+        while os.path.isfile(privkeys_fn + '.csv'):
+            i += 1
+            privkeys_fn = privkeys_fn_base + str(i)
+        try:
+            with open(privkeys_fn + '.csv', "w") as f:
+                transaction = csv.writer(f)
+                transaction.writerow(["address", "private_key"])
+                for addr, pk in private_keys.items():
+                    #sanity check
+                    if not btc.privtoaddr(btc.from_wif_privkey(
+                        pk, vbyte=get_p2pk_vbyte()),
+                        magicbyte=get_p2pk_vbyte())==addr:
+                        QMessageBox.critical(None, "Failed to create privkey export", "Critical error in key parsing")
+                        return                    
+                    transaction.writerow(["%34s"%addr,pk])
+        except (IOError, os.error), reason:
+            export_error_label = "JoinmarketQt was unable to produce a private key-export."
+            QMessageBox.critical(None, "Unable to create csv",
+                                 export_error_label + "\n" + str(reason))
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
+            return
+
+        QMessageBox.information(self, "Success",
+                                "Private keys exported to: " + privkeys_fn + '.csv')   
 
     def recoverWallet(self):
         if get_network()=='testnet':
@@ -1375,6 +1468,17 @@ class JMMainWindow(QMainWindow):
             
 
 def get_wallet_printout(wallet):
+    """Given a joinmarket wallet, retrieve the list of
+    addresses and corresponding balances to be displayed;
+    this could/should be a re-used function for both
+    command line and GUI.
+    The format of the retrieved data is:
+    rows: is of format [[[addr,index,bal,used],[addr,...]]*5,
+    [[addr, index,..], [addr, index..]]*5]
+    mbalances: is a simple array of 5 mixdepth balances
+    total_balance: whole wallet
+    Bitcoin amounts returned are in btc, not satoshis
+    """
     rows = []
     mbalances = []
     total_balance = 0
@@ -1398,9 +1502,7 @@ def get_wallet_printout(wallet):
                                                "{0:.8f}".format(balance/1e8),used])
         mbalances.append(balance_depth)
         total_balance += balance_depth
-    #rows is of format [[[addr,index,bal,used],[addr,...]*5],
-    #[[addr, index,..], [addr, index..]*5]]
-    #mbalances is a simple array of 5 mixdepth balances
+    
     return (rows, ["{0:.8f}".format(x/1e8) for x in mbalances], 
             "{0:.8f}".format(total_balance/1e8))
 

@@ -370,7 +370,7 @@ class PT(object):
                 #both values are integers; we can ignore small rounding errors
                 self.taker.txfee = estimated_fee / self.taker.makercount
             total_value = sum([va['value'] for va in utxos.values()])
-            orders, cjamount = choose_sweep_orders(
+            orders, cjamount, total_cj_fee = choose_sweep_orders(
                 self.taker.db, total_value, self.taker.txfee,
                 self.taker.makercount, self.taker.chooseOrdersFunc,
                 self.ignored_makers)
