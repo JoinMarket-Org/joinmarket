@@ -1640,14 +1640,27 @@ def get_wallet_printout(wallet):
             "{0:.8f}".format(total_balance / 1e8))
 
 ################################
-load_program_config()
+config_load_error = False
+app = QApplication(sys.argv)
+try:
+    load_program_config()
+except Exception as e:
+    config_load_error = "Failed to setup joinmarket: "+repr(e)
+    if "RPC" in repr(e):
+        config_load_error += '\n'*3 + ''.join(
+            ["Errors about failed RPC connections usually mean an incorrectly ",
+             "configured instance of Bitcoin Core (e.g. it hasn't been started ",
+             "or the rpc ports are not correct in your joinmarket.cfg or your ",
+             "bitcoin.conf file; see the joinmarket wiki for configuration details."
+             ])
+    JMQtMessageBox(None, config_load_error, mbtype='crit', title='failed to load')
+    exit(1)
 update_config_for_gui()
 
 #we're not downloading from github, so logs dir
 #might not exist
 if not os.path.exists('logs'):
     os.makedirs('logs')
-app = QApplication(sys.argv)
 appWindowTitle = 'JoinMarketQt'
 w = JMMainWindow()
 tabWidget = QTabWidget(w)
