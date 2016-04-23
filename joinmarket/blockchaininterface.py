@@ -212,7 +212,7 @@ class BlockrInterface(BlockchainInterface):
         unconfirm_timeout = jm_single().config.getint('TIMEOUT',
             'unconfirm_timeout_sec')
         unconfirm_poll_period = 5
-        confirm_timeout = jm_single().config.getint('TIMEOUT',
+        confirm_timeout = jm_single().config.getfloat('TIMEOUT',
             'confirm_timeout_hours')*60*60
         confirm_poll_period = 5 * 60
 
@@ -394,7 +394,7 @@ def bitcoincore_timeout_callback(uc_called, txout_set, txnotify_fun_list,
         uc_called else 'false'))
     txnotify_tuple = None
     for tnf in txnotify_fun_list:
-        if tnf[0] == txout_set:
+        if tnf[0] == txout_set and uc_called == tnf[-1]:
             txnotify_tuple = tnf
             break
     if txnotify_tuple == None:
@@ -462,7 +462,7 @@ class NotifyRequestHeader(BaseHTTPServer.BaseHTTPRequestHandler):
                         + (True,))
                     log.debug('ran unconfirmfun')
                     if timeoutfun:
-                        threading.Timer(jm_single().config.getint('TIMEOUT',
+                        threading.Timer(jm_single().config.getfloat('TIMEOUT',
                             'confirm_timeout_hours')*60*60,
                             bitcoincore_timeout_callback,
                             args=(True, tx_output_set,
@@ -746,6 +746,7 @@ class RegtestBitcoinCoreInterface(BitcoinCoreInterface):
     def __init__(self, jsonRpc):
         super(RegtestBitcoinCoreInterface, self).__init__(jsonRpc, 'regtest')
         self.pushtx_failure_prob = 0
+        self.tick_forward_chain_interval = 2
 
     def pushtx(self, txhex):
         if self.pushtx_failure_prob != 0 and random.random() <\
@@ -762,7 +763,10 @@ class RegtestBitcoinCoreInterface(BitcoinCoreInterface):
                 self.bcinterface = bcinterface
 
             def run(self):
-                time.sleep(2)
+                if self.bcinterface.tick_forward_chain_interval < 0:
+                    log.debug('not ticking forward chain')
+                    return
+                time.sleep(self.bcinterface.tick_forward_chain_interval)
                 self.bcinterface.tick_forward_chain(1)
 
         TickChainThread(self).start()
