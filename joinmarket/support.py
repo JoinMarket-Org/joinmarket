@@ -342,7 +342,7 @@ def choose_sweep_orders(db,
         return cjamount, int(sumabsfee + sumrelfee * cjamount)
 
     log.debug('choosing sweep orders for total_input_value = ' + str(
-            total_input_value))
+            total_input_value) + ' n=' + str(n))
     sqlorders = db.execute('SELECT * FROM orderbook WHERE minsize <= ?;',
                            (total_input_value,)).fetchall()
     orderlist = [dict([(k, o[k]) for k in ORDER_KEYS])

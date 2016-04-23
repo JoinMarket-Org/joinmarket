@@ -316,8 +316,8 @@ class CoinJoinTX(object):
             tx = self.sign_tx(tx, index, self.wallet.get_key_from_addr(addr))
         self.latest_tx = btc.deserialize(tx)
 
-    def push(self, txd):
-        tx = btc.serialize(txd)
+    def push(self):
+        tx = btc.serialize(self.latest_tx)
         log.debug('\n' + tx)
         log.debug('txid = ' + btc.txhash(tx))
         self.txid = btc.txhash(tx)
@@ -331,7 +331,7 @@ class CoinJoinTX(object):
 
     def self_sign_and_push(self):
         self.self_sign()
-        return self.push(self.latest_tx)
+        return self.push()
 
     def recover_from_nonrespondants(self):
         log.debug('nonresponding makers = ' + str(self.nonrespondants))

@@ -83,7 +83,11 @@ def make_sign_and_push(ins_full,
         tx = btc.sign(tx, index, priv, hashcode=hashcode)
     #pushtx returns False on any error
     print btc.deserialize(tx)
-    return jm_single().bc_interface.pushtx(tx)
+    push_succeed = jm_single().bc_interface.pushtx(tx)
+    if push_succeed:
+        return btc.txhash(tx)
+    else:
+        return False
 
 
 def test_create_sighash_txs(setup_tx_creation):
