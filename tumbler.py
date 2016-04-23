@@ -202,6 +202,7 @@ class TumblerThread(threading.Thread):
              log.debug('reached limit of number of attempts to create tx, quitting')
              self.taker.msgchan.shutdown()
              return
+        jm_single().bc_interface.sync_unspent(self.taker.wallet)
         self.create_tx_attempts -= 1
         orders = None
         cj_amount = 0
