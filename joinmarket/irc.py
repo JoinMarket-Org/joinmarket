@@ -9,13 +9,12 @@ import time
 import Queue
 
 from joinmarket.configure import jm_single, get_config_irc_channel
-from joinmarket.message_channel import MessageChannel, CJPeerError
+from joinmarket.message_channel import MessageChannel, CJPeerError, COMMAND_PREFIX
 from joinmarket.enc_wrapper import encrypt_encode, decode_decrypt
 from joinmarket.support import get_log, chunks
 from joinmarket.socks import socksocket, setdefaultproxy, PROXY_TYPE_SOCKS5
 
 MAX_PRIVMSG_LEN = 450
-COMMAND_PREFIX = '!'
 PING_INTERVAL = 300
 PING_TIMEOUT = 60
 
@@ -324,78 +323,6 @@ class IRCMessageChannel(MessageChannel):
                 return True
         return False
 
-    def __on_privmsg(self, nick, message):
-        """handles the case when a private message is received"""
-        if message[0] != COMMAND_PREFIX:
-            return
-        for command in message[1:].split(COMMAND_PREFIX):
-            _chunks = command.split(" ")
-            # looks like a very similar pattern for all of these
-            # check for a command name, parse arguments, call a function
-            # maybe we need some eval() trickery to do it better
-
-            try:
-                # orderbook watch commands
-                if self.check_for_orders(nick, _chunks):
-                    pass
-
-                # taker commands
-                elif _chunks[0] == 'pubkey':
-                    maker_pk = _chunks[1]
-                    if self.on_pubkey:
-                        self.on_pubkey(nick, maker_pk)
-                elif _chunks[0] == 'ioauth':
-                    utxo_list = _chunks[1].split(',')
-                    cj_pub = _chunks[2]
-                    change_addr = _chunks[3]
-                    btc_sig = _chunks[4]
-                    if self.on_ioauth:
-                        self.on_ioauth(nick, utxo_list, cj_pub, change_addr,
-                                       btc_sig)
-                elif _chunks[0] == 'sig':
-                    sig = _chunks[1]
-                    if self.on_sig:
-                        self.on_sig(nick, sig)
-
-                # maker commands
-                if _chunks[0] == 'fill':
-                    try:
-                        oid = int(_chunks[1])
-                        amount = int(_chunks[2])
-                        taker_pk = _chunks[3]
-                    except (ValueError, IndexError) as e:
-                        self.send_error(nick, str(e))
-                    if self.on_order_fill:
-                        self.on_order_fill(nick, oid, amount, taker_pk)
-                elif _chunks[0] == 'auth':
-                    try:
-                        i_utxo_pubkey = _chunks[1]
-                        btc_sig = _chunks[2]
-                    except (ValueError, IndexError) as e:
-                        self.send_error(nick, str(e))
-                    if self.on_seen_auth:
-                        self.on_seen_auth(nick, i_utxo_pubkey, btc_sig)
-                elif _chunks[0] == 'tx':
-                    b64tx = _chunks[1]
-                    try:
-                        txhex = base64.b64decode(b64tx).encode('hex')
-                    except TypeError as e:
-                        self.send_error(nick, 'bad base64 tx. ' + repr(e))
-                    if self.on_seen_tx:
-                        self.on_seen_tx(nick, txhex)
-                elif _chunks[0] == 'push':
-                    b64tx = _chunks[1]
-                    try:
-                        txhex = base64.b64decode(b64tx).encode('hex')
-                    except TypeError as e:
-                        self.send_error(nick, 'bad base64 tx. ' + repr(e))
-                    if self.on_push_tx:
-                        self.on_push_tx(nick, txhex)
-            except CJPeerError:
-                # TODO proper error handling
-                log.debug('cj peer error TODO handle')
-                continue
-
     def __on_pubmsg(self, nick, message):
         if message[0] != COMMAND_PREFIX:
             return
@@ -488,7 +415,7 @@ class IRCMessageChannel(MessageChannel):
                 # wipe the message buffer waiting for the next one
                 del self.built_privmsg[nick]
                 log.debug("<<privmsg nick=%s message=%s" % (nick, parsed))
-                self.__on_privmsg(nick, parsed)
+                self.on_privmsg(nick, parsed)
             else:
                 # drop the bad nick
                 del self.built_privmsg[nick]
