@@ -72,9 +72,6 @@ class MessageChannel(object):
         self.on_order_seen = on_order_seen
         self.on_order_cancel = on_order_cancel
 
-    def request_orderbook(self):
-        pass #pragma: no cover
-
     # taker commands
     def register_taker_callbacks(self,
                                  on_error=None,
@@ -100,8 +97,12 @@ class MessageChannel(object):
         self.on_push_tx = on_push_tx
 
     def announce_orders(self, orderlist, nick=None):
-        # nick=None means announce publicly
-        pass  #pragma: no cover
+        order_keys = ['oid', 'minsize', 'maxsize', 'txfee', 'cjfee']
+        orderlines = []
+        for order in orderlist:
+            orderlines.append(COMMAND_PREFIX + order['ordertype'] + \
+                    ' ' + ' '.join([str(order[k]) for k in order_keys]))
+        self._announce_orders(orderlines, nick)
 
     def check_for_orders(self, nick, _chunks):
         if _chunks[0] in jm_single().ordername_list:

@@ -198,15 +198,29 @@ class IRCMessageChannel(MessageChannel):
         self.give_up = True
 
     # Maker callbacks
-    def announce_orders(self, orderlist, nick=None):
-        # nick=None means announce publicly
-        order_keys = ['oid', 'minsize', 'maxsize', 'txfee', 'cjfee']
+    def _announce_orders(self, orderlist, nick):
+        """This publishes orders to the pit and to
+        counterparties. Note that it does *not* use chunking.
+        So, it tries to optimise space usage thusly:
+        As many complete orderlines are fit onto one line
+        as possible, and overflow goes onto another line.
+        Each list entry in orderlist must have format:
+        !ordername <parameters>
+
+        Then, what is published is lines of form:
+        !ordername <parameters>!ordername <parameters>..
+
+        fitting as many list entries as possible onto one line,
+        up to the limit of the IRC parameters (see MAX_PRIVMSG_LEN).
+
+        nick=None means announce publically. Theoretically, we
+        could use chunking for the non-public, but for simplicity
+        just have one function.
+        """
         header = 'PRIVMSG ' + (nick if nick else self.channel) + ' :'
         orderlines = []
         for i, order in enumerate(orderlist):
-            orderparams = COMMAND_PREFIX + order['ordertype'] + \
-                          ' ' + ' '.join([str(order[k]) for k in order_keys])
-            orderlines.append(orderparams)
+            orderlines.append(order)
             line = header + ''.join(orderlines) + ' ~'
             if len(line) > MAX_PRIVMSG_LEN or i == len(orderlist) - 1:
                 if i < len(orderlist) - 1:
@@ -215,7 +229,9 @@ class IRCMessageChannel(MessageChannel):
                 orderlines = [orderlines[-1]]
 
     def _pubmsg(self, message):
-        self.send_raw("PRIVMSG " + self.channel + " :" + message)
+        line = "PRIVMSG " + self.channel + " :" + message
+        assert len(line) <= MAX_PRIVMSG_LEN
+        self.send_raw(line)
 
     def _privmsg(self, nick, cmd, message):
         """Send a privmsg to an irc counterparty,

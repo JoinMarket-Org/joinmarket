@@ -56,11 +56,28 @@ def test_junk_messages(setup_messaging):
     mc.register_taker_callbacks(on_pubkey=on_pubkey)    
     RawIRCThread(mc).start()
     time.sleep(1)
-    mc._IRCMessageChannel__pubmsg("!orderbook")
+    mc.request_orderbook()
     time.sleep(1)
-    mc._IRCMessageChannel__pubmsg("!orderbook!orderbook")
+    #now try directly
+    mc.pubmsg("!orderbook")
     time.sleep(1)
-    mc._IRCMessageChannel__pubmsg("junk and crap"*20)
+    #should be ignored; can we check?
+    mc.pubmsg("!orderbook!orderbook")
+    time.sleep(1)
+    #assuming MAX_PRIVMSG_LEN is not something crazy
+    #big like 550, this should fail
+    with pytest.raises(AssertionError) as e_info:
+        mc.pubmsg("junk and crap"*40)
+    time.sleep(1)
+    #assuming MAX_PRIVMSG_LEN is not something crazy
+    #small like 180, this should succeed
+    mc.pubmsg("junk and crap"*15)
+    time.sleep(2)
+    #try a long order announcement in public
+    #because we don't want to build a real orderbook,
+    #call the underlying IRC announce function.
+    #TODO: how to test that the sent format was correct?
+    mc._announce_orders(["!abc def gh 0001"]*30, None)
     time.sleep(5)
     #try:
     with pytest.raises(CJPeerError) as e_info:
