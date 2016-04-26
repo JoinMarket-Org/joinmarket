@@ -48,9 +48,6 @@ class MessageChannel(object):
     def shutdown(self):
         pass #pragma: no cover
 
-    def send_error(self, nick, errormsg):
-        pass #pragma: no cover
-
     # callbacks for everyone
     # some of these many not have meaning in a future channel, like bitmessage
     def register_channel_callbacks(self,
@@ -88,18 +85,6 @@ class MessageChannel(object):
         self.on_ioauth = on_ioauth
         self.on_sig = on_sig
 
-    def fill_orders(self, nickoid_dict, cj_amount, taker_pubkey):
-        pass #pragma: no cover
-
-    def send_auth(self, nick, pubkey, sig):
-        pass #pragma: no cover
-
-    def send_tx(self, nick_list, txhex):
-        pass #pragma: no cover
-
-    def push_tx(self, nick, txhex):
-        pass #pragma: no cover
-
     # maker commands
     def register_maker_callbacks(self,
                                  on_orderbook_requested=None,
@@ -118,16 +103,44 @@ class MessageChannel(object):
         pass  #pragma: no cover
 
     def cancel_orders(self, oid_list):
-        pass #pragma: no cover
+        clines = [COMMAND_PREFIX + 'cancel ' + str(oid) for oid in oid_list]
+        self.pubmsg(''.join(clines))
 
     def send_pubkey(self, nick, pubkey):
-        pass #pragma: no cover
+        self.privmsg(nick, 'pubkey', pubkey)
 
     def send_ioauth(self, nick, utxo_list, cj_pubkey, change_addr, sig):
-        pass #pragma: no cover
+        authmsg = (str(','.join(utxo_list)) + ' ' + cj_pubkey + ' ' +
+                   change_addr + ' ' + sig)
+        self.privmsg(nick, 'ioauth', authmsg)
 
     def send_sigs(self, nick, sig_list):
-        pass #pragma: no cover
+        # TODO make it send the sigs on one line if there's space
+        for s in sig_list:
+            self.privmsg(nick, 'sig', s)
+
+    # OrderbookWatch callback
+    def request_orderbook(self):
+        self.pubmsg(COMMAND_PREFIX + 'orderbook')
+
+    # Taker callbacks
+    def fill_orders(self, nick_order_dict, cj_amount, taker_pubkey):
+        for c, order in nick_order_dict.iteritems():
+            msg = str(order['oid']) + ' ' + str(cj_amount) + ' ' + taker_pubkey
+            self.privmsg(c, 'fill', msg)
+
+    def send_auth(self, nick, pubkey, sig):
+        message = pubkey + ' ' + sig
+        self.privmsg(nick, 'auth', message)
+
+    def send_tx(self, nick_list, txhex):
+        txb64 = base64.b64encode(txhex.decode('hex'))
+        for nick in nick_list:
+            self.privmsg(nick, 'tx', txb64)
+
+    def push_tx(self, nick, txhex):
+        txb64 = base64.b64encode(txhex.decode('hex'))
+        self.privmsg(nick, 'push', txb64)
 
     def get_encryption_box(self, cmd, nick):
         """Establish whether the message is to be

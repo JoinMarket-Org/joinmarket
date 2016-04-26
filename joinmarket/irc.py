@@ -197,29 +197,6 @@ class IRCMessageChannel(MessageChannel):
         self.close()
         self.give_up = True
 
-    # OrderbookWatch callback
-    def request_orderbook(self):
-        self.pubmsg(COMMAND_PREFIX + 'orderbook')
-
-    # Taker callbacks
-    def fill_orders(self, nick_order_dict, cj_amount, taker_pubkey):
-        for c, order in nick_order_dict.iteritems():
-            msg = str(order['oid']) + ' ' + str(cj_amount) + ' ' + taker_pubkey
-            self.privmsg(c, 'fill', msg)
-
-    def send_auth(self, nick, pubkey, sig):
-        message = pubkey + ' ' + sig
-        self.privmsg(nick, 'auth', message)
-
-    def send_tx(self, nick_list, txhex):
-        txb64 = base64.b64encode(txhex.decode('hex'))
-        for nick in nick_list:
-            self.privmsg(nick, 'tx', txb64)
-
-    def push_tx(self, nick, txhex):
-        txb64 = base64.b64encode(txhex.decode('hex'))
-        self.privmsg(nick, 'push', txb64)
-
     # Maker callbacks
     def announce_orders(self, orderlist, nick=None):
         # nick=None means announce publicly
@@ -236,23 +213,6 @@ class IRCMessageChannel(MessageChannel):
                     line = header + ''.join(orderlines[:-1]) + ' ~'
                 self.send_raw(line)
                 orderlines = [orderlines[-1]]
-
-    def cancel_orders(self, oid_list):
-        clines = [COMMAND_PREFIX + 'cancel ' + str(oid) for oid in oid_list]
-        self.pubmsg(''.join(clines))
-
-    def send_pubkey(self, nick, pubkey):
-        self.privmsg(nick, 'pubkey', pubkey)
-
-    def send_ioauth(self, nick, utxo_list, cj_pubkey, change_addr, sig):
-        authmsg = (str(','.join(utxo_list)) + ' ' + cj_pubkey + ' ' +
-                   change_addr + ' ' + sig)
-        self.privmsg(nick, 'ioauth', authmsg)
-
-    def send_sigs(self, nick, sig_list):
-        # TODO make it send the sigs on one line if there's space
-        for s in sig_list:
-            self.privmsg(nick, 'sig', s)
 
     def _pubmsg(self, message):
         self.send_raw("PRIVMSG " + self.channel + " :" + message)
