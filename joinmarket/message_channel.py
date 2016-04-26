@@ -144,6 +144,12 @@ class MessageChannel(object):
         self.privmsg(nick, 'error', errormsg)
         raise CJPeerError()
 
+    def pubmsg(self, message):
+        log.debug('>>pubmsg ' + message)
+        #Currently there is no joinmarket protocol logic here;
+        #just pass-through.
+        self._pubmsg(message)
+
     def privmsg(self, nick, cmd, message):
         log.debug('>>privmsg ' + 'nick=' + nick + ' cmd=' + cmd + ' msg=' +
                   message)

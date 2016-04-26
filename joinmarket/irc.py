@@ -199,7 +199,7 @@ class IRCMessageChannel(MessageChannel):
 
     # OrderbookWatch callback
     def request_orderbook(self):
-        self.__pubmsg(COMMAND_PREFIX + 'orderbook')
+        self.pubmsg(COMMAND_PREFIX + 'orderbook')
 
     # Taker callbacks
     def fill_orders(self, nick_order_dict, cj_amount, taker_pubkey):
@@ -239,7 +239,7 @@ class IRCMessageChannel(MessageChannel):
 
     def cancel_orders(self, oid_list):
         clines = [COMMAND_PREFIX + 'cancel ' + str(oid) for oid in oid_list]
-        self.__pubmsg(''.join(clines))
+        self.pubmsg(''.join(clines))
 
     def send_pubkey(self, nick, pubkey):
         self.privmsg(nick, 'pubkey', pubkey)
@@ -254,8 +254,7 @@ class IRCMessageChannel(MessageChannel):
         for s in sig_list:
             self.privmsg(nick, 'sig', s)
 
-    def __pubmsg(self, message):
-        log.debug('>>pubmsg ' + message)
+    def _pubmsg(self, message):
         self.send_raw("PRIVMSG " + self.channel + " :" + message)
 
     def _privmsg(self, nick, cmd, message):
