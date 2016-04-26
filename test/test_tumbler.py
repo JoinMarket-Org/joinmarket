@@ -81,6 +81,8 @@ def test_tumbler(setup_tumbler, num_ygs, wallet_structures, mean_amt, sdev_amt,
     options.waittime = 10
     options.mincjamount = 1000000
     options.liquiditywait = 5
+    options.maxbroadcasts = 4
+    options.maxcreatetx = 9
 
     wallets = make_wallets(num_ygs + 1,
                            wallet_structures=wallet_structures,
@@ -151,6 +153,7 @@ def test_tumbler(setup_tumbler, num_ygs, wallet_structures, mean_amt, sdev_amt,
     log.debug('starting tumbler')
 
     jm_single().bc_interface.sync_wallet(wallet)
+    jm_single().bc_interface.pushtx_failure_prob = 0.4
     irc = IRCMessageChannel(jm_single().nickname)
     tumbler_bot = tumbler.Tumbler(irc, wallet, tx_list, options)
     try:
