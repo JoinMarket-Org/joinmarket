@@ -155,6 +155,13 @@ tx_fees = 3
 # NB: using 0 for the 1st value with scripts other than wallet-tool could cause
 # spends from unconfirmed inputs, which may then get malleated or double-spent!
 # other counterparties are likely to reject unconfirmed inputs... don't do it.
+
+tx_broadcast = self
+#options: self, random-peer, not-self, random-maker
+# self = broadcast transaction with your own ip
+# random-peer = everyone who took part in the coinjoin has a chance of broadcasting
+# not-self = never broadcast with your own ip
+# random-maker = every peer on joinmarket has a chance of broadcasting, including yourself
 """
 
 
