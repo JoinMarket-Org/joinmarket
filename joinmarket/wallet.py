@@ -125,7 +125,8 @@ class Wallet(AbstractWallet):
         if extend_mixdepth and len(self.index_cache) > max_mix_depth:
             self.max_mix_depth = len(self.index_cache)
         self.gaplimit = gaplimit
-        master = btc.bip32_master_key(self.seed)
+        master = btc.bip32_master_key(self.seed, (btc.MAINNET_PRIVATE if
+            get_network() == 'mainnet' else btc.TESTNET_PRIVATE))
         m_0 = btc.bip32_ckd(master, 0)
         mixing_depth_keys = [btc.bip32_ckd(m_0, c)
                              for c in range(self.max_mix_depth)]
