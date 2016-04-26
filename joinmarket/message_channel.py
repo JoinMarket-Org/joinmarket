@@ -121,6 +121,34 @@ class MessageChannel(object):
     def send_sigs(self, nick, sig_list):
         pass #pragma: no cover
 
+    def on_pubmsg(self, nick, message):
+        if message[0] != COMMAND_PREFIX:
+            return
+        commands = message[1:].split(COMMAND_PREFIX)
+        #DOS vector: repeated !orderbook requests, see #298.
+        if commands.count('orderbook')>1:
+            return
+        for command in commands:
+            _chunks = command.split(" ")
+            if self.check_for_orders(nick, _chunks):
+                pass
+            elif _chunks[0] == 'cancel':
+                # !cancel [oid]
+                try:
+                    oid = int(_chunks[1])
+                    if self.on_order_cancel:
+                        self.on_order_cancel(nick, oid)
+                except (ValueError, IndexError) as e:
+                    log.debug("!cancel " + repr(e))
+                    return
+            elif _chunks[0] == 'orderbook':
+                if self.on_orderbook_requested:
+                    self.on_orderbook_requested(nick)
+            else:
+                # TODO this is for testing/debugging, should be removed, see taker.py
+                if hasattr(self, 'debug_on_pubmsg_cmd'):
+                    self.debug_on_pubmsg_cmd(nick, _chunks)
+
     def on_privmsg(self, nick, message):
         """handles the case when a private message is received"""
         if message[0] != COMMAND_PREFIX:
