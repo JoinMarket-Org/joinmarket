@@ -1,6 +1,14 @@
 import base64
+from joinmarket.enc_wrapper import encrypt_encode, decode_decrypt
+from joinmarket.support import get_log, chunks
 
 COMMAND_PREFIX = '!'
+
+encrypted_commands = ["auth", "ioauth", "tx", "sig"]
+plaintext_commands = ["fill", "error", "pubkey", "orderbook", "relorder",
+                      "absorder", "push"]
+
+log = get_log()
 
 class CJPeerError(StandardError):
     pass
@@ -120,6 +128,35 @@ class MessageChannel(object):
 
     def send_sigs(self, nick, sig_list):
         pass #pragma: no cover
+
+    def get_encryption_box(self, cmd, nick):
+        """Establish whether the message is to be
+        encrypted/decrypted based on the command string.
+        If so, retrieve the appropriate crypto_box object
+        and return. """
+        if cmd in plaintext_commands:
+            return None, False
+        else:
+            return self.cjpeer.get_crypto_box_from_nick(nick), True
+
+    def send_error(self, nick, errormsg):
+        log.debug('error<%s> : %s' % (nick, errormsg))
+        self.privmsg(nick, 'error', errormsg)
+        raise CJPeerError()
+
+    def privmsg(self, nick, cmd, message):
+        log.debug('>>privmsg ' + 'nick=' + nick + ' cmd=' + cmd + ' msg=' +
+                  message)
+        # should we encrypt?
+        box, encrypt = self.get_encryption_box(cmd, nick)
+        if encrypt:
+            if not box:
+                log.debug('error, dont have encryption box object for ' + nick +
+                          ', dropping message')
+                return
+            message = encrypt_encode(message, box)
+        #forward to the implementation class (use single _ for polymrphsm to work)
+        self._privmsg(nick, cmd, message)
 
     def on_pubmsg(self, nick, message):
         if message[0] != COMMAND_PREFIX:

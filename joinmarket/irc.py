@@ -197,11 +197,6 @@ class IRCMessageChannel(MessageChannel):
         self.close()
         self.give_up = True
 
-    def send_error(self, nick, errormsg):
-        log.debug('error<%s> : %s' % (nick, errormsg))
-        self.__privmsg(nick, 'error', errormsg)
-        raise CJPeerError()
-
     # OrderbookWatch callback
     def request_orderbook(self):
         self.__pubmsg(COMMAND_PREFIX + 'orderbook')
@@ -210,20 +205,20 @@ class IRCMessageChannel(MessageChannel):
     def fill_orders(self, nick_order_dict, cj_amount, taker_pubkey):
         for c, order in nick_order_dict.iteritems():
             msg = str(order['oid']) + ' ' + str(cj_amount) + ' ' + taker_pubkey
-            self.__privmsg(c, 'fill', msg)
+            self.privmsg(c, 'fill', msg)
 
     def send_auth(self, nick, pubkey, sig):
         message = pubkey + ' ' + sig
-        self.__privmsg(nick, 'auth', message)
+        self.privmsg(nick, 'auth', message)
 
     def send_tx(self, nick_list, txhex):
         txb64 = base64.b64encode(txhex.decode('hex'))
         for nick in nick_list:
-            self.__privmsg(nick, 'tx', txb64)
+            self.privmsg(nick, 'tx', txb64)
 
     def push_tx(self, nick, txhex):
         txb64 = base64.b64encode(txhex.decode('hex'))
-        self.__privmsg(nick, 'push', txb64)
+        self.privmsg(nick, 'push', txb64)
 
     # Maker callbacks
     def announce_orders(self, orderlist, nick=None):
@@ -247,35 +242,26 @@ class IRCMessageChannel(MessageChannel):
         self.__pubmsg(''.join(clines))
 
     def send_pubkey(self, nick, pubkey):
-        self.__privmsg(nick, 'pubkey', pubkey)
+        self.privmsg(nick, 'pubkey', pubkey)
 
     def send_ioauth(self, nick, utxo_list, cj_pubkey, change_addr, sig):
         authmsg = (str(','.join(utxo_list)) + ' ' + cj_pubkey + ' ' +
                    change_addr + ' ' + sig)
-        self.__privmsg(nick, 'ioauth', authmsg)
+        self.privmsg(nick, 'ioauth', authmsg)
 
     def send_sigs(self, nick, sig_list):
         # TODO make it send the sigs on one line if there's space
         for s in sig_list:
-            self.__privmsg(nick, 'sig', s)
+            self.privmsg(nick, 'sig', s)
 
     def __pubmsg(self, message):
         log.debug('>>pubmsg ' + message)
         self.send_raw("PRIVMSG " + self.channel + " :" + message)
 
-    def __privmsg(self, nick, cmd, message):
-        log.debug('>>privmsg ' + 'nick=' + nick + ' cmd=' + cmd + ' msg=' +
-                  message)
-        # should we encrypt?
-        box, encrypt = self.__get_encryption_box(cmd, nick)
-        # encrypt before chunking
-        if encrypt:
-            if not box:
-                log.debug('error, dont have encryption box object for ' + nick +
-                          ', dropping message')
-                return
-            message = encrypt_encode(message, box)
-
+    def _privmsg(self, nick, cmd, message):
+        """Send a privmsg to an irc counterparty,
+        using chunking as appropriate for long messages.
+        """
         header = "PRIVMSG " + nick + " :"
         max_chunk_len = MAX_PRIVMSG_LEN - len(header) - len(cmd) - 4
         # 1 for command prefix 1 for space 2 for trailer
@@ -323,18 +309,6 @@ class IRCMessageChannel(MessageChannel):
                 return True
         return False
 
-    def __get_encryption_box(self, cmd, nick):
-        """Establish whether the message is to be
-        encrypted/decrypted based on the command string.
-        If so, retrieve the appropriate crypto_box object
-        and return. Sending/receiving flag enables us
-        to check which command strings correspond to which
-        type of object (maker/taker)."""  # old doc, dont trust
-        if cmd in plaintext_commands:
-            return None, False
-        else:
-            return self.cjpeer.get_crypto_box_from_nick(nick), True
-
     def __handle_privmsg(self, source, target, message):
         nick = get_irc_nick(source)
         if target == self.nick:
@@ -360,7 +334,7 @@ class IRCMessageChannel(MessageChannel):
                 self.built_privmsg[nick] = [cmd_string, message[:-2]]
             else:
                 self.built_privmsg[nick][1] += message[:-2]
-            box, encrypt = self.__get_encryption_box(
+            box, encrypt = self.get_encryption_box(
                 self.built_privmsg[nick][0], nick)
             if message[-1] == ';':
                 self.waiting[nick] = True
