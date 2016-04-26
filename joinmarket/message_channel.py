@@ -1,6 +1,7 @@
 import base64
 from joinmarket.enc_wrapper import encrypt_encode, decode_decrypt
 from joinmarket.support import get_log, chunks
+from joinmarket.configure import jm_single
 
 COMMAND_PREFIX = '!'
 
@@ -101,6 +102,27 @@ class MessageChannel(object):
     def announce_orders(self, orderlist, nick=None):
         # nick=None means announce publicly
         pass  #pragma: no cover
+
+    def check_for_orders(self, nick, _chunks):
+        if _chunks[0] in jm_single().ordername_list:
+            try:
+                counterparty = nick
+                oid = _chunks[1]
+                ordertype = _chunks[0]
+                minsize = _chunks[2]
+                maxsize = _chunks[3]
+                txfee = _chunks[4]
+                cjfee = _chunks[5]
+                if self.on_order_seen:
+                    self.on_order_seen(counterparty, oid, ordertype, minsize,
+                                       maxsize, txfee, cjfee)
+            except IndexError as e:
+                log.exception(e)
+                log.debug('index error parsing chunks')
+                # TODO what now? just ignore iirc
+            finally:
+                return True
+        return False
 
     def cancel_orders(self, oid_list):
         clines = [COMMAND_PREFIX + 'cancel ' + str(oid) for oid in oid_list]
@@ -211,6 +233,26 @@ class MessageChannel(object):
             return
         for command in message[1:].split(COMMAND_PREFIX):
             _chunks = command.split(" ")
+
+            #Decrypt if necessary
+            if _chunks[0] in encrypted_commands:
+                box, encrypt = self.get_encryption_box(_chunks[0], nick)
+                if encrypt:
+                    if not box:
+                        log.debug('error, dont have encryption box object for '
+                                  + nick + ', dropping message')
+                        return
+                    # need to decrypt everything after the command string
+                    to_decrypt = ''.join(_chunks[1:])
+                    try:
+                        decrypted = decode_decrypt(to_decrypt, box)
+                    except ValueError as e:
+                        log.debug('valueerror when decrypting, skipping: ' +
+                                  repr(e))
+                        return
+                    #rebuild the chunks array as if it had been plaintext
+                    _chunks = [_chunks[0]] + decrypted.split(" ")
+
             # looks like a very similar pattern for all of these
             # check for a command name, parse arguments, call a function
             # maybe we need some eval() trickery to do it better

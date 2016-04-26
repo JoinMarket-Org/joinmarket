@@ -247,27 +247,6 @@ class IRCMessageChannel(MessageChannel):
         self.lockthrottle.notify()
         self.lockthrottle.release()
 
-    def check_for_orders(self, nick, _chunks):
-        if _chunks[0] in jm_single().ordername_list:
-            try:
-                counterparty = nick
-                oid = _chunks[1]
-                ordertype = _chunks[0]
-                minsize = _chunks[2]
-                maxsize = _chunks[3]
-                txfee = _chunks[4]
-                cjfee = _chunks[5]
-                if self.on_order_seen:
-                    self.on_order_seen(counterparty, oid, ordertype, minsize,
-                                       maxsize, txfee, cjfee)
-            except IndexError as e:
-                log.exception(e)
-                log.debug('index error parsing chunks')
-                # TODO what now? just ignore iirc
-            finally:
-                return True
-        return False
-
     def __handle_privmsg(self, source, target, message):
         nick = get_irc_nick(source)
         if target == self.nick:
@@ -290,38 +269,16 @@ class IRCMessageChannel(MessageChannel):
                 if cmd_string not in plaintext_commands + encrypted_commands:
                     log.debug('cmd not in cmd_list, line="' + message + '"')
                     return
-                self.built_privmsg[nick] = [cmd_string, message[:-2]]
+                self.built_privmsg[nick] = message[:-2]
             else:
-                self.built_privmsg[nick][1] += message[:-2]
-            box, encrypt = self.get_encryption_box(
-                self.built_privmsg[nick][0], nick)
-            if message[-1] == ';':
-                self.waiting[nick] = True
-            elif message[-1] == '~':
-                self.waiting[nick] = False
-                if encrypt:
-                    if not box:
-                        log.debug('error, dont have encryption box object for '
-                                  + nick + ', dropping message')
-                        return
-                    # need to decrypt everything after the command string
-                    to_decrypt = ''.join(self.built_privmsg[nick][1].split(' ')[
-                        1])
-                    try:
-                        decrypted = decode_decrypt(to_decrypt, box)
-                    except ValueError as e:
-                        log.debug('valueerror when decrypting, skipping: ' +
-                                  repr(e))
-                        return
-                    parsed = self.built_privmsg[nick][1].split(' ')[
-                        0] + ' ' + decrypted
-                else:
-                    parsed = self.built_privmsg[nick][1]
+                self.built_privmsg[nick] += message[:-2]
+            if message[-1] == '~':
+                parsed = self.built_privmsg[nick]
                 # wipe the message buffer waiting for the next one
                 del self.built_privmsg[nick]
                 log.debug("<<privmsg nick=%s message=%s" % (nick, parsed))
                 self.on_privmsg(nick, parsed)
-            else:
+            elif message[-1] != ';':
                 # drop the bad nick
                 del self.built_privmsg[nick]
         elif target == self.channel:
@@ -441,7 +398,6 @@ class IRCMessageChannel(MessageChannel):
         self.obQ = Queue.Queue()
 
     def run(self):
-        self.waiting = {}
         self.built_privmsg = {}
         self.give_up = False
         self.ping_reply = True
