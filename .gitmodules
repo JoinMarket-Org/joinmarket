@@ -1,3 +1,6 @@
 [submodule "miniircd"]
 	path = miniircd
 	url = https://github.com/JoinMarket-Org/miniircd
+[submodule "matrix-python-sdk"]
+	path = matrix-python-sdk
+	url = https://github.com/matrix-org/matrix-python-sdk
