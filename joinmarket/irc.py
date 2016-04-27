@@ -35,10 +35,6 @@ MSG_INTERVAL = 0.001
 B_PER_SEC = 450
 B_PER_SEC_INTERVAL = 4.0
 
-encrypted_commands = ["auth", "ioauth", "tx", "sig"]
-plaintext_commands = ["fill", "error", "pubkey", "orderbook", "relorder",
-                      "absorder", "push"]
-
 log = get_log()
 
 
@@ -277,14 +273,6 @@ class IRCMessageChannel(MessageChannel):
                     return
 
             if nick not in self.built_privmsg:
-                if message[0] != COMMAND_PREFIX:
-                    log.debug('message not a cmd')
-                    return
-                # new message starting
-                cmd_string = message[1:].split(' ')[0]
-                if cmd_string not in plaintext_commands + encrypted_commands:
-                    log.debug('cmd not in cmd_list, line="' + message + '"')
-                    return
                 self.built_privmsg[nick] = message[:-2]
             else:
                 self.built_privmsg[nick] += message[:-2]

@@ -1,4 +1,4 @@
-import base64
+import base64, abc
 from joinmarket.enc_wrapper import encrypt_encode, decode_decrypt
 from joinmarket.support import get_log, chunks
 from joinmarket.configure import jm_single
@@ -16,9 +16,12 @@ class CJPeerError(StandardError):
 
 
 class MessageChannel(object):
+    __metaclass__ = abc.ABCMeta
+    """Abstract class which implements a way for bots to communicate.
+    The Joinmarket messaging protocol is implemented here, while
+    subclasses implement the OTW messaging protocol layer, as described
+    in the abstract methods section below.
     """
-	Abstract class which implements a way for bots to communicate
-	"""
 
     def __init__(self):
         # all
@@ -43,11 +46,44 @@ class MessageChannel(object):
         self.on_seen_tx = None
         self.on_push_tx = None
 
-    def run(self):
-        pass #pragma: no cover
+    """THIS SECTION MUST BE IMPLEMENTED BY SUBCLASSES"""
 
+    #In addition to the below functions, the implementation
+    #must also call the callback function self.on_set_topic
+    #to relay the public channel topic at startup.
+
+    #Also, the implementation constructor (__init__) must
+    #provide login credentials specific to itself as arguments.
+
+    @abc.abstractmethod
+    def run(self):
+        """Main running loop of the message channel"""
+
+    @abc.abstractmethod
     def shutdown(self):
-        pass #pragma: no cover
+        """Stop the main loop of the message channel,
+        shutting down subsidiary resources gracefully.
+        Note that unexpected disconnections MUST be
+        handled by the implementation itself (restarting
+        as appropriate)."""
+
+    @abc.abstractmethod
+    def _pubmsg(self, msg):
+        """Send a message onto the shared, public
+        channel (the joinmarket pit)."""
+
+    @abc.abstractmethod
+    def _privmsg(self, nick, cmd, message):
+        """Send a message to a specific counterparty"""
+
+    @abc.abstractmethod
+    def _announce_orders(self, orderlist, nick):
+        """Send orders defined in list orderlist either
+        to the shared public channel (pit), if nick=None,
+        or to an individual counterparty nick. Note that
+        calling code will access this via self.announce_orders."""
+
+    """END OF SUBCLASS IMPLEMENTATION SECTION"""
 
     # callbacks for everyone
     # some of these many not have meaning in a future channel, like bitmessage
@@ -231,6 +267,11 @@ class MessageChannel(object):
     def on_privmsg(self, nick, message):
         """handles the case when a private message is received"""
         if message[0] != COMMAND_PREFIX:
+            log.debug('message not a cmd')
+            return
+        cmd_string = message[1:].split(' ')[0]
+        if cmd_string not in plaintext_commands + encrypted_commands:
+            log.debug('cmd not in cmd_list, line="' + message + '"')
             return
         for command in message[1:].split(COMMAND_PREFIX):
             _chunks = command.split(" ")
