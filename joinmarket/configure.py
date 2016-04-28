@@ -241,6 +241,7 @@ def get_blockchain_interface_instance(_config):
     # importing here is necessary to avoid import loops
     from joinmarket.blockchaininterface import BitcoinCoreInterface, \
         RegtestBitcoinCoreInterface, BlockrInterface
+    from joinmarket.electruminterface import ElectrumInterface
     from joinmarket.blockchaininterface import CliJsonRpc
 
     source = _config.get("BLOCKCHAIN", "blockchain_source")
@@ -266,6 +267,13 @@ def get_blockchain_interface_instance(_config):
         bc_interface = RegtestBitcoinCoreInterface(rpc)
     elif source == 'blockr':
         bc_interface = BlockrInterface(testnet)
+    elif source == 'electrum':
+        try:
+            electrum_server = _config.get("BLOCKCHAIN", "electrum_server")
+        except NoOptionError:
+            bc_interface = ElectrumInterface(testnet)
+        else:
+            bc_interface = ElectrumInterface(testnet, electrum_server)
     else:
         raise ValueError("Invalid blockchain source")
     return bc_interface
