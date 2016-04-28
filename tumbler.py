@@ -42,6 +42,12 @@ def generate_tumbler_tx(destaddrs, options):
     txcounts = lower_bounded_int(txcounts, options.mintxcount)
     tx_list = []
     for m, txcount in enumerate(txcounts):
+        if options.mixdepthcount - options.addrcount <= m and m < \
+                options.mixdepthcount - 1:
+            #these mixdepths send to a destination address, so their
+            # amount_fraction cant be 1.0, some coins must be left over
+            if txcount == 1:
+                txcount = 2
         # assume that the sizes of outputs will follow a power law
         amount_fractions = rand_pow_array(options.amountpower, txcount)
         amount_fractions = [1.0 - x for x in amount_fractions]
