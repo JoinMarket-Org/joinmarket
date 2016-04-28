@@ -39,7 +39,7 @@ parser.add_option('-m',
                   action='store',
                   type='int',
                   dest='maxmixdepth',
-                  help='maximum mixing depth to look for, default=5')
+                  help='how many mixing depths to display, default=5')
 parser.add_option('-g',
                   '--gap-limit',
                   type="int",
