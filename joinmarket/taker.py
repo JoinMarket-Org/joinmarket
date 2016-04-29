@@ -319,12 +319,33 @@ class CoinJoinTX(object):
     def push(self):
         tx = btc.serialize(self.latest_tx)
         log.debug('\n' + tx)
-        log.debug('txid = ' + btc.txhash(tx))
         self.txid = btc.txhash(tx)
-        # TODO send to a random maker or push myself
-        # TODO need to check whether the other party sent it
-        # self.msgchan.push_tx(self.active_orders.keys()[0], txhex)
-        pushed = jm_single().bc_interface.pushtx(tx)
+        log.debug('txid = ' + self.txid)
+        
+        tx_broadcast = jm_single().config.get('POLICY', 'tx_broadcast')
+        if tx_broadcast == 'self':
+            pushed = jm_single().bc_interface.pushtx(tx)
+        elif tx_broadcast in ['random-peer', 'not-self']:
+            n = len(self.active_orders)
+            if tx_broadcast == 'random-peer':
+                i = random.randrange(n + 1)
+            else:
+                i = random.randrange(n)
+            if i == n:
+                pushed = jm_single().bc_interface.pushtx(tx)
+            else:
+                self.msgchan.push_tx(self.active_orders.keys()[i], tx)
+                pushed = True
+        elif tx_broadcast == 'random-maker':
+            crow = self.db.execute(
+                'SELECT DISTINCT counterparty FROM orderbook ORDER BY ' +
+                'RANDOM() LIMIT 1;'
+            ).fetchone()
+            counterparty = crow['counterparty']
+            log.debug('pushing tx to ' + counterparty)
+            self.msgchan.push_tx(counterparty, tx)
+            pushed = True
+
         if not pushed:
             log.debug('unable to pushtx')
         return pushed
