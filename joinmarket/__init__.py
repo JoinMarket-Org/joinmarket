@@ -14,13 +14,13 @@ from .maker import Maker
 from .message_channel import MessageChannel
 from .old_mnemonic import mn_decode, mn_encode
 from .slowaes import decryptData, encryptData
-from .taker import Taker, OrderbookWatch
+from .taker import Taker, OrderbookWatch, CoinJoinTX
 from .wallet import AbstractWallet, BitcoinCoreInterface, Wallet, \
     BitcoinCoreWallet, create_wallet_file
 from .configure import load_program_config, jm_single, get_p2pk_vbyte, \
     get_network, jm_single, get_network, validate_address, \
     get_blockchain_interface_instance
-from .blockchaininterface import BlockrInterface
+from .blockchaininterface import BlockrInterface, BlockchainInterface
 # Set default logging handler to avoid "No handler found" warnings.
 
 try:

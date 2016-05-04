@@ -42,6 +42,12 @@ def generate_tumbler_tx(destaddrs, options):
     txcounts = lower_bounded_int(txcounts, options.mintxcount)
     tx_list = []
     for m, txcount in enumerate(txcounts):
+        if options.mixdepthcount - options.addrcount <= m and m < \
+                options.mixdepthcount - 1:
+            #these mixdepths send to a destination address, so their
+            # amount_fraction cant be 1.0, some coins must be left over
+            if txcount == 1:
+                txcount = 2
         # assume that the sizes of outputs will follow a power law
         amount_fractions = rand_pow_array(options.amountpower, txcount)
         amount_fractions = [1.0 - x for x in amount_fractions]
@@ -97,33 +103,68 @@ class TumblerThread(threading.Thread):
         self.daemon = True
         self.taker = taker
         self.ignored_makers = []
-        self.sweeping = False
+        self.sweep = False
+        self.broadcast_attempts = 0
+        self.create_tx_attempts = 0
 
     def unconfirm_callback(self, txd, txid):
-        log.debug('that was %d tx out of %d' %
+        log.debug('that was %d tx out of %d, waiting for confirmation' %
                   (self.current_tx + 1, len(self.taker.tx_list)))
 
     def confirm_callback(self, txd, txid, confirmations):
+        self.taker.wallet.remove_old_utxos(txd)
         self.taker.wallet.add_new_utxos(txd, txid)
-        self.lockcond.acquire()
-        self.lockcond.notify()
-        self.lockcond.release()
+        with self.lockcond:
+            self.lockcond.notify()
+
+    def timeout_callback(self, confirmed):
+        if not confirmed:
+            #try rebroadcasting a few times, then create again
+            if self.broadcast_attempts == 0:
+                log.debug('timed out for unconfirmed tx, recreating')
+                self.create_tx()
+                #need a countdown here and other places, maybe inside
+                #create_tx in case theres some long-running problem
+                return
+            self.broadcast_attempts -= 1
+            log.debug('timed out for unconfirmed tx, rebroadcasting')
+            pushed = self.pushtx()
+            if not pushed:
+                log.debug("Failed to push transaction, recreating")
+                self.create_tx()
+        else:
+            log.debug('timed out waiting for confirmation')
+
+    def pushtx(self):
+        push_attempts = 3
+        while True:
+            ret = self.taker.cjtx.push()
+            if ret:
+                break
+            if push_attempts == 0:
+                break
+            push_attempts -= 1
+            time.sleep(10)
+        if ret:
+            jm_single().bc_interface.add_tx_notify(
+                self.taker.cjtx.latest_tx, self.unconfirm_callback,
+                self.confirm_callback, self.taker.cjtx.my_cj_addr,
+                self.timeout_callback)
+        return ret
 
     def finishcallback(self, coinjointx):
         if coinjointx.all_responded:
-            jm_single().bc_interface.add_tx_notify(
-                    coinjointx.latest_tx, self.unconfirm_callback,
-                    self.confirm_callback, coinjointx.my_cj_addr)
-            pushed = coinjointx.self_sign_and_push()
-            if pushed:
-                self.taker.wallet.remove_old_utxos(coinjointx.latest_tx)
-            else:
-                log.debug("Failed to push transaction, trying again.")
+            self.broadcast_attempts = self.taker.options.maxbroadcasts
+            coinjointx.self_sign()
+            pushed = self.pushtx()
+            if not pushed:
+                log.debug("Failed to push transaction, recreating")
                 self.create_tx()
         else:
             self.ignored_makers += coinjointx.nonrespondants
             log.debug('recreating the tx, ignored_makers=' + str(
                     self.ignored_makers))
+            self.create_tx_attempts += 1 #nonrespondants dont count for timeout
             self.create_tx()
 
     def tumbler_choose_orders(self,
@@ -163,6 +204,12 @@ class TumblerThread(threading.Thread):
         return orders, total_cj_fee
 
     def create_tx(self):
+        if self.create_tx_attempts == 0:
+             log.debug('reached limit of number of attempts to create tx, quitting')
+             self.taker.msgchan.shutdown()
+             return
+        jm_single().bc_interface.sync_unspent(self.taker.wallet)
+        self.create_tx_attempts -= 1
         orders = None
         cj_amount = 0
         change_addr = None
@@ -204,8 +251,8 @@ class TumblerThread(threading.Thread):
                 log.debug(
                     'rel/abs average fee = ' + str(rel_cj_fee) + ' / ' + str(
                             abs_cj_fee))
-                if rel_cj_fee > self.taker.options.maxcjfee[
-                    0] and abs_cj_fee > self.taker.options.maxcjfee[1]:
+                if rel_cj_fee > self.taker.options.maxcjfee[0] \
+                        and abs_cj_fee > self.taker.options.maxcjfee[1]:
                     log.debug('cj fee higher than maxcjfee, waiting ' + str(
                             self.taker.options.liquiditywait) + ' seconds')
                     time.sleep(self.taker.options.liquiditywait)
@@ -272,14 +319,15 @@ class TumblerThread(threading.Thread):
             jm_single().debug_silence[0] = False
         else:
             destaddr = tx['destination']
+        self.taker.wallet.update_index_cache()
         self.sweep = sweep
         self.balance = balance
         self.tx = tx
         self.destaddr = destaddr
+        self.create_tx_attempts = self.taker.options.maxcreatetx
         self.create_tx()
-        self.lockcond.acquire()
-        self.lockcond.wait()
-        self.lockcond.release()
+        with self.lockcond:
+            self.lockcond.wait()
         log.debug('tx confirmed, waiting for ' + str(tx['wait']) + ' minutes')
         time.sleep(tx['wait'] * 60)
         log.debug('woken')
@@ -320,15 +368,6 @@ class TumblerThread(threading.Thread):
 
         log.debug('total finished')
         self.taker.msgchan.shutdown()
-        '''
-		crow = self.taker.db.execute('SELECT COUNT(DISTINCT counterparty) FROM orderbook;').fetchone()
-		counterparty_count = crow['COUNT(DISTINCT counterparty)']
-		if counterparty_count < self.taker.makercount:
-			print 'not enough counterparties to fill order, ending'
-			self.taker.msgchan.shutdown()
-			return
-		'''
-
 
 class Tumbler(Taker):
     def __init__(self, msgchan, wallet, tx_list, options):
@@ -486,6 +525,20 @@ def main():
             default=60,
             help=
             'amount of seconds to wait after failing to choose suitable orders before trying again, default 60')
+    parser.add_option(
+            '--maxbroadcasts',
+            type='int',
+            dest='maxbroadcasts',
+            default=4,
+            help=
+            'maximum amount of times to broadcast a transaction before giving up and re-creating it, default 4')
+    parser.add_option(
+            '--maxcreatetx',
+            type='int',
+            dest='maxcreatetx',
+            default=9,
+            help=
+            'maximum amount of times to re-create a transaction before giving up, default 9')
     (options, args) = parser.parse_args()
 
     if len(args) < 1:

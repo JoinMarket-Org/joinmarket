@@ -98,7 +98,7 @@ defaultconfig = \
     """
 [BLOCKCHAIN]
 blockchain_source = blockr
-#options: blockr, bitcoin-rpc, json-rpc, regtest
+#options: blockr, bitcoin-rpc, regtest
 # for instructions on bitcoin-rpc read
 # https://github.com/chris-belcher/joinmarket/wiki/Running-JoinMarket-with-Bitcoin-Core-full-node
 network = mainnet
@@ -121,7 +121,11 @@ socks5_port = 9050
 #port = 6698
 #usessl = true
 #socks5 = true
+
+[TIMEOUT]
 maker_timeout_sec = 30
+unconfirm_timeout_sec = 90
+confirm_timeout_hours = 6
 
 [POLICY]
 # for dust sweeping, try merge_algorithm = gradual
@@ -151,6 +155,13 @@ tx_fees = 3
 # NB: using 0 for the 1st value with scripts other than wallet-tool could cause
 # spends from unconfirmed inputs, which may then get malleated or double-spent!
 # other counterparties are likely to reject unconfirmed inputs... don't do it.
+
+tx_broadcast = self
+#options: self, random-peer, not-self, random-maker
+# self = broadcast transaction with your own ip
+# random-peer = everyone who took part in the coinjoin has a chance of broadcasting
+# not-self = never broadcast with your own ip
+# random-maker = every peer on joinmarket has a chance of broadcasting, including yourself
 """
 
 
@@ -215,9 +226,9 @@ def load_program_config():
 
     try:
         global_singleton.maker_timeout_sec = global_singleton.config.getint(
-                'MESSAGING', 'maker_timeout_sec')
+                'TIMEOUT', 'maker_timeout_sec')
     except NoOptionError:
-        log.debug('maker_timeout_sec not found in .cfg file, '
+        log.debug('TIMEOUT/maker_timeout_sec not found in .cfg file, '
                   'using default value')
 
     # configure the interface to the blockchain on startup

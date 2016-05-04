@@ -48,6 +48,7 @@ def test_junk_messages(setup_messaging):
     ygp = local_command([python_cmd, yg_cmd,\
                              str(wallets[0]['seed'])], bg=True)
     
+    #time.sleep(90)
     #start a raw IRCMessageChannel instance in a thread;
     #then call send_* on it with various errant messages
     mc = DummyMC("irc_ping_test")
