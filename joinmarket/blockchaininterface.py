@@ -127,8 +127,8 @@ class BlockrInterface(BlockchainInterface):
         super(BlockrInterface, self).__init__()
 
         # see bci.py in bitcoin module
-        #self.network = 'testnet' if testnet else 'btc'
-        #self.blockr_domain = 'tbtc' if testnet else 'btc'
+        self.network = 'testnet' if testnet else 'btc'
+        self.blockr_domain = 'tbtc' if testnet else 'btc'
         self.last_sync_unspent = 0
 
     def sync_addresses(self, wallet):
