@@ -200,8 +200,7 @@ class Wallet(AbstractWallet):
                 print('Incorrect password')
                 self.decrypted = False
                 if pwd:
-                    decrypted_seed = None
-                    break
+                    return None
         if self.storepassword:
             self.password_key = password_key
             self.walletdata = walletdata
