@@ -317,7 +317,7 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
 
 class HTTPDThread(threading.Thread):
     def __init__(self, taker, hostport):
-        threading.Thread.__init__(self)
+        threading.Thread.__init__(self, name='HTTPDThread')
         self.daemon = True
         self.taker = taker
         self.hostport = hostport

@@ -8,7 +8,7 @@ from ConfigParser import SafeConfigParser, NoOptionError
 
 import bitcoin as btc
 from joinmarket.jsonrpc import JsonRpc
-from joinmarket.support import get_log, joinmarket_alert, core_alert
+from joinmarket.support import get_log, joinmarket_alert, core_alert, debug_silence
 
 # config = SafeConfigParser()
 # config_location = 'joinmarket.cfg'
@@ -82,7 +82,7 @@ global_singleton.debug_file_lock = threading.Lock()
 global_singleton.debug_file_handle = None
 global_singleton.core_alert = core_alert
 global_singleton.joinmarket_alert = joinmarket_alert
-global_singleton.debug_silence = False
+global_singleton.debug_silence = debug_silence
 global_singleton.config = SafeConfigParser()
 global_singleton.config_location = 'joinmarket.cfg'
 
@@ -98,7 +98,7 @@ defaultconfig = \
     """
 [BLOCKCHAIN]
 blockchain_source = blockr
-#options: blockr, bitcoin-rpc, json-rpc, regtest
+#options: blockr, bitcoin-rpc, regtest
 # for instructions on bitcoin-rpc read
 # https://github.com/chris-belcher/joinmarket/wiki/Running-JoinMarket-with-Bitcoin-Core-full-node
 network = mainnet
@@ -120,7 +120,11 @@ socks5_port = 9050
 #port = 6697
 #usessl = true
 #socks5 = true
+
+[TIMEOUT]
 maker_timeout_sec = 30
+unconfirm_timeout_sec = 90
+confirm_timeout_hours = 6
 
 [POLICY]
 # for dust sweeping, try merge_algorithm = gradual
@@ -150,6 +154,13 @@ tx_fees = 3
 # NB: using 0 for the 1st value with scripts other than wallet-tool could cause
 # spends from unconfirmed inputs, which may then get malleated or double-spent!
 # other counterparties are likely to reject unconfirmed inputs... don't do it.
+
+tx_broadcast = self
+#options: self, random-peer, not-self, random-maker
+# self = broadcast transaction with your own ip
+# random-peer = everyone who took part in the coinjoin has a chance of broadcasting
+# not-self = never broadcast with your own ip
+# random-maker = every peer on joinmarket has a chance of broadcasting, including yourself
 """
 
 
@@ -186,15 +197,17 @@ def validate_address(addr):
         return False, 'Checksum wrong. Typo in address?'
     if ver != get_p2pk_vbyte() and ver != get_p2sh_vbyte():
         return False, 'Wrong address version. Testnet/mainnet confused?'
+    if len(btc.b58check_to_bin(addr)) != 20:
+        return False, "Address has correct checksum but wrong length."
     return True, 'address validated'
 
 
 def load_program_config():
+    global_singleton.config.readfp(io.BytesIO(defaultconfig))
     loadedFiles = global_singleton.config.read(
             [global_singleton.config_location])
     # Create default config file if not found
     if len(loadedFiles) != 1:
-        global_singleton.config.readfp(io.BytesIO(defaultconfig))
         with open(global_singleton.config_location, "w") as configfile:
             configfile.write(defaultconfig)
 
@@ -212,14 +225,21 @@ def load_program_config():
 
     try:
         global_singleton.maker_timeout_sec = global_singleton.config.getint(
-                'MESSAGING', 'maker_timeout_sec')
+                'TIMEOUT', 'maker_timeout_sec')
     except NoOptionError:
-        log.debug('maker_timeout_sec not found in .cfg file, '
+        log.debug('TIMEOUT/maker_timeout_sec not found in .cfg file, '
                   'using default value')
 
     # configure the interface to the blockchain on startup
     global_singleton.bc_interface = get_blockchain_interface_instance(
             global_singleton.config)
+
+    #print warning if not using libsecp256k1
+    if not btc.secp_present:
+        log.debug("WARNING: You are not using the binding to libsecp256k1. The "
+                  "crypto code in use has poorer performance and security "
+                  "properties. Consider installing the binding with `pip install "
+                  "secp256k1`.")
 
 
 def get_blockchain_interface_instance(_config):

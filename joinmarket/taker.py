@@ -15,6 +15,7 @@ from joinmarket.configure import jm_single, get_p2pk_vbyte
 from joinmarket.enc_wrapper import init_keypair, as_init_encryption, init_pubkey
 from joinmarket.support import get_log, calc_cj_fee
 from joinmarket.wallet import estimate_tx_fee
+from joinmarket.irc import B_PER_SEC
 
 log = get_log()
 
@@ -62,6 +63,7 @@ class CoinJoinTX(object):
         # used to restrict access to certain variables across threads
         self.timeout_thread_lock = threading.Condition()
         self.end_timeout_thread = False
+        self.maker_timeout_sec = jm_single().maker_timeout_sec
         CoinJoinTX.TimeoutThread(self).start()
         # state variables
         self.txid = None
@@ -116,16 +118,26 @@ class CoinJoinTX(object):
             log.debug(('ERROR outputs unconfirmed or already spent. '
                        'utxo_data={}').format(pprint.pformat(utxo_data)))
             # when internal reviewing of makers is created, add it here to
-            # immediately quit
+            # immediately quit; currently, the timeout thread suffices.
             return
 
-        # ignore this message, eventually the timeout thread will recover
         total_input = sum([d['value'] for d in utxo_data])
         real_cjfee = calc_cj_fee(self.active_orders[nick]['ordertype'],
                        self.active_orders[nick]['cjfee'], self.cj_amount)
-        self.outputs.append({'address': change_addr,
-              'value': total_input - self.cj_amount -
-               self.active_orders[nick]['txfee'] + real_cjfee})
+        change_amount = (total_input - self.cj_amount -
+            self.active_orders[nick]['txfee'] + real_cjfee)
+
+        # certain malicious and/or incompetent liquidity providers send
+        # inputs totalling less than the coinjoin amount! this leads to
+        # a change output of zero satoshis, so the invalid transaction
+        # fails harmlessly; let's fail earlier, with a clear message.
+        if change_amount < jm_single().DUST_THRESHOLD:
+            fmt = ('ERROR counterparty requires sub-dust change. nick={}'
+                   'totalin={:d} cjamount={:d} change={:d}').format
+            log.debug(fmt(nick, total_input, self.cj_amount, change_amount))
+            return              # timeout marks this maker as nonresponsive
+
+        self.outputs.append({'address': change_addr, 'value': change_amount})
         fmt = ('fee breakdown for {} totalin={:d} '
                'cjamount={:d} txfee={:d} realcjfee={:d}').format
         log.debug(fmt(nick, total_input, self.cj_amount,
@@ -138,9 +150,6 @@ class CoinJoinTX(object):
         if len(self.nonrespondants) > 0:
             log.debug('nonrespondants = ' + str(self.nonrespondants))
             return
-        self.all_responded = True
-        with self.timeout_lock:
-            self.timeout_lock.notify()
         log.debug('got all parts, enough to build a tx')
         self.nonrespondants = list(self.active_orders.keys())
 
@@ -191,6 +200,21 @@ class CoinJoinTX(object):
         random.shuffle(self.outputs)
         tx = btc.mktx(self.utxo_tx, self.outputs)
         log.debug('obtained tx\n' + pprint.pformat(btc.deserialize(tx)))
+        #Re-calculate a sensible timeout wait based on the throttling
+        #settings and the tx size.
+        #Calculation: Let tx size be S; tx undergoes two b64 expansions, 1.8*S
+        #So we're sending N*1.8*S over the wire, and the
+        #maximum bytes/sec = B, means we need (1.8*N*S/B) seconds,
+        #and need to add some leeway for network delays, we just add the
+        #contents of jm_single().maker_timeout_sec (the user configured value)
+        self.maker_timeout_sec = (len(tx) * 1.8 * len(
+            self.active_orders.keys()))/(B_PER_SEC) + jm_single().maker_timeout_sec
+        log.debug("Based on transaction size: " + str(
+            len(tx)) + ", calculated time to wait for replies: " + str(
+            self.maker_timeout_sec))
+        self.all_responded = True
+        with self.timeout_lock:
+            self.timeout_lock.notify()
         self.msgchan.send_tx(self.active_orders.keys(), tx)
 
         self.latest_tx = btc.deserialize(tx)
@@ -292,23 +316,43 @@ class CoinJoinTX(object):
             tx = self.sign_tx(tx, index, self.wallet.get_key_from_addr(addr))
         self.latest_tx = btc.deserialize(tx)
 
-    def push(self, txd):
-        tx = btc.serialize(txd)
+    def push(self):
+        tx = btc.serialize(self.latest_tx)
         log.debug('\n' + tx)
-        log.debug('txid = ' + btc.txhash(tx))
-        # TODO send to a random maker or push myself
-        # TODO need to check whether the other party sent it
-        # self.msgchan.push_tx(self.active_orders.keys()[0], txhex)
-        pushed = jm_single().bc_interface.pushtx(tx)
-        if pushed[0]:
-            self.txid = btc.txhash(tx)
-        else:
-            log.debug('unable to pushtx, reason: '+str(pushed[1]))
-        return pushed[0]
+        self.txid = btc.txhash(tx)
+        log.debug('txid = ' + self.txid)
+        
+        tx_broadcast = jm_single().config.get('POLICY', 'tx_broadcast')
+        if tx_broadcast == 'self':
+            pushed = jm_single().bc_interface.pushtx(tx)
+        elif tx_broadcast in ['random-peer', 'not-self']:
+            n = len(self.active_orders)
+            if tx_broadcast == 'random-peer':
+                i = random.randrange(n + 1)
+            else:
+                i = random.randrange(n)
+            if i == n:
+                pushed = jm_single().bc_interface.pushtx(tx)
+            else:
+                self.msgchan.push_tx(self.active_orders.keys()[i], tx)
+                pushed = True
+        elif tx_broadcast == 'random-maker':
+            crow = self.db.execute(
+                'SELECT DISTINCT counterparty FROM orderbook ORDER BY ' +
+                'RANDOM() LIMIT 1;'
+            ).fetchone()
+            counterparty = crow['counterparty']
+            log.debug('pushing tx to ' + counterparty)
+            self.msgchan.push_tx(counterparty, tx)
+            pushed = True
+
+        if not pushed:
+            log.debug('unable to pushtx')
+        return pushed
 
     def self_sign_and_push(self):
         self.self_sign()
-        return self.push(self.latest_tx)
+        return self.push()
 
     def recover_from_nonrespondants(self):
         log.debug('nonresponding makers = ' + str(self.nonrespondants))
@@ -341,8 +385,8 @@ class CoinJoinTX(object):
             self.msgchan.fill_orders(new_orders, self.cj_amount,
                                      self.kp.hex_pk())
         else:
-            log.debug('nonresponse to !sig')
-            # nonresponding to !sig, have to restart tx from the beginning
+            log.debug('nonresponse to !tx')
+            # nonresponding to !tx, have to restart tx from the beginning
             self.end_timeout_thread = True
             if self.finishcallback is not None:
                 self.finishcallback(self)
@@ -351,7 +395,7 @@ class CoinJoinTX(object):
     class TimeoutThread(threading.Thread):
 
         def __init__(self, cjtx):
-            threading.Thread.__init__(self)
+            threading.Thread.__init__(self, name='TimeoutThread')
             self.cjtx = cjtx
 
         def run(self):
@@ -366,17 +410,17 @@ class CoinJoinTX(object):
             # to see if if the messages have arrived
             while not self.cjtx.end_timeout_thread:
                 log.debug('waiting for all replies.. timeout=' + str(
-                        jm_single().maker_timeout_sec))
+                        self.cjtx.maker_timeout_sec))
                 with self.cjtx.timeout_lock:
-                    self.cjtx.timeout_lock.wait(jm_single().maker_timeout_sec)
-                if self.cjtx.all_responded:
-                    log.debug(('timeout thread woken by notify(), '
-                               'makers responded in time'))
-                    self.cjtx.all_responded = False
-                else:
-                    log.debug('timeout thread woken by timeout, '
-                              'makers didnt respond')
-                    with self.cjtx.timeout_thread_lock:
+                    self.cjtx.timeout_lock.wait(self.cjtx.maker_timeout_sec)
+                with self.cjtx.timeout_thread_lock:
+                    if self.cjtx.all_responded:
+                        log.debug(('timeout thread woken by notify(), '
+                                   'makers responded in time'))
+                        self.cjtx.all_responded = False
+                    else:
+                        log.debug('timeout thread woken by timeout, '
+                                  'makers didnt respond')
                         self.cjtx.recover_from_nonrespondants()
 
 
@@ -440,6 +484,11 @@ class OrderbookWatch(CoinJoinerPeer):
                 log.debug("Got invalid minsize: {} from {}".format(
                         minsize, counterparty))
                 return
+            if int(minsize) < jm_single().DUST_THRESHOLD:
+                minsize = jm_single().DUST_THRESHOLD
+                log.debug("{} has dusty minsize, capping at {}".format(
+                        counterparty, minsize))
+                # do not pass return, go not drop this otherwise fine offer
             if int(maxsize) < 0 or int(maxsize) > 21 * 10 ** 14:
                 log.debug("Got invalid maxsize: " + maxsize + " from " +
                           counterparty)
@@ -550,6 +599,7 @@ class Taker(OrderbookWatch):
 
 # this stuff copied and slightly modified from pybitcointools
 def donation_address(cjtx):
+    from bitcoin.main import multiply, G, deterministic_generate_k, add_pubkeys
     reusable_donation_pubkey = ('02be838257fbfddabaea03afbb9f16e852'
                                 '9dfe2de921260a5c46036d97b5eacf2a')
 
@@ -559,22 +609,22 @@ def donation_address(cjtx):
     privkey = cjtx.wallet.get_key_from_addr(donation_utxo_data[1]['address'])
     # tx without our inputs and outputs
     tx = btc.mktx(cjtx.utxo_tx, cjtx.outputs)
-    # address = privtoaddr(privkey)
-    # signing_tx = signature_form(tx, 0, mk_pubkey_script(address), SIGHASH_ALL)
     msghash = btc.bin_txhash(tx, btc.SIGHASH_ALL)
     # generate unpredictable k
     global sign_k
-    sign_k = btc.deterministic_generate_k(msghash, privkey)
-    c = btc.sha256(btc.multiply(reusable_donation_pubkey, sign_k))
-    sender_pubkey = btc.add_pubkeys(
-            reusable_donation_pubkey, btc.multiply(
-                    btc.G, c))
+    sign_k = deterministic_generate_k(msghash, privkey)
+    c = btc.sha256(multiply(reusable_donation_pubkey, sign_k))
+    sender_pubkey = add_pubkeys(
+            reusable_donation_pubkey, multiply(
+                    G, c))
     sender_address = btc.pubtoaddr(sender_pubkey, get_p2pk_vbyte())
     log.debug('sending coins to ' + sender_address)
     return sender_address
 
 
 def sign_donation_tx(tx, i, priv):
+    from bitcoin.main import fast_multiply, decode_privkey, G, inv, N
+    from bitcoin.transaction import der_encode_sig
     k = sign_k
     hashcode = btc.SIGHASH_ALL
     i = int(i)
@@ -588,11 +638,11 @@ def sign_donation_tx(tx, i, priv):
     msghash = btc.bin_txhash(signing_tx, hashcode)
     z = btc.hash_to_int(msghash)
     # k = deterministic_generate_k(msghash, priv)
-    r, y = btc.fast_multiply(btc.G, k)
-    s = btc.inv(k, btc.N) * (z + r * btc.decode_privkey(priv)) % btc.N
+    r, y = fast_multiply(G, k)
+    s = inv(k, N) * (z + r * decode_privkey(priv)) % N
     rawsig = 27 + (y % 2), r, s
 
-    sig = btc.der_encode_sig(*rawsig) + btc.encode(hashcode, 16, 2)
+    sig = der_encode_sig(*rawsig) + btc.encode(hashcode, 16, 2)
     # sig = ecdsa_tx_sign(signing_tx, priv, hashcode)
     txobj = btc.deserialize(tx)
     txobj["ins"][i]["script"] = btc.serialize_script([sig, pub])

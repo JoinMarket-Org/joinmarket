@@ -1,0 +1,3 @@
+[submodule "miniircd"]
+	path = miniircd
+	url = https://github.com/JoinMarket-Org/miniircd

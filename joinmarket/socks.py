@@ -41,7 +41,7 @@ _defaultproxy = None
 _orgsocket = socket.socket
 
 
-class ProxyError(Exception):
+class ProxyError(IOError):
     def __init__(self, value):
         self.value = value
 
