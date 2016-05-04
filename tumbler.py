@@ -319,7 +319,7 @@ class TumblerThread(threading.Thread):
             jm_single().debug_silence[0] = False
         else:
             destaddr = tx['destination']
-        self.taker.wallet.update_index_cache()
+        self.taker.wallet.update_cache_index()
         self.sweep = sweep
         self.balance = balance
         self.tx = tx
