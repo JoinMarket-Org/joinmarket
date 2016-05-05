@@ -25,7 +25,7 @@ Widespread use of JoinMarket could improve bitcoin's fungibility as a commodity.
     ```
     git clone git://github.com/jedisct1/libsodium.git
     cd libsodium
-    git checkout tags/1.0.4
+    git checkout tags/1.0.3
     ./autogen.sh
     ./configure
     make check
@@ -45,8 +45,8 @@ Widespread use of JoinMarket could improve bitcoin's fungibility as a commodity.
 1. `sudo apt-get update -y && sudo apt-get upgrade -y && sudo apt-get install python libsodium-dev -y`
 2. `pip install secp256k1` (optional but recommended)
 2. `sudo apt-get install python-matplotlib -y` (optional)
-3. Download JoinMarket 0.1.4 source from [here](https://github.com/joinmarket-org/joinmarket/releases/tag/v0.1.4)
-4. Extract or unzip and `cd joinmarket-0.1.4`
+3. Download JoinMarket 0.1.3 source from [here](https://github.com/joinmarket-org/joinmarket/releases/tag/v0.1.3)
+4. Extract or unzip and `cd joinmarket-0.1.3`
 4. Generating your first wallet will populate the configuration file: `joinmarket.cfg`.
    Check if the default settings suit your needs.
 
