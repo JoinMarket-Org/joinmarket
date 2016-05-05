@@ -13,6 +13,7 @@ import threading
 import time
 import urllib
 import urllib2
+import traceback
 from decimal import Decimal
 
 import bitcoin as btc
@@ -348,12 +349,13 @@ class BlockrInterface(BlockchainInterface):
     def pushtx(self, txhex):
         try:
             json_str = btc.blockr_pushtx(txhex, self.network_for_blockr_push())
+            data = json.loads(json_str)
+            if data['status'] != 'success':
+                log.debug(data)
+                return False
         except Exception:
             log.debug('failed blockr.io pushtx')
-            return False
-        data = json.loads(json_str)
-        if data['status'] != 'success':
-            log.debug(data)
+            log.debug(traceback.format_exc())
             return False
         return True
 

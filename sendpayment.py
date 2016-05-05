@@ -127,6 +127,7 @@ class PaymentThread(threading.Thread):
             else:
                 #Error should be in log, will not retry.
                 log.debug('failed to push tx, ending.')
+            time.sleep(10) # see github issue #516
             self.taker.msgchan.shutdown()
             return
         self.ignored_makers += coinjointx.nonrespondants
