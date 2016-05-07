@@ -45,6 +45,7 @@ def get_options():
     options.waittime = 10
     options.mincjamount = 1000000
     options.liquiditywait = 5
+    options = vars(options)
     return options
 
 def test_generate_tumbler_tx():
@@ -83,6 +84,7 @@ def test_tumbler(setup_tumbler, num_ygs, wallet_structures, mean_amt, sdev_amt,
     options.liquiditywait = 5
     options.maxbroadcasts = 4
     options.maxcreatetx = 9
+    options = vars(options)
 
     wallets = make_wallets(num_ygs + 1,
                            wallet_structures=wallet_structures,
@@ -121,10 +123,10 @@ def test_tumbler(setup_tumbler, num_ygs, wallet_structures, mean_amt, sdev_amt,
         destaddrs.append(destaddr)
     tx_list = tumbler.generate_tumbler_tx(destaddrs, options)
     pprint(tx_list)
-    if options.addrcount + 1 > options.mixdepthcount:
+    if options['addrcount'] + 1 > options['mixdepthcount']:
         print('not enough mixing depths to pay to all destination addresses, '
               'increasing mixdepthcount')
-        options.mixdepthcount = options.addrcount + 1
+        options['mixdepthcount'] = options['addrcount'] + 1
 
     tx_list2 = copy.deepcopy(tx_list)
     tx_dict = {}

@@ -37,47 +37,49 @@ def generate_tumbler_tx(destaddrs, options):
 
     # txcounts for going completely from one mixdepth to the next
     # follows a normal distribution
-    txcounts = rand_norm_array(options.txcountparams[0],
-                               options.txcountparams[1], options.mixdepthcount)
-    txcounts = lower_bounded_int(txcounts, options.mintxcount)
+    txcounts = rand_norm_array(options['txcountparams'][0],
+                               options['txcountparams'][1], options['mixdepthcount'])
+    txcounts = lower_bounded_int(txcounts, options['mintxcount'])
     tx_list = []
     for m, txcount in enumerate(txcounts):
-        if options.mixdepthcount - options.addrcount <= m and m < \
-                options.mixdepthcount - 1:
+        if options['mixdepthcount'] - options['addrcount'] <= m and m < \
+                options['mixdepthcount'] - 1:
             #these mixdepths send to a destination address, so their
             # amount_fraction cant be 1.0, some coins must be left over
             if txcount == 1:
                 txcount = 2
         # assume that the sizes of outputs will follow a power law
-        amount_fractions = rand_pow_array(options.amountpower, txcount)
+        amount_fractions = rand_pow_array(options['amountpower'], txcount)
         amount_fractions = [1.0 - x for x in amount_fractions]
         amount_fractions = [x / sum(amount_fractions) for x in amount_fractions]
         # transaction times are uncorrelated
         # time between events in a poisson process followed exp
-        waits = rand_exp_array(options.timelambda, txcount)
+        waits = rand_exp_array(options['timelambda'], txcount)
         # number of makers to use follows a normal distribution
-        makercounts = rand_norm_array(options.makercountrange[0],
-                                      options.makercountrange[1], txcount)
-        makercounts = lower_bounded_int(makercounts, options.minmakercount)
-        if m == options.mixdepthcount - options.addrcount and options.donateamount:
+        makercounts = rand_norm_array(options['makercountrange'][0],
+                                      options['makercountrange'][1], txcount)
+        makercounts = lower_bounded_int(makercounts, options['minmakercount'])
+        if m == options['mixdepthcount'] - options['addrcount'] and \
+                options['donateamount']:
             tx_list.append({'amount_fraction': 0,
                             'wait': round(waits[0], 2),
-                            'srcmixdepth': m + options.mixdepthsrc,
+                            'srcmixdepth': m + options['mixdepthsrc'],
                             'makercount': makercounts[0],
                             'destination': 'internal'})
         for amount_fraction, wait, makercount in zip(amount_fractions, waits,
                                                      makercounts):
             tx = {'amount_fraction': amount_fraction,
                   'wait': round(wait, 2),
-                  'srcmixdepth': m + options.mixdepthsrc,
+                  'srcmixdepth': m + options['mixdepthsrc'],
                   'makercount': makercount,
                   'destination': 'internal'}
             tx_list.append(tx)
 
-    addrask = options.addrcount - len(destaddrs)
+    addrask = options['addrcount'] - len(destaddrs)
     external_dest_addrs = ['addrask'] * addrask + destaddrs
-    for mix_offset in range(options.addrcount):
-        srcmix = options.mixdepthsrc + options.mixdepthcount - mix_offset - 1
+    for mix_offset in range(options['addrcount']):
+        srcmix = (options['mixdepthsrc'] + options['mixdepthcount'] - 
+            mix_offset - 1)
         for tx in reversed(tx_list):
             if tx['srcmixdepth'] == srcmix:
                 tx['destination'] = external_dest_addrs[mix_offset]
@@ -154,7 +156,7 @@ class TumblerThread(threading.Thread):
 
     def finishcallback(self, coinjointx):
         if coinjointx.all_responded:
-            self.broadcast_attempts = self.taker.options.maxbroadcasts
+            self.broadcast_attempts = self.taker.options['maxbroadcasts']
             coinjointx.self_sign()
             pushed = self.pushtx()
             if not pushed:
@@ -186,17 +188,17 @@ class TumblerThread(threading.Thread):
             log.debug('rel/abs average fee = ' + str(rel_cj_fee) + ' / ' + str(
                     abs_cj_fee))
 
-            if rel_cj_fee > self.taker.options.maxcjfee[
-                0] and abs_cj_fee > self.taker.options.maxcjfee[1]:
+            if rel_cj_fee > self.taker.options['maxcjfee'][
+                0] and abs_cj_fee > self.taker.options['maxcjfee'][1]:
                 log.debug('cj fee higher than maxcjfee, waiting ' + str(
-                        self.taker.options.liquiditywait) + ' seconds')
-                time.sleep(self.taker.options.liquiditywait)
+                        self.taker.options['liquiditywait']) + ' seconds')
+                time.sleep(self.taker.options['liquiditywait'])
                 continue
             if orders is None:
                 log.debug('waiting for liquidity ' + str(
-                        self.taker.options.liquiditywait) +
+                        self.taker.options['liquiditywait']) +
                           'secs, hopefully more orders should come in')
-                time.sleep(self.taker.options.liquiditywait)
+                time.sleep(self.taker.options['liquiditywait'])
                 continue
             break
         log.debug('chosen orders to fill ' + str(orders) + ' totalcjfee=' + str(
@@ -230,9 +232,9 @@ class TumblerThread(threading.Thread):
             estimated_fee = estimate_tx_fee(est_ins, est_outs)
             log.debug("We have a fee estimate: "+str(estimated_fee))
             log.debug("And a requested fee of: "+str(
-                self.taker.options.txfee * self.tx['makercount']))
+                self.taker.options['txfee'] * self.tx['makercount']))
             fee_for_tx = max([estimated_fee,
-                              self.tx['makercount'] * self.taker.options.txfee])
+                              self.tx['makercount'] * self.taker.options['txfee']])
             fee_for_tx = int(fee_for_tx / self.tx['makercount'])
             total_value = sum([addrval['value'] for addrval in utxos.values()])
             while True:
@@ -242,39 +244,39 @@ class TumblerThread(threading.Thread):
                         self.ignored_makers)
                 if orders is None:
                     log.debug('waiting for liquidity ' + str(
-                            self.taker.options.liquiditywait) +
+                            self.taker.options['liquiditywait']) +
                               'secs, hopefully more orders should come in')
-                    time.sleep(self.taker.options.liquiditywait)
+                    time.sleep(self.taker.options['liquiditywait'])
                     continue
                 abs_cj_fee = 1.0 * total_cj_fee / self.tx['makercount']
                 rel_cj_fee = abs_cj_fee / cj_amount
                 log.debug(
                     'rel/abs average fee = ' + str(rel_cj_fee) + ' / ' + str(
                             abs_cj_fee))
-                if rel_cj_fee > self.taker.options.maxcjfee[0] \
-                        and abs_cj_fee > self.taker.options.maxcjfee[1]:
+                if rel_cj_fee > self.taker.options['maxcjfee'][0] \
+                        and abs_cj_fee > self.taker.options['maxcjfee'][1]:
                     log.debug('cj fee higher than maxcjfee, waiting ' + str(
-                            self.taker.options.liquiditywait) + ' seconds')
-                    time.sleep(self.taker.options.liquiditywait)
+                            self.taker.options['liquiditywait']) + ' seconds')
+                    time.sleep(self.taker.options['liquiditywait'])
                     continue
                 break
         else:
             if self.tx['amount_fraction'] == 0:
-                cj_amount = int(self.balance * self.taker.options.donateamount /
-                                100.0)
+                cj_amount = int(self.balance *
+                    self.taker.options['donateamount'] / 100.0)
                 self.destaddr = None
             else:
                 cj_amount = int(self.tx['amount_fraction'] * self.balance)
-            if cj_amount < self.taker.options.mincjamount:
+            if cj_amount < self.taker.options['mincjamount']:
                 log.debug('cj amount too low, bringing up')
-                cj_amount = self.taker.options.mincjamount
+                cj_amount = self.taker.options['mincjamount']
             change_addr = self.taker.wallet.get_internal_addr(
                 self.tx['srcmixdepth'])
             log.debug('coinjoining ' + str(cj_amount) + ' satoshi')
             orders, total_cj_fee = self.tumbler_choose_orders(
                     cj_amount, self.tx['makercount'])
             total_amount = cj_amount + total_cj_fee + \
-                self.taker.options.txfee*self.tx['makercount']
+                self.taker.options['txfee']*self.tx['makercount']
             log.debug('total estimated amount spent = ' + str(total_amount))
             #adjust the required amount upwards to anticipate a tripling of
             #transaction fee after re-estimation; this is sufficiently conservative
@@ -283,7 +285,7 @@ class TumblerThread(threading.Thread):
             #txfee indicates undesirable behaviour on maker side anyway.
             try:
                 utxos = self.taker.wallet.select_utxos(self.tx['srcmixdepth'],
-                total_amount+2*self.taker.options.txfee*self.tx['makercount'])
+                total_amount+2*self.taker.options['txfee']*self.tx['makercount'])
             except Exception as e:
                 #we cannot afford to just throw not enough funds; better to
                 #try with a smaller request; it could still fail within
@@ -295,7 +297,7 @@ class TumblerThread(threading.Thread):
                             total_amount)
                 else:
                     raise
-            fee_for_tx = self.taker.options.txfee
+            fee_for_tx = self.taker.options['txfee']
             choose_orders_recover = self.tumbler_choose_orders
 
         self.taker.start_cj(self.taker.wallet, cj_amount, orders, utxos,
@@ -319,12 +321,12 @@ class TumblerThread(threading.Thread):
             jm_single().debug_silence[0] = False
         else:
             destaddr = tx['destination']
-        self.taker.wallet.update_index_cache()
+        self.taker.wallet.update_cache_index()
         self.sweep = sweep
         self.balance = balance
         self.tx = tx
         self.destaddr = destaddr
-        self.create_tx_attempts = self.taker.options.maxcreatetx
+        self.create_tx_attempts = self.taker.options['maxcreatetx']
         self.create_tx()
         with self.lockcond:
             self.lockcond.wait()
@@ -334,7 +336,7 @@ class TumblerThread(threading.Thread):
 
     def run(self):
         log.debug('waiting for all orders to certainly arrive')
-        time.sleep(self.taker.options.waittime)
+        time.sleep(self.taker.options['waittime'])
 
         sqlorders = self.taker.db.execute(
                 'SELECT cjfee, ordertype FROM orderbook;').fetchall()
@@ -540,6 +542,7 @@ def main():
             help=
             'maximum amount of times to re-create a transaction before giving up, default 9')
     (options, args) = parser.parse_args()
+    options = vars(options)
 
     if len(args) < 1:
         parser.error('Needs a wallet file')
@@ -555,15 +558,15 @@ def main():
             print('ERROR: Address ' + addr + ' invalid. ' + errormsg)
             return
 
-    if len(destaddrs) > options.addrcount:
-        options.addrcount = len(destaddrs)
-    if options.addrcount + 1 > options.mixdepthcount:
+    if len(destaddrs) > options['addrcount']:
+        options['addrcount'] = len(destaddrs)
+    if options['addrcount'] + 1 > options['mixdepthcount']:
         print('not enough mixing depths to pay to all destination addresses, '
               'increasing mixdepthcount')
-        options.mixdepthcount = options.addrcount + 1
-    if options.donateamount > 10.0:
+        options['mixdepthcount'] = options['addrcount'] + 1
+    if options['donateamount'] > 10.0:
         # fat finger probably, or misunderstanding
-        options.donateamount = 0.9
+        options['donateamount'] = 0.9
 
     print(str(options))
     tx_list = generate_tumbler_tx(destaddrs, options)
@@ -591,7 +594,7 @@ def main():
     total_block_and_wait = len(tx_list) * 10 + total_wait
     print('estimated time taken ' + str(total_block_and_wait) + ' minutes or ' +
           str(round(total_block_and_wait / 60.0, 2)) + ' hours')
-    if options.addrcount <= 1:
+    if options['addrcount'] <= 1:
         print('=' * 50)
         print('WARNING: You are only using one destination address')
         print('this is very bad for privacy')
@@ -615,7 +618,7 @@ def main():
     # for quick testing
     # python tumbler.py -N 2 1 -c 3 0.001 -l 0.1 -M 3 -a 0 wallet_file 1xxx 1yyy
     wallet = Wallet(wallet_file,
-                    max_mix_depth=options.mixdepthsrc + options.mixdepthcount)
+                    max_mix_depth=options['mixdepthsrc'] + options['mixdepthcount'])
     jm_single().bc_interface.sync_wallet(wallet)
 
     jm_single().nickname = random_nick()
