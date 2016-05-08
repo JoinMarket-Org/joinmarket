@@ -138,6 +138,7 @@ class MessageChannel(object):
         for order in orderlist:
             orderlines.append(COMMAND_PREFIX + order['ordertype'] + \
                     ' ' + ' '.join([str(order[k]) for k in order_keys]))
+        log.debug("Announcing orders to: " + str(nick))
         self._announce_orders(orderlines, nick)
 
     def check_for_orders(self, nick, _chunks):
