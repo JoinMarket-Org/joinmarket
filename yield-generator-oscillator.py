@@ -80,10 +80,11 @@ offer_levels = (
 # optional, for use in your joinmarket.cfg
 """
 [YIELDGEN]
-# multiple values means set randomly within that range
+# Make your offer size never go above or below an amount
 # offer low, default is output_size_min
 # offer high, default is largest mix depth
 # minimum output size, default is dust threshold 2730 satoshis
+# multiple values means set randomly within that range
 offer_low = 25000, 65000
 offer_high = 10e8, 14e8  
 output_size_min = 10000

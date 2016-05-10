@@ -20,7 +20,9 @@ Widespread use of JoinMarket could improve bitcoin's fungibility as a commodity.
 
 + You will need libsodium installed
 
- - Either get it via apt-get as `libsodium-dev` or build:
+ - Debian/Ubuntu, apt-get install libsodium-dev
+ - Arch, pacman -S libsodium
+ - or build:
 
     ```
     git clone git://github.com/jedisct1/libsodium.git
