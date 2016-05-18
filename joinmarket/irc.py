@@ -663,7 +663,7 @@ class IRCMessageChannel(MessageChannel):
                     self.fd.close()
                     self.sock.close()
                 except Exception as e:
-                    print(repr(e))
+                    pass
             if self.on_disconnect:
                 self.on_disconnect()
             log.debug('disconnected irc')
