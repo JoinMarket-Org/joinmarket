@@ -317,8 +317,8 @@ class IRCMessageChannel(MessageChannel):
                     self.on_order_seen(counterparty, oid, ordertype, minsize,
                                        maxsize, txfee, cjfee)
             except IndexError as e:
-                log.exception(e)
-                log.debug('index error parsing chunks')
+                log.warning(e)
+                log.debug('index error parsing chunks, possibly malformed offer by other party. No user action required.')
                 # TODO what now? just ignore iirc
             finally:
                 return True
