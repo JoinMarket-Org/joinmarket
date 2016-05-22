@@ -26,7 +26,12 @@ def estimate_tx_fee(ins, outs, txtype='p2pkh'):
     tx_estimated_bytes = btc.estimate_tx_size(ins, outs, txtype)
     log.debug("Estimated transaction size: "+str(tx_estimated_bytes))
     fee_per_kb = jm_single().bc_interface.estimate_fee_per_kb(
-        jm_single().config.getint("POLICY","tx_fees"))
+        jm_single().config.getint("POLICY", "tx_fees"))
+    absurd_fee = jm_single().config.getint("POLICY", "absurd_fee_per_kb")
+    if fee_per_kb > absurd_fee:
+        #This error is considered critical; for safety reasons, shut down.
+        raise ValueError("Estimated fee per kB greater than absurd value: " + \
+                         str(absurd_fee) + ", quitting.")
     log.debug("got estimated tx bytes: "+str(tx_estimated_bytes))
     return int((tx_estimated_bytes * fee_per_kb)/Decimal(1000.0))
 
