@@ -749,6 +749,13 @@ class RegtestBitcoinCoreInterface(BitcoinCoreInterface):
         super(RegtestBitcoinCoreInterface, self).__init__(jsonRpc, 'regtest')
         self.pushtx_failure_prob = 0
         self.tick_forward_chain_interval = 2
+	self.absurd_fees = False
+
+    def estimate_fee_per_kb(self, N):
+	if not self.absurd_fees:
+	    return super(RegtestBitcoinCoreInterface, self).estimate_fee_per_kb(N)
+	else:
+	    return jm_single().config.getint("POLICY", "absurd_fee_per_kb") + 100
 
     def pushtx(self, txhex):
         if self.pushtx_failure_prob != 0 and random.random() <\
