@@ -110,7 +110,6 @@ class texttable:
     @classmethod
     def obj_arr( cls, t ):
         return t
-        return dir( t ) if isinstance( t, object ) else t
     
     @classmethod
     def is_numeric(cls, var):
