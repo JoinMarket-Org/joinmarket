@@ -9,13 +9,12 @@ import time
 import Queue
 
 from joinmarket.configure import jm_single, get_config_irc_channel
-from joinmarket.message_channel import MessageChannel, CJPeerError
+from joinmarket.message_channel import MessageChannel, CJPeerError, COMMAND_PREFIX
 from joinmarket.enc_wrapper import encrypt_encode, decode_decrypt
 from joinmarket.support import get_log, chunks
 from joinmarket.socks import socksocket, setdefaultproxy, PROXY_TYPE_SOCKS5
 
 MAX_PRIVMSG_LEN = 450
-COMMAND_PREFIX = '!'
 PING_INTERVAL = 300
 PING_TIMEOUT = 60
 
@@ -35,10 +34,6 @@ PING_TIMEOUT = 60
 MSG_INTERVAL = 0.001
 B_PER_SEC = 450
 B_PER_SEC_INTERVAL = 4.0
-
-encrypted_commands = ["auth", "ioauth", "tx", "sig"]
-plaintext_commands = ["fill", "error", "pubkey", "orderbook", "relorder",
-                      "absorder", "push"]
 
 log = get_log()
 
@@ -198,44 +193,30 @@ class IRCMessageChannel(MessageChannel):
         self.close()
         self.give_up = True
 
-    def send_error(self, nick, errormsg):
-        log.debug('error<%s> : %s' % (nick, errormsg))
-        self.__privmsg(nick, 'error', errormsg)
-        raise CJPeerError()
-
-    # OrderbookWatch callback
-    def request_orderbook(self):
-        self.__pubmsg(COMMAND_PREFIX + 'orderbook')
-
-    # Taker callbacks
-    def fill_orders(self, nick_order_dict, cj_amount, taker_pubkey):
-        for c, order in nick_order_dict.iteritems():
-            msg = str(order['oid']) + ' ' + str(cj_amount) + ' ' + taker_pubkey
-            self.__privmsg(c, 'fill', msg)
-
-    def send_auth(self, nick, pubkey, sig):
-        message = pubkey + ' ' + sig
-        self.__privmsg(nick, 'auth', message)
-
-    def send_tx(self, nick_list, txhex):
-        txb64 = base64.b64encode(txhex.decode('hex'))
-        for nick in nick_list:
-            self.__privmsg(nick, 'tx', txb64)
-
-    def push_tx(self, nick, txhex):
-        txb64 = base64.b64encode(txhex.decode('hex'))
-        self.__privmsg(nick, 'push', txb64)
-
     # Maker callbacks
-    def announce_orders(self, orderlist, nick=None):
-        # nick=None means announce publicly
-        order_keys = ['oid', 'minsize', 'maxsize', 'txfee', 'cjfee']
+    def _announce_orders(self, orderlist, nick):
+        """This publishes orders to the pit and to
+        counterparties. Note that it does *not* use chunking.
+        So, it tries to optimise space usage thusly:
+        As many complete orderlines are fit onto one line
+        as possible, and overflow goes onto another line.
+        Each list entry in orderlist must have format:
+        !ordername <parameters>
+
+        Then, what is published is lines of form:
+        !ordername <parameters>!ordername <parameters>..
+
+        fitting as many list entries as possible onto one line,
+        up to the limit of the IRC parameters (see MAX_PRIVMSG_LEN).
+
+        nick=None means announce publically. Theoretically, we
+        could use chunking for the non-public, but for simplicity
+        just have one function.
+        """
         header = 'PRIVMSG ' + (nick if nick else self.channel) + ' :'
         orderlines = []
         for i, order in enumerate(orderlist):
-            orderparams = COMMAND_PREFIX + order['ordertype'] + \
-                          ' ' + ' '.join([str(order[k]) for k in order_keys])
-            orderlines.append(orderparams)
+            orderlines.append(order)
             line = header + ''.join(orderlines) + ' ~'
             if len(line) > MAX_PRIVMSG_LEN or i == len(orderlist) - 1:
                 if i < len(orderlist) - 1:
@@ -243,40 +224,15 @@ class IRCMessageChannel(MessageChannel):
                 self.send_raw(line)
                 orderlines = [orderlines[-1]]
 
-    def cancel_orders(self, oid_list):
-        clines = [COMMAND_PREFIX + 'cancel ' + str(oid) for oid in oid_list]
-        self.__pubmsg(''.join(clines))
+    def _pubmsg(self, message):
+        line = "PRIVMSG " + self.channel + " :" + message
+        assert len(line) <= MAX_PRIVMSG_LEN
+        self.send_raw(line)
 
-    def send_pubkey(self, nick, pubkey):
-        self.__privmsg(nick, 'pubkey', pubkey)
-
-    def send_ioauth(self, nick, utxo_list, cj_pubkey, change_addr, sig):
-        authmsg = (str(','.join(utxo_list)) + ' ' + cj_pubkey + ' ' +
-                   change_addr + ' ' + sig)
-        self.__privmsg(nick, 'ioauth', authmsg)
-
-    def send_sigs(self, nick, sig_list):
-        # TODO make it send the sigs on one line if there's space
-        for s in sig_list:
-            self.__privmsg(nick, 'sig', s)
-
-    def __pubmsg(self, message):
-        log.debug('>>pubmsg ' + message)
-        self.send_raw("PRIVMSG " + self.channel + " :" + message)
-
-    def __privmsg(self, nick, cmd, message):
-        log.debug('>>privmsg ' + 'nick=' + nick + ' cmd=' + cmd + ' msg=' +
-                  message)
-        # should we encrypt?
-        box, encrypt = self.__get_encryption_box(cmd, nick)
-        # encrypt before chunking
-        if encrypt:
-            if not box:
-                log.debug('error, dont have encryption box object for ' + nick +
-                          ', dropping message')
-                return
-            message = encrypt_encode(message, box)
-
+    def _privmsg(self, nick, cmd, message):
+        """Send a privmsg to an irc counterparty,
+        using chunking as appropriate for long messages.
+        """
         header = "PRIVMSG " + nick + " :"
         max_chunk_len = MAX_PRIVMSG_LEN - len(header) - len(cmd) - 4
         # 1 for command prefix 1 for space 2 for trailer
@@ -303,139 +259,6 @@ class IRCMessageChannel(MessageChannel):
         self.lockthrottle.notify()
         self.lockthrottle.release()
 
-    def check_for_orders(self, nick, _chunks):
-        if _chunks[0] in jm_single().ordername_list:
-            try:
-                counterparty = nick
-                oid = _chunks[1]
-                ordertype = _chunks[0]
-                minsize = _chunks[2]
-                maxsize = _chunks[3]
-                txfee = _chunks[4]
-                cjfee = _chunks[5]
-                if self.on_order_seen:
-                    self.on_order_seen(counterparty, oid, ordertype, minsize,
-                                       maxsize, txfee, cjfee)
-            except IndexError as e:
-                log.warning(e)
-                log.debug('index error parsing chunks, possibly malformed offer by other party. No user action required.')
-                # TODO what now? just ignore iirc
-            finally:
-                return True
-        return False
-
-    def __on_privmsg(self, nick, message):
-        """handles the case when a private message is received"""
-        if message[0] != COMMAND_PREFIX:
-            return
-        for command in message[1:].split(COMMAND_PREFIX):
-            _chunks = command.split(" ")
-            # looks like a very similar pattern for all of these
-            # check for a command name, parse arguments, call a function
-            # maybe we need some eval() trickery to do it better
-
-            try:
-                # orderbook watch commands
-                if self.check_for_orders(nick, _chunks):
-                    pass
-
-                # taker commands
-                elif _chunks[0] == 'pubkey':
-                    maker_pk = _chunks[1]
-                    if self.on_pubkey:
-                        self.on_pubkey(nick, maker_pk)
-                elif _chunks[0] == 'ioauth':
-                    utxo_list = _chunks[1].split(',')
-                    cj_pub = _chunks[2]
-                    change_addr = _chunks[3]
-                    btc_sig = _chunks[4]
-                    if self.on_ioauth:
-                        self.on_ioauth(nick, utxo_list, cj_pub, change_addr,
-                                       btc_sig)
-                elif _chunks[0] == 'sig':
-                    sig = _chunks[1]
-                    if self.on_sig:
-                        self.on_sig(nick, sig)
-
-                # maker commands
-                if _chunks[0] == 'fill':
-                    try:
-                        oid = int(_chunks[1])
-                        amount = int(_chunks[2])
-                        taker_pk = _chunks[3]
-                    except (ValueError, IndexError) as e:
-                        self.send_error(nick, str(e))
-                    if self.on_order_fill:
-                        self.on_order_fill(nick, oid, amount, taker_pk)
-                elif _chunks[0] == 'auth':
-                    try:
-                        i_utxo_pubkey = _chunks[1]
-                        btc_sig = _chunks[2]
-                    except (ValueError, IndexError) as e:
-                        self.send_error(nick, str(e))
-                    if self.on_seen_auth:
-                        self.on_seen_auth(nick, i_utxo_pubkey, btc_sig)
-                elif _chunks[0] == 'tx':
-                    b64tx = _chunks[1]
-                    try:
-                        txhex = base64.b64decode(b64tx).encode('hex')
-                    except TypeError as e:
-                        self.send_error(nick, 'bad base64 tx. ' + repr(e))
-                    if self.on_seen_tx:
-                        self.on_seen_tx(nick, txhex)
-                elif _chunks[0] == 'push':
-                    b64tx = _chunks[1]
-                    try:
-                        txhex = base64.b64decode(b64tx).encode('hex')
-                    except TypeError as e:
-                        self.send_error(nick, 'bad base64 tx. ' + repr(e))
-                    if self.on_push_tx:
-                        self.on_push_tx(nick, txhex)
-            except CJPeerError:
-                # TODO proper error handling
-                log.debug('cj peer error TODO handle')
-                continue
-
-    def __on_pubmsg(self, nick, message):
-        if message[0] != COMMAND_PREFIX:
-            return
-        commands = message[1:].split(COMMAND_PREFIX)
-        #DOS vector: repeated !orderbook requests, see #298.
-        if commands.count('orderbook')>1:
-            return
-        for command in commands:
-            _chunks = command.split(" ")
-            if self.check_for_orders(nick, _chunks):
-                pass
-            elif _chunks[0] == 'cancel':
-                # !cancel [oid]
-                try:
-                    oid = int(_chunks[1])
-                    if self.on_order_cancel:
-                        self.on_order_cancel(nick, oid)
-                except (ValueError, IndexError) as e:
-                    log.debug("!cancel " + repr(e))
-                    return
-            elif _chunks[0] == 'orderbook':
-                if self.on_orderbook_requested:
-                    self.on_orderbook_requested(nick)
-            else:
-                # TODO this is for testing/debugging, should be removed, see taker.py
-                if hasattr(self, 'debug_on_pubmsg_cmd'):
-                    self.debug_on_pubmsg_cmd(nick, _chunks)
-
-    def __get_encryption_box(self, cmd, nick):
-        """Establish whether the message is to be
-        encrypted/decrypted based on the command string.
-        If so, retrieve the appropriate crypto_box object
-        and return. Sending/receiving flag enables us
-        to check which command strings correspond to which
-        type of object (maker/taker)."""  # old doc, dont trust
-        if cmd in plaintext_commands:
-            return None, False
-        else:
-            return self.cjpeer.get_crypto_box_from_nick(nick), True
-
     def __handle_privmsg(self, source, target, message):
         nick = get_irc_nick(source)
         if target == self.nick:
@@ -450,51 +273,21 @@ class IRCMessageChannel(MessageChannel):
                     return
 
             if nick not in self.built_privmsg:
-                if message[0] != COMMAND_PREFIX:
-                    log.debug('message not a cmd')
-                    return
-                # new message starting
-                cmd_string = message[1:].split(' ')[0]
-                if cmd_string not in plaintext_commands + encrypted_commands:
-                    log.debug('cmd not in cmd_list, line="' + message + '"')
-                    return
-                self.built_privmsg[nick] = [cmd_string, message[:-2]]
+                self.built_privmsg[nick] = message[:-2]
             else:
-                self.built_privmsg[nick][1] += message[:-2]
-            box, encrypt = self.__get_encryption_box(
-                self.built_privmsg[nick][0], nick)
-            if message[-1] == ';':
-                self.waiting[nick] = True
-            elif message[-1] == '~':
-                self.waiting[nick] = False
-                if encrypt:
-                    if not box:
-                        log.debug('error, dont have encryption box object for '
-                                  + nick + ', dropping message')
-                        return
-                    # need to decrypt everything after the command string
-                    to_decrypt = ''.join(self.built_privmsg[nick][1].split(' ')[
-                        1])
-                    try:
-                        decrypted = decode_decrypt(to_decrypt, box)
-                    except ValueError as e:
-                        log.debug('valueerror when decrypting, skipping: ' +
-                                  repr(e))
-                        return
-                    parsed = self.built_privmsg[nick][1].split(' ')[
-                        0] + ' ' + decrypted
-                else:
-                    parsed = self.built_privmsg[nick][1]
+                self.built_privmsg[nick] += message[:-2]
+            if message[-1] == '~':
+                parsed = self.built_privmsg[nick]
                 # wipe the message buffer waiting for the next one
                 del self.built_privmsg[nick]
                 log.debug("<<privmsg nick=%s message=%s" % (nick, parsed))
-                self.__on_privmsg(nick, parsed)
-            else:
+                self.on_privmsg(nick, parsed)
+            elif message[-1] != ';':
                 # drop the bad nick
                 del self.built_privmsg[nick]
         elif target == self.channel:
             log.debug("<<pubmsg nick=%s message=%s" % (nick, message))
-            self.__on_pubmsg(nick, message)
+            self.on_pubmsg(nick, message)
         else:
             log.debug('what is this? privmsg src=%s target=%s message=%s;' %
                       (source, target, message))
@@ -610,7 +403,6 @@ class IRCMessageChannel(MessageChannel):
         self.obQ = Queue.Queue()
 
     def run(self):
-        self.waiting = {}
         self.give_up = False
         self.ping_reply = True
         self.lockcond = threading.Condition()

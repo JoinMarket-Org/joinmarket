@@ -32,8 +32,8 @@ yg_cmd = 'yield-generator-basic.py'
         (2, [[1, 0, 0, 0, 0]] * 3, 10, 0, 100000000),
         # 1sp 4yg, 2 mixdepths
         (4, [[1, 2, 0, 0, 0]] * 5, 4, 1, 1234500),
-        # 1sp 3yg, 2 mixdepths, sweep from depth1
-        (3, [[1, 3, 0, 0, 0]] * 4, 4, 1, 0),
+        # 1sp 8yg, 4 mixdepths, sweep from depth 0
+        (8, [[1, 3, 0, 0, 0]] * 9, 4, 0, 0),
     ])
 def test_sendpayment(setup_regtest, num_ygs, wallet_structures, mean_amt,
                      mixdepth, sending_amt):
@@ -87,6 +87,8 @@ def test_sendpayment(setup_regtest, num_ygs, wallet_structures, mean_amt,
     joinmarket.irc.PING_INTERVAL = 3
     
     irc = IRCMessageChannel(jm_single().nickname)
+    #hack fix for #356 if multiple orders per counterparty
+    if amount==0: makercount=2
     taker = sendpayment.SendPayment(irc, wallet, destaddr, amount, makercount,
                                     txfee, waittime, mixdepth, answeryes,
                                     chooseOrdersFunc)
