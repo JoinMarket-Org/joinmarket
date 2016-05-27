@@ -26,7 +26,12 @@ def estimate_tx_fee(ins, outs, txtype='p2pkh'):
     tx_estimated_bytes = btc.estimate_tx_size(ins, outs, txtype)
     log.debug("Estimated transaction size: "+str(tx_estimated_bytes))
     fee_per_kb = jm_single().bc_interface.estimate_fee_per_kb(
-        jm_single().config.getint("POLICY","tx_fees"))
+        jm_single().config.getint("POLICY", "tx_fees"))
+    absurd_fee = jm_single().config.getint("POLICY", "absurd_fee_per_kb")
+    if fee_per_kb > absurd_fee:
+        #This error is considered critical; for safety reasons, shut down.
+        raise ValueError("Estimated fee per kB greater than absurd value: " + \
+                         str(absurd_fee) + ", quitting.")
     log.debug("got estimated tx bytes: "+str(tx_estimated_bytes))
     return int((tx_estimated_bytes * fee_per_kb)/Decimal(1000.0))
 
@@ -125,7 +130,8 @@ class Wallet(AbstractWallet):
         if extend_mixdepth and len(self.index_cache) > max_mix_depth:
             self.max_mix_depth = len(self.index_cache)
         self.gaplimit = gaplimit
-        master = btc.bip32_master_key(self.seed)
+        master = btc.bip32_master_key(self.seed, (btc.MAINNET_PRIVATE if
+            get_network() == 'mainnet' else btc.TESTNET_PRIVATE))
         m_0 = btc.bip32_ckd(master, 0)
         mixing_depth_keys = [btc.bip32_ckd(m_0, c)
                              for c in range(self.max_mix_depth)]

@@ -337,6 +337,7 @@ class IRCMessageChannel(MessageChannel):
             self.lockcond.notify()
             self.lockcond.release()
         elif _chunks[1] == '376':  # end of motd
+            self.built_privmsg = {}
             if self.on_connect:
                 self.on_connect()
             self.send_raw('JOIN ' + self.channel)
@@ -402,7 +403,6 @@ class IRCMessageChannel(MessageChannel):
         self.obQ = Queue.Queue()
 
     def run(self):
-        self.built_privmsg = {}
         self.give_up = False
         self.ping_reply = True
         self.lockcond = threading.Condition()
@@ -455,7 +455,7 @@ class IRCMessageChannel(MessageChannel):
                     self.fd.close()
                     self.sock.close()
                 except Exception as e:
-                    print(repr(e))
+                    pass
             if self.on_disconnect:
                 self.on_disconnect()
             log.debug('disconnected irc')

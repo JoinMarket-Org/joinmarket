@@ -39,7 +39,7 @@ parser.add_option('-m',
                   action='store',
                   type='int',
                   dest='maxmixdepth',
-                  help='maximum mixing depth to look for, default=5')
+                  help='how many mixing depths to display, default=5')
 parser.add_option('-g',
                   '--gap-limit',
                   type="int",
@@ -113,8 +113,12 @@ if method == 'display' or method == 'displayall' or method == 'summary':
         cus_print('mixing depth %d m/0/%d/' % (m, m))
         balance_depth = 0
         for forchange in [0, 1]:
+            if forchange == 0:
+                xpub_key = btc.bip32_privtopub(wallet.keys[m][forchange])
+            else:
+                xpub_key = ''
             cus_print(' ' + ('external' if forchange == 0 else 'internal') +
-                      ' addresses m/0/%d/%d/' % (m, forchange))
+                      ' addresses m/0/%d/%d' % (m, forchange) + ' ' + xpub_key)
 
             for k in range(wallet.index[m][forchange] + options.gaplimit):
                 addr = wallet.get_addr(m, forchange, k)

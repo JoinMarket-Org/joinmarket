@@ -9,7 +9,8 @@ import threading
 import bitcoin as btc
 from joinmarket import IRCMessageChannel
 from joinmarket.configure import get_p2pk_vbyte, load_program_config, jm_single
-from joinmarket.enc_wrapper import init_keypair, as_init_encryption, init_pubkey
+from joinmarket.enc_wrapper import init_keypair, as_init_encryption, init_pubkey, \
+     NaclError
 
 from joinmarket.support import get_log, calc_cj_fee, debug_dump_object
 from joinmarket.taker import CoinJoinerPeer
@@ -32,9 +33,15 @@ class CoinJoinOrder(object):
         self.taker_pk = taker_pk
         # create DH keypair on the fly for this Order object
         self.kp = init_keypair()
-        # the encryption channel crypto box for this Order object
-        self.crypto_box = as_init_encryption(self.kp,
+        # the encryption channel crypto box for this Order object.
+        # Invalid pubkeys must be handled by giving up gracefully (otherwise DOS)
+        try:
+            self.crypto_box = as_init_encryption(self.kp,
                                              init_pubkey(taker_pk))
+        except NaclError as e:
+            log.debug("Unable to setup crypto box with counterparty: " + repr(e))
+            self.maker.msgchan.send_error(nick, "invalid nacl pubkey: " + taker_pk)
+            return
 
         order_s = [o for o in maker.orderlist if o['oid'] == oid]
         if len(order_s) == 0:
@@ -266,10 +273,10 @@ class Maker(CoinJoinerPeer):
     def on_push_tx(self, nick, txhex):
         log.debug('received txhex from ' + nick + ' to push\n' + txhex)
         pushed = jm_single().bc_interface.pushtx(txhex)
-        if pushed[0]:
-            log.debug('pushed tx ' + str(pushed[1]))
+        if pushed:
+            log.debug('pushed tx ' + btc.txhash(txhex))
         else:
-            log.debug('failed to push tx, reason: '+str(pushed[1]))
+            log.debug('failed to push tx sent by taker')
             self.msgchan.send_error(nick, 'Unable to push tx')
 
     def on_welcome(self):

@@ -13,6 +13,7 @@ import threading
 import time
 import urllib
 import urllib2
+import traceback
 from decimal import Decimal
 
 import bitcoin as btc
@@ -335,12 +336,13 @@ class BlockrInterface(BlockchainInterface):
     def pushtx(self, txhex):
         try:
             json_str = btc.blockr_pushtx(txhex, self.network)
+            data = json.loads(json_str)
+            if data['status'] != 'success':
+                log.debug(data)
+                return False
         except Exception:
             log.debug('failed blockr.io pushtx')
-            return False
-        data = json.loads(json_str)
-        if data['status'] != 'success':
-            log.debug(data)
+            log.debug(traceback.format_exc())
             return False
         return True
 
@@ -747,6 +749,13 @@ class RegtestBitcoinCoreInterface(BitcoinCoreInterface):
         super(RegtestBitcoinCoreInterface, self).__init__(jsonRpc, 'regtest')
         self.pushtx_failure_prob = 0
         self.tick_forward_chain_interval = 2
+	self.absurd_fees = False
+
+    def estimate_fee_per_kb(self, N):
+	if not self.absurd_fees:
+	    return super(RegtestBitcoinCoreInterface, self).estimate_fee_per_kb(N)
+	else:
+	    return jm_single().config.getint("POLICY", "absurd_fee_per_kb") + 100
 
     def pushtx(self, txhex):
         if self.pushtx_failure_prob != 0 and random.random() <\

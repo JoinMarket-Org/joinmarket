@@ -92,7 +92,8 @@ def jm_single():
 
 # FIXME: Add rpc_* options here in the future!
 required_options = {'BLOCKCHAIN': ['blockchain_source', 'network'],
-                    'MESSAGING': ['host', 'channel', 'port']}
+                    'MESSAGING': ['host', 'channel', 'port'],
+                    'POLICY': ['absurd_fee_per_kb']}
 
 defaultconfig = \
     """
@@ -140,6 +141,12 @@ merge_algorithm = default
 # as our default. Note that for clients not using a local blockchain
 # instance, we retrieve an estimate from the API at blockcypher.com, currently.
 tx_fees = 3
+# For users getting transaction fee estimates over an API
+# (currently blockcypher, could be others), place a sanity
+# check limit on the satoshis-per-kB to be paid. This limit
+# is also applied to users using Core, even though Core has its
+# own sanity check limit, which is currently 1,000,000 satoshis.
+absurd_fee_per_kb = 150000
 # the range of confirmations passed to the `listunspent` bitcoind RPC call
 # 1st value is the inclusive minimum, defaults to one confirmation
 # 2nd value is the exclusive maximum, defaults to most-positive-bignum (Google Me!)
@@ -155,6 +162,13 @@ tx_fees = 3
 # NB: using 0 for the 1st value with scripts other than wallet-tool could cause
 # spends from unconfirmed inputs, which may then get malleated or double-spent!
 # other counterparties are likely to reject unconfirmed inputs... don't do it.
+
+tx_broadcast = self
+#options: self, random-peer, not-self, random-maker
+# self = broadcast transaction with your own ip
+# random-peer = everyone who took part in the coinjoin has a chance of broadcasting
+# not-self = never broadcast with your own ip
+# random-maker = every peer on joinmarket has a chance of broadcasting, including yourself
 """
 
 
@@ -215,7 +229,8 @@ def load_program_config():
         for o in v:
             if o not in global_singleton.config.options(k):
                 raise Exception(
-                        "Config file does not contain the required option: " + o)
+                        "Config file does not contain the required option: " + o +\
+                        " in section: " + k)
 
     try:
         global_singleton.maker_timeout_sec = global_singleton.config.getint(

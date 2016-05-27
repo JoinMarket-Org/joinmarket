@@ -14,6 +14,8 @@ import random
 
 from libnacl import public
 
+class NaclError(Exception):
+    pass
 
 def init_keypair(fname=None):
     """Create a new encryption
@@ -34,6 +36,8 @@ def get_pubkey(kp, as_hex=False):
     """Given a keypair object,
     return its public key,
     optionally in hex."""
+    if not isinstance(kp, public.SecretKey):
+        raise NaclError("Object is not a nacl keypair")
     return kp.hex_pk() if as_hex else kp.pk
 
 
@@ -42,6 +46,12 @@ def init_pubkey(hexpk, fname=None):
     hex formatted string.
     Save to file fname if specified.
     """
+    try:
+        bin_pk = binascii.unhexlify(hexpk)
+    except TypeError:
+        raise NaclError("Invalid hex")
+    if not len(bin_pk) == 32:
+        raise NaclError("Public key must be 32 bytes")
     pk = public.PublicKey(binascii.unhexlify(hexpk))
     if fname:
         pk.save(fname)
@@ -54,6 +64,10 @@ def as_init_encryption(kp, c_pk):
     pubkey c_pk, create a Box
     ready for encryption/decryption.
     """
+    if not isinstance(c_pk, public.PublicKey):
+        raise NaclError("Object is not a public key")
+    if not isinstance(kp, public.SecretKey):
+        raise NaclError("Object is not a nacl keypair")
     return public.Box(kp.sk, c_pk)
 
 
