@@ -181,8 +181,8 @@ def sanity_check(offers):
         assert offer['txfee'] >= 0
         if offer_high:
             assert offer['maxsize'] <= offer_high
-        assert isinstance(offer['minsize'], int)
-        assert isinstance(offer['maxsize'], int)
+        assert (isinstance(offer['minsize'], int) or isinstance(offer['minsize'], long))
+        assert (isinstance(offer['maxsize'], int) or isinstance(offer['maxsize'], long))
         assert isinstance(offer['txfee'], int)
         assert offer['minsize'] >= offer_low
         if offer['ordertype'] == 'absorder':
