@@ -4,7 +4,7 @@ import random
 
 import pytest
 
-from joinmarket import init_keypair, get_pubkey, init_pubkey, as_init_encryption
+from joinmarket import init_keypair, get_pubkey, init_pubkey, as_init_encryption, NaclError
 
 
 @pytest.mark.parametrize("ab_message,ba_message,num_iterations",
@@ -43,6 +43,27 @@ def test_enc_wrapper(alice_bob_boxes, ab_message, ba_message, num_iterations):
         assert alice_ptext == ba_message, "Encryption test: FAILED. Bob sent: %s, Alice received: " % (
             ba_message, alice_ptext)
 
+@pytest.mark.parametrize("invalid_pubkey",
+                         [
+                             # short ascii
+                             ("abcdef"),
+                             ("tt"*32),
+                             ("ab"*33),
+                             ("cd"*31),
+                         ])
+def test_invalid_nacl_keys(alice_bob_boxes, invalid_pubkey):
+    with pytest.raises(NaclError) as e_info:
+        x = init_pubkey(invalid_pubkey)
+    with pytest.raises(NaclError) as e_info:
+        alice_kp = init_keypair()
+        box = as_init_encryption(alice_kp, invalid_pubkey)
+    #also try when using the wrong object type as a keypair
+    with pytest.raises(NaclError) as e_info:
+        alice_bad_kp = init_pubkey("02"*32)
+        box = as_init_encryption(alice_bad_kp, alice_bad_kp)
+    #try to load a pubkey from a non-keypair object
+    with pytest.raises(NaclError) as e_info:
+        pk = get_pubkey(invalid_pubkey)
 
 @pytest.fixture()
 def alice_bob_boxes():
