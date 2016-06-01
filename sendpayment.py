@@ -209,7 +209,7 @@ def main():
         dest='txfee',
         default=5000,
         help='number of satoshis per participant to use as the initial estimate '+
-        'for the total transaction fee, default=5000, note that this is adjusted '+
+        'for the total transaction fee, default=calculate from blockchain, note that this is adjusted '+
         'based on the estimated fee calculated after tx construction, based on '+
         'policy set in joinmarket.cfg.')
     parser.add_option(
@@ -305,10 +305,20 @@ def main():
         wallet = BitcoinCoreWallet(fromaccount=wallet_name)
     jm_single().bc_interface.sync_wallet(wallet)
 
+    # Estimate the minimum realistic fee if it currently is the default value.
+    # At this point we do not know even the number of our own inputs, so
+    # we guess conservatively
+    if options.txfee == 5000:
+        est_ins = 1 + 2*options.makercount    # 1 own input, 2 per maker
+        est_outs = 2 + 2*options.makercount   # 2 own outputs, 2 per maker
+        options.txfee = max(options.txfee, estimate_tx_fee(est_ins, est_outs))
+        log.debug("Estimated miner/tx fee: "+str(options.txfee))
+
     irc = IRCMessageChannel(jm_single().nickname)
     taker = SendPayment(irc, wallet, destaddr, amount, options.makercount,
                         options.txfee, options.waittime, options.mixdepth,
                         options.answeryes, chooseOrdersFunc)
+
     try:
         log.debug('starting irc')
         irc.run()
