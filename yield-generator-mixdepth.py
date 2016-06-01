@@ -159,6 +159,8 @@ class YieldGenerator(Maker):
         filtered_mix_balance = [m
                                 for m in mix_balance.iteritems()
                                 if m[1] >= total_amount]
+        if not filtered_mix_balance:
+            return None, None, None
         log.debug('mix depths that have enough, filtered_mix_balance = ' + str(
             filtered_mix_balance))
 
