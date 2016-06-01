@@ -103,13 +103,13 @@ class PaymentThread(threading.Thread):
             total_amount = self.taker.amount + total_cj_fee + \
 	        self.taker.txfee*self.taker.makercount
             print 'total estimated amount spent = ' + str(total_amount)
-            #adjust the required amount upwards to anticipate a tripling of 
-            #transaction fee after re-estimation; this is sufficiently conservative
+            #adjust the required amount upwards to anticipate an increase in 
+            #transaction fees after re-estimation; this is sufficiently conservative
             #to make failures unlikely while keeping the occurence of failure to
-            #find sufficient utxos extremely rare. Indeed, a tripling of 'normal'
+            #find sufficient utxos extremely rare. Indeed, a doubling of 'normal'
             #txfee indicates undesirable behaviour on maker side anyway.
             utxos = self.taker.wallet.select_utxos(self.taker.mixdepth, 
-                total_amount+2*self.taker.txfee*self.taker.makercount)
+                total_amount+self.taker.txfee*self.taker.makercount)
             cjamount = self.taker.amount
             change_addr = self.taker.wallet.get_internal_addr(self.taker.mixdepth)
             choose_orders_recover = self.sendpayment_choose_orders
@@ -207,9 +207,9 @@ def main():
         action='store',
         type='int',
         dest='txfee',
-        default=5000,
+        default=-1,
         help='number of satoshis per participant to use as the initial estimate '+
-        'for the total transaction fee, default=5000, note that this is adjusted '+
+        'for the total transaction fee, default=dynamically estimated, note that this is adjusted '+
         'based on the estimated fee calculated after tx construction, based on '+
         'policy set in joinmarket.cfg.')
     parser.add_option(
@@ -294,6 +294,14 @@ def main():
         chooseOrdersFunc = cheapest_order_choose
     else:  # choose randomly (weighted)
         chooseOrdersFunc = weighted_order_choose
+
+    # Dynamically estimate a realistic fee if it currently is the default value.
+    # At this point we do not know even the number of our own inputs, so
+    # we guess conservatively with 2 inputs and 2 outputs each
+    if options.txfee == -1:
+        options.txfee = max(options.txfee, estimate_tx_fee(2, 2))
+        log.debug("Estimated miner/tx fee for each cj participant: "+str(options.txfee))
+    assert(options.txfee >= 0)
 
     jm_single().nickname = random_nick()
 
