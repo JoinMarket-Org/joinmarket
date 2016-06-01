@@ -305,6 +305,13 @@ def main():
         wallet = BitcoinCoreWallet(fromaccount=wallet_name)
     jm_single().bc_interface.sync_wallet(wallet)
 
+    # Estimate the minimum realistic fee if it currently is the default value.
+    # At this point we do not know even the number of our own inputs, so
+    # we guess conservatively with 2 inputs and 2 outputs each
+    if options.txfee == 5000:
+        options.txfee = max(options.txfee, estimate_tx_fee(2, 2))
+        log.debug("Estimated miner/tx fee for each cj participant: "+str(options.txfee))
+
     irc = IRCMessageChannel(jm_single().nickname)
     taker = SendPayment(irc, wallet, destaddr, amount, options.makercount,
                         options.txfee, options.waittime, options.mixdepth,
