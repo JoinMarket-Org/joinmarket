@@ -127,6 +127,22 @@ class CoinJoinTX(object):
             # immediately quit; currently, the timeout thread suffices.
             return
 
+        # check for too many maker inputs, which might create absurd tx fees
+        # and could crash this script later otherwise
+        if len(utxo_data) > 2:
+            # Every maker creates 1 inputs and 2 ouputs, which
+            # are agreed to be paid by the taker implicity.
+            # Allow one additional input by default.
+            # If there are more, check if they are paid for by the maker
+            additional_cost_maker = estimate_tx_fee(len(utxo_data)-2, 0)
+            if (additional_cost_maker > self.active_orders[nick]['txfee']):
+                log.debug('Too many inputs (' + str(len(utxo_data)) + ') from ' + nick
+                    + '. The additinal transaction costs are not covered by the maker either'
+                    + ' (estimated add. fee: ' + additional_cost_maker + ', paid for by maker: '
+                    + self.active_orders[nick]['txfee'] + '). '
+                    + 'Ignoring. Will select another maker shortly.')
+                return                      # timeout marks this maker nonresponsive
+
         total_input = sum([d['value'] for d in utxo_data])
         real_cjfee = calc_cj_fee(self.active_orders[nick]['ordertype'],
                        self.active_orders[nick]['cjfee'], self.cj_amount)
