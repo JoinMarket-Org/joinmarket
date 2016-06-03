@@ -73,6 +73,8 @@ class CoinJoinTX(object):
         self.nonrespondants = list(self.active_orders.keys())
         self.all_responded = False
         self.latest_tx = None
+        self.current_max_inputs = 2
+        self.tries_fewer_maker_inputs = 0
         # None means they belong to me
         self.utxos = {None: self.input_utxos.keys()}
         self.outputs = []
@@ -126,6 +128,22 @@ class CoinJoinTX(object):
             # when internal reviewing of makers is created, add it here to
             # immediately quit; currently, the timeout thread suffices.
             return
+
+        # check for too many maker inputs, which might create absurd tx fees
+        # and could crash this script later otherwise
+        if len(utxo_data) > self.current_max_inputs:
+            # Every maker creates 1 inputs and 2 ouputs, which
+            # are agreed to be paid by the taker implicity.
+            # If there are more, check if they are paid for by the maker
+            additional_cost_maker = estimate_tx_fee(len(utxo_data)-self.current_max_inputs, 0)
+            if (additional_cost_maker > self.active_orders[nick]['txfee']):
+                log.debug('Too many inputs (' + str(len(utxo_data)) + ') from ' + nick
+                    + '. This would increase transaction costs for the taker. These additinal '
+                    + 'transaction costs are not covered by the maker either'
+                    + ' (estimated add. fee: ' + str(additional_cost_maker) + ', paid for by maker: '
+                    + str(self.active_orders[nick]['txfee']) + '). '
+                    + 'Ignoring. Will select another maker shortly.')
+                return                      # timeout marks this maker nonresponsive
 
         total_input = sum([d['value'] for d in utxo_data])
         real_cjfee = calc_cj_fee(self.active_orders[nick]['ordertype'],
@@ -370,6 +388,14 @@ class CoinJoinTX(object):
             if self.finishcallback is not None:
                 self.finishcallback(self)
             return
+
+        # relax number of allowed maker inputs after 4 unsuccessful tries
+        self.tries_fewer_maker_inputs += 1
+        if self.tries_fewer_maker_inputs >= 4:
+            self.current_max_inputs += 1
+            self.nonrespondants = list(self.active_orders.keys())
+            log.debug('Could not find enough makers with low input count to fill order. Increasing allowed inputs per maker to ' + str(self.current_max_inputs))
+            log.debug('self.nonrespondants: ' + str(self.nonrespondants))
 
         if self.latest_tx is None:
             # nonresponding to !fill, recover by finding another maker
