@@ -451,16 +451,16 @@ def main():
             action='store',
             dest='makercountrange',
             help=
-            'Input the mean and spread of number of makers to use. e.g. 3 1.5 will be a normal distribution '
-            'with mean 3 and standard deveation 1.5 inclusive, default=3 1.5',
-            default=(3, 1.5))
+            'Input the mean and spread of number of makers to use. e.g. 5 1.5 will be a normal distribution '
+            'with mean 5 and standard deveation 1.5 inclusive, default=5 1.5',
+            default=(5, 1.5))
     parser.add_option(
             '--minmakercount',
             type='int',
             dest='minmakercount',
-            default=2,
+            default=3,
             help=
-            'The minimum maker count in a transaction, random values below this are clamped at this number. default=2')
+            'The minimum maker count in a transaction, random values below this are clamped at this number. default=3')
     parser.add_option(
             '-M',
             '--mixdepthcount',
