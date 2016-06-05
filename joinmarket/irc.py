@@ -8,7 +8,7 @@ import threading
 import time
 import Queue
 
-from joinmarket.configure import jm_single, get_config_irc_channel
+from joinmarket.configure import get_config_irc_channel
 from joinmarket.message_channel import MessageChannel, CJPeerError, COMMAND_PREFIX
 from joinmarket.enc_wrapper import encrypt_encode, decode_decrypt
 from joinmarket.support import get_log, chunks
@@ -306,7 +306,7 @@ class IRCMessageChannel(MessageChannel):
                 raise IOError('we quit')
             else:
                 if self.on_nick_leave:
-                    self.on_nick_leave(nick)
+                    self.on_nick_leave(nick, self)
         elif _chunks[1] == '433':  # nick in use
             # self.nick = random_nick()
             self.nick += '_'  # helps keep identity constant if just _ added
@@ -348,7 +348,7 @@ class IRCMessageChannel(MessageChannel):
         elif _chunks[1] == '366':  # end of names list
             log.debug('Connected to IRC and joined channel')
             if self.on_welcome:
-                self.on_welcome()
+                self.on_welcome(self) #informs mc-collection that we are ready for use
         elif _chunks[1] == '332' or _chunks[1] == 'TOPIC':  # channel topic
             topic = get_irc_text(line)
             self.on_set_topic(topic)
@@ -360,11 +360,11 @@ class IRCMessageChannel(MessageChannel):
                 raise IOError(fmt(get_irc_nick(_chunks[0]), get_irc_text(line)))
             else:
                 if self.on_nick_leave:
-                    self.on_nick_leave(target)
+                    self.on_nick_leave(target, self)
         elif _chunks[1] == 'PART':
             nick = get_irc_nick(_chunks[0])
             if self.on_nick_leave:
-                self.on_nick_leave(nick)
+                self.on_nick_leave(nick, self)
 
         # todo: cleanup
         # elif _chunks[1] == 'JOIN':
@@ -379,21 +379,21 @@ class IRCMessageChannel(MessageChannel):
         #     self.motd_fd.close()
 
     def __init__(self,
+                 configdata,
                  given_nick,
                  username='username',
                  realname='realname',
                  password=None):
         MessageChannel.__init__(self)
         self.give_up = True
-        self.cjpeer = None  # subclasses have to set this to self
         self.given_nick = given_nick
         self.nick = given_nick
-        config = jm_single().config
-        self.serverport = (config.get("MESSAGING", "host"),
-                           int(config.get("MESSAGING", "port")))
-        self.socks5_host = config.get("MESSAGING", "socks5_host")
-        self.socks5_port = int(config.get("MESSAGING", "socks5_port"))
-        self.channel = get_config_irc_channel()
+        self.serverport = (configdata['host'], configdata['port'])
+        self.socks5 = configdata["socks5"]
+        self.usessl = configdata["usessl"]
+        self.socks5_host = configdata["socks5_host"]
+        self.socks5_port = int(configdata["socks5_port"])
+        self.channel = get_config_irc_channel(configdata["channel"])
         self.userrealname = (username, realname)
         if password and len(password) == 0:
             password = None
@@ -412,9 +412,8 @@ class IRCMessageChannel(MessageChannel):
 
         while not self.give_up:
             try:
-                config = jm_single().config
                 log.debug('connecting')
-                if config.get("MESSAGING", "socks5").lower() == 'true':
+                if self.socks5.lower() == 'true':
                     log.debug("Using socks5 proxy %s:%d" %
                               (self.socks5_host, self.socks5_port))
                     setdefaultproxy(PROXY_TYPE_SOCKS5,
@@ -425,7 +424,7 @@ class IRCMessageChannel(MessageChannel):
                     self.sock = socket.socket(socket.AF_INET,
                                               socket.SOCK_STREAM)
                 self.sock.connect(self.serverport)
-                if config.get("MESSAGING", "usessl").lower() == 'true':
+                if self.usessl.lower() == 'true':
                     self.sock = ssl.wrap_socket(self.sock)
                 self.fd = self.sock.makefile()
                 self.password = None
@@ -457,7 +456,7 @@ class IRCMessageChannel(MessageChannel):
                 except Exception as e:
                     pass
             if self.on_disconnect:
-                self.on_disconnect()
+                self.on_disconnect(self)
             log.debug('disconnected irc')
             if not self.give_up:
                 time.sleep(30)

@@ -7,9 +7,9 @@ from optparse import OptionParser
 import time
 
 from joinmarket import OrderbookWatch, load_program_config, IRCMessageChannel
-from joinmarket import jm_single
+from joinmarket import jm_single, MessageChannelCollection
 from joinmarket import random_nick
-from joinmarket import get_log, debug_dump_object
+from joinmarket import get_log, debug_dump_object, get_irc_mchannels
 
 log = get_log()
 
@@ -71,11 +71,12 @@ def main():
     load_program_config()
     jm_single().nickname = random_nick()
     log.debug('starting broadcast-tx')
-    irc = IRCMessageChannel(jm_single().nickname)
-    taker = Broadcaster(irc, options.waittime, txhex)
+    mcs = [IRCMessageChannel(c, jm_single().nickname) for c in get_irc_mchannels()]
+    mcc = MessageChannelCollection(mcs)
+    taker = Broadcaster(mcc, options.waittime, txhex)
     try:
-        log.debug('starting irc')
-        irc.run()
+        log.debug('starting message channels')
+        mcc.run()
     except:
         log.debug('CRASHING, DUMPING EVERYTHING')
         debug_dump_object(taker)

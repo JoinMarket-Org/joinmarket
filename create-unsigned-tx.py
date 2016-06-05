@@ -16,7 +16,8 @@ from joinmarket import load_program_config, validate_address, \
     jm_single, get_p2pk_vbyte, random_nick
 from joinmarket import get_log, choose_sweep_orders, choose_orders, \
     pick_order, cheapest_order_choose, weighted_order_choose
-from joinmarket import AbstractWallet, IRCMessageChannel, debug_dump_object
+from joinmarket import AbstractWallet, IRCMessageChannel, debug_dump_object, \
+     MessageChannelCollection, get_irc_mchannels
 
 import bitcoin as btc
 import sendpayment
@@ -282,12 +283,13 @@ def main():
             return auth_privkey
 
     wallet = UnsignedTXWallet()
-    irc = IRCMessageChannel(jm_single().nickname)
-    taker = CreateUnsignedTx(irc, wallet, auth_utxo, cjamount, destaddr,
+    mcs = [IRCMessageChannel(c, jm_single().nickname) for c in get_irc_mchannels()]
+    mcc = MessageChannelCollection(mcs)
+    taker = CreateUnsignedTx(mcc, wallet, auth_utxo, cjamount, destaddr,
                              changeaddr, utxo_data, options, chooseOrdersFunc)
     try:
-        log.debug('starting irc')
-        irc.run()
+        log.debug('starting message channels')
+        mcc.run()
     except:
         log.debug('CRASHING, DUMPING EVERYTHING')
         debug_dump_object(wallet, ['addr_cache', 'keys', 'wallet_name', 'seed'])

@@ -10,7 +10,8 @@ from optparse import OptionParser
 # sys.path.insert(0, os.path.join(data_dir, 'joinmarket'))
 import time
 
-from joinmarket import Taker, load_program_config, IRCMessageChannel
+from joinmarket import Taker, load_program_config, IRCMessageChannel, \
+     MessageChannelCollection, get_irc_mchannels
 from joinmarket import validate_address, jm_single
 from joinmarket import random_nick
 from joinmarket import get_log, choose_sweep_orders, choose_orders, \
@@ -305,13 +306,14 @@ def main():
         wallet = BitcoinCoreWallet(fromaccount=wallet_name)
     jm_single().bc_interface.sync_wallet(wallet)
 
-    irc = IRCMessageChannel(jm_single().nickname)
-    taker = SendPayment(irc, wallet, destaddr, amount, options.makercount,
+    mcs = [IRCMessageChannel(c, jm_single().nickname) for c in get_irc_mchannels()]
+    mcc = MessageChannelCollection(mcs)
+    taker = SendPayment(mcc, wallet, destaddr, amount, options.makercount,
                         options.txfee, options.waittime, options.mixdepth,
                         options.answeryes, chooseOrdersFunc)
     try:
-        log.debug('starting irc')
-        irc.run()
+        log.debug('starting message channels')
+        mcc.run()
     except:
         log.debug('CRASHING, DUMPING EVERYTHING')
         debug_dump_object(wallet, ['addr_cache', 'keys', 'wallet_name', 'seed'])

@@ -7,12 +7,13 @@ import time
 import binascii
 import sys
 
-from joinmarket import Maker, IRCMessageChannel
+from joinmarket import Maker, IRCMessageChannel, MessageChannelCollection
 from joinmarket import blockchaininterface, BlockrInterface
 from joinmarket import jm_single, get_network, load_program_config
 from joinmarket import random_nick
 from joinmarket import get_log, calc_cj_fee, debug_dump_object
 from joinmarket import Wallet
+from joinmarket import get_irc_mchannels
 
 #data_dir = os.path.dirname(os.path.realpath(__file__))
 #sys.path.insert(0, os.path.join(data_dir, 'lib'))
@@ -304,19 +305,20 @@ def main():
 
     jm_single().nickname = nickname
     log.debug('starting yield generator')
-    irc = IRCMessageChannel(jm_single().nickname,
-                            realname='btcint=' + jm_single().config.get(
-                                "BLOCKCHAIN", "blockchain_source"),
-                            password=nickserv_password)
-    maker = YieldGenerator(irc, wallet)
+    mcs = [IRCMessageChannel(c, jm_single().nickname,
+                             realname='btcint=' + jm_single().config.get(
+                                 "BLOCKCHAIN", "blockchain_source"),
+                        password=nickserv_password) for c in get_irc_mchannels()]
+    mcc = MessageChannelCollection(mcs)
+    maker = YieldGenerator(mcc, wallet)
     try:
-        log.debug('connecting to irc')
-        irc.run()
+        log.debug('connecting to message channels')
+        mcc.run()
     except:
         log.debug('CRASHING, DUMPING EVERYTHING')
         debug_dump_object(wallet, ['addr_cache', 'keys', 'seed'])
         debug_dump_object(maker)
-        debug_dump_object(irc)
+        debug_dump_object(mcc)
         import traceback
         log.debug(traceback.format_exc())
 

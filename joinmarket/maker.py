@@ -223,7 +223,7 @@ class Maker(CoinJoinerPeer):
         msgchan.register_maker_callbacks(self.on_orderbook_requested,
                                          self.on_order_fill, self.on_seen_auth,
                                          self.on_seen_tx, self.on_push_tx)
-        msgchan.cjpeer = self
+        msgchan.set_cjpeer(self)
 
         self.active_orders = {}
         self.wallet = wallet
@@ -240,8 +240,8 @@ class Maker(CoinJoinerPeer):
         else:
             return self.active_orders[nick].crypto_box
 
-    def on_orderbook_requested(self, nick):
-        self.msgchan.announce_orders(self.orderlist, nick)
+    def on_orderbook_requested(self, nick, mc=None):
+        self.msgchan.announce_orders(self.orderlist, nick, mc)
 
     def on_order_fill(self, nick, oid, amount, taker_pubkey):
         if nick in self.active_orders and self.active_orders[nick] is not None:

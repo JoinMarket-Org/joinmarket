@@ -20,7 +20,6 @@ from joinmarket.irc import B_PER_SEC
 
 log = get_log()
 
-
 class CoinJoinTX(object):
     # soon the taker argument will be removed and just be replaced by wallet
     # or some other interface
@@ -465,7 +464,7 @@ class OrderbookWatch(CoinJoinerPeer):
         self.msgchan.register_channel_callbacks(
                 self.on_welcome, self.on_set_topic, None, self.on_disconnect,
                 self.on_nick_leave, None)
-
+        self.dblock = threading.Lock()
         con = sqlite3.connect(":memory:", check_same_thread=False)
         con.row_factory = sqlite3.Row
         self.db = con.cursor()
@@ -476,6 +475,7 @@ class OrderbookWatch(CoinJoinerPeer):
     def on_order_seen(self, counterparty, oid, ordertype, minsize, maxsize,
                       txfee, cjfee):
         try:
+            self.dblock.acquire(True)
             if int(oid) < 0 or int(oid) > sys.maxint:
                 log.debug(
                     "Got invalid order ID: " + oid + " from " + counterparty)
@@ -523,21 +523,27 @@ class OrderbookWatch(CoinJoinerPeer):
                          cjfee))))  # any parseable Decimal is a valid cjfee
         except InvalidOperation:
             log.debug("Got invalid cjfee: " + cjfee + " from " + counterparty)
-        except:
+        except Exception as e:
             log.debug("Error parsing order " + oid + " from " + counterparty)
+            log.debug("Exception was: " + repr(e))
+        finally:
+            self.dblock.release()
 
     def on_order_cancel(self, counterparty, oid):
-        self.db.execute(("DELETE FROM orderbook WHERE "
+        with self.dblock:
+            self.db.execute(("DELETE FROM orderbook WHERE "
                          "counterparty=? AND oid=?;"), (counterparty, oid))
 
     def on_welcome(self):
         self.msgchan.request_orderbook()
 
     def on_nick_leave(self, nick):
-        self.db.execute('DELETE FROM orderbook WHERE counterparty=?;', (nick,))
+        with self.dblock:
+            self.db.execute('DELETE FROM orderbook WHERE counterparty=?;', (nick,))
 
     def on_disconnect(self):
-        self.db.execute('DELETE FROM orderbook;')
+        with self.dblock:
+            self.db.execute('DELETE FROM orderbook;')
 
 
 # assume this only has one open cj tx at a time
@@ -546,7 +552,7 @@ class Taker(OrderbookWatch):
         OrderbookWatch.__init__(self, msgchan)
         msgchan.register_taker_callbacks(self.on_error, self.on_pubkey,
                                          self.on_ioauth, self.on_sig)
-        msgchan.cjpeer = self
+        msgchan.set_cjpeer(self)
         self.cjtx = None
         self.maker_pks = {}
         # TODO have a list of maker's nick we're coinjoining with, so

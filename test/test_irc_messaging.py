@@ -11,17 +11,17 @@ import threading
 from commontest import local_command, make_wallets
 from joinmarket.message_channel import CJPeerError
 import joinmarket.irc
-from joinmarket import load_program_config, IRCMessageChannel
+from joinmarket import load_program_config, IRCMessageChannel, get_irc_mchannels
 
 python_cmd = "python2"
 yg_cmd = "yield-generator-basic.py"
 yg_name = None
 
 class DummyMC(IRCMessageChannel):
-    def __init__(self, nick):
-        super(DummyMC, self).__init__(nick)
+    def __init__(self, configdata, nick):
+        super(DummyMC, self).__init__(configdata, nick)
 
-def on_order_seen(counterparty, oid, ordertype, minsize,
+def on_order_seen(dummy, counterparty, oid, ordertype, minsize,
                                            maxsize, txfee, cjfee):
     global yg_name
     yg_name = counterparty
@@ -51,7 +51,7 @@ def test_junk_messages(setup_messaging):
     #time.sleep(90)
     #start a raw IRCMessageChannel instance in a thread;
     #then call send_* on it with various errant messages
-    mc = DummyMC("irc_ping_test")
+    mc = DummyMC(get_irc_mchannels()[0], "irc_ping_test")
     mc.register_orderbookwatch_callbacks(on_order_seen=on_order_seen)
     mc.register_taker_callbacks(on_pubkey=on_pubkey)    
     RawIRCThread(mc).start()
@@ -81,14 +81,10 @@ def test_junk_messages(setup_messaging):
     time.sleep(5)
     #send a fill with an invalid pubkey to the existing yg;
     #this should trigger a NaclError but should NOT kill it.
-    mc._IRCMessageChannel__privmsg(yg_name, "fill", "0 10000000 abcdef")
+    mc._privmsg(yg_name, "fill", "0 10000000 abcdef")
     time.sleep(1)
-    #try:
     with pytest.raises(CJPeerError) as e_info:
         mc.send_error(yg_name, "fly you fools!")
-    #except CJPeerError:
-    #    print "CJPeerError raised"
-    #    pass
     time.sleep(5)
     mc.shutdown()
     ygp.send_signal(signal.SIGINT)

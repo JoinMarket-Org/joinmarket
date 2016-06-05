@@ -6,11 +6,12 @@ import subprocess
 import signal
 from commontest import local_command, make_wallets
 import os
+import shutil
 import pytest
 import time
 from joinmarket import Taker, load_program_config, IRCMessageChannel
-from joinmarket import validate_address, jm_single
-from joinmarket import random_nick, get_p2pk_vbyte
+from joinmarket import validate_address, jm_single, get_irc_mchannels
+from joinmarket import random_nick, get_p2pk_vbyte, MessageChannelCollection
 from joinmarket import get_log, choose_sweep_orders, choose_orders, \
     pick_order, cheapest_order_choose, weighted_order_choose, debug_dump_object
 import joinmarket.irc
@@ -26,17 +27,27 @@ yg_cmd = 'yield-generator-basic.py'
 
 
 @pytest.mark.parametrize(
-    "num_ygs, wallet_structures, mean_amt, mixdepth, sending_amt",
+    "num_ygs, wallet_structures, mean_amt, mixdepth, sending_amt, ygcfs, fails",
     [
-        # basic 1sp 2yg
-        (2, [[1, 0, 0, 0, 0]] * 3, 10, 0, 100000000),
-        # 1sp 4yg, 2 mixdepths
-        (4, [[1, 2, 0, 0, 0]] * 5, 4, 1, 1234500),
-        # 1sp 8yg, 4 mixdepths, sweep from depth 0
-        (8, [[1, 3, 0, 0, 0]] * 9, 4, 0, 0),
+        #Some tests are commented out to keep build test time reasonable.
+        # basic 1sp 2yg.
+        (4, [[1, 0, 0, 0, 0]] * 5, 10, 0, 100000000, None, None),
+        #Testing different message channel collections. (Needs manual config at
+        #the moment - create different config files for each yg).
+        #(4, [[1, 0, 0, 0, 0]] * 5, 10, 0, 100000000, ["j2.cfg", "j3.cfg",
+        #                                              "j4.cfg", "j5.cfg"], None),
+        # 1sp 3yg, 2 mixdepths - testing different failure times to
+        #see if recovery works.
+        #(5, [[1, 2, 0, 0, 0]] * 6, 4, 1, 1234500, None, None),
+        (5, [[1, 2, 0, 0, 0]] * 6, 4, 1, 1234500, None, ('break',0,6)),
+        #(5, [[1, 2, 0, 0, 0]] * 6, 4, 1, 1234500, None, (1,10)),
+        #(5, [[1, 2, 0, 0, 0]] * 6, 4, 1, 1234500, None, ('shutdown',0,12)),
+        #(5, [[1, 2, 0, 0, 0]] * 6, 4, 1, 1234500, None, ('break',1, 6)),
+        # 1sp 6yg, 4 mixdepths, sweep from depth 0 (test large number of makers)
+        (8, [[1, 3, 0, 0, 0]] * 9, 4, 0, 0, None, None),
     ])
 def test_sendpayment(setup_regtest, num_ygs, wallet_structures, mean_amt,
-                     mixdepth, sending_amt):
+                     mixdepth, sending_amt, ygcfs, fails):
     """Test of sendpayment code, with yield generators in background.
     """
     log = get_log()
@@ -52,11 +63,21 @@ def test_sendpayment(setup_regtest, num_ygs, wallet_structures, mean_amt,
     wallet = wallets[makercount]['wallet']
 
     yigen_procs = []
+    if ygcfs:
+        assert makercount == len(ygcfs)
     for i in range(makercount):
+        if ygcfs:
+            #back up default config, overwrite before start
+            os.rename("joinmarket.cfg", "joinmarket.cfg.bak")
+            shutil.copy2(ygcfs[i], "joinmarket.cfg")
         ygp = local_command([python_cmd, yg_cmd,\
                              str(wallets[i]['seed'])], bg=True)
         time.sleep(2)  #give it a chance
         yigen_procs.append(ygp)
+        if ygcfs:
+            #Note: in case of using multiple configs,
+            #the starting config is what is used by sendpayment
+            os.rename("joinmarket.cfg.bak", "joinmarket.cfg")
 
     #A significant delay is needed to wait for the yield generators to sync
     time.sleep(20)
@@ -86,15 +107,17 @@ def test_sendpayment(setup_regtest, num_ygs, wallet_structures, mean_amt,
     #Trigger PING LAG sending artificially
     joinmarket.irc.PING_INTERVAL = 3
     
-    irc = IRCMessageChannel(jm_single().nickname)
+    mcs = [IRCMessageChannel(c, jm_single().nickname) for c in get_irc_mchannels()]
+    mcc = MessageChannelCollection(mcs)
     #hack fix for #356 if multiple orders per counterparty
-    if amount==0: makercount=2
-    taker = sendpayment.SendPayment(irc, wallet, destaddr, amount, makercount,
+    #removed for now.
+    #if amount==0: makercount=2
+    taker = sendpayment.SendPayment(mcc, wallet, destaddr, amount, makercount-2,
                                     txfee, waittime, mixdepth, answeryes,
                                     chooseOrdersFunc)
     try:
-        log.debug('starting irc')
-        irc.run()
+        log.debug('starting message channels')
+        mcc.run(failures=fails)
     finally:
         if any(yigen_procs):
             for ygp in yigen_procs:
