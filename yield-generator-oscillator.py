@@ -493,15 +493,15 @@ class YieldGenerator(Maker, OrderbookWatch):
         filtered_mix_balance = [m
                                 for m in mix_balance.iteritems()
                                 if m[1] >= total_amount + output_size_min]
-        log.debug('mix depths that have enough with output_size_min, ' + str(
-            filtered_mix_balance))
         try:
             len(filtered_mix_balance) > 0
         except Exception:
             log.debug('No mix depths have enough funds to cover the ' +
                       'amount, cjfee, and output_size_min.')
             return None, None, None
-
+        log.debug('mix depths that have enough with output_size_min, ' + str(
+            filtered_mix_balance))
+            
         # slinky clumping: push all coins towards the largest mixdepth,
         # then spend from the largest mixdepth into the next mixdepth.
         # the coins stay in the next mixdepth until they are all there,
