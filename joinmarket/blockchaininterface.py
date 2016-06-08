@@ -343,8 +343,7 @@ class BlockrInterface(BlockchainInterface):
                 self.confirmfun(
                     btc.deserialize(confirmed_txhex), confirmed_txid, 1)
 
-        NotifyThread(self.blockr_domain(), txd, unconfirmfun, confirmfun).start()
-        NotifyThread(self.blockr_domain, txd, unconfirmfun, confirmfun, timeoutfun).start()
+        NotifyThread(self.blockr_domain(), txd, unconfirmfun, confirmfun, timeoutfun).start()
 
     def pushtx(self, txhex):
         try:
