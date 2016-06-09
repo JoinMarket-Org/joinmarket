@@ -225,15 +225,15 @@ def main():
                       action='store',
                       type='int',
                       dest='makercount',
-                      help='how many makers to coinjoin with, default random from 2 to 4',
-                      default=random.randint(2, 4))
+                      help='how many makers to coinjoin with, default random from 4 to 6',
+                      default=random.randint(4, 6))
     parser.add_option(
         '-C',
         '--choose-cheapest',
         action='store_true',
         dest='choosecheapest',
         default=False,
-        help='override weightened offers picking and choose cheapest')
+        help='override weightened offers picking and choose cheapest. this might reduce anonymity.')
     parser.add_option(
         '-P',
         '--pick-orders',
