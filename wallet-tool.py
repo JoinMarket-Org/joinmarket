@@ -179,9 +179,10 @@ if method == 'display' or method == 'displayall' or method == 'summary':
 
         header = ['Depth', 'Address', 'Used', 'Balance']
         if options.showprivkey:
-		header.append( 'Private Key' )
+            header.append( 'Private Key' )
         trows.insert(0, header )
-        printtable( trows, headertype='firstrow' )
+        if method != 'summary':
+            printtable( trows, headertype='firstrow' )
         if m in wallet.imported_privkeys:
             cus_print(' import addresses')
             prows = []
@@ -210,7 +211,8 @@ if method == 'display' or method == 'displayall' or method == 'summary':
             if options.showprivkey:
 		header.append( 'Private Key' )
             prows.insert(0, header)
-            printtable( prows, headertype='firstrow' )
+            if method != 'summary':
+                printtable( prows, headertype='firstrow' )
         total_balance += balance_depth
         row = [m, '%.8fbtc' % (balance_depth / 1e8)]
         rows.append(row)
