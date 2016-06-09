@@ -278,14 +278,14 @@ class TumblerThread(threading.Thread):
             total_amount = cj_amount + total_cj_fee + \
                 self.taker.options['txfee']*self.tx['makercount']
             log.debug('total estimated amount spent = ' + str(total_amount))
-            #adjust the required amount upwards to anticipate a tripling of
+            #adjust the required amount upwards to anticipate an increase of the
             #transaction fee after re-estimation; this is sufficiently conservative
             #to make failures unlikely while keeping the occurence of failure to
-            #find sufficient utxos extremely rare. Indeed, a tripling of 'normal'
+            #find sufficient utxos extremely rare. Indeed, a doubling of 'normal'
             #txfee indicates undesirable behaviour on maker side anyway.
             try:
                 utxos = self.taker.wallet.select_utxos(self.tx['srcmixdepth'],
-                total_amount+2*self.taker.options['txfee']*self.tx['makercount'])
+                total_amount+self.taker.options['txfee']*self.tx['makercount'])
             except Exception as e:
                 #we cannot afford to just throw not enough funds; better to
                 #try with a smaller request; it could still fail within
@@ -418,9 +418,9 @@ def main():
         action='store',
         type='int',
         dest='txfee',
-        default=5000,
+        default=-1,
         help='number of satoshis per participant to use as the initial estimate '+
-        'for the total transaction fee, default=5000, note that this is adjusted '+
+        'for the total transaction fee, default=dynamically estimated, note that this is adjusted '+
         'based on the estimated fee calculated after tx construction, based on '+
         'policy set in joinmarket.cfg.')
     parser.add_option(
@@ -562,6 +562,14 @@ def main():
         if not addr_valid:
             print('ERROR: Address ' + addr + ' invalid. ' + errormsg)
             return
+
+    # Dynamically estimate a realistic fee if it currently is the default value.
+    # At this point we do not know even the number of our own inputs, so
+    # we guess conservatively with 2 inputs and 2 outputs each
+    if options['txfee'] == -1:
+        options['txfee'] = max(options['txfee'], estimate_tx_fee(2, 2))
+        log.debug("Estimated miner/tx fee for each cj participant: "+str(options['txfee']))
+    assert(options['txfee'] >= 0)
 
     if len(destaddrs) > options['addrcount']:
         options['addrcount'] = len(destaddrs)
