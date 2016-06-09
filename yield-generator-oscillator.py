@@ -80,10 +80,11 @@ offer_levels = (
 # optional, for use in your joinmarket.cfg
 """
 [YIELDGEN]
-# multiple values means set randomly within that range
+# Make your offer size never go above or below an amount
 # offer low, default is output_size_min
 # offer high, default is largest mix depth
 # minimum output size, default is dust threshold 2730 satoshis
+# multiple values means set randomly within that range
 offer_low = 25000, 65000
 offer_high = 10e8, 14e8  
 output_size_min = 10000
@@ -180,8 +181,8 @@ def sanity_check(offers):
         assert offer['txfee'] >= 0
         if offer_high:
             assert offer['maxsize'] <= offer_high
-        assert isinstance(offer['minsize'], int)
-        assert isinstance(offer['maxsize'], int)
+        assert (isinstance(offer['minsize'], int) or isinstance(offer['minsize'], long))
+        assert (isinstance(offer['maxsize'], int) or isinstance(offer['maxsize'], long))
         assert isinstance(offer['txfee'], int)
         assert offer['minsize'] >= offer_low
         if offer['ordertype'] == 'absorder':

@@ -92,7 +92,8 @@ def jm_single():
 
 # FIXME: Add rpc_* options here in the future!
 required_options = {'BLOCKCHAIN': ['blockchain_source', 'network'],
-                    'MESSAGING': ['host', 'channel', 'port']}
+                    'MESSAGING': ['host', 'channel', 'port'],
+                    'POLICY': ['absurd_fee_per_kb']}
 
 defaultconfig = \
     """
@@ -139,6 +140,12 @@ merge_algorithm = default
 # as our default. Note that for clients not using a local blockchain
 # instance, we retrieve an estimate from the API at blockcypher.com, currently.
 tx_fees = 3
+# For users getting transaction fee estimates over an API
+# (currently blockcypher, could be others), place a sanity
+# check limit on the satoshis-per-kB to be paid. This limit
+# is also applied to users using Core, even though Core has its
+# own sanity check limit, which is currently 1,000,000 satoshis.
+absurd_fee_per_kb = 150000
 # the range of confirmations passed to the `listunspent` bitcoind RPC call
 # 1st value is the inclusive minimum, defaults to one confirmation
 # 2nd value is the exclusive maximum, defaults to most-positive-bignum (Google Me!)
@@ -221,7 +228,8 @@ def load_program_config():
         for o in v:
             if o not in global_singleton.config.options(k):
                 raise Exception(
-                        "Config file does not contain the required option: " + o)
+                        "Config file does not contain the required option: " + o +\
+                        " in section: " + k)
 
     try:
         global_singleton.maker_timeout_sec = global_singleton.config.getint(

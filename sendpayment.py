@@ -222,8 +222,8 @@ def main():
         action='store',
         type='float',
         dest='waittime',
-        help='wait time in seconds to allow orders to arrive, default=5',
-        default=5)
+        help='wait time in seconds to allow orders to arrive, default=15',
+        default=15)
     parser.add_option('-N',
                       '--makercount',
                       action='store',

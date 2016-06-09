@@ -12,7 +12,8 @@ from decimal import InvalidOperation, Decimal
 
 import bitcoin as btc
 from joinmarket.configure import jm_single, get_p2pk_vbyte
-from joinmarket.enc_wrapper import init_keypair, as_init_encryption, init_pubkey
+from joinmarket.enc_wrapper import init_keypair, as_init_encryption, init_pubkey, \
+     NaclError
 from joinmarket.support import get_log, calc_cj_fee
 from joinmarket.wallet import estimate_tx_fee
 from joinmarket.irc import B_PER_SEC
@@ -85,8 +86,13 @@ class CoinJoinTX(object):
         if nick not in self.active_orders.keys():
             log.debug("Counterparty not part of this transaction. Ignoring")
             return
-        self.crypto_boxes[nick] = [maker_pk, as_init_encryption(
+        try:
+            self.crypto_boxes[nick] = [maker_pk, as_init_encryption(
                 self.kp, init_pubkey(maker_pk))]
+        except NaclError as e:
+            log.debug("Unable to setup crypto box with " + nick + ": " + repr(e))
+            self.msgchan.send_error(nick, "invalid nacl pubkey: " + maker_pk)
+            return
         # send authorisation request
         if self.auth_addr:
             my_btc_addr = self.auth_addr
