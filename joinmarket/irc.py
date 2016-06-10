@@ -339,7 +339,7 @@ class IRCMessageChannel(MessageChannel):
         elif _chunks[1] == '376':  # end of motd
             self.built_privmsg = {}
             if self.on_connect:
-                self.on_connect()
+                self.on_connect(self)
             self.send_raw('JOIN ' + self.channel)
             self.send_raw(
                 'MODE ' + self.nick + ' +B')  # marks as bots on unreal

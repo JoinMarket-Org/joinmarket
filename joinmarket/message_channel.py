@@ -140,6 +140,9 @@ class MessageChannelCollection(object):
         self.mchannels += mchannel
         self.mchannels = list(set(self.mchannels))
 
+    def see_nick(self, nick, mc):
+        self.nicks_seen[mc].add(nick)
+
     def unsee_nick(self, nick, mc):
         self.nicks_seen[mc] = self.nicks_seen[mc].difference(set([nick]))
 
@@ -341,6 +344,12 @@ class MessageChannelCollection(object):
                                         on_ioauth,
                                         on_sig)
 
+    def on_connect_trigger(self, mc):
+        """Mark the specified message channel
+        as (re) connected.
+        """
+        self.mc_status[mc] = 1
+
     def on_disconnect_trigger(self, mc):
         """Mark the specified message channel as
         disconnected. Track loss of private connections
@@ -436,17 +445,21 @@ class MessageChannelCollection(object):
 
         on_disconnect: must be maintained here; if a bot disconnects
         only one it must remain viable, otherwise this has no point!
+
+        on_connect: must reset the message channel status to connected.
         """
         self.on_welcome = on_welcome
         self.on_disconnect = on_disconnect
         self.on_nick_leave = on_nick_leave
+        self.on_connect = on_connect
         for mc in self.mchannels:
             mc.register_channel_callbacks(self.on_welcome_trigger,
                                           on_set_topic,
-                                          on_connect,
+                                          self.on_connect_trigger,
                                           self.on_disconnect_trigger,
                                           self.on_nick_leave_trigger,
-                                          on_nick_change)
+                                          on_nick_change,
+                                          self.see_nick)
 
     def on_order_seen_trigger(self, mc, counterparty, oid, ordertype, minsize,
                               maxsize, txfee, cjfee):
@@ -526,6 +539,7 @@ class MessageChannel(object):
         self.on_disconnect = None
         self.on_nick_leave = None
         self.on_nick_change = None
+        self.on_pubmsg_trigger = None
         # orderbook watch functions
         self.on_order_seen = None
         self.on_order_cancel = None
@@ -587,13 +601,16 @@ class MessageChannel(object):
                                    on_connect=None,
                                    on_disconnect=None,
                                    on_nick_leave=None,
-                                   on_nick_change=None):
+                                   on_nick_change=None,
+                                   on_pubmsg_trigger=None):
         self.on_welcome = on_welcome
         self.on_set_topic = on_set_topic
         self.on_connect = on_connect
         self.on_disconnect = on_disconnect
         self.on_nick_leave = on_nick_leave
         self.on_nick_change = on_nick_change
+        #Fire to MCcollection to mark nicks as "seen"
+        self.on_pubmsg_trigger = on_pubmsg_trigger
 
     # orderbook watcher commands
     def register_orderbookwatch_callbacks(self,
@@ -732,6 +749,9 @@ class MessageChannel(object):
         self._privmsg(nick, cmd, message)
 
     def on_pubmsg(self, nick, message):
+        #Even illegal messages mark a nick as "seen"
+        if self.on_pubmsg_trigger:
+            self.on_pubmsg_trigger(nick, self)
         if message[0] != COMMAND_PREFIX:
             return
         commands = message[1:].split(COMMAND_PREFIX)
