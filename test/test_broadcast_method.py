@@ -30,6 +30,15 @@ sample_tx_hex = (
     "6024a6c3ed859f03ac88ac33280600")
 
 class DummyMessageChannel(MessageChannel):
+
+    def run(self): pass
+    def shutdown(self): pass
+    def _pubmsg(self, msg): pass
+    def _privmsg(self, nick, cmd, message): pass
+    def _announce_orders(self, orderlist, nick): pass
+
+    def fill_orders(self, nick_order_dict, cj_amount, taker_pubkey): pass
+
     def push_tx(self, nick, txhex):
         msgchan_pushtx_count[0][nick] += 1
 
