@@ -81,7 +81,7 @@ def test_junk_messages(setup_messaging):
     time.sleep(5)
     #send a fill with an invalid pubkey to the existing yg;
     #this should trigger a NaclError but should NOT kill it.
-    mc._IRCMessageChannel__privmsg(yg_name, "fill", "0 10000000 abcdef")
+    mc._privmsg(yg_name, "fill", "0 10000000 abcdef")
     time.sleep(1)
     #try:
     with pytest.raises(CJPeerError) as e_info:
