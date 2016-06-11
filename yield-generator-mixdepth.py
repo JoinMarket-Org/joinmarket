@@ -121,7 +121,7 @@ class YieldGenerator(Maker):
                      'ordertype': 'relorder',
                      'minsize': max(mins - jm_single().DUST_THRESHOLD,
                                     jm_single().DUST_THRESHOLD) + 1,
-                     'maxsize': max(balance - jm_single().DUST_THRESHOLD,
+                     'maxsize': max(balance - max(jm_single().DUST_THRESHOLD, txfee),
                                     jm_single().DUST_THRESHOLD),
                      'txfee': txfee,
                      'cjfee': thecjfee[oid + delta],

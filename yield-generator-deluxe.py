@@ -196,11 +196,16 @@ class YieldGenerator(Maker):
             return override_offers
 
         offer_lowx = max(offer_low, min_output_size)
+
+	if txfee_spread == 'custom':
+	    maximum_conf_txfees = max(custom_txfees)
+	else:
+	    maximum_conf_txfees = txfee_high
         if offer_high:
             offer_highx = min(offer_high,
-                              largest_mixdepth_size - min_output_size)
+                              largest_mixdepth_size - max(min_output_size,maximum_conf_txfees))
         else:
-            offer_highx = largest_mixdepth_size - min_output_size
+            offer_highx = largest_mixdepth_size - max(min_output_size,maximum_conf_txfees)
             # note, subtracting mix_output_size here to make minimum size change
             # todo, make an offer for exactly the max size with no change
 
