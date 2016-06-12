@@ -177,12 +177,12 @@ if method == 'display' or method == 'displayall' or method == 'summary':
                         trow.append(privkey)
                     trows.append( trow )
 
-        header = ['Depth', 'Address', 'Used', 'Balance']
-        if options.showprivkey:
-            header.append( 'Private Key' )
-        trows.insert(0, header )
-        if method != 'summary':
-            printtable( trows, headertype='firstrow' )
+            header = ['Depth', 'Address', 'Used', 'Balance']
+            if options.showprivkey:
+                header.append( 'Private Key' )
+            trows.insert(0, header )
+            if method != 'summary':
+                printtable( trows, headertype='firstrow' )
         if m in wallet.imported_privkeys:
             cus_print(' import addresses')
             prows = []
