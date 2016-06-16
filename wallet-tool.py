@@ -8,11 +8,39 @@ import sys
 import sqlite3
 from optparse import OptionParser
 
+from texttable import texttable
+
 from joinmarket import load_program_config, get_network, Wallet, encryptData, \
     get_p2pk_vbyte, jm_single, mn_decode, mn_encode, BitcoinCoreInterface, \
     JsonRpcError, create_wallet_file
 
 import bitcoin as btc
+
+
+# a function to print a text table.
+# Detects if running in a TTY and if so disables terminal wrapping
+# because the wrapping is too ugly for words.
+# In this mode, terminals truncate text if line is too long.
+# A good way to view the full table if it is too wide for terminal
+# is to pipe output through less -S, which enables horizontal scrolling.
+#   eg:  python wallet-tool.py <args> | less -S
+def printtable(rows, headertype=None, footertype=None):
+    if sys.stdout.isatty():
+        print( '\033[?7l' )  # disable terminal wrapping
+        print( texttable.table(rows, headertype, footertype) )
+        print( '\033[?7h' )  # re-enable terminal wrapping
+    else:
+        print( texttable.table(rows, headertype, footertype) )
+
+def printcsv(rows):
+    import StringIO
+    import csv
+    for row in rows:
+        si = StringIO.StringIO()
+        cw = csv.writer(si, quoting=csv.QUOTE_MINIMAL)
+        cw.writerow(row)
+        print(si.getvalue().strip('\r\n'))
+
 
 description = (
     'Does useful little tasks involving your bip32 wallet. The '
@@ -59,6 +87,11 @@ parser.add_option('--csv',
                   dest='csv',
                   default=False,
                   help=('When using the history method, output as csv'))
+parser.add_option('--show-xpub',
+                  action='store_true',
+                  dest='showxpub',
+                  default=False,
+                  help=('Display master xpub key for wallet and each mix level'))
 (options, args) = parser.parse_args()
 
 # if the index_cache stored in wallet.json is longer than the default
@@ -108,18 +141,21 @@ if method == 'display' or method == 'displayall' or method == 'summary':
         if method != 'summary':
             print(s)
 
+    if options.showxpub:
+        cus_print('wallet xpub: %s\n' % (btc.bip32_privtopub(wallet.master_key)))
+
     total_balance = 0
+    rows = []
     for m in range(wallet.max_mix_depth):
         cus_print('mixing depth %d m/0/%d/' % (m, m))
+        if options.showxpub:
+            cus_print(' xpub: %s\n' % (btc.bip32_privtopub(wallet.mixing_depth_keys[m])))
         balance_depth = 0
         for forchange in [0, 1]:
-            if forchange == 0:
-                xpub_key = btc.bip32_privtopub(wallet.keys[m][forchange])
-            else:
-                xpub_key = ''
             cus_print(' ' + ('external' if forchange == 0 else 'internal') +
-                      ' addresses m/0/%d/%d' % (m, forchange) + ' ' + xpub_key)
+                      ' addresses m/0/%d/%d' % (m, forchange) )
 
+            trows = []
             for k in range(wallet.index[m][forchange] + options.gaplimit):
                 addr = wallet.get_addr(m, forchange, k)
                 balance = 0.0
@@ -139,11 +175,23 @@ if method == 'display' or method == 'displayall' or method == 'summary':
                     privkey = ''
                 if (method == 'displayall' or balance > 0 or
                     (used == ' new' and forchange == 0)):
-                    cus_print('  m/0/%d/%d/%03d %-35s%s %.8f btc %s' %
-                              (m, forchange, k, addr, used, balance / 1e8,
-                               privkey))
+                    trow = ['m/0/%d/%d/%03d' % (m, forchange, k), 
+                            '%-35s' % (addr),
+                            used,
+                            '%.8f' % (balance / 1e8)]
+                    if options.showprivkey:
+                        trow.append(privkey)
+                    trows.append( trow )
+
+            header = ['Depth', 'Address', 'Used', 'Balance']
+            if options.showprivkey:
+                header.append( 'Private Key' )
+            trows.insert(0, header )
+            if method != 'summary':
+                printtable( trows, headertype='firstrow' )
         if m in wallet.imported_privkeys:
             cus_print(' import addresses')
+            prows = []
             for privkey in wallet.imported_privkeys[m]:
                 addr = btc.privtoaddr(privkey, magicbyte=get_p2pk_vbyte())
                 balance = 0.0
@@ -161,11 +209,25 @@ if method == 'display' or method == 'displayall' or method == 'summary':
                                             'wif_compressed', get_p2pk_vbyte())
                 else:
                     wip_privkey = ''
-                cus_print(' ' * 13 + '%-35s%s %.8f btc %s' % (
-                    addr, used, balance / 1e8, wip_privkey))
+                prow = ['%-35s' % (addr), used, '%.8f' % (balance / 1e8)]
+                if options.showprivkey:
+                    prow.append(wip_privkey)
+                prows.append( prow )
+            header = ['Address', 'Used', 'Balance']
+            if options.showprivkey:
+		header.append( 'Private Key' )
+            prows.insert(0, header)
+            if method != 'summary':
+                printtable( prows, headertype='firstrow' )
         total_balance += balance_depth
-        print('for mixdepth=%d balance=%.8fbtc' % (m, balance_depth / 1e8))
-    print('total balance = %.8fbtc' % (total_balance / 1e8))
+        row = [m, '%.8fbtc' % (balance_depth / 1e8)]
+        rows.append(row)
+    row = ['total:', '%.8fbtc' % (total_balance / 1e8)]
+    # add a header
+    rows.insert(0, ['Mix Depth', 'Balance'])
+    # and a footer
+    rows.append(row)
+    printtable(rows, headertype='firstrow', footertype='lastrow')
 elif method == 'generate' or method == 'recover':
     if method == 'generate':
         seed = btc.sha256(os.urandom(64))[:32]
@@ -319,12 +381,13 @@ elif method == 'history':
         return sat_to_str(v) if v != -1 else '#' + ' '*10
 
     field_names = ['tx#', 'timestamp', 'type', 'amount/btc',
-        'balance-change/btc', 'balance/btc', 'coinjoin-n', 'total-fees',
+        'bal-change/btc', 'balance/btc', 'coinjoin-n', 'total-fees',
         'utxo-count', 'mixdepth-from', 'mixdepth-to']
-    if options.csv:
-        field_names += ['txid']
-    l = s().join(field_names)
-    print(l)
+    field_names += ['txid']
+
+    rows = []
+    rows.append( field_names )
+
     balance = 0
     utxo_count = 0
     deposits = []
@@ -436,14 +499,17 @@ elif method == 'history':
             sat_to_str_p(delta_balance), sat_to_str(balance), skip_n1(cj_n),
             skip_n1_btc(fees), utxo_count_str, skip_n1(mixdepth_src),
             skip_n1(mixdepth_dst)]
-        if options.csv:
-            printable_data += [tx['txid']]
-        l = s().join(printable_data)
-        print(l)
+        printable_data += [tx['txid']]
+	rows.append( printable_data )
 
         if tx_type != 'cj internal':
             deposits.append(delta_balance)
             deposit_times.append(rpctx['blocktime'])
+
+    if options.csv:
+        printcsv(rows)
+    else:
+        printtable(rows, headertype='firstrow')
 
     bestblockhash = jm_single().bc_interface.rpc('getbestblockhash', [])
     try:
@@ -482,3 +548,4 @@ elif method == 'history':
     if utxo_count != len(wallet.unspent):
         print(('BUG ERROR: wallet utxo count (%d) does not match utxo count from ' +
             'history (%s)') % (len(wallet.unspent), utxo_count))
+

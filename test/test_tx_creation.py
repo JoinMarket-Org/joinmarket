@@ -19,6 +19,7 @@ from joinmarket import load_program_config, jm_single
 from joinmarket import get_p2pk_vbyte, get_log, Wallet
 from joinmarket.support import chunks, select_gradual, \
      select_greedy, select_greediest
+from joinmarket.wallet import estimate_tx_fee
 
 log = get_log()
 #just a random selection of pubkeys for receiving multisigs;
@@ -62,14 +63,16 @@ def make_sign_and_push(ins_full,
                        amount,
                        output_addr=None,
                        change_addr=None,
-                       hashcode=btc.SIGHASH_ALL):
+                       hashcode=btc.SIGHASH_ALL,
+                       estimate_fee = False):
     total = sum(x['value'] for x in ins_full.values())
     ins = ins_full.keys()
     #random output address and change addr
     output_addr = wallet.get_new_addr(1, 1) if not output_addr else output_addr
     change_addr = wallet.get_new_addr(1, 0) if not change_addr else change_addr
+    fee_est = estimate_tx_fee(len(ins), 2) if estimate_fee else 10000
     outs = [{'value': amount,
-             'address': output_addr}, {'value': total - amount - 100000,
+             'address': output_addr}, {'value': total - amount - fee_est,
                                        'address': change_addr}]
 
     tx = btc.mktx(ins, outs)
@@ -89,6 +92,19 @@ def make_sign_and_push(ins_full,
     else:
         return False
 
+def test_absurd_fees(setup_tx_creation):
+    """Test triggering of ValueError exception
+    if the transaction fees calculated from the blockchain
+    interface exceed the limit set in the config.
+    """
+    jm_single().bc_interface.absurd_fees = True
+    #pay into it
+    wallet = make_wallets(1, [[2, 0, 0, 0, 1]], 3)[0]['wallet']
+    jm_single().bc_interface.sync_wallet(wallet)
+    amount = 350000000
+    ins_full = wallet.select_utxos(0, amount)
+    with pytest.raises(ValueError) as e_info:
+        txid = make_sign_and_push(ins_full, wallet, amount, estimate_fee=True)
 
 def test_create_sighash_txs(setup_tx_creation):
     #non-standard hash codes:
