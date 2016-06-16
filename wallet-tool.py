@@ -383,8 +383,7 @@ elif method == 'history':
     field_names = ['tx#', 'timestamp', 'type', 'amount/btc',
         'bal-change/btc', 'balance/btc', 'coinjoin-n', 'total-fees',
         'utxo-count', 'mixdepth-from', 'mixdepth-to']
-    if options.csv:
-        field_names += ['txid']
+    field_names += ['txid']
 
     rows = []
     rows.append( field_names )
@@ -500,8 +499,7 @@ elif method == 'history':
             sat_to_str_p(delta_balance), sat_to_str(balance), skip_n1(cj_n),
             skip_n1_btc(fees), utxo_count_str, skip_n1(mixdepth_src),
             skip_n1(mixdepth_dst)]
-        if options.csv:
-            printable_data += [tx['txid']]
+        printable_data += [tx['txid']]
 	rows.append( printable_data )
 
         if tx_type != 'cj internal':
