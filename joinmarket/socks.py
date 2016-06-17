@@ -32,6 +32,7 @@ for tunneling connections through SOCKS proxies.
 
 import socket
 import struct
+import random
 
 PROXY_TYPE_SOCKS4 = 1
 PROXY_TYPE_SOCKS5 = 2
@@ -113,8 +114,8 @@ def setdefaultproxy(proxytype=None,
                     addr=None,
                     port=None,
                     rdns=True,
-                    username=None,
-                    password=None):
+                    username=str(random.randrange(10000000, 99999999)),
+                    password=str(random.randrange(10000000, 99999999))):
     """setdefaultproxy(proxytype, addr[, port[, rdns[, username[, password]]]])
 	Sets a default proxy which all further socksocket objects will use,
 	unless explicitly changed.
@@ -207,7 +208,7 @@ class socksocket(socket.socket):
             # Okay, we need to perform a basic username/password
             # authentication.
             self.sendall("\x01" + chr(len(self.__proxy[4])) + self.__proxy[4] +
-                         chr(len(self.proxy[5])) + self.__proxy[5])
+                         chr(len(self.__proxy[5])) + self.__proxy[5])
             authstat = self.__recvall(2)
             if authstat[0] != "\x01":
                 # Bad response
