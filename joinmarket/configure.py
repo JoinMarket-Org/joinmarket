@@ -98,7 +98,7 @@ defaultconfig = \
     """
 [BLOCKCHAIN]
 blockchain_source = blockr
-#options: blockr, bitcoin-rpc, regtest
+#options: blockr, blockchain.info, bitcoin-rpc, json-rpc, regtest
 # for instructions on bitcoin-rpc read
 # https://github.com/chris-belcher/joinmarket/wiki/Running-JoinMarket-with-Bitcoin-Core-full-node
 network = mainnet
@@ -246,7 +246,7 @@ def get_blockchain_interface_instance(_config):
     # todo: refactor joinmarket module to get rid of loops
     # importing here is necessary to avoid import loops
     from joinmarket.blockchaininterface import BitcoinCoreInterface, \
-        RegtestBitcoinCoreInterface, BlockrInterface
+        RegtestBitcoinCoreInterface, BlockrInterface, BlockchaininfoInterface
     from joinmarket.blockchaininterface import CliJsonRpc
 
     source = _config.get("BLOCKCHAIN", "blockchain_source")
@@ -272,6 +272,8 @@ def get_blockchain_interface_instance(_config):
         bc_interface = RegtestBitcoinCoreInterface(rpc)
     elif source == 'blockr':
         bc_interface = BlockrInterface(testnet)
+    elif source == 'blockchain.info':
+        bc_interface = BlockchaininfoInterface(testnet)
     else:
         raise ValueError("Invalid blockchain source")
     return bc_interface
