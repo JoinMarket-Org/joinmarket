@@ -176,7 +176,7 @@ class PaymentThread(threading.Thread):
 class SendPayment(Taker):
 
     def __init__(self, msgchan, wallet, destaddr, amount, makercount, txfee,
-                 waittime, mixdepth, answeryes, chooseOrdersFunc):
+                 waittime, mixdepth, answeryes, chooseOrdersFunc, isolated=False):
         Taker.__init__(self, msgchan)
         self.wallet = wallet
         self.destaddr = destaddr
@@ -187,10 +187,14 @@ class SendPayment(Taker):
         self.mixdepth = mixdepth
         self.answeryes = answeryes
         self.chooseOrdersFunc = chooseOrdersFunc
+        #extra variables for GUI-style
+        self.isolated = isolated
+        self.txid = None
 
     def on_welcome(self):
         Taker.on_welcome(self)
-        PaymentThread(self).start()
+        if not self.isolated:
+            PaymentThread(self).start()
 
 
 def main():
@@ -327,6 +331,156 @@ def main():
         import traceback
         log.debug(traceback.format_exc())
 
+
+#PaymentThread object modified (not a thread, refactored a bit)
+#The reason is that Qt won't work with python threads, and we need
+#separate threads for separate steps (returning chosen orders to gui),
+#so the threading is in the gui code.
+class PT(object):
+
+    def __init__(self, taker):
+        self.taker = taker
+        self.ignored_makers = []
+
+    def create_tx(self):
+        time.sleep(self.taker.waittime)
+        crow = self.taker.db.execute(
+            'SELECT COUNT(DISTINCT counterparty) FROM orderbook;').fetchone()
+        counterparty_count = crow['COUNT(DISTINCT counterparty)']
+        counterparty_count -= len(self.ignored_makers)
+        if counterparty_count < self.taker.makercount:
+            log.debug('not enough counterparties to fill order, ending')
+            #NB: don't shutdown msgchan here, that is done by the caller
+            #after setting GUI state to reflect the reason for shutdown.
+            return None, None, None, None
+
+        utxos = None
+        orders = None
+        cjamount = None
+        change_addr = None
+        choose_orders_recover = None
+        if self.taker.amount == 0:
+            utxos = self.taker.wallet.get_utxos_by_mixdepth()[
+                self.taker.mixdepth]
+            #do our best to estimate the fee based on the number of
+            #our own utxos; this estimate may be significantly higher
+            #than the default set in option.txfee * makercount, where
+            #we have a large number of utxos to spend. If it is smaller,
+            #we'll be conservative and retain the original estimate.
+            est_ins = len(utxos)+3*self.taker.makercount
+            log.debug("Estimated ins: "+str(est_ins))
+            est_outs = 2*self.taker.makercount + 1
+            log.debug("Estimated outs: "+str(est_outs))
+            estimated_fee = estimate_tx_fee(est_ins, est_outs)
+            log.debug("We have a fee estimate: "+str(estimated_fee))
+            log.debug("And a requested fee of: "+str(
+                self.taker.txfee * self.taker.makercount))
+            if estimated_fee > self.taker.makercount * self.taker.txfee:
+                #both values are integers; we can ignore small rounding errors
+                self.taker.txfee = estimated_fee / self.taker.makercount
+            total_value = sum([va['value'] for va in utxos.values()])
+            orders, cjamount = choose_sweep_orders(
+                self.taker.db, total_value, self.taker.txfee,
+                self.taker.makercount, self.taker.chooseOrdersFunc,
+                self.ignored_makers)
+            if not orders:
+                raise Exception("Could not find orders to complete transaction.")
+            total_cj_fee = total_value - cjamount - \
+                self.taker.txfee*self.taker.makercount
+
+        else:
+            orders, total_cj_fee = self.sendpayment_choose_orders(
+                self.taker.amount, self.taker.makercount)
+            cjamount = self.taker.amount
+            if not orders:
+                log.debug(
+                    'ERROR not enough liquidity in the orderbook, exiting')
+                return None, None, None, None
+        return orders, total_cj_fee, cjamount, utxos
+
+    def do_tx(self, total_cj_fee, orders, cjamount, utxos,
+              donate=False, donate_trigger=1000000, donation_address=None):
+        #for non-sweep, we now have to set amount, change address and utxo selection
+        if self.taker.amount > 0:
+            total_amount = self.taker.amount + total_cj_fee + \
+                self.taker.txfee*self.taker.makercount
+            log.debug('total estimated amount spent = ' + str(total_amount))
+            #adjust the required amount upwards to anticipate a tripling of
+            #transaction fee after re-estimation; this is sufficiently conservative
+            #to make failures unlikely while keeping the occurence of failure to
+            #find sufficient utxos extremely rare. Indeed, a tripling of 'normal'
+            #txfee indicates undesirable behaviour on maker side anyway.
+            try:
+                utxos = self.taker.wallet.select_utxos(self.taker.mixdepth,
+                        total_amount+2*self.taker.txfee*self.taker.makercount)
+            except Exception as e:
+                log.debug("Failed to select coins: "+repr(e))
+                return
+            my_total_in = sum([va['value'] for u, va in utxos.iteritems()])
+            log.debug("using coinjoin amount: "+str(cjamount))
+            change_amount = my_total_in-cjamount
+            log.debug("using change amount: "+str(change_amount))
+            if donate and change_amount < donate_trigger*1e8:
+                #sanity check
+                res = validate_address(donation_address)
+                if not res[0]:
+                    log.debug("Donation address invalid! Error: "+res[1])
+                    return
+                change_addr = donation_address
+            else:
+                change_addr = self.taker.wallet.get_internal_addr(self.taker.mixdepth)
+            log.debug("using change address: "+change_addr)
+
+        #For sweeps, we reset the change address to None, and use the provided
+        #amount and utxos (calculated in the first step)
+        else:
+            change_addr = None
+
+        choose_orders_recover = self.sendpayment_choose_orders
+        log.debug("About to start coinjoin")
+        try:
+            self.taker.start_cj(self.taker.wallet, cjamount, orders, utxos,
+                            self.taker.destaddr, change_addr,
+                             self.taker.makercount*self.taker.txfee,
+                                self.finishcallback, choose_orders_recover)
+        except Exception as e:
+            log.debug("failed to start coinjoin: "+repr(e))
+
+    def finishcallback(self, coinjointx):
+        if coinjointx.all_responded:
+            pushed = coinjointx.self_sign_and_push()
+            if pushed:
+                log.debug('created fully signed tx, ending')
+                self.taker.txid = coinjointx.txid
+            else:
+                #Error should be in log, will not retry.
+                log.debug('failed to push tx, ending.')
+            self.taker.msgchan.shutdown()
+            return
+        self.ignored_makers += coinjointx.nonrespondants
+        log.debug('tx negotation failed, ignored_makers=' + str(
+            self.ignored_makers))
+        #triggers endpoint for GUI
+        self.taker.msgchan.shutdown()
+
+    def sendpayment_choose_orders(self,
+                                  cj_amount,
+                                  makercount,
+                                  nonrespondants=None,
+                                  active_nicks=None):
+        if nonrespondants is None:
+            nonrespondants = []
+        if active_nicks is None:
+            active_nicks = []
+        self.ignored_makers += nonrespondants
+        orders, total_cj_fee = choose_orders(
+            self.taker.db, cj_amount, makercount, self.taker.chooseOrdersFunc,
+            self.ignored_makers + active_nicks)
+        if not orders:
+            return None, 0
+        log.debug('chosen orders to fill ' + str(orders) + ' totalcjfee=' + str(
+            total_cj_fee))
+        return orders, total_cj_fee
 
 if __name__ == "__main__":
     main()

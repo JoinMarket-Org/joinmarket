@@ -10,7 +10,7 @@ from optparse import OptionParser
 
 from joinmarket import load_program_config, get_network, Wallet, encryptData, \
     get_p2pk_vbyte, jm_single, mn_decode, mn_encode, BitcoinCoreInterface, \
-    JsonRpcError
+    JsonRpcError, create_wallet_file
 
 import bitcoin as btc
 
@@ -185,13 +185,7 @@ elif method == 'generate' or method == 'recover':
     if password != password2:
         print('ERROR. Passwords did not match')
         sys.exit(0)
-    password_key = btc.bin_dbl_sha256(password)
-    encrypted_seed = encryptData(password_key, seed.decode('hex'))
-    timestamp = datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
-    walletfile = json.dumps({'creator': 'joinmarket project',
-                             'creation_time': timestamp,
-                             'encrypted_seed': encrypted_seed.encode('hex'),
-                             'network': get_network()})
+    walletfile = create_wallet_file(password, seed)
     walletname = raw_input('Input wallet file name (default: wallet.json): ')
     if len(walletname) == 0:
         walletname = 'wallet.json'

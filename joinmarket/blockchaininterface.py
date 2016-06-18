@@ -22,7 +22,7 @@ import bitcoin as btc
 import subprocess
 
 from joinmarket.jsonrpc import JsonRpcConnectionError, JsonRpcError
-from joinmarket.configure import get_p2pk_vbyte, jm_single
+from joinmarket.configure import get_p2pk_vbyte, jm_single, get_network
 from joinmarket.support import get_log, chunks
 
 log = get_log()
@@ -112,25 +112,52 @@ class BlockchainInterface(object):
         otherwise returns value in satoshis, address and output script
         """
         # address and output script contain the same information btw
-    
+
     @abc.abstractmethod
     def estimate_fee_per_kb(self, N):
         '''Use the blockchain interface to 
         get an estimate of the transaction fee per kb
         required for inclusion in the next N blocks.
-	'''
+        '''
 
-
-class BlockrInterface(BlockchainInterface):
-    BLOCKR_MAX_ADDR_REQ_COUNT = 20
+class BlockchaininfoInterface(BlockchainInterface):
+    BCINFO_MAX_ADDR_REQ_COUNT = 20
 
     def __init__(self, testnet=False):
-        super(BlockrInterface, self).__init__()
+        super(BlockchaininfoInterface, self).__init__()
+
+        # blockchain.info doesn't support testnet via API :(
+        if testnet:
+            debug.log("Blockchain.info doesn't support testnet, try blockr as blockchain source. Quitting.")
+            return None
 
         # see bci.py in bitcoin module
-        self.network = 'testnet' if testnet else 'btc'
-        self.blockr_domain = 'tbtc' if testnet else 'btc'
+        self.network = 'btc'
         self.last_sync_unspent = 0
+
+    @staticmethod
+    def make_bci_request(bci_api_req_url):
+        while True:
+            try:
+                res = btc.make_request(bci_api_req_url)
+            except Exception as e:
+                if str(e) == 'No free outputs to spend':
+                    return False
+                elif str(e) == 'Quota Exceeded (Req Count Limit)':
+                    log.debug('Request count limit reached (+500 req in 5 minutes)')
+                    log.debug('Waiting for 60 seconds before retrying')
+                    time.sleep(60)
+                    continue
+                elif str(e) == 'Transaction not found':
+                    log.debug(str(e))
+                    return False
+                elif str(e) == 'No Free Cluster Connection' or str(e) == 'Maximum concurrent requests for this endpoint reached. Please try again shortly.' or '<!DOCTYPE html>' in str(e):
+                    log.debug('Issues connecting to Blockchain.info API - waiting it out for 60s')
+                    time.sleep(60)
+                    continue
+                else:
+                    log.debug(Exception(e))
+            return res
 
     def sync_addresses(self, wallet):
         log.debug('downloading wallet history')
@@ -143,11 +170,312 @@ class BlockrInterface(BlockchainInterface):
                            not is_index_ahead_of_cache(
                                    wallet, mix_depth, forchange)):
                     addrs = [wallet.get_new_addr(mix_depth, forchange)
+                             for _ in range(self.BCINFO_MAX_ADDR_REQ_COUNT)]
+
+                    bcinfo_url = 'https://blockchain.info/multiaddr?active='
+
+                    # request info on all addresses
+                    res = BlockchaininfoInterface.make_bci_request(bcinfo_url + '|'.join(addrs))
+                    data = json.loads(res)['addresses']
+
+                    # get data returned in same order as the address list passed to the API
+                    new_data = []
+                    for a in addrs:
+                        new_data.append([d for d in data if d['address']==a][0])
+
+                    # for each address in data
+                    for addr in data:
+                        if addr['n_tx'] != 0:
+                            last_used_addr = addr['address']
+                            unused_addr_count = 0
+                        else:
+                            unused_addr_count += 1
+
+                if last_used_addr == '':
+                    wallet.index[mix_depth][forchange] = 0
+                else:
+                    wallet.index[mix_depth][forchange] = wallet.addr_cache[
+                                                             last_used_addr][
+                                                             2] + 1
+                
+    def sync_unspent(self, wallet):
+        # finds utxos in the wallet
+        st = time.time()
+        # dont refresh unspent dict more often than 10 minutes
+        rate_limit_time = 10 * 60
+        if st - self.last_sync_unspent < rate_limit_time:
+            log.debug(
+                    'blockchaininfo sync_unspent() happened too recently (%dsec), skipping'
+                    % (st - self.last_sync_unspent))
+            return
+        wallet.unspent = {}
+
+        addrs = wallet.addr_cache.keys()
+        if len(addrs) == 0:
+            log.debug('no tx used')
+            return
+        i = 0
+        count = 0
+        while i < len(addrs):
+            inc = min(len(addrs) - i, self.BCINFO_MAX_ADDR_REQ_COUNT)
+
+            req = addrs[i:i + inc]
+            i += inc
+
+            bcinfo_url = 'https://blockchain.info/en/unspent?active='
+
+            # Request unspent outputs in address chunks (20 at once)
+            res = BlockchaininfoInterface.make_bci_request(bcinfo_url + '|'.join(req))
+
+            count = count + 1
+            if res == False:
+                continue
+
+            # request data on addresses in chucks of five
+            req_blocks = []
+            for j in range(0, 20, 5):
+                req_blocks.append(req[j:j+5])
+
+            for req_block in req_blocks:
+                res = BlockchaininfoInterface.make_bci_request(bcinfo_url + '|'.join(req_block))
+                count = count + 1
+                if res == False:
+                    continue
+                # If there are addresses in the chunk with unspent outputs, get data
+                for addr in req_block:
+                    res = BlockchaininfoInterface.make_bci_request(bcinfo_url + addr)
+                    count = count + 1
+                    if res == False:
+                        continue
+                    data = json.loads(res)['unspent_outputs']
+
+                    # for each unspent output
+                    for uo in data:
+                        wallet.unspent[uo['tx_hash_big_endian'] + ':' + str(uo['tx_output_n'])] = {
+                            'address' : addr,
+                            'value' : int(uo['value'])}
+        for u in wallet.spent_utxos:
+            wallet.unspent.pop(u, None)
+
+        self.last_sync_unspent = time.time()
+        log.debug('blockchaininfo sync_unspent took ' +
+                        str((self.last_sync_unspent - st)) + 'sec')
+
+    def add_tx_notify(self, txd, unconfirmfun, confirmfun, notifyaddr):
+        unconfirm_timeout = 10 * 60  # seconds
+        unconfirm_poll_period = 15
+        confirm_timeout = 2 * 60 * 60
+        confirm_poll_period = 5 * 60
+
+        class NotifyThread(threading.Thread):
+
+            def __init__(self, txd, unconfirmfun, confirmfun):
+                threading.Thread.__init__(self)
+                self.daemon = True
+                self.unconfirmfun = unconfirmfun
+                self.confirmfun = confirmfun
+                self.tx_output_set = set([(sv['script'], sv['value'])
+                                          for sv in txd['outs']])
+                self.output_addresses = [
+                    btc.script_to_address(scrval[0], get_p2pk_vbyte())
+                    for scrval in self.tx_output_set]
+                log.debug('txoutset=' + pprint.pformat(self.tx_output_set))
+                log.debug('outaddrs=' + ','.join(self.output_addresses))
+
+            def run(self):
+                st = int(time.time())
+                unconfirmed_txid = None
+                unconfirmed_txhex = None
+                while not unconfirmed_txid:
+                    time.sleep(unconfirm_poll_period)
+                    if int(time.time()) - st > unconfirm_timeout:
+                        log.debug('checking for unconfirmed tx timed out')
+                        return
+                    bcinfo_url = 'https://blockchain.info/unspent?active='
+                    random.shuffle(self.output_addresses)
+                    
+                    # create list for requests of all addresses
+                    data_list = []
+                    #for each of the output addresses, request data and add it to list
+                    for output_address in self.output_addresses:
+                        res = BlockchaininfoInterface.make_bci_request(bcinfo_url + output_address)
+                        data = json.loads(res)
+                        data_list.append(data)
+
+                    shared_txid = None
+                    for unspent_list in data_list:
+                        txs = set([str(txdata['tx_hash_big_endian'])
+                                   for txdata in unspent_list['unspent_outputs']])
+                        if not shared_txid:
+                            shared_txid = txs
+                        else:
+                            shared_txid = shared_txid.intersection(txs)
+                    log.debug('sharedtxid = ' + str(shared_txid))
+                    if len(shared_txid) == 0:
+                        continue
+                    time.sleep(2)  # here for some possible race conditions, maybe could do without
+
+                    bcinfo_url = 'https://blockchain.info/rawtx/'
+                    # get data of tx and hex repressentation
+                    # for each tx the outputs addresses share (should only be one?)
+                    data_list = []
+                    for tx in shared_txid:
+                        res = BlockchaininfoInterface.make_bci_request(bcinfo_url + tx)
+                        if res == False:
+                            continue
+                        data_tx = json.loads(res)
+                        res = BlockchaininfoInterface.make_bci_request(bcinfo_url + tx + '?format=hex')
+                        data_tx['hex'] = str(res)
+                        data_list.append(data_tx)
+
+                    if not isinstance(data_list, list):
+                        data_list = [data_list]
+
+                    for txinfo in data_list:
+                        txhex = str(txinfo['hex'])
+                        outs = set([(sv['script'], sv['value'])
+                                    for sv in btc.deserialize(txhex)['outs']])
+                        log.debug('unconfirm query outs = ' + str(outs))
+                        if outs == self.tx_output_set:
+                            unconfirmed_txid = txinfo['hash']
+                            unconfirmed_txhex = str(txinfo['hex'])
+                            break
+
+                self.unconfirmfun(
+                        btc.deserialize(unconfirmed_txhex), unconfirmed_txid)
+
+                st = int(time.time())
+                confirmed_txid = None
+                confirmed_txhex = None
+                bcinfo_url = 'https://blockchain.info/rawtx/'
+
+                while not confirmed_txid:
+                    time.sleep(confirm_poll_period)
+                    if int(time.time()) - st > confirm_timeout:
+                        log.debug('checking for confirmed tx timed out')
+                        return
+                    
+                    for tx in shared_txid:
+                        res = btc.make_request(bcinfo_url + tx)
+                        data = json.loads(res)
+
+                        # Not yet confirmed
+                        if 'block_height' not in data:
+                            continue
+                        else:
+                            res = BlockchaininfoInterface.make_bci_request(bcinfo_url + tx + '?format=hex')
+                            txhex = str(res)
+                            outs = set([(sv['script'], sv['value'])
+                                    for sv in btc.deserialize(txhex)['outs']])
+                            log.debug('confirm query outs = ' + str(outs))
+                            if outs == self.tx_output_set:
+                                confirmed_txid = txinfo['hash']
+                                confirmed_txhex = str(txinfo['hex'])
+                                break
+
+                self.confirmfun(
+                        btc.deserialize(confirmed_txhex), confirmed_txid, 1)
+
+        NotifyThread(txd, unconfirmfun, confirmfun).start()
+
+    def pushtx(self, txhex):
+        try:
+            json_str = btc.bci_pushtx(txhex)
+        except Exception:
+            log.debug('failed blockchain.info pushtx')
+            return None
+
+        txhash = btc.txhash(txhex)
+        return txhash
+
+    def query_utxo_set(self, txout):
+        if not isinstance(txout, list):
+            txout = [txout]
+        txids = [h[:64] for h in txout]
+        txids = list(set(txids))
+        txids = [txids]
+
+        bcinfo_url = 'https://blockchain.info/rawtx/'
+        data = []
+        for ids in txids:
+            for single_id in ids:
+                res = BlockchaininfoInterface.make_bci_request(bcinfo_url + single_id)
+                if res == False:
+                    continue
+                bci_data = json.loads(res)
+                data.append(bci_data)
+
+        result = []
+        for txo in txout:
+            txdata = None
+            vout = None
+            for d in data:
+                if d['hash'] == txo[:64]:
+                    txdata = d
+            for v in txdata['out']:
+                if v['n'] == int(txo[65:]):
+                    vout = v
+            if vout['spent'] == 1:
+                result.append(None)
+            else:
+                result.append({'value': int(vout['value']),
+                               'address': vout['addr'],
+                               'script': vout['script']})
+        return result
+        
+
+    def estimate_fee_per_kb(self, N):
+        bcypher_fee_estimate_url = 'https://api.blockcypher.com/v1/btc/main'
+        bcypher_data = json.loads(btc.make_request(bcypher_fee_estimate_url))
+        log.debug("Got blockcypher result: "+pprint.pformat(bcypher_data))
+        if N<=2:
+            fee_per_kb = bcypher_data["high_fee_per_kb"]
+        elif N <=4:
+            fee_per_kb = bcypher_data["medium_fee_per_kb"]
+        else:
+            fee_per_kb = bcypher_data["low_fee_per_kb"]
+            
+        return fee_per_kb   
+
+class BlockrInterface(BlockchainInterface):
+    BLOCKR_MAX_ADDR_REQ_COUNT = 20
+
+    def __init__(self, testnet=False):
+        super(BlockrInterface, self).__init__()
+
+        # see bci.py in bitcoin module
+        #self.network = 'testnet' if testnet else 'btc'
+        #self.blockr_domain = 'tbtc' if testnet else 'btc'
+        self.last_sync_unspent = 0
+
+    def network_for_blockr_push(self):
+        if get_network() == 'testnet':
+            return 'testnet'
+        else:
+            return 'btc'
+
+    def blockr_domain(self):
+        if get_network() == 'testnet':
+            return 'tbtc'
+        else:
+            return 'btc'
+
+    def sync_addresses(self, wallet):
+        log.debug('downloading wallet history')
+        # sets Wallet internal indexes to be at the next unused address
+        for mix_depth in range(wallet.max_mix_depth):
+            for forchange in [0, 1]:
+                unused_addr_count = 0
+                last_used_addr = ''
+                while (unused_addr_count < wallet.gaplimit or
+                       not is_index_ahead_of_cache(
+                           wallet, mix_depth, forchange)):
+                    addrs = [wallet.get_new_addr(mix_depth, forchange)
                              for _ in range(self.BLOCKR_MAX_ADDR_REQ_COUNT)]
 
                     # TODO send a pull request to pybitcointools
                     # because this surely should be possible with a function from it
-                    blockr_url = 'https://' + self.blockr_domain
+                    blockr_url = 'https://' + self.blockr_domain()
                     blockr_url += '.blockr.io/api/v1/address/txs/'
 
                     res = btc.make_request(blockr_url + ','.join(addrs))
@@ -162,18 +490,18 @@ class BlockrInterface(BlockchainInterface):
                     wallet.index[mix_depth][forchange] = 0
                 else:
                     wallet.index[mix_depth][forchange] = wallet.addr_cache[
-                                                             last_used_addr][
-                                                             2] + 1
+                        last_used_addr][
+                            2] + 1
 
     def sync_unspent(self, wallet):
         # finds utxos in the wallet
         st = time.time()
         # dont refresh unspent dict more often than 10 minutes
-        rate_limit_time = 10 * 60
+        rate_limit_time = 5 * 6
         if st - self.last_sync_unspent < rate_limit_time:
             log.debug(
-                    'blockr sync_unspent() happened too recently (%dsec), skipping'
-                    % (st - self.last_sync_unspent))
+                'blockr sync_unspent() happened too recently (%dsec), skipping'
+                % (st - self.last_sync_unspent))
             return
         wallet.unspent = {}
 
@@ -191,8 +519,8 @@ class BlockrInterface(BlockchainInterface):
             # unspent() doesnt tell you which address, you get a bunch of utxos
             # but dont know which privkey to sign with
 
-            blockr_url = 'https://' + self.blockr_domain + \
-                         '.blockr.io/api/v1/address/unspent/'
+            blockr_url = 'https://' + self.blockr_domain() + \
+                '.blockr.io/api/v1/address/unspent/'
             res = btc.make_request(blockr_url + ','.join(req))
             data = json.loads(res)['data']
             if 'unspent' in data:
@@ -250,8 +578,8 @@ class BlockrInterface(BlockchainInterface):
                     random.shuffle(self.output_addresses
                                    )  # seriously weird bug with blockr.io
                     data = json.loads(
-                            btc.make_request(blockr_url + ','.join(
-                                    self.output_addresses
+                        btc.make_request(blockr_url + ','.join(
+                            self.output_addresses
                             ) + '?unconfirmed=1'))['data']
 
                     shared_txid = None
@@ -266,12 +594,12 @@ class BlockrInterface(BlockchainInterface):
                     if len(shared_txid) == 0:
                         continue
                     time.sleep(
-                            2
-                    )  # here for some race condition bullshit with blockr.io
+                        2
+                        )  # here for some race condition bullshit with blockr.io
                     blockr_url = 'https://' + self.blockr_domain
                     blockr_url += '.blockr.io/api/v1/tx/raw/'
                     data = json.loads(btc.make_request(blockr_url + ','.join(
-                            shared_txid)))['data']
+                        shared_txid)))['data']
                     if not isinstance(data, list):
                         data = [data]
                     for txinfo in data:
@@ -285,7 +613,7 @@ class BlockrInterface(BlockchainInterface):
                             break
 
                 self.unconfirmfun(
-                        btc.deserialize(unconfirmed_txhex), unconfirmed_txid)
+                    btc.deserialize(unconfirmed_txhex), unconfirmed_txid)
 
                 st = int(time.time())
                 confirmed_txid = None
@@ -300,7 +628,7 @@ class BlockrInterface(BlockchainInterface):
                     blockr_url = 'https://' + self.blockr_domain
                     blockr_url += '.blockr.io/api/v1/address/txs/'
                     data = json.loads(btc.make_request(blockr_url + ','.join(
-                            self.output_addresses)))['data']
+                        self.output_addresses)))['data']
                     shared_txid = None
                     for addrtxs in data:
                         txs = set(str(txdata['tx'])
@@ -315,8 +643,8 @@ class BlockrInterface(BlockchainInterface):
                     blockr_url = 'https://' + self.blockr_domain
                     blockr_url += '.blockr.io/api/v1/tx/raw/'
                     data = json.loads(
-                            btc.make_request(
-                                    blockr_url + ','.join(shared_txid)))['data']
+                        btc.make_request(
+                            blockr_url + ','.join(shared_txid)))['data']
                     if not isinstance(data, list):
                         data = [data]
                     for txinfo in data:
@@ -329,13 +657,13 @@ class BlockrInterface(BlockchainInterface):
                             confirmed_txhex = str(txinfo['tx']['hex'])
                             break
                 self.confirmfun(
-                        btc.deserialize(confirmed_txhex), confirmed_txid, 1)
+                    btc.deserialize(confirmed_txhex), confirmed_txid, 1)
 
-        NotifyThread(self.blockr_domain, txd, unconfirmfun, confirmfun, timeoutfun).start()
+        NotifyThread(self.blockr_domain(), txd, unconfirmfun, confirmfun, timeoutfun).start()
 
     def pushtx(self, txhex):
         try:
-            json_str = btc.blockr_pushtx(txhex, self.network)
+            json_str = btc.blockr_pushtx(txhex, self.network_for_blockr_push())
             data = json.loads(json_str)
             if data['status'] != 'success':
                 log.debug(data)
@@ -358,9 +686,9 @@ class BlockrInterface(BlockchainInterface):
             txids = [txids]
         data = []
         for ids in txids:
-            blockr_url = 'https://' + self.blockr_domain + '.blockr.io/api/v1/tx/info/'
+            blockr_url = 'https://' + self.blockr_domain() + '.blockr.io/api/v1/tx/info/'
             blockr_data = json.loads(
-                    btc.make_request(blockr_url + ','.join(ids)))['data']
+                btc.make_request(blockr_url + ','.join(ids)))['data']
             if not isinstance(blockr_data, list):
                 blockr_data = [blockr_data]
             data += blockr_data
@@ -372,7 +700,7 @@ class BlockrInterface(BlockchainInterface):
                 result.append(None)
             else:
                 result.append({'value': int(Decimal(vout['amount']) * Decimal(
-                        '1e8')),
+                    '1e8')),
                                'address': vout['address'],
                                'script': vout['extras']['script']})
         return result
@@ -381,14 +709,15 @@ class BlockrInterface(BlockchainInterface):
         bcypher_fee_estimate_url = 'https://api.blockcypher.com/v1/btc/main'
         bcypher_data = json.loads(btc.make_request(bcypher_fee_estimate_url))
         log.debug("Got blockcypher result: "+pprint.pformat(bcypher_data))
-	if N<=2:
-	    fee_per_kb = bcypher_data["high_fee_per_kb"]
-	elif N <=4:
-	    fee_per_kb = bcypher_data["medium_fee_per_kb"]
-	else:
-	    fee_per_kb = bcypher_data["low_fee_per_kb"]
-	    
-	return fee_per_kb
+
+        if N<=2:
+            fee_per_kb = bcypher_data["high_fee_per_kb"]
+        elif N <=4:
+            fee_per_kb = bcypher_data["medium_fee_per_kb"]
+        else:
+            fee_per_kb = bcypher_data["low_fee_per_kb"]
+
+        return fee_per_kb
 
 def bitcoincore_timeout_callback(uc_called, txout_set, txnotify_fun_list,
                                  timeoutfun):
@@ -411,7 +740,7 @@ class NotifyRequestHeader(BaseHTTPServer.BaseHTTPRequestHandler):
         self.btcinterface = base_server.btcinterface
         self.base_server = base_server
         BaseHTTPServer.BaseHTTPRequestHandler.__init__(
-                self, request, client_address, base_server)
+            self, request, client_address, base_server)
 
     def do_HEAD(self):
         pages = ('/walletnotify?', '/alertnotify?')
@@ -562,7 +891,7 @@ class BitcoinCoreInterface(BlockchainInterface):
         for addr in addr_list:
             self.rpc('importaddress', [addr, wallet_name, False])
         if jm_single().config.get(
-                "BLOCKCHAIN", "blockchain_source") != 'regtest':
+            "BLOCKCHAIN", "blockchain_source") != 'regtest':
             print('restart Bitcoin Core with -rescan if you\'re '
                   'recovering an existing wallet from backup seed')
             print(' otherwise just restart this joinmarket script')
@@ -616,8 +945,8 @@ class BitcoinCoreInterface(BlockchainInterface):
                 breakloop = False
                 while not breakloop:
                     if unused_addr_count >= wallet.gaplimit and \
-                            is_index_ahead_of_cache(wallet, mix_depth,
-                                                    forchange):
+                       is_index_ahead_of_cache(wallet, mix_depth,
+                                               forchange):
                         break
                     mix_change_addrs = [
                         wallet.get_new_addr(mix_depth, forchange)
@@ -625,7 +954,7 @@ class BitcoinCoreInterface(BlockchainInterface):
                     for mc_addr in mix_change_addrs:
                         if mc_addr not in imported_addr_list:
                             too_few_addr_mix_change.append(
-                                    (mix_depth, forchange))
+                                (mix_depth, forchange))
                             breakloop = True
                             break
                         if mc_addr in used_addr_list:
@@ -733,12 +1062,12 @@ class BitcoinCoreInterface(BlockchainInterface):
 
     def estimate_fee_per_kb(self, N):
         estimate = Decimal(1e8)*Decimal(self.rpc('estimatefee', [N]))
-	if estimate < 0:
-	    #This occurs when Core has insufficient data to estimate.
-	    #TODO anything better than a hardcoded default?
-	    return 30000 
+        if estimate < 0:
+            #This occurs when Core has insufficient data to estimate.
+            #TODO anything better than a hardcoded default?
+            return 30000 
         else:
-	    return estimate    
+            return estimate    
 
 # class for regtest chain access
 # running on local daemon. Only
@@ -831,7 +1160,7 @@ class RegtestBitcoinCoreInterface(BitcoinCoreInterface):
             self.rpc('importaddress', [address, 'watchonly'])
             res.append({'address': address,
                         'balance': int(Decimal(1e8) * Decimal(
-                                self.rpc('getreceivedbyaddress', [address])))})
+                            self.rpc('getreceivedbyaddress', [address])))})
         return {'data': res}
 
 # todo: won't run anyways
