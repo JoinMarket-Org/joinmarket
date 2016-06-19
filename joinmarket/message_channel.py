@@ -93,11 +93,15 @@ class MessageChannelCollection(object):
         self.nicks_seen = {}
         for mc in self.mchannels:
             self.nicks_seen[mc] = set()
+            #callback to mark nicks as seen when they privmsg
+            mc.on_privmsg_trigger = self.on_privmsg
         #keep track of whether we want to deliberately
         #shut down the connections
         self.give_up = False
         #only allow on_welcome() to fire once.
         self.welcomed = False
+        #control access
+        self.mc_lock = threading.Lock()
 
     def available_channels(self):
         return [x for x in self.mchannels if self.mc_status[x]==1]
@@ -368,18 +372,20 @@ class MessageChannelCollection(object):
         are initialized (not state 0), fire the
         on_welcome() event to calling code to signal
         that processing can start.
+        This is wrapped with a lock as can be fired by
+        message channel child threads.
         """
-        #This should not be re-triggered in one run.
-        if self.welcomed:
-            return
-        #This trigger indicates successful login
-        #so we update status.        
-        self.mc_status[mc] = 1
-        #This way broadcasts orders or requests ONCE to ALL mchans
-        #which are actually available.
-        if not any([x == 0 for x in self.mc_status.values()]):
-            self.on_welcome()
-            self.welcomed = True
+        with self.mc_lock:
+            if self.welcomed:
+                return
+            #This trigger indicates successful login
+            #so we update status.
+            self.mc_status[mc] = 1
+            #This way broadcasts orders or requests ONCE to ALL mchans
+            #which are actually available.
+            if not any([x == 0 for x in self.mc_status.values()]):
+                self.on_welcome()
+                self.welcomed = True
 
     def on_nick_leave_trigger(self, nick, mc):
         """If a nick leaves one message channel,
@@ -523,6 +529,16 @@ class MessageChannelCollection(object):
                                         on_seen_tx,
                                         on_push_tx)
 
+    def on_privmsg(self, nick, mchan):
+        """Registered as a callback for all mchannels:
+        set the nick as seen on privmsg, as it may not
+        be triggered if it doesn't issue a pubmsg.
+        """
+        if mchan in self.available_channels():
+            self.see_nick(nick, mchan)
+        #Should not be reached; but in weird case that the channel
+        #is not available, there is nothing to do.
+
 class MessageChannel(object):
     __metaclass__ = abc.ABCMeta
     """Abstract class which implements a way for bots to communicate.
@@ -540,6 +556,7 @@ class MessageChannel(object):
         self.on_nick_leave = None
         self.on_nick_change = None
         self.on_pubmsg_trigger = None
+        self.on_privmsg_trigger = None
         # orderbook watch functions
         self.on_order_seen = None
         self.on_order_cancel = None
@@ -781,6 +798,9 @@ class MessageChannel(object):
 
     def on_privmsg(self, nick, message):
         """handles the case when a private message is received"""
+        #Mark the nick as seen no matter what the message.
+        if self.on_privmsg_trigger:
+            self.on_privmsg_trigger(nick, self)
         if message[0] != COMMAND_PREFIX:
             log.debug('message not a cmd')
             return
