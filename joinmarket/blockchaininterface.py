@@ -161,9 +161,9 @@ class BlockrInterface(BlockchainInterface):
                 if last_used_addr == '':
                     wallet.index[mix_depth][forchange] = 0
                 else:
-                    wallet.index[mix_depth][forchange] = wallet.addr_cache[
-                                                             last_used_addr][
-                                                             2] + 1
+		    next_avail_idx = max([wallet.addr_cache[last_used_addr][2]+1,
+		                        wallet.index_cache[mix_depth][forchange]])
+		    wallet.index[mix_depth][forchange] = next_avail_idx
 
     def sync_unspent(self, wallet):
         # finds utxos in the wallet
@@ -637,8 +637,9 @@ class BitcoinCoreInterface(BlockchainInterface):
                 if last_used_addr == '':
                     wallet.index[mix_depth][forchange] = 0
                 else:
-                    wallet.index[mix_depth][forchange] = \
-                        wallet.addr_cache[last_used_addr][2] + 1
+		    next_avail_idx = max([wallet.addr_cache[last_used_addr][2]+1,
+		                        wallet.index_cache[mix_depth][forchange]])
+		    wallet.index[mix_depth][forchange] = next_avail_idx
 
         wallet_addr_list = []
         if len(too_few_addr_mix_change) > 0:
