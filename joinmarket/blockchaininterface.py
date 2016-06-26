@@ -760,7 +760,7 @@ class RegtestBitcoinCoreInterface(BitcoinCoreInterface):
         self.tick_forward_chain_interval = 2
         self.absurd_fees = False
 
-     def estimate_fee_per_kb(self, N):
+    def estimate_fee_per_kb(self, N):
         if not self.absurd_fees:
             return super(RegtestBitcoinCoreInterface, self).estimate_fee_per_kb(N)
         else:
