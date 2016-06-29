@@ -364,7 +364,8 @@ class MessageChannelCollection(object):
         self.flush_nicks()
         log.debug("On disconnect fired, nicks_seen is now: " + str(self.nicks_seen))
         if not any([x==1 for x in self.mc_status.values()]):
-            self.on_disconnect()
+            if self.on_disconnect:
+                self.on_disconnect()
 
     def on_welcome_trigger(self, mc):
         """Update status of specified message channel
@@ -384,7 +385,8 @@ class MessageChannelCollection(object):
             #This way broadcasts orders or requests ONCE to ALL mchans
             #which are actually available.
             if not any([x == 0 for x in self.mc_status.values()]):
-                self.on_welcome()
+                if self.on_welcome:
+                    self.on_welcome()
                 self.welcomed = True
 
     def on_nick_leave_trigger(self, nick, mc):
@@ -402,7 +404,8 @@ class MessageChannelCollection(object):
         #mark the nick as 'unseen' on that channel
         self.unsee_nick(nick, mc)
         if nick not in self.active_channels:
-            self.on_nick_leave(nick)
+            if self.on_nick_leave:
+                self.on_nick_leave(nick)
         elif self.active_channels[nick] == mc:
             del self.active_channels[nick]
             #Attempt to dynamically switch channels
@@ -411,7 +414,8 @@ class MessageChannelCollection(object):
             if len(other_channels) == 0:
                 log.debug(
                     "Cannot reconnect to dropped nick, no connections available.")
-                self.on_nick_leave(nick)
+                if self.on_nick_leave:
+                    self.on_nick_leave(nick)
                 return
             for oc in other_channels:
                 if nick in self.nicks_seen[oc]:
@@ -422,9 +426,9 @@ class MessageChannelCollection(object):
                     return
             #If loop completed without success, we failed to find
             #this counterparty anywhere else
-            log.debug("Failed to find an alternative message channel for: " + nick \
-                      + ", marking as left from: " + str(mc.serverport))
-            self.on_nick_leave(nick)
+            log.debug("Nick: " + nick + " has left.")
+            if self.on_nick_leave:
+                self.on_nick_leave(nick)
         #The remaining case is if the channel that the
         #nick has left is not the one we're currently using.
         return
@@ -485,7 +489,8 @@ class MessageChannelCollection(object):
         self.nicks_seen[mc].add(counterparty)
 
         self.active_channels[counterparty] = mc
-        self.on_order_seen(counterparty, oid, ordertype, minsize, maxsize,
+        if self.on_order_seen:
+            self.on_order_seen(counterparty, oid, ordertype, minsize, maxsize,
                            txfee, cjfee)
 
     # orderbook watcher commands
@@ -507,7 +512,8 @@ class MessageChannelCollection(object):
         taker on this message channel before pass-through.
         """
         self.nicks_seen[mc].add(nick)
-        self.on_orderbook_requested(nick, mc)
+        if self.on_orderbook_requested:
+            self.on_orderbook_requested(nick, mc)
 
     # maker commands
     def register_maker_callbacks(self,
