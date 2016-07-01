@@ -575,12 +575,37 @@ class BitcoinCoreInterface(BlockchainInterface):
             return
         log.debug('requesting wallet history')
         wallet_name = self.get_wallet_name(wallet)
+	#TODO It is worth considering making this user configurable:
         addr_req_count = 20
         wallet_addr_list = []
         for mix_depth in range(wallet.max_mix_depth):
             for forchange in [0, 1]:
+		#If we have an index-cache available, we can use it
+		#to decide how much to import (note that this list
+		#*always* starts from index 0 on each branch).
+		#In cases where the Bitcoin Core instance is fresh,
+		#this will allow the entire import+rescan to occur
+		#in 2 steps only.
+		if wallet.index_cache != [[0,0]]*5:
+		    #Need to request N*addr_req_count where N is least s.t.
+		    #N*addr_req_count > index_cache val. This is so that the batching
+		    #process in the main loop *always* has already imported enough
+		    #addresses to complete.
+		    req_count = int(wallet.index_cache[mix_depth]
+		                    [forchange]/addr_req_count) + 1
+		    req_count *= addr_req_count
+		else:
+		    #If we have *nothing* - no index_cache, and no info
+		    #in Core wallet (imports), we revert to a batching mode
+		    #with a default size.
+		    #In this scenario it could require several restarts *and*
+		    #rescans; perhaps user should set addr_req_count high
+		    #(see above TODO)
+		    req_count = addr_req_count
                 wallet_addr_list += [wallet.get_new_addr(mix_depth, forchange)
-                                     for _ in range(addr_req_count)]
+                                     for _ in range(req_count)]
+		#Indices are reset here so that the next algorithm step starts
+		#from the beginning of each branch
                 wallet.index[mix_depth][forchange] = 0
         # makes more sense to add these in an account called "joinmarket-imported" but its much
         # simpler to add to the same account here
@@ -635,11 +660,11 @@ class BitcoinCoreInterface(BlockchainInterface):
                             unused_addr_count += 1
 
                 if last_used_addr == '':
-                    wallet.index[mix_depth][forchange] = 0
+		    next_avail_idx = max([wallet.index_cache[mix_depth][forchange], 0])
                 else:
 		    next_avail_idx = max([wallet.addr_cache[last_used_addr][2]+1,
 		                        wallet.index_cache[mix_depth][forchange]])
-		    wallet.index[mix_depth][forchange] = next_avail_idx
+		wallet.index[mix_depth][forchange] = next_avail_idx
 
         wallet_addr_list = []
         if len(too_few_addr_mix_change) > 0:

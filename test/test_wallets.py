@@ -118,7 +118,10 @@ def test_wallet_sync(setup_wallets, num_txs, fake_count,
         jm_single().bc_interface.sync_wallet(wallet)
         #avoid infinite loop on failure.
         assert sync_count < 10
-
+    #Wallet should recognize index_cache on sync, so should not need to
+    #run sync process more than twice (twice if cache bump has moved us
+    #past the first round of imports).
+    assert sync_count <= 2
     #validate the wallet index values after sync
     for i, ws in enumerate(wallet_structure):
         assert wallet.index[i][0] == ws #spends into external only
@@ -130,6 +133,41 @@ def test_wallet_sync(setup_wallets, num_txs, fake_count,
 
     #Now try to do more transactions as sanity check.
     do_tx(wallet, 50000000)
+
+
+@pytest.mark.parametrize(
+    "wallet_structure, wallet_file, password",
+    [
+        ([11,3,4,5,6], 'test_import_wallet.json', 'import-pwd'
+         ),
+    ])
+def test_wallet_sync_from_scratch(setup_wallets, wallet_structure,
+                                  wallet_file, password):
+    """Simulate a scenario in which we use a new bitcoind, thusly:
+    generate a new wallet and simply pretend that it has an existing
+    index_cache. This will force import of all addresses up to
+    the index_cache values.
+    """
+    setup_import(mainnet=False)
+    wallet = make_wallets(1,[wallet_structure],
+                              fixed_seeds=[wallet_file],
+                              test_wallet=True, passwords=[password])[0]['wallet']
+    sync_count = 0
+    jm_single().bc_interface.wallet_synced = False
+    wallet.index_cache = [(12,3),(100,99),(7, 40), (200, 201), (10,0)]
+    while not jm_single().bc_interface.wallet_synced:
+        wallet.index = []
+        for i in range(5):
+            wallet.index.append([0, 0])
+        jm_single().bc_interface.sync_wallet(wallet)
+        sync_count += 1
+        #avoid infinite loop
+        assert sync_count < 10
+        log.debug("Tried " + str(sync_count) + " times")
+    assert jm_single().bc_interface.wallet_synced
+    assert sync_count == 2
+    assert wallet.index == [[x[0],x[1]] for x in wallet.index_cache]
+
 
 @pytest.mark.parametrize(
     "pwd, in_privs",
@@ -196,6 +234,7 @@ def test_utxo_selection(setup_wallets, nw, wallet_structures, mean_amt,
     """
     wallets = make_wallets(nw, wallet_structures, mean_amt, sdev_amt)
     for w in wallets.values():
+        jm_single().bc_interface.wallet_synced = False
         jm_single().bc_interface.sync_wallet(w['wallet'])
     for k, w in enumerate(wallets.values()):
         for algo in [select_gradual, select_greedy, select_greediest, None]:
