@@ -643,7 +643,9 @@ class BitcoinCoreInterface(BlockchainInterface):
 
         wallet_addr_list = []
         if len(too_few_addr_mix_change) > 0:
-            log.debug('too few addresses in ' + str(too_few_addr_mix_change))
+            indices = [wallet.index[mc[0]][mc[1]] for mc in too_few_addr_mix_change]
+            log.debug('too few addresses in ' + str(too_few_addr_mix_change) +
+                      ' at ' + str(indices))
             for mix_depth, forchange in too_few_addr_mix_change:
                 wallet_addr_list += [
                     wallet.get_new_addr(mix_depth, forchange)
