@@ -586,7 +586,7 @@ class BitcoinCoreInterface(BlockchainInterface):
 		#In cases where the Bitcoin Core instance is fresh,
 		#this will allow the entire import+rescan to occur
 		#in 2 steps only.
-		if wallet.index_cache != [[0,0]]*5:
+		if wallet.index_cache != [[0,0]]*wallet.max_mix_depth:
 		    #Need to request N*addr_req_count where N is least s.t.
 		    #N*addr_req_count > index_cache val. This is so that the batching
 		    #process in the main loop *always* has already imported enough
