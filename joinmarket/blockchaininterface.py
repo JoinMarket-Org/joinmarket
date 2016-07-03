@@ -658,13 +658,27 @@ class BitcoinCoreInterface(BlockchainInterface):
                             unused_addr_count = 0
                         else:
                             unused_addr_count += 1
-
-                if last_used_addr == '':
-		    next_avail_idx = max([wallet.index_cache[mix_depth][forchange], 0])
-                else:
-		    next_avail_idx = max([wallet.addr_cache[last_used_addr][2]+1,
-		                        wallet.index_cache[mix_depth][forchange]])
-		wallet.index[mix_depth][forchange] = next_avail_idx
+		#index setting here depends on whether we broke out of the loop
+		#early; if we did, it means we need to prepare the index
+		#at the level of the last used address or zero so as to not
+		#miss any imports in add_watchonly_addresses.
+		#If we didn't, we need to respect the index_cache to avoid
+		#potential address reuse.
+		if breakloop:
+		    if last_used_addr == '':
+			wallet.index[mix_depth][forchange] = 0
+		    else:
+			wallet.index[mix_depth][forchange] = \
+			    wallet.addr_cache[last_used_addr][2] + 1
+		else:
+		    if last_used_addr == '':
+			next_avail_idx = max([wallet.index_cache[mix_depth]
+			                      [forchange], 0])
+		    else:
+			next_avail_idx = max([wallet.addr_cache[last_used_addr]
+			                      [2]+1, wallet.index_cache[mix_depth]
+			                      [forchange]])
+		    wallet.index[mix_depth][forchange] = next_avail_idx
 
         wallet_addr_list = []
         if len(too_few_addr_mix_change) > 0:
