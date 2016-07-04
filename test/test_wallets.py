@@ -118,7 +118,10 @@ def test_wallet_sync(setup_wallets, num_txs, fake_count,
         jm_single().bc_interface.sync_wallet(wallet)
         #avoid infinite loop on failure.
         assert sync_count < 10
-
+    #Wallet should recognize index_cache on sync, so should not need to
+    #run sync process more than twice (twice if cache bump has moved us
+    #past the first round of imports).
+    assert sync_count <= 2
     #validate the wallet index values after sync
     for i, ws in enumerate(wallet_structure):
         assert wallet.index[i][0] == ws #spends into external only
@@ -130,6 +133,56 @@ def test_wallet_sync(setup_wallets, num_txs, fake_count,
 
     #Now try to do more transactions as sanity check.
     do_tx(wallet, 50000000)
+
+
+@pytest.mark.parametrize(
+    "wallet_structure, wallet_file, password, ic",
+    [
+        #As usual, more test cases are preferable but time
+        #of build test is too long, so only one activated.
+        #([11,3,4,5,6], 'test_import_wallet.json', 'import-pwd',
+        # [(12,3),(100,99),(7, 40), (200, 201), (10,0)]
+        # ),
+        ([1,3,0,2,9], 'test_import_wallet.json', 'import-pwd',
+         [(0,7),(100,99),(0, 0), (200, 201), (21,41)]
+         ),
+    ])
+def test_wallet_sync_from_scratch(setup_wallets, wallet_structure,
+                                  wallet_file, password, ic):
+    """Simulate a scenario in which we use a new bitcoind, thusly:
+    generate a new wallet and simply pretend that it has an existing
+    index_cache. This will force import of all addresses up to
+    the index_cache values.
+    """
+    setup_import(mainnet=False)
+    wallet = make_wallets(1,[wallet_structure],
+                              fixed_seeds=[wallet_file],
+                              test_wallet=True, passwords=[password])[0]['wallet']
+    sync_count = 0
+    jm_single().bc_interface.wallet_synced = False
+    wallet.index_cache = ic
+    while not jm_single().bc_interface.wallet_synced:
+        wallet.index = []
+        for i in range(5):
+            wallet.index.append([0, 0])
+        jm_single().bc_interface.sync_wallet(wallet)
+        sync_count += 1
+        #avoid infinite loop
+        assert sync_count < 10
+        log.debug("Tried " + str(sync_count) + " times")
+    #after #586 we expect to ALWAYS succeed within 2 rounds
+    assert sync_count == 2
+    #for each external branch, the new index may be higher than
+    #the original index_cache if there was a higher used address
+    expected_wallet_index = []
+    for i, val in enumerate(wallet_structure):
+        if val > wallet.index_cache[i][0]:
+            expected_wallet_index.append([val, wallet.index_cache[i][1]])
+        else:
+            expected_wallet_index.append([wallet.index_cache[i][0],
+                                          wallet.index_cache[i][1]])
+    assert wallet.index == expected_wallet_index
+
 
 @pytest.mark.parametrize(
     "pwd, in_privs",
@@ -196,6 +249,7 @@ def test_utxo_selection(setup_wallets, nw, wallet_structures, mean_amt,
     """
     wallets = make_wallets(nw, wallet_structures, mean_amt, sdev_amt)
     for w in wallets.values():
+        jm_single().bc_interface.wallet_synced = False
         jm_single().bc_interface.sync_wallet(w['wallet'])
     for k, w in enumerate(wallets.values()):
         for algo in [select_gradual, select_greedy, select_greediest, None]:
