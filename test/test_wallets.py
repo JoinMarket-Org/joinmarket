@@ -136,13 +136,19 @@ def test_wallet_sync(setup_wallets, num_txs, fake_count,
 
 
 @pytest.mark.parametrize(
-    "wallet_structure, wallet_file, password",
+    "wallet_structure, wallet_file, password, ic",
     [
-        ([11,3,4,5,6], 'test_import_wallet.json', 'import-pwd'
+        #As usual, more test cases are preferable but time
+        #of build test is too long, so only one activated.
+        #([11,3,4,5,6], 'test_import_wallet.json', 'import-pwd',
+        # [(12,3),(100,99),(7, 40), (200, 201), (10,0)]
+        # ),
+        ([1,3,0,2,9], 'test_import_wallet.json', 'import-pwd',
+         [(0,7),(100,99),(0, 0), (200, 201), (21,41)]
          ),
     ])
 def test_wallet_sync_from_scratch(setup_wallets, wallet_structure,
-                                  wallet_file, password):
+                                  wallet_file, password, ic):
     """Simulate a scenario in which we use a new bitcoind, thusly:
     generate a new wallet and simply pretend that it has an existing
     index_cache. This will force import of all addresses up to
@@ -154,7 +160,7 @@ def test_wallet_sync_from_scratch(setup_wallets, wallet_structure,
                               test_wallet=True, passwords=[password])[0]['wallet']
     sync_count = 0
     jm_single().bc_interface.wallet_synced = False
-    wallet.index_cache = [(12,3),(100,99),(7, 40), (200, 201), (10,0)]
+    wallet.index_cache = ic
     while not jm_single().bc_interface.wallet_synced:
         wallet.index = []
         for i in range(5):
@@ -164,9 +170,18 @@ def test_wallet_sync_from_scratch(setup_wallets, wallet_structure,
         #avoid infinite loop
         assert sync_count < 10
         log.debug("Tried " + str(sync_count) + " times")
-    assert jm_single().bc_interface.wallet_synced
+    #after #586 we expect to ALWAYS succeed within 2 rounds
     assert sync_count == 2
-    assert wallet.index == [[x[0],x[1]] for x in wallet.index_cache]
+    #for each external branch, the new index may be higher than
+    #the original index_cache if there was a higher used address
+    expected_wallet_index = []
+    for i, val in enumerate(wallet_structure):
+        if val > wallet.index_cache[i][0]:
+            expected_wallet_index.append([val, wallet.index_cache[i][1]])
+        else:
+            expected_wallet_index.append([wallet.index_cache[i][0],
+                                          wallet.index_cache[i][1]])
+    assert wallet.index == expected_wallet_index
 
 
 @pytest.mark.parametrize(
