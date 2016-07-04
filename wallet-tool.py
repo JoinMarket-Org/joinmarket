@@ -66,7 +66,7 @@ parser.add_option('--csv',
 maxmixdepth_configured = True
 if not options.maxmixdepth:
     maxmixdepth_configured = False
-    options.maxmixdepth = 5
+    options.maxmixdepth = -1
 
 noseed_methods = ['generate', 'recover', 'listwallets']
 methods = ['display', 'displayall', 'summary', 'showseed', 'importprivkey',

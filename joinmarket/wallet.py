@@ -113,7 +113,7 @@ class AbstractWallet(object):
 class Wallet(AbstractWallet):
     def __init__(self,
                  seedarg,
-                 max_mix_depth=2,
+                 max_mix_depth=-1,
                  gaplimit=6,
                  extend_mixdepth=False,
                  storepassword=False):
@@ -127,8 +127,10 @@ class Wallet(AbstractWallet):
         self.spent_utxos = []
         self.imported_privkeys = {}
         self.seed = self.read_wallet_file_data(seedarg)
-        if extend_mixdepth and len(self.index_cache) > max_mix_depth:
-            self.max_mix_depth = len(self.index_cache)
+        if len(self.index_cache) > max_mix_depth:
+            if extend_mixdepth or max_mix_depth == -1:
+                log.debug('Detected ' + str(len(self.index_cache)) + ' mixdepths in wallet-file.')
+                self.max_mix_depth = len(self.index_cache)
         self.gaplimit = gaplimit
         master = btc.bip32_master_key(self.seed, (btc.MAINNET_PRIVATE if
             get_network() == 'mainnet' else btc.TESTNET_PRIVATE))
