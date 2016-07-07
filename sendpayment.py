@@ -13,7 +13,6 @@ import time
 from joinmarket import Taker, load_program_config, IRCMessageChannel, \
      MessageChannelCollection, get_irc_mchannels
 from joinmarket import validate_address, jm_single
-from joinmarket import random_nick
 from joinmarket import get_log, choose_sweep_orders, choose_orders, \
     pick_order, cheapest_order_choose, weighted_order_choose, debug_dump_object
 from joinmarket import Wallet, BitcoinCoreWallet
@@ -296,8 +295,6 @@ def main():
     else:  # choose randomly (weighted)
         chooseOrdersFunc = weighted_order_choose
 
-    jm_single().nickname = random_nick()
-
     log.debug('starting sendpayment')
 
     if not options.userpcwallet:
@@ -306,7 +303,7 @@ def main():
         wallet = BitcoinCoreWallet(fromaccount=wallet_name)
     jm_single().bc_interface.sync_wallet(wallet)
 
-    mcs = [IRCMessageChannel(c, jm_single().nickname) for c in get_irc_mchannels()]
+    mcs = [IRCMessageChannel(c) for c in get_irc_mchannels()]
     mcc = MessageChannelCollection(mcs)
     taker = SendPayment(mcc, wallet, destaddr, amount, options.makercount,
                         options.txfee, options.waittime, options.mixdepth,

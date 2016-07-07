@@ -12,14 +12,12 @@ import decimal
 from joinmarket import Maker, IRCMessageChannel, MessageChannelCollection
 from joinmarket import blockchaininterface, BlockrInterface
 from joinmarket import jm_single, get_network, load_program_config
-from joinmarket import random_nick
 from joinmarket import get_log, calc_cj_fee, debug_dump_object
 from joinmarket import Wallet
 from joinmarket import get_irc_mchannels
 
 #CONFIGURATION
 mix_levels = 5  # Careful! Only change this if you setup your wallet as such.
-nickname = random_nick()
 nickserv_password = ''
 
 #Spread Types
@@ -577,9 +575,8 @@ def main():
     wallet = Wallet(seed, max_mix_depth=mix_levels)
     jm_single().bc_interface.sync_wallet(wallet)
 
-    jm_single().nickname = nickname
     log.debug('starting yield generator')
-    mcs = [IRCMessageChannel(c, jm_single().nickname,
+    mcs = [IRCMessageChannel(c,
                              realname='btcint=' + jm_single().config.get(
                                  "BLOCKCHAIN", "blockchain_source"),
                         password=nickserv_password) for c in get_irc_mchannels()]

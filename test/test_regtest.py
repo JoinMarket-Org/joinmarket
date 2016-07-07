@@ -39,8 +39,7 @@ yg_cmd = 'yield-generator-basic.py'
         # 1sp 3yg, 2 mixdepths - testing different failure times to
         #see if recovery works.
         #(5, [[1, 2, 0, 0, 0]] * 6, 4, 1, 1234500, None, None),
-        (5, [[1, 2, 0, 0, 0]] * 6, 4, 1, 1234500, None, ('break',0,6)),
-        #(5, [[1, 2, 0, 0, 0]] * 6, 4, 1, 1234500, None, (1,10)),
+        (4, [[1, 2, 0, 0, 0]] * 5, 4, 1, 1234500, None, ('break',0,6)),
         #(5, [[1, 2, 0, 0, 0]] * 6, 4, 1, 1234500, None, ('shutdown',0,12)),
         #(5, [[1, 2, 0, 0, 0]] * 6, 4, 1, 1234500, None, ('break',1, 6)),
         # 1sp 6yg, 4 mixdepths, sweep from depth 0 (test large number of makers)
@@ -98,8 +97,6 @@ def test_sendpayment(setup_regtest, num_ygs, wallet_structures, mean_amt,
     #TODO paramatetrize this as a test variable
     chooseOrdersFunc = weighted_order_choose
 
-    jm_single().nickname = random_nick()
-
     log.debug('starting sendpayment')
 
     jm_single().bc_interface.sync_wallet(wallet)
@@ -107,7 +104,7 @@ def test_sendpayment(setup_regtest, num_ygs, wallet_structures, mean_amt,
     #Trigger PING LAG sending artificially
     joinmarket.irc.PING_INTERVAL = 3
     
-    mcs = [IRCMessageChannel(c, jm_single().nickname) for c in get_irc_mchannels()]
+    mcs = [IRCMessageChannel(c) for c in get_irc_mchannels()]
     mcc = MessageChannelCollection(mcs)
     #hack fix for #356 if multiple orders per counterparty
     #removed for now.

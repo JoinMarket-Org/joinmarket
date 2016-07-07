@@ -1,10 +1,12 @@
-import base64, abc, threading, time
+import base64, abc, threading, time, hashlib, os, binascii
 from joinmarket.enc_wrapper import encrypt_encode, decode_decrypt
 from joinmarket.support import get_log, chunks
 from joinmarket.configure import jm_single
+import bitcoin as btc
 
 from functools import wraps
 COMMAND_PREFIX = '!'
+JOINMARKET_NICK_HEADER = 'J'
 
 encrypted_commands = ["auth", "ioauth", "tx", "sig"]
 plaintext_commands = ["fill", "error", "pubkey", "orderbook", "relorder",
@@ -102,6 +104,17 @@ class MessageChannelCollection(object):
         self.welcomed = False
         #control access
         self.mc_lock = threading.Lock()
+        #Create an ephemeral keypair for the duration
+        #of this run, same across all message channels,
+        #and set the nickname for all message channels using it.
+        self.nick_priv = hashlib.sha256(os.urandom(16)).hexdigest() + '01'
+        self.nick_pubkey = btc.privtopub(self.nick_priv)
+        self.nick_pkh = hashlib.sha256(self.nick_pubkey).hexdigest()[:10]
+        self.nick = JOINMARKET_NICK_HEADER + str(
+            jm_single().JM_VERSION) + self.nick_pkh
+        jm_single().nickname = self.nick
+        for mc in self.mchannels:
+            mc.set_nick(self.nick, self.nick_priv, self.nick_pubkey)
 
     def available_channels(self):
         return [x for x in self.mchannels if self.mc_status[x]==1]
@@ -145,10 +158,12 @@ class MessageChannelCollection(object):
         self.mchannels = list(set(self.mchannels))
 
     def see_nick(self, nick, mc):
-        self.nicks_seen[mc].add(nick)
+        with self.mc_lock:
+            self.nicks_seen[mc].add(nick)
 
     def unsee_nick(self, nick, mc):
-        self.nicks_seen[mc] = self.nicks_seen[mc].difference(set([nick]))
+        with self.mc_lock:
+            self.nicks_seen[mc] = self.nicks_seen[mc].difference(set([nick]))
 
     def run(self, failures=None):
         """At the moment this is effectively a
@@ -216,19 +231,24 @@ class MessageChannelCollection(object):
 
     def privmsg(self, nick, cmd, message, mc=None):
         """Send a message to a specific counterparty,
-        this requires a specific message channel
-        to be set
+        either specifying a single message channel, or
+        allowing it to be deduced from self.active_channels dict
         """
-        #Exception/assert conditions should not be logically possible
-        if mc is not None and mc not in self.available_channels():
-            raise Exception("Tried to privmsg on an unavailable message channel.")
+        if mc is not None:
+            if mc not in self.available_channels():
+                #raise because implies logic error
+                raise Exception(
+                    "Tried to privmsg on an unavailable message channel.")
+            else:
+                mc.privmsg(nick, cmd, message)
+                return
         if nick in self.active_channels:
-            self.mchannels[self.active_channels[nick]].privmsg(nick, cmd, message)
+            self.active_channels[nick].privmsg(nick, cmd, message)
             return
-        assert mc is not None, "Could not send privmsg to : " + nick + \
-               ", no active message channel."
-        self.active_channels[nick] = mc
-        mc.privmsg(nick, cmd, message)
+        else:
+            log.debug("Failed to send message to: " + str(nick) + \
+                          "; cannot find on any message channel.")
+            return
 
     def announce_orders(self, orderlist, nick=None, new_mc=None):
         """Send orders defined in list orderlist either
@@ -237,33 +257,28 @@ class MessageChannelCollection(object):
         or to an individual counterparty nick, as
         privmsg, on a specific mc.
         """
+        order_keys = ['oid', 'minsize', 'maxsize', 'txfee', 'cjfee']
+        orderlines = []
+        for order in orderlist:
+            orderlines.append(COMMAND_PREFIX + order['ordertype'] + \
+                    ' ' + ' '.join([str(order[k]) for k in order_keys]))
         if new_mc is not None and new_mc not in self.available_channels():
             log.debug(
                 "Tried to announce orders on an unavailable message channel.")
             return
         if nick is None:
             for mc in self.available_channels():
-                mc.announce_orders(orderlist, None)
+                mc.announce_orders(orderlines)
         else:
-            if nick in self.active_channels:
-                self.active_channels[nick].announce_orders(orderlist, nick)
-            #case (should be normal) where we have just received
-            #an order request from a new counterparty
-            if not new_mc:
-                log.debug("Received a new order request"
-                          "from a counterparty but got no"
-                          "specific message channel; cannot "
-                          "respond. Doing nothing.")
-            else:
-                """For the maker side, this is the point at
-                which the message channel for the rest of the private
-                conversation is set. Note that it does *NOT* have to
-                be the same as that for the taker (e.g. maker may
-                send privmsgs on one channel while taker does so on
-                another).
-                """
-                self.active_channels[nick] = new_mc
-                new_mc.announce_orders(orderlist, nick)
+            #we are sending to one cp, so privmsg
+            #in order to use privmsg, we must set "cmd" to be the first command
+            #in the first orderline, and the rest are treated like a message.
+            cmd = orderlist[0]['ordertype']
+            msg = ' '.join(orderlines[0].split(' ')[1:])
+            msg += ''.join(orderlines[1:])
+            for mc in self.available_channels():
+                if nick in self.nicks_seen[mc]:
+                    self.privmsg(nick, cmd, msg, mc)
 
     @check_privmsg
     def send_pubkey(self, nick, pubkey):
@@ -511,7 +526,7 @@ class MessageChannelCollection(object):
         """Update nicks_seen state to reflect presence of
         taker on this message channel before pass-through.
         """
-        self.nicks_seen[mc].add(nick)
+        self.see_nick(nick, mc)
         if self.on_orderbook_requested:
             self.on_orderbook_requested(nick, mc)
 
@@ -618,6 +633,12 @@ class MessageChannel(object):
 
     """END OF SUBCLASS IMPLEMENTATION SECTION"""
 
+    def set_nick(self, nick, nick_priv, nick_pubkey):
+        self.given_nick = nick
+        self.nick = self.given_nick
+        self.nick_priv = nick_priv
+        self.nick_pubkey = nick_pubkey
+
     def register_channel_callbacks(self,
                                    on_welcome=None,
                                    on_set_topic=None,
@@ -666,13 +687,8 @@ class MessageChannel(object):
         self.on_seen_tx = on_seen_tx
         self.on_push_tx = on_push_tx
 
-    def announce_orders(self, orderlist, nick=None):
-        order_keys = ['oid', 'minsize', 'maxsize', 'txfee', 'cjfee']
-        orderlines = []
-        for order in orderlist:
-            orderlines.append(COMMAND_PREFIX + order['ordertype'] + \
-                    ' ' + ' '.join([str(order[k]) for k in order_keys]))
-        self._announce_orders(orderlines, nick)
+    def announce_orders(self, orderlines):
+        self._announce_orders(orderlines)
 
     def check_for_orders(self, nick, _chunks):
         if _chunks[0] in jm_single().ordername_list:
@@ -768,6 +784,8 @@ class MessageChannel(object):
                           ', dropping message')
                 return
             message = encrypt_encode(message, box)
+        sig = btc.ecdsa_sign(message, self.nick_priv)
+        message += ' ' + self.nick_pubkey + ' ' + sig
         #forward to the implementation class (use single _ for polymrphsm to work)
         self._privmsg(nick, cmd, message)
 
@@ -802,11 +820,20 @@ class MessageChannel(object):
                 if hasattr(self, 'debug_on_pubmsg_cmd'):
                     self.debug_on_pubmsg_cmd(nick, _chunks)
 
+    def verify_nick(self, nick, sig, message):
+        if not btc.ecdsa_verify(message, sig[1], sig[0]):
+            log.debug("btc verify failed")
+            return False
+        #check that nick matches hash of pubkey
+        if not nick[2:12] == hashlib.sha256(sig[0]).hexdigest()[:10]:
+            log.debug("hash check failed, expected: " + str(
+                nick[2:12]) + ", got: " + str(
+                    hashlib.sha256(sig[0]).hexdigest()[:10]))
+            return False
+        return True
+
     def on_privmsg(self, nick, message):
         """handles the case when a private message is received"""
-        #Mark the nick as seen no matter what the message.
-        if self.on_privmsg_trigger:
-            self.on_privmsg_trigger(nick, self)
         if message[0] != COMMAND_PREFIX:
             log.debug('message not a cmd')
             return
@@ -814,8 +841,21 @@ class MessageChannel(object):
         if cmd_string not in plaintext_commands + encrypted_commands:
             log.debug('cmd not in cmd_list, line="' + message + '"')
             return
+        #Verify nick ownership
+        sig = message[1:].split(' ')[-2:]
+        #reconstruct original message without cmd
+        rawmessage = ' '.join(message[1:].split(' ')[1:-2])
+        if not self.verify_nick(nick, sig, rawmessage):
+            #This is an impostor; just ignore
+            log.debug("Message received from unverified counterparty; ignoring")
+            return
+        #Marks the nick as active on this channel; note *only* if verified.
+        #Otherwise squatter/attacker can persuade us to send privmsgs to him.
+        if self.on_privmsg_trigger:
+            self.on_privmsg_trigger(nick, self)
+
         for command in message[1:].split(COMMAND_PREFIX):
-            _chunks = command.split(" ")
+            _chunks = command.split(" ")[:-2]
 
             #Decrypt if necessary
             if _chunks[0] in encrypted_commands:

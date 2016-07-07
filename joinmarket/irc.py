@@ -194,7 +194,7 @@ class IRCMessageChannel(MessageChannel):
         self.give_up = True
 
     # Maker callbacks
-    def _announce_orders(self, orderlist, nick):
+    def _announce_orders(self, orderlist):
         """This publishes orders to the pit and to
         counterparties. Note that it does *not* use chunking.
         So, it tries to optimise space usage thusly:
@@ -209,11 +209,10 @@ class IRCMessageChannel(MessageChannel):
         fitting as many list entries as possible onto one line,
         up to the limit of the IRC parameters (see MAX_PRIVMSG_LEN).
 
-        nick=None means announce publically. Theoretically, we
-        could use chunking for the non-public, but for simplicity
-        just have one function.
+        Order announce in private is handled by privmsg/_privmsg
+        using chunking, no longer using this function.
         """
-        header = 'PRIVMSG ' + (nick if nick else self.channel) + ' :'
+        header = 'PRIVMSG ' + self.channel + ' :'
         orderlines = []
         for i, order in enumerate(orderlist):
             orderlines.append(order)
@@ -380,14 +379,11 @@ class IRCMessageChannel(MessageChannel):
 
     def __init__(self,
                  configdata,
-                 given_nick,
                  username='username',
                  realname='realname',
                  password=None):
         MessageChannel.__init__(self)
         self.give_up = True
-        self.given_nick = given_nick
-        self.nick = given_nick
         self.serverport = (configdata['host'], configdata['port'])
         self.socks5 = configdata["socks5"]
         self.usessl = configdata["usessl"]

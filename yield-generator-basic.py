@@ -9,7 +9,6 @@ from optparse import OptionParser
 from joinmarket import Maker, IRCMessageChannel, MessageChannelCollection
 from joinmarket import BlockrInterface
 from joinmarket import jm_single, get_network, load_program_config
-from joinmarket import random_nick
 from joinmarket import get_log, calc_cj_fee, debug_dump_object
 from joinmarket import Wallet
 from joinmarket import get_irc_mchannels
@@ -23,7 +22,6 @@ txfee = 1000
 cjfee_a = 200
 cjfee_r = '0.002'
 ordertype = 'relorder'
-jm_single().nickname = ''
 nickserv_password = ''
 minsize = 100000
 mix_levels = 5
@@ -172,8 +170,6 @@ def main():
                       help='minimum miner fee in satoshis')
     parser.add_option('-c', '--cjfee', action='store', type='string', dest='cjfee', default='',
                       help='requested coinjoin fee in satoshis or proportion')
-    parser.add_option('-n', '--nickname', action='store', type='string', dest='nickname', default=jm_single().nickname,
-                      help='irc nickname')
     parser.add_option('-p', '--password', action='store', type='string', dest='password', default=nickserv_password,
                       help='irc nickserv password')
     parser.add_option('-s', '--minsize', action='store', type='int', dest='minsize', default=minsize,
@@ -199,10 +195,6 @@ def main():
     else:
         parser.error('You specified an incorrect order type which can be either relorder or absorder')
         sys.exit(0)
-    if jm_single().nickname == options.nickname:
-        jm_single().nickname = random_nick()
-    else:
-        jm_single().nickname = options.nickname
     nickserv_password = options.password
     mix_levels = options.mixlevels
 
@@ -224,12 +216,8 @@ def main():
     wallet = Wallet(seed, max_mix_depth=mix_levels)
     jm_single().bc_interface.sync_wallet(wallet)
 
-    # nickname is set way above
-    # nickname
-
     log.debug('starting yield generator')
-    mcs = [IRCMessageChannel(c, jm_single().nickname,
-                             realname='btcint=' + jm_single().config.get(
+    mcs = [IRCMessageChannel(c, realname='btcint=' + jm_single().config.get(
                                  "BLOCKCHAIN", "blockchain_source"),
                         password=nickserv_password) for c in get_irc_mchannels()]
     mcc = MessageChannelCollection(mcs)

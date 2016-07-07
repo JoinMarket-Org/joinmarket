@@ -8,10 +8,13 @@ import os
 import pytest
 import time
 import threading
+import hashlib
+import bitcoin as btc
 from commontest import local_command, make_wallets
-from joinmarket.message_channel import CJPeerError
-import joinmarket.irc
-from joinmarket import load_program_config, IRCMessageChannel, get_irc_mchannels
+from joinmarket.message_channel import CJPeerError, JOINMARKET_NICK_HEADER
+from joinmarket.irc import PING_INTERVAL
+from joinmarket import load_program_config, IRCMessageChannel, get_irc_mchannels, \
+     jm_single
 
 python_cmd = "python2"
 yg_cmd = "yield-generator-basic.py"
@@ -19,7 +22,14 @@ yg_name = None
 
 class DummyMC(IRCMessageChannel):
     def __init__(self, configdata, nick):
-        super(DummyMC, self).__init__(configdata, nick)
+        super(DummyMC, self).__init__(configdata)
+        #hacked in here to allow auth without mc-collection
+        nick_priv = hashlib.sha256(os.urandom(16)).hexdigest() + '01'
+        nick_pubkey = btc.privtopub(nick_priv)
+        nick_pkh = hashlib.sha256(nick_pubkey).hexdigest()[:10]
+        nick = JOINMARKET_NICK_HEADER + str(
+            jm_single().JM_VERSION) + nick_pkh
+        self.set_nick(nick, nick_priv, nick_pubkey)
 
 def on_order_seen(dummy, counterparty, oid, ordertype, minsize,
                                            maxsize, txfee, cjfee):
@@ -77,7 +87,7 @@ def test_junk_messages(setup_messaging):
     #because we don't want to build a real orderbook,
     #call the underlying IRC announce function.
     #TODO: how to test that the sent format was correct?
-    mc._announce_orders(["!abc def gh 0001"]*30, None)
+    mc._announce_orders(["!abc def gh 0001"]*30)
     time.sleep(5)
     #send a fill with an invalid pubkey to the existing yg;
     #this should trigger a NaclError but should NOT kill it.
@@ -93,7 +103,7 @@ def test_junk_messages(setup_messaging):
 @pytest.fixture(scope="module")
 def setup_messaging():
     #Trigger PING LAG sending artificially
-    joinmarket.irc.PING_INTERVAL = 3    
+    PING_INTERVAL = 3
     load_program_config()
 
 
