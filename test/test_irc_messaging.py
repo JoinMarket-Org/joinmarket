@@ -11,7 +11,8 @@ import threading
 import hashlib
 import bitcoin as btc
 from commontest import local_command, make_wallets
-from joinmarket.message_channel import CJPeerError, JOINMARKET_NICK_HEADER
+from joinmarket.message_channel import CJPeerError, JOINMARKET_NICK_HEADER, \
+     NICK_MAX_ENCODED, NICK_HASH_LENGTH
 from joinmarket.irc import PING_INTERVAL
 from joinmarket import load_program_config, IRCMessageChannel, get_irc_mchannels, \
      jm_single
@@ -26,9 +27,16 @@ class DummyMC(IRCMessageChannel):
         #hacked in here to allow auth without mc-collection
         nick_priv = hashlib.sha256(os.urandom(16)).hexdigest() + '01'
         nick_pubkey = btc.privtopub(nick_priv)
-        nick_pkh = hashlib.sha256(nick_pubkey).hexdigest()[:10]
+        nick_pkh_raw = hashlib.sha256(nick_pubkey).digest()[
+            :NICK_HASH_LENGTH]
+        nick_pkh = btc.changebase(nick_pkh_raw, 256, 58)
+        #right pad to maximum possible; b58 is not fixed length.
+        #Use 'O' as one of the 4 not included chars in base58.
+        nick_pkh += 'O' * (NICK_MAX_ENCODED - len(nick_pkh))
+        #The constructed length will be 1 + 1 + NICK_MAX_ENCODED
         nick = JOINMARKET_NICK_HEADER + str(
             jm_single().JM_VERSION) + nick_pkh
+        jm_single().nickname = nick
         self.set_nick(nick, nick_priv, nick_pubkey)
 
 def on_order_seen(dummy, counterparty, oid, ordertype, minsize,

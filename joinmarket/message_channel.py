@@ -7,6 +7,8 @@ import bitcoin as btc
 from functools import wraps
 COMMAND_PREFIX = '!'
 JOINMARKET_NICK_HEADER = 'J'
+NICK_HASH_LENGTH = 10
+NICK_MAX_ENCODED = 14 #comes from base58 expansion; recalculate if above changes
 
 encrypted_commands = ["auth", "ioauth", "tx", "sig"]
 plaintext_commands = ["fill", "error", "pubkey", "orderbook", "relorder",
@@ -109,7 +111,13 @@ class MessageChannelCollection(object):
         #and set the nickname for all message channels using it.
         self.nick_priv = hashlib.sha256(os.urandom(16)).hexdigest() + '01'
         self.nick_pubkey = btc.privtopub(self.nick_priv)
-        self.nick_pkh = hashlib.sha256(self.nick_pubkey).hexdigest()[:10]
+        self.nick_pkh_raw = hashlib.sha256(self.nick_pubkey).digest()[
+            :NICK_HASH_LENGTH]
+        self.nick_pkh = btc.changebase(self.nick_pkh_raw, 256, 58)
+        #right pad to maximum possible; b58 is not fixed length.
+        #Use 'O' as one of the 4 not included chars in base58.
+        self.nick_pkh += 'O' * (NICK_MAX_ENCODED - len(self.nick_pkh))
+        #The constructed length will be 1 + 1 + NICK_MAX_ENCODED
         self.nick = JOINMARKET_NICK_HEADER + str(
             jm_single().JM_VERSION) + self.nick_pkh
         jm_single().nickname = self.nick
@@ -825,10 +833,14 @@ class MessageChannel(object):
             log.debug("btc verify failed")
             return False
         #check that nick matches hash of pubkey
-        if not nick[2:12] == hashlib.sha256(sig[0]).hexdigest()[:10]:
+        nick_pkh_raw = hashlib.sha256(sig[0]).digest()[:NICK_HASH_LENGTH]
+        nick_stripped = nick[2:2+NICK_MAX_ENCODED]
+        #strip right padding
+        nick_unpadded = ''.join([x for x in nick_stripped if x != 'O'])
+        if not nick_unpadded == btc.changebase(nick_pkh_raw, 256, 58):
             log.debug("hash check failed, expected: " + str(
-                nick[2:12]) + ", got: " + str(
-                    hashlib.sha256(sig[0]).hexdigest()[:10]))
+                nick_unpadded) + ", got: " + str(
+                    btc.changebase(nick_pkh_raw, 256, 58)))
             return False
         return True
 
