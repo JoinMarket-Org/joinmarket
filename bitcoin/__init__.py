@@ -12,3 +12,4 @@ except ImportError as e:
     from bitcoin.deterministic import *
     from bitcoin.transaction import *
 from bitcoin.bci import *
+from bitcoin.podle import *

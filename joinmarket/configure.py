@@ -3,6 +3,7 @@ from __future__ import absolute_import, print_function
 import io
 import logging
 import threading
+import os
 
 from ConfigParser import SafeConfigParser, NoOptionError
 
@@ -37,22 +38,19 @@ class AttributeDict(object):
     def __setattr__(self, name, value):
         if name == 'nickname' and value:
             logFormatter = logging.Formatter(
-                    ('%(asctime)s [%(threadName)-12.12s] '
-                     '[%(levelname)-5.5s]  %(message)s'))
-            fileHandler = logging.FileHandler(
-                    'logs/{}.log'.format(value))
+                ('%(asctime)s [%(threadName)-12.12s] '
+                 '[%(levelname)-5.5s]  %(message)s'))
+            fileHandler = logging.FileHandler('logs/{}.log'.format(value))
             fileHandler.setFormatter(logFormatter)
             log.addHandler(fileHandler)
 
         super(AttributeDict, self).__setattr__(name, value)
-
 
     def __getitem__(self, key):
         """
         Provides dict-style access to attributes
         """
         return getattr(self, key)
-
 
 # global_singleton = AttributeDict(
 #         **{'log': log,
@@ -93,7 +91,7 @@ def jm_single():
 # FIXME: Add rpc_* options here in the future!
 required_options = {'BLOCKCHAIN': ['blockchain_source', 'network'],
                     'MESSAGING': ['host', 'channel', 'port'],
-                    'POLICY': ['absurd_fee_per_kb']}
+                    'POLICY': ['absurd_fee_per_kb', 'taker_utxo_retries']}
 
 defaultconfig = \
     """
@@ -169,17 +167,21 @@ tx_broadcast = self
 # random-peer = everyone who took part in the coinjoin has a chance of broadcasting
 # not-self = never broadcast with your own ip
 # random-maker = every peer on joinmarket has a chance of broadcasting, including yourself
+
+taker_utxo_retries = 1
+#number of retries allowed for a specific utxo, to prevent DOS/snooping.
+#Higher settings make DOS more difficult, but also prevent honest users
+#from retrying if an error occurs.
 """
 
 
 def get_irc_mchannels():
-    fields = [("host", str), ("port", int), ("channel", str),
-              ("usessl", str), ("socks5", str), ("socks5_host", str),
-              ("socks5_port", str)]
+    fields = [("host", str), ("port", int), ("channel", str), ("usessl", str),
+              ("socks5", str), ("socks5_host", str), ("socks5_port", str)]
     configdata = {}
     for f, t in fields:
         vals = jm_single().config.get("MESSAGING", f).split(",")
-        if t==str:
+        if t == str:
             vals = [x.strip() for x in vals]
         else:
             vals = [t(x) for x in vals]
@@ -189,6 +191,7 @@ def get_irc_mchannels():
         newconfig = dict([(x, configdata[x][i]) for x in configdata])
         configs.append(newconfig)
     return configs
+
 
 def get_config_irc_channel(channel_name):
     channel = "#" + channel_name
@@ -229,10 +232,46 @@ def validate_address(addr):
     return True, 'address validated'
 
 
+def check_utxo_blacklist(utxo, nick=None):
+    """Compare a given utxo with the persisted blacklist
+    log file; if its usage is greater than the configured
+    limit, return False (disallowed), else return True.
+    Persist the usage of this utxo to the blacklist file.
+    The nick parameter allows creating different blacklist
+    files per bot instance, do NOT use this in prod, only for test.
+    """
+    #TODO format error checking?
+    blacklist = {}
+    fname = "blacklist"
+    if nick: fname += "_" + nick
+    fpath = os.path.join("logs", fname)
+    if os.path.isfile(fpath):
+        with open(fpath, "rb") as f:
+            blacklist_lines = f.readlines()
+    else:
+        blacklist_lines = []
+    for bl in blacklist_lines:
+        ut, ct = bl.split(',')
+        ut = ut.strip()
+        ct = int(ct.strip())
+        blacklist[ut] = ct
+    if utxo in blacklist.keys():
+        blacklist[utxo] += 1
+        #config entry guaranteed by required_fields
+        if blacklist[utxo] >= config.getint("POLICY", "taker_utxo_retries"):
+            return False
+    else:
+        blacklist[utxo] = 1
+    with open(fpath, "wb") as f:
+        for k, v in blacklist.iteritems():
+            f.write(k + ' , ' + str(v) + '\n')
+    return True
+
+
 def load_program_config():
     global_singleton.config.readfp(io.BytesIO(defaultconfig))
-    loadedFiles = global_singleton.config.read(
-            [global_singleton.config_location])
+    loadedFiles = global_singleton.config.read([global_singleton.config_location
+                                               ])
     # Create default config file if not found
     if len(loadedFiles) != 1:
         with open(global_singleton.config_location, "w") as configfile:
@@ -242,7 +281,7 @@ def load_program_config():
     for s in required_options:
         if s not in global_singleton.config.sections():
             raise Exception(
-                    "Config file does not contain the required section: " + s)
+                "Config file does not contain the required section: " + s)
     # then check for specific options
     for k, v in required_options.iteritems():
         for o in v:
@@ -253,21 +292,22 @@ def load_program_config():
 
     try:
         global_singleton.maker_timeout_sec = global_singleton.config.getint(
-                'TIMEOUT', 'maker_timeout_sec')
+            'TIMEOUT', 'maker_timeout_sec')
     except NoOptionError:
         log.debug('TIMEOUT/maker_timeout_sec not found in .cfg file, '
                   'using default value')
 
     # configure the interface to the blockchain on startup
     global_singleton.bc_interface = get_blockchain_interface_instance(
-            global_singleton.config)
+        global_singleton.config)
 
     #print warning if not using libsecp256k1
     if not btc.secp_present:
-        log.debug("WARNING: You are not using the binding to libsecp256k1. The "
-                  "crypto code in use has poorer performance and security "
-                  "properties. Consider installing the binding with `pip install "
-                  "secp256k1`.")
+        log.debug(
+            "WARNING: You are not using the binding to libsecp256k1. The "
+            "crypto code in use has poorer performance and security "
+            "properties. Consider installing the binding with `pip install "
+            "secp256k1`.")
 
 
 def get_blockchain_interface_instance(_config):
@@ -288,7 +328,8 @@ def get_blockchain_interface_instance(_config):
         rpc = JsonRpc(rpc_host, rpc_port, rpc_user, rpc_password)
         bc_interface = BitcoinCoreInterface(rpc, network)
     elif source == 'json-rpc':
-        bitcoin_cli_cmd = _config.get("BLOCKCHAIN", "bitcoin_cli_cmd").split(' ')
+        bitcoin_cli_cmd = _config.get("BLOCKCHAIN",
+                                      "bitcoin_cli_cmd").split(' ')
         rpc = CliJsonRpc(bitcoin_cli_cmd, testnet)
         bc_interface = BitcoinCoreInterface(rpc, network)
     elif source == 'regtest':
