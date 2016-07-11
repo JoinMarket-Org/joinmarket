@@ -31,7 +31,7 @@ script:
  - mkdir /home/travis/.bitcoin
  - cp test/bitcoin.conf /home/travis/.bitcoin/.
  - chmod 600 /home/travis/.bitcoin/bitcoin.conf
- - PYTHONPATH=.:$PYTHONPATH py.test --cov-report html --btcconf=/home/travis/.bitcoin/bitcoin.conf --btcpwd=123456abcdef --ignore test/test_tumbler.py
+ - PYTHONPATH=.:$PYTHONPATH py.test --cov-report html --nirc=2 --btcconf=/home/travis/.bitcoin/bitcoin.conf --btcpwd=123456abcdef --ignore test/test_tumbler.py
  - cd logs
  - for x in `ls`; do tail -50 $x; done
  - cd ..

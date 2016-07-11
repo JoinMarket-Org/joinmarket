@@ -12,17 +12,17 @@ import csv
 import threading
 import copy
 
-from joinmarket import Maker, IRCMessageChannel, OrderbookWatch
+from joinmarket import Maker, IRCMessageChannel, OrderbookWatch, \
+     MessageChannelCollection
 from joinmarket import blockchaininterface, BlockrInterface
 from joinmarket import jm_single, get_network, load_program_config
-from joinmarket import random_nick
 from joinmarket import get_log, calc_cj_fee, debug_dump_object
 from joinmarket import Wallet
+from joinmarket import get_irc_mchannels
 
 config = ConfigParser.RawConfigParser()
 config.read('joinmarket.cfg')
 mix_levels = 5
-nickname = random_nick()
 nickserv_password = ''
 
 # EXPLANATION
@@ -576,7 +576,7 @@ class YieldGenerator(Maker, OrderbookWatch):
         neworders = sorted(neworders, key=lambda x: x['oid'])
         oldorders = sorted(oldorders, key=lambda x: x['oid'])
         if neworders == oldorders:
-            log.debug('No orders modified for ' + nickname)
+            log.debug('No orders modified for ' + jm_single().nickname)
             return ([], [])
         """
         if neworders:
@@ -677,13 +677,13 @@ def main():
             return
     wallet = Wallet(wallet_file, max_mix_depth=mix_levels)
     jm_single().bc_interface.sync_wallet(wallet)
-    jm_single().nickname = nickname
     log.debug('starting yield generator')
-    irc = IRCMessageChannel(jm_single().nickname,
-                            realname='btcint=' + jm_single().config.get(
-                                "BLOCKCHAIN", "blockchain_source"),
-                            password=nickserv_password)
-    maker = YieldGenerator(irc, wallet)
+    mcs = [IRCMessageChannel(c,
+                             realname='btcint=' + jm_single().config.get(
+                                 "BLOCKCHAIN", "blockchain_source"),
+                        password=nickserv_password) for c in get_irc_mchannels()]
+    mcc = MessageChannelCollection(mcs)
+    maker = YieldGenerator(mcc, wallet)
 
     def timer_loop(startup=False):  # for oscillator
         if not startup:
@@ -702,7 +702,7 @@ def main():
         next_refresh = sorted(poss_refresh, key=lambda x: x)[0]
         td = next_refresh - datetime.datetime.now()
         seconds_till = (td.days * 24 * 60 * 60) + td.seconds
-        log.debug('Next offer refresh for ' + nickname + ' at ' +
+        log.debug('Next offer refresh for ' + jm_single().nickname + ' at ' +
                   next_refresh.strftime("%Y-%m-%d %I:%M:%S %p"))
         log.debug('...or after a new transaction shows up.')
         t = threading.Timer(seconds_till, timer_loop)
@@ -711,13 +711,13 @@ def main():
 
     timer_loop(startup=True)
     try:
-        log.debug('connecting to irc')
-        irc.run()
+        log.debug('connecting to message channels')
+        mcc.run()
     except:
         log.debug('CRASHING, DUMPING EVERYTHING')
         debug_dump_object(wallet, ['addr_cache', 'keys', 'seed'])
         debug_dump_object(maker)
-        debug_dump_object(irc)
+        debug_dump_object(mcc)
         import traceback
         log.debug(traceback.format_exc())
 

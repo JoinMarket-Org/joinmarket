@@ -172,8 +172,27 @@ tx_broadcast = self
 """
 
 
-def get_config_irc_channel():
-    channel = '#' + global_singleton.config.get("MESSAGING", "channel")
+def get_irc_mchannels():
+    fields = [("host", str), ("port", int), ("channel", str),
+              ("usessl", str), ("socks5", str), ("socks5_host", str),
+              ("socks5_port", str)]
+    configdata = {}
+    for f, t in fields:
+        vals = jm_single().config.get("MESSAGING", f).split(",")
+        if t==str:
+            vals = [x.strip() for x in vals]
+        else:
+            vals = [t(x) for x in vals]
+        configdata[f] = vals
+    configs = []
+    for i in range(len(configdata['host'])):
+        newconfig = dict([(x, configdata[x][i]) for x in configdata])
+        configs.append(newconfig)
+    return configs
+
+def get_config_irc_channel(channel_name):
+    channel = "#" + channel_name
+    log.debug("Using channel: " + str(channel))
     if get_network() == 'testnet':
         channel += '-test'
     return channel
