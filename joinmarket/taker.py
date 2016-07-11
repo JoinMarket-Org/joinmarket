@@ -78,8 +78,15 @@ class CoinJoinTX(object):
         # create DH keypair on the fly for this Tx object
         self.kp = init_keypair()
         self.crypto_boxes = {}
+        #Create PODLE to fulfil anti-DOS requirement of makers:
+        if not self.auth_addr:
+            self.auth_addr = self.input_utxos.itervalues().next()['address']
+            self.auth_utxo = self.input_utxos.iterkeys().next()
+        self.auth_priv = self.wallet.get_key_from_addr(self.auth_addr)
+        self.podle = btc.generate_podle(self.auth_priv)
+        log.debug("Generated PoDLE: " + pprint.pformat(self.podle))
         self.msgchan.fill_orders(self.active_orders, self.cj_amount,
-                                 self.kp.hex_pk())
+                                 self.kp.hex_pk(), self.podle['commit'])
 
     def start_encryption(self, nick, maker_pk):
         if nick not in self.active_orders.keys():
@@ -92,15 +99,10 @@ class CoinJoinTX(object):
             log.debug("Unable to setup crypto box with " + nick + ": " + repr(e))
             self.msgchan.send_error(nick, "invalid nacl pubkey: " + maker_pk)
             return
-        # send authorisation request
-        if self.auth_addr:
-            my_btc_addr = self.auth_addr
-        else:
-            my_btc_addr = self.input_utxos.itervalues().next()['address']
-        my_btc_priv = self.wallet.get_key_from_addr(my_btc_addr)
-        my_btc_pub = btc.privtopub(my_btc_priv)
-        my_btc_sig = btc.ecdsa_sign(self.kp.hex_pk(), my_btc_priv)
-        self.msgchan.send_auth(nick, my_btc_pub, my_btc_sig)
+        my_btc_pub = btc.privtopub(self.auth_priv)
+        my_btc_sig = btc.ecdsa_sign(self.kp.hex_pk(), self.auth_priv)
+        self.msgchan.send_auth(nick, my_btc_pub, my_btc_sig, self.auth_utxo,
+                               self.podle['P2'], self.podle['sig'], self.podle['e'])
 
     def auth_counterparty(self, nick, btc_sig, cj_pub):
         """Validate the counterpartys claim to own the btc

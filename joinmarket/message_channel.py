@@ -302,7 +302,8 @@ class MessageChannelCollection(object):
         self.active_channels[nick].send_sigs(nick, sig_list)
 
     # Taker callbacks
-    def fill_orders(self, nick_order_dict, cj_amount, taker_pubkey):
+    def fill_orders(self, nick_order_dict, cj_amount, taker_pubkey,
+                    commitment=None):
         """
         The orders dict does not contain information
         about which message channel the counterparty bots are active
@@ -318,11 +319,14 @@ class MessageChannelCollection(object):
         for mc in self.available_channels():
             filtered_nick_order_dict = {k:v for k,v in nick_order_dict.iteritems(
                 ) if mc == self.active_channels[k]}
-            mc.fill_orders(filtered_nick_order_dict, cj_amount, taker_pubkey)
+            mc.fill_orders(filtered_nick_order_dict, cj_amount, taker_pubkey,
+                           commitment)
 
     @check_privmsg
-    def send_auth(self, nick, pubkey, sig):
-        self.active_channels[nick].send_auth(nick, pubkey, sig)
+    def send_auth(self, nick, pubkey, sig,
+                  utxo=None, P2=None, s=None, e=None):
+        self.active_channels[nick].send_auth(nick, pubkey, sig,
+                                             utxo, P2, s, e)
 
     @check_privmsg
     def send_error(self, nick, errormsg):
@@ -742,13 +746,19 @@ class MessageChannel(object):
         self.pubmsg(COMMAND_PREFIX + 'orderbook')
 
     # Taker callbacks
-    def fill_orders(self, nick_order_dict, cj_amount, taker_pubkey):
+    def fill_orders(self, nick_order_dict, cj_amount, taker_pubkey, commitment):
         for c, order in nick_order_dict.iteritems():
             msg = str(order['oid']) + ' ' + str(cj_amount) + ' ' + taker_pubkey
+            if commitment:
+                msg += ' ' + commitment
             self.privmsg(c, 'fill', msg)
 
-    def send_auth(self, nick, pubkey, sig):
-        message = pubkey + ' ' + sig
+    def send_auth(self, nick, pubkey, sig, utxo, P2, s, e):
+        fields = [pubkey, sig]
+        comm_fields = [utxo, P2, s, e]
+        if all(comm_fields):
+            fields += comm_fields
+        message = ' '.join([str(x) for x in fields])
         self.privmsg(nick, 'auth', message)
 
     def send_tx(self, nick_list, txhex):
@@ -921,18 +931,33 @@ class MessageChannel(object):
                         oid = int(_chunks[1])
                         amount = int(_chunks[2])
                         taker_pk = _chunks[3]
+                        if len(_chunks) > 4:
+                            commit = _chunks[4]
+                        else:
+                            commit = None
                     except (ValueError, IndexError) as e:
                         self.send_error(nick, str(e))
                     if self.on_order_fill:
-                        self.on_order_fill(nick, oid, amount, taker_pk)
+                        self.on_order_fill(nick, oid, amount, taker_pk, commit)
                 elif _chunks[0] == 'auth':
                     try:
                         i_utxo_pubkey = _chunks[1]
                         btc_sig = _chunks[2]
+                        if len(_chunks) > 3:
+                            i_utxo = _chunks[3]
+                            p2 = _chunks[4]
+                            sig = _chunks[5]
+                            e_val = _chunks[6]
+                        else:
+                            i_utxo = None
+                            p2 = None
+                            sig = None
+                            e_val = None
                     except (ValueError, IndexError) as e:
                         self.send_error(nick, str(e))
                     if self.on_seen_auth:
-                        self.on_seen_auth(nick, i_utxo_pubkey, btc_sig)
+                        self.on_seen_auth(nick, i_utxo_pubkey, btc_sig,
+                                          i_utxo, p2, sig, e_val)
                 elif _chunks[0] == 'tx':
                     b64tx = _chunks[1]
                     try:
