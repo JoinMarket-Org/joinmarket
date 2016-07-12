@@ -12,7 +12,11 @@ import random
 import hmac
 import secp256k1
 
+#Global context for secp256k1 operations (helps with performance)
 ctx = secp256k1.lib.secp256k1_context_create(secp256k1.ALL_FLAGS)
+
+#Standard prefix for Bitcoin message signing.
+BITCOIN_MESSAGE_MAGIC = '\x18' + 'Bitcoin Signed Message:\n'
 
 def privkey_to_address(priv, from_hex=True, magicbyte=0):
     return pubkey_to_address(privkey_to_pubkey(priv, from_hex), magicbyte)
@@ -54,9 +58,11 @@ def num_to_var_int(x):
     elif x < 4294967296: return from_int_to_byte(254) + encode(x, 256, 4)[::-1]
     else: return from_int_to_byte(255) + encode(x, 256, 8)[::-1]
 
-# WTF, Electrum?
-def electrum_sig_hash(message):
-    padded = b"\x18Bitcoin Signed Message:\n" + num_to_var_int(len(
+def message_sig_hash(message):
+    """Used for construction of signatures of
+    messages, intended to be compatible with Bitcoin Core.
+    """
+    padded = BITCOIN_MESSAGE_MAGIC + num_to_var_int(len(
         message)) + from_string_to_bytes(message)
     return bin_dbl_sha256(padded)
 
@@ -115,9 +121,7 @@ def from_wif_privkey(wif_priv, compressed=True, vbyte=0):
     return safe_hexlify(bin_key)
 
 def ecdsa_sign(msg, priv, usehex=True):
-    #Compatibility issue: old bots will be confused
-    #by different msg hashing algo; need to keep electrum_sig_hash, temporarily.
-    hashed_msg = electrum_sig_hash(msg)
+    hashed_msg = message_sig_hash(msg)
     if usehex:
         #arguments to raw sign must be consistently hex or bin
         hashed_msg = binascii.hexlify(hashed_msg)
@@ -130,8 +134,7 @@ def ecdsa_sign(msg, priv, usehex=True):
     return base64.b64encode(sig)
 
 def ecdsa_verify(msg, sig, pub, usehex=True):
-    #See note to ecdsa_sign
-    hashed_msg = electrum_sig_hash(msg)
+    hashed_msg = message_sig_hash(msg)
     sig = base64.b64decode(sig)
     #see comments to legacy* functions
     sig = legacy_ecdsa_verify_convert(sig)
