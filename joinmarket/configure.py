@@ -238,12 +238,14 @@ def check_utxo_blacklist(utxo, nick=None):
     limit, return False (disallowed), else return True.
     Persist the usage of this utxo to the blacklist file.
     The nick parameter allows creating different blacklist
-    files per bot instance, do NOT use this in prod, only for test.
+    files per bot instance, ONLY for testing.
     """
     #TODO format error checking?
     blacklist = {}
     fname = "blacklist"
-    if nick: fname += "_" + nick
+    if nick and jm_single().config.get("BLOCKCHAIN",
+                                       "blockchain_source") == 'regtest':
+        fname += "_" + nick
     fpath = os.path.join("logs", fname)
     if os.path.isfile(fpath):
         with open(fpath, "rb") as f:
