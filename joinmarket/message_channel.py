@@ -293,9 +293,9 @@ class MessageChannelCollection(object):
         self.active_channels[nick].privmsg(nick, 'pubkey', pubkey)
 
     @check_privmsg
-    def send_ioauth(self, nick, utxo_list, cj_pubkey, change_addr, sig):
-        self.active_channels[nick].send_ioauth(nick, utxo_list, cj_pubkey,
-                                         change_addr, sig)
+    def send_ioauth(self, nick, utxo_list, auth_pub, cj_addr, change_addr, sig):
+        self.active_channels[nick].send_ioauth(nick, utxo_list, auth_pub,
+                                         cj_addr, change_addr, sig)
 
     @check_privmsg
     def send_sigs(self, nick, sig_list):
@@ -731,9 +731,9 @@ class MessageChannel(object):
     def send_pubkey(self, nick, pubkey):
         self.privmsg(nick, 'pubkey', pubkey)
 
-    def send_ioauth(self, nick, utxo_list, cj_pubkey, change_addr, sig):
-        authmsg = (str(','.join(utxo_list)) + ' ' + cj_pubkey + ' ' +
-                   change_addr + ' ' + sig)
+    def send_ioauth(self, nick, utxo_list, auth_pub, cj_addr, change_addr, sig):
+        authmsg = str(','.join(utxo_list)) + ' ' + ' '.join([auth_pub,
+                                            cj_addr, change_addr, sig])
         self.privmsg(nick, 'ioauth', authmsg)
 
     def send_sigs(self, nick, sig_list):
@@ -914,12 +914,13 @@ class MessageChannel(object):
                         self.on_pubkey(nick, maker_pk)
                 elif _chunks[0] == 'ioauth':
                     utxo_list = _chunks[1].split(',')
-                    cj_pub = _chunks[2]
-                    change_addr = _chunks[3]
-                    btc_sig = _chunks[4]
+                    auth_pub = _chunks[2]
+                    cj_addr = _chunks[3]
+                    change_addr = _chunks[4]
+                    btc_sig = _chunks[5]
                     if self.on_ioauth:
-                        self.on_ioauth(nick, utxo_list, cj_pub, change_addr,
-                                       btc_sig)
+                        self.on_ioauth(nick, utxo_list, auth_pub, cj_addr,
+                                       change_addr, btc_sig)
                 elif _chunks[0] == 'sig':
                     sig = _chunks[1]
                     if self.on_sig:

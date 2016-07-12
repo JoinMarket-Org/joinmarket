@@ -104,17 +104,21 @@ class CoinJoinTX(object):
         self.msgchan.send_auth(nick, my_btc_pub, my_btc_sig, self.auth_utxo,
                                self.podle['P2'], self.podle['sig'], self.podle['e'])
 
-    def auth_counterparty(self, nick, btc_sig, cj_pub):
+    def auth_counterparty(self, nick, btc_sig, auth_pub):
         """Validate the counterpartys claim to own the btc
         address/pubkey that will be used for coinjoining
-        with an ecdsa verification."""
-        # crypto_boxes[nick][0] = maker_pubkey
-        if not btc.ecdsa_verify(self.crypto_boxes[nick][0], btc_sig, cj_pub):
+        with an ecdsa verification.
+        Note that this is only a first-step
+        authorisation; it checks the btc signature, but
+        the authorising pubkey is checked to be part of the
+        transactoin in recv_txio.
+        """
+        if not btc.ecdsa_verify(self.crypto_boxes[nick][0], btc_sig, auth_pub):
             log.debug('signature didnt match pubkey and message')
             return False
         return True
 
-    def recv_txio(self, nick, utxo_list, cj_pub, change_addr):
+    def recv_txio(self, nick, utxo_list, auth_pub, cj_addr, change_addr):
         if nick not in self.nonrespondants:
             log.debug(('recv_txio => nick={} not in '
                        'nonrespondants {}').format(nick, self.nonrespondants))
@@ -126,6 +130,16 @@ class CoinJoinTX(object):
                        'utxo_data={}').format(pprint.pformat(utxo_data)))
             # when internal reviewing of makers is created, add it here to
             # immediately quit; currently, the timeout thread suffices.
+            return
+        #Complete maker authorization:
+        #Extract the address fields from the utxos
+        #Construct the Bitcoin address for the auth_pub field
+        #Ensure that at least one address from utxos corresponds.
+        input_addresses = [d['address'] for d in utxo_data]
+        auth_address = btc.pubkey_to_address(auth_pub, get_p2pk_vbyte())
+        if not auth_address in input_addresses:
+            log.debug("ERROR maker's authorising pubkey is not included "
+                      "in the transaction: " + str(auth_address))
             return
 
         total_input = sum([d['value'] for d in utxo_data])
@@ -149,7 +163,6 @@ class CoinJoinTX(object):
                'cjamount={:d} txfee={:d} realcjfee={:d}').format
         log.debug(fmt(nick, total_input, self.cj_amount,
             self.active_orders[nick]['txfee'], real_cjfee))
-        cj_addr = btc.pubtoaddr(cj_pub, get_p2pk_vbyte())
         self.outputs.append({'address': cj_addr, 'value': self.cj_amount})
         self.cjfee_total += real_cjfee
         self.maker_txfee_contributions += self.active_orders[nick]['txfee']
@@ -597,14 +610,14 @@ class Taker(OrderbookWatch):
             time.sleep(0.5)
         self.cjtx.start_encryption(nick, maker_pubkey)
 
-    def on_ioauth(self, nick, utxo_list, cj_pub, change_addr, btc_sig):
-        if not self.cjtx.auth_counterparty(nick, btc_sig, cj_pub):
+    def on_ioauth(self, nick, utxo_list, auth_pub, cj_addr, change_addr, btc_sig):
+        if not self.cjtx.auth_counterparty(nick, btc_sig, auth_pub):
             fmt = ('Authenticated encryption with counterparty: {}'
                     ' not established. TODO: send rejection message').format
             log.debug(fmt(nick))
             return
         with self.cjtx.timeout_thread_lock:
-            self.cjtx.recv_txio(nick, utxo_list, cj_pub, change_addr)
+            self.cjtx.recv_txio(nick, utxo_list, auth_pub, cj_addr, change_addr)
 
     def on_sig(self, nick, sig):
         with self.cjtx.timeout_thread_lock:
