@@ -10,7 +10,7 @@ from joinmarket import validate_address, jm_single, rand_norm_array
 from joinmarket import random_nick
 from joinmarket import get_log, choose_sweep_orders, choose_orders, \
     weighted_order_choose, debug_dump_object
-from joinmarket import BlockchainInterface, KeyPairWallet, BitcoinCoreWallet
+from joinmarket import BlockchainInterface, BitcoinCoreWallet
 from joinmarket.wallet import estimate_tx_fee
 from joinmarket.configure import get_p2sh_vbyte, get_p2pk_vbyte
 from joinmarket.jsonrpc import JsonRpcConnectionError, JsonRpcError
@@ -239,6 +239,7 @@ def main():
         retry_txid = args[0]
 
     load_program_config()
+    #fails if we're not using BitcoinCoreInterface
     wallet = BitcoinCoreWallet("")
     jm_single().nickname = random_nick()
     log.debug('starting joinmarket bitcoind interface')
