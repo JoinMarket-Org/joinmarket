@@ -8,6 +8,7 @@ import sqlite3
 import sys
 import time
 import threading
+import json
 from decimal import InvalidOperation, Decimal
 
 import bitcoin as btc
@@ -35,7 +36,8 @@ class CoinJoinTX(object):
                  total_txfee,
                  finishcallback,
                  choose_orders_recover,
-                 auth_addr=None):
+                 auth_addr=None,
+                 auth_utxo=None):
         """
         if my_change is None then there wont be a change address
         thats used if you want to entirely coinjoin one utxo with no change left over
@@ -59,6 +61,7 @@ class CoinJoinTX(object):
         self.my_change_addr = my_change_addr
         self.choose_orders_recover = choose_orders_recover
         self.auth_addr = auth_addr
+        self.auth_utxo = auth_utxo
         self.timeout_lock = threading.Condition()  # used to wait() and notify()
         # used to restrict access to certain variables across threads
         self.timeout_thread_lock = threading.Condition()
@@ -78,15 +81,42 @@ class CoinJoinTX(object):
         # create DH keypair on the fly for this Tx object
         self.kp = init_keypair()
         self.crypto_boxes = {}
-        #Create PODLE to fulfil anti-DOS requirement of makers:
         if not self.auth_addr:
             self.auth_addr = self.input_utxos.itervalues().next()['address']
             self.auth_utxo = self.input_utxos.iterkeys().next()
         self.auth_priv = self.wallet.get_key_from_addr(self.auth_addr)
-        self.podle = btc.generate_podle(self.auth_priv)
-        log.debug("Generated PoDLE: " + pprint.pformat(self.podle))
+        #Create commitment to fulfil anti-DOS requirement of makers,
+        #storing the corresponding reveal/proof data for next step.
+        self.commitment, self.reveal_commitment = self.make_commitment(wallet,
+                                                                       input_utxos)
         self.msgchan.fill_orders(self.active_orders, self.cj_amount,
-                                 self.kp.hex_pk(), self.podle['commit'])
+                                 self.kp.hex_pk(), self.commitment)
+
+    def make_commitment(self, wallet, input_utxos):
+        """The Taker default commitment function, which uses PoDLE.
+        Alternative commitment types should use a different commit type byte.
+        This will allow future upgrades to provide different style commitments
+        by subclassing Taker and changing the commit_type_byte; existing makers
+        will simply not accept this new type of commitment.
+        """
+        commit_type_byte = "P"
+        podle_data = None
+        priv_utxo_pairs = []
+        tries = jm_single().config.getint("POLICY", "taker_utxo_retries")
+        for k, v in input_utxos.iteritems():
+            addr = v['address']
+            priv = wallet.get_key_from_addr(addr)
+            priv_utxo_pairs.append((priv, k))
+        #For podle data format see: btc.podle.PoDLE.reveal()
+        podle_data = btc.generate_podle(priv_utxo_pairs, tries)
+        if podle_data:
+            log.debug("Generated PoDLE: " + pprint.pformat(podle_data))
+            revelation = btc.PoDLE(u=podle_data['utxo'],P=podle_data['P'],
+                                   P2=podle_data['P2'],s=podle_data['sig'],
+                                   e=podle_data['e']).serialize_revelation()
+            return (commit_type_byte + podle_data["commit"], revelation)
+        else:
+            raise btc.PoDLEError("Failed to generate commitment for transaction.")
 
     def start_encryption(self, nick, maker_pk):
         if nick not in self.active_orders.keys():
@@ -101,8 +131,9 @@ class CoinJoinTX(object):
             return
         my_btc_pub = btc.privtopub(self.auth_priv)
         my_btc_sig = btc.ecdsa_sign(self.kp.hex_pk(), self.auth_priv)
+
         self.msgchan.send_auth(nick, my_btc_pub, my_btc_sig, self.auth_utxo,
-                               self.podle['P2'], self.podle['sig'], self.podle['e'])
+                               self.reveal_commitment)
 
     def auth_counterparty(self, nick, btc_sig, auth_pub):
         """Validate the counterpartys claim to own the btc
@@ -403,7 +434,7 @@ class CoinJoinTX(object):
                     pprint.pformat(self.nonrespondants)))
 
             self.msgchan.fill_orders(new_orders, self.cj_amount,
-                                     self.kp.hex_pk())
+                                     self.kp.hex_pk(), self.commitment)
         else:
             log.debug('nonresponse to !tx')
             # nonresponding to !tx, have to restart tx from the beginning

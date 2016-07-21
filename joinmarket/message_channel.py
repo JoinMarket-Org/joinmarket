@@ -303,7 +303,7 @@ class MessageChannelCollection(object):
 
     # Taker callbacks
     def fill_orders(self, nick_order_dict, cj_amount, taker_pubkey,
-                    commitment=None):
+                    commitment):
         """
         The orders dict does not contain information
         about which message channel the counterparty bots are active
@@ -323,10 +323,8 @@ class MessageChannelCollection(object):
                            commitment)
 
     @check_privmsg
-    def send_auth(self, nick, pubkey, sig,
-                  utxo=None, P2=None, s=None, e=None):
-        self.active_channels[nick].send_auth(nick, pubkey, sig,
-                                             utxo, P2, s, e)
+    def send_auth(self, nick, pubkey, sig, auth_utxo, cr):
+        self.active_channels[nick].send_auth(nick, pubkey, sig, auth_utxo, cr)
 
     @check_privmsg
     def send_error(self, nick, errormsg):
@@ -749,16 +747,11 @@ class MessageChannel(object):
     def fill_orders(self, nick_order_dict, cj_amount, taker_pubkey, commitment):
         for c, order in nick_order_dict.iteritems():
             msg = str(order['oid']) + ' ' + str(cj_amount) + ' ' + taker_pubkey
-            if commitment:
-                msg += ' ' + commitment
+            msg += ' ' + commitment
             self.privmsg(c, 'fill', msg)
 
-    def send_auth(self, nick, pubkey, sig, utxo, P2, s, e):
-        fields = [pubkey, sig]
-        comm_fields = [utxo, P2, s, e]
-        if all(comm_fields):
-            fields += comm_fields
-        message = ' '.join([str(x) for x in fields])
+    def send_auth(self, nick, pubkey, sig, auth_utxo, cr):
+        message = ' '.join([str(x) for x in [pubkey, sig, auth_utxo, cr]])
         self.privmsg(nick, 'auth', message)
 
     def send_tx(self, nick_list, txhex):
@@ -840,7 +833,7 @@ class MessageChannel(object):
 
     def verify_nick(self, nick, sig, message):
         if not btc.ecdsa_verify(message, sig[1], sig[0]):
-            log.debug("btc verify failed")
+            log.debug("nick signature verification failed, ignoring.")
             return False
         #check that nick matches hash of pubkey
         nick_pkh_raw = hashlib.sha256(sig[0]).digest()[:NICK_HASH_LENGTH]
@@ -848,7 +841,7 @@ class MessageChannel(object):
         #strip right padding
         nick_unpadded = ''.join([x for x in nick_stripped if x != 'O'])
         if not nick_unpadded == btc.changebase(nick_pkh_raw, 256, 58):
-            log.debug("hash check failed, expected: " + str(
+            log.debug("Nick hash check failed, expected: " + str(
                 nick_unpadded) + ", got: " + str(
                     btc.changebase(nick_pkh_raw, 256, 58)))
             return False
@@ -944,21 +937,13 @@ class MessageChannel(object):
                     try:
                         i_utxo_pubkey = _chunks[1]
                         btc_sig = _chunks[2]
-                        if len(_chunks) > 3:
-                            i_utxo = _chunks[3]
-                            p2 = _chunks[4]
-                            sig = _chunks[5]
-                            e_val = _chunks[6]
-                        else:
-                            i_utxo = None
-                            p2 = None
-                            sig = None
-                            e_val = None
+                        i_utxo = _chunks[3]
+                        cr = _chunks[4]
                     except (ValueError, IndexError) as e:
                         self.send_error(nick, str(e))
                     if self.on_seen_auth:
                         self.on_seen_auth(nick, i_utxo_pubkey, btc_sig,
-                                          i_utxo, p2, sig, e_val)
+                                          i_utxo, cr)
                 elif _chunks[0] == 'tx':
                     b64tx = _chunks[1]
                     try:

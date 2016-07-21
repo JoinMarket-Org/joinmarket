@@ -195,7 +195,6 @@ def get_irc_mchannels():
 
 def get_config_irc_channel(channel_name):
     channel = "#" + channel_name
-    log.debug("Using channel: " + str(channel))
     if get_network() == 'testnet':
         channel += '-test'
     return channel
@@ -232,41 +231,32 @@ def validate_address(addr):
     return True, 'address validated'
 
 
-def check_utxo_blacklist(utxo, nick=None):
-    """Compare a given utxo with the persisted blacklist
-    log file; if its usage is greater than the configured
-    limit, return False (disallowed), else return True.
-    Persist the usage of this utxo to the blacklist file.
+def check_utxo_blacklist(commitment, nick=None):
+    """Compare a given commitment (H(P2) for PoDLE)
+    with the persisted blacklist log file;
+    if it has been used before, return False (disallowed),
+    else return True.
+    Persist the usage of this commitment to the blacklist file.
     The nick parameter allows creating different blacklist
     files per bot instance, ONLY for testing.
     """
     #TODO format error checking?
-    blacklist = {}
     fname = "blacklist"
     if nick and jm_single().config.get("BLOCKCHAIN",
                                        "blockchain_source") == 'regtest':
         fname += "_" + nick
-    fpath = os.path.join("logs", fname)
-    if os.path.isfile(fpath):
-        with open(fpath, "rb") as f:
-            blacklist_lines = f.readlines()
+    if os.path.isfile(fname):
+        with open(fname, "rb") as f:
+            blacklisted_commitments = [x.strip() for x in f.readlines()]
     else:
-        blacklist_lines = []
-    for bl in blacklist_lines:
-        ut, ct = bl.split(',')
-        ut = ut.strip()
-        ct = int(ct.strip())
-        blacklist[ut] = ct
-    if utxo in blacklist.keys():
-        blacklist[utxo] += 1
-        #config entry guaranteed by required_fields
-        if blacklist[utxo] >= config.getint("POLICY", "taker_utxo_retries"):
-            return False
+        blacklisted_commitments = []
+    if commitment in blacklisted_commitments:
+        return False
     else:
-        blacklist[utxo] = 1
-    with open(fpath, "wb") as f:
-        for k, v in blacklist.iteritems():
-            f.write(k + ' , ' + str(v) + '\n')
+        blacklisted_commitments += [commitment]
+    with open(fname, "wb") as f:
+        for c in blacklisted_commitments:
+            f.write(c + '\n')
     return True
 
 

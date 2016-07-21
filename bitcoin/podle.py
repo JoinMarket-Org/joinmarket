@@ -3,11 +3,178 @@
 import secp256k1
 import os
 import hashlib
+import json
 from py2specials import *
 from py3specials import *
 from secp256k1_main import ctx
+PODLE_COMMIT_FILE = "commitments.json"
 N = 115792089237316195423570985008687907852837564279074904382605163141518161494337
-dummy_pub = secp256k1.PublicKey()
+dummy_pub = secp256k1.PublicKey(ctx=ctx)
+
+class PoDLEError(Exception):
+    pass
+
+class PoDLE(object):
+    """See the comment to PoDLE.generate_podle for the
+    mathematical structure. This class encapsulates the
+    input data, the commitment and the opening (the "proof").
+    """
+
+    def __init__(self, u=None, priv=None, P= None, P2=None, s=None, e=None,
+                 used=False):
+        #This class allows storing of utxo in format "txid:n" only for
+        #convenience of storage/access; it doesn't check or use the data.
+        #Arguments must be provided in hex.
+        self.u = u
+        if not priv:
+            if P:
+                #Construct a pubkey from raw hex
+                self.P = secp256k1.PublicKey(safe_from_hex(P), raw=True, ctx=ctx)
+            else:
+                self.P = None
+        else:
+            if P:
+                raise PoDLEError("Pubkey should not be provided with privkey")
+            #any other formatting abnormality will just throw in PrivateKey
+            if len(priv)==66 and priv[-2:]=='01':
+                priv = priv[:-2]
+            self.priv = secp256k1.PrivateKey(safe_from_hex(priv), ctx=ctx)
+            self.P = self.priv.pubkey
+        if P2:
+            self.P2 = secp256k1.PublicKey(safe_from_hex(P2), raw=True, ctx=ctx)
+        else:
+            self.P2 = None
+        #These sig values should be passed in hex.
+        if s:
+            self.s = safe_from_hex(s)
+        if e:
+            self.e = safe_from_hex(e)
+        #Optionally maintain usage state (boolean)
+        self.used = used
+        #the H(P2) value
+        self.commitment = None
+
+    def mark_used(self):
+        self.used = True
+
+    def mark_unused(self):
+        self.used = False
+
+    def get_commitment(self):
+        """Set the commitment to sha256(serialization of public key P2)
+        Return in hex to calling function
+        """
+        if not self.P2:
+            raise PoDLEError("Cannot construct commitment, no P2 available")
+        if not isinstance(self.P2, secp256k1.PublicKey):
+            raise PoDLEError("Cannot construct commitment, P2 is not a pubkey")
+        self.commitment = hashlib.sha256(self.P2.serialize()).digest()
+        return safe_hexlify(self.commitment)
+
+    def generate_podle(self, index=0):
+        """Given a raw private key, in hex format,
+        construct a commitment sha256(P2), which is
+        the hash of the value x*J, where x is the private
+        key as a raw scalar, and J is a NUMS alternative
+        basepoint on the Elliptic Curve; we use J(i) where i
+        is an index, so as to be able to create multiple
+        commitments against the same privkey. The procedure
+        for generating the J(i) value is shown in getNUMS().
+        Also construct a signature (s,e) of Schnorr type,
+        which will serve as a zero knowledge proof that the
+        private key of P2 is the same as the private key of P (=x*G).
+        Signature is constructed as:
+        s = k + x*e
+        where k is a standard 32 byte nonce and:
+        e = sha256(k*G || k*J || P || P2)
+
+        Possibly Joinmarket specific comment:
+        Users *should* generate with lower indices first,
+        since verifiers will give preference to lower indices
+        (each verifier may have their own policy about how high
+        an index to allow, which really means how many reuses of utxos
+        to allow in Joinmarket).
+
+        Returns a commitment of form H(P2) which, note, will depend
+        on the index choice. Repeated calls will reset the commitment
+        and the associated signature data that can be used to open
+        the commitment.
+        """
+        #TODO nonce could be rfc6979?
+        k = os.urandom(32)
+        J = getNUMS(index)
+        KG = secp256k1.PrivateKey(k, ctx=ctx).pubkey
+        KJ = J.tweak_mul(k)
+        self.P2 = getP2(self.priv, J)
+        self.get_commitment()
+        self.e = hashlib.sha256(''.join(
+            [x.serialize() for x in [KG, KJ, self.P, self.P2]])).digest()
+        k_int = decode(k, 256)
+        priv_int = decode(self.priv.private_key, 256)
+        e_int = decode(self.e, 256)
+        sig_int = (k_int + priv_int*e_int) % N
+        self.s = encode(sig_int, 256, minlen=32)
+        return self.reveal()
+
+    def reveal(self):
+        """Encapsulate all the data representing the proof
+        in a dict for client functions. Data output in hex.
+        """
+        if not all([self.u, self.P, self.P2, self.s, self.e]):
+            raise PoDLEError("Cannot generate proof, data is missing")
+        if not self.commitment:
+            self.get_commitment()
+        Phex, P2hex, shex, ehex, commit = [
+            safe_hexlify(x) for x in [self.P.serialize(),
+                                      self.P2.serialize(),
+                                      self.s, self.e, self.commitment]]
+        return {'used': str(self.used), 'utxo': self.u, 'P': Phex, 'P2': P2hex,
+                'commit': commit, 'sig': shex, 'e': ehex}
+
+    def serialize_revelation(self, separator='|'):
+        state_dict = self.reveal()
+        ser_list = []
+        for k in ['utxo', 'P', 'P2', 'sig', 'e']:
+            ser_list += [state_dict[k]]
+        ser_string = separator.join(ser_list)
+        return ser_string
+
+    @classmethod
+    def deserialize_revelation(cls, ser_rev, separator='|'):
+        ser_list = ser_rev.split('|')
+        if len(ser_list) != 5:
+            raise PoDLEError("Failed to deserialize, wrong format")
+        utxo, P, P2, s, e = ser_list
+        return {'utxo':utxo, 'P': P, 'P2': P2, 'sig': s, 'e': e}
+
+    def verify(self, commitment, index_range):
+        """For an object created without a private key,
+        check that the opened commitment verifies for at least
+        one NUMS point as defined by the range in index_range
+        """
+        if not all([self.P, self.P2, self.s, self.e]):
+            raise PoDLE("Verify called without sufficient data")
+        if not self.get_commitment() == commitment:
+            return False
+        for J in [getNUMS(i) for i in index_range]:
+            sig_priv = secp256k1.PrivateKey(self.s, raw=True, ctx=ctx)
+            sG = sig_priv.pubkey
+            sJ = J.tweak_mul(self.s)
+            e_int = decode(self.e, 256)
+            minus_e = encode(-e_int % N, 256, minlen=32)
+            minus_e_P = self.P.tweak_mul(minus_e)
+            minus_e_P2 = self.P2.tweak_mul(minus_e)
+            KG = dummy_pub.combine([sG.public_key, minus_e_P.public_key])
+            KJ = dummy_pub.combine([sJ.public_key, minus_e_P2.public_key])
+            KGser = secp256k1.PublicKey(KG, ctx=ctx).serialize()
+            KJser = secp256k1.PublicKey(KJ, ctx=ctx).serialize()
+            #check 2: e =?= H(K_G || K_J || P || P2)
+            e_check = hashlib.sha256(
+                KGser + KJser + self.P.serialize() + self.P2.serialize()).digest()
+            if e_check == self.e:
+                return True
+        #commitment fails for any NUMS in the provided range
+        return False
 
 def getG(compressed=True):
     """Returns the public key binary
@@ -50,7 +217,7 @@ def getNUMS(index=0):
                 return nums_point
             except:
                 continue
-    assert False, "It seems inconceivable, doesn't it?"
+    assert False, "It seems inconceivable, doesn't it?" # pragma: no cover
 
 def verify_all_NUMS(write=False):
     """Check that the algorithm produces the expected NUMS
@@ -69,102 +236,133 @@ def verify_all_NUMS(write=False):
     assert nums_points == precomp_NUMS, "Precomputed NUMS points are not valid!"
         
 
-def getP2(priv, nums_pub):
+def getP2(priv, nums_pt):
     """Given a secp256k1.PrivateKey priv and a
-    secp256k1.PublicKey nums_pub, an alternate
-    generator point, calculate priv*nums_pub
+    secp256k1.PublicKey nums_pt, an alternate
+    generator point (note: it's in no sense a
+    pubkey, its privkey is unknowable - that's
+    just the most easy way to manipulate it in the
+    library), calculate priv*nums_pt
     """
     priv_raw = priv.private_key
-    return nums_pub.tweak_mul(priv_raw)
+    return nums_pt.tweak_mul(priv_raw)
 
-def generate_podle(priv, tries=1):
-    """Given a private key, try to generate a
-    PoDLE which is not yet used more than tries times.
-    Note that each retry means using a different generator
-    (see notes in generate_podle_raw)
+def get_podle_commitments():
+    """Returns set of commitments used as a list:
+    [H(P2),..] (hex)
+    It is presumed that each H(P2) can
+    be used only once (this may not literally be true, but represents
+    good joinmarket "citizenship").
+    This is stored as part of the data in PODLE_COMMIT_FILE
+    Since takers request transactions serially there should be no
+    locking requirement here. Multiple simultaneous taker bots
+    would require extra attention.
     """
-    current_commitments = get_used_commitments()
-    for i in range(tries):
-        c = generate_podle_raw(priv, i)
-        if c['commit'] in current_commitments:
-            continue
-        #persist for future checks
-        update_commitments(c)
-        return c
+    if not os.path.isfile(PODLE_COMMIT_FILE):
+        return ([], {})
+    with open(PODLE_COMMIT_FILE, "rb") as f:
+        c = json.loads(f.read())
+    if 'used' not in c.keys() or 'external' not in c.keys():
+        raise PoDLEError("Incorrectly formatted file: " + PODLE_COMMIT_FILE)
+    return (c['used'], c['external'])
+
+def add_external_commitments(ecs):
+    """To allow external functions to add
+    PoDLE commitments that were calculated elsewhere;
+    the format of each entry in ecs must be:
+    {txid:N:{'P':pubkey, 'reveal':{1:{'P2':P2,'s':s,'e':e}, 2:{..},..}}}
+    """
+    update_commitments(external_to_add=ecs)
+
+def update_commitments(commitment=None, external_to_remove=None,
+                       external_to_add=None):
+    """Optionally add the commitment commitment to the list of 'used',
+    and optionally remove the available external commitment
+    whose key value is the utxo in external_to_remove,
+    persist updated entries to disk.
+    """
+    c = {}
+    if os.path.isfile(PODLE_COMMIT_FILE):
+        with open(PODLE_COMMIT_FILE, "rb") as f:
+            try:
+                c = json.loads(f.read())
+            except ValueError:
+                pass
+
+    if 'used' in c:
+        commitments = c['used']
+    else:
+        commitments = []
+    if 'external' in c:
+        external = c['external']
+    else:
+        external = {}
+    if commitment:
+        commitments.append(commitment)
+        #remove repeats
+        commitments = list(set(commitments))
+    if external_to_remove:
+        external = {
+            k: v for k, v in external.items() if k not in external_to_remove}
+    if external_to_add:
+        external.update(external_to_add)
+    to_write = {}
+    to_write['used'] = commitments
+    to_write['external'] = external
+    with open(PODLE_COMMIT_FILE, "wb") as f:
+        f.write(json.dumps(to_write))
+
+def generate_podle(priv_utxo_pairs, tries=1):
+    """Given a list of privkeys, try to generate a
+    PoDLE which is not yet used more than tries times.
+    This effectively means satisfying two criteria:
+    (1) the generated commitment is not in the list of used
+    commitments
+    (2) the index required to generate is not greater than 'tries'.
+    Note that each retry means using a different generator
+    (see notes in PoDLE.generate_podle)
+    Once used, add the commitment to the list of used.
+    If we fail to find an unused commitment with this algorithm,
+    we fallback to sourcing an unused commitment from the "external"
+    section of the commitments file; if we succeed in finding an unused
+    one there, use it and add it to the list of used commitments.
+    If still nothing available, return None.
+    """
+    used_commitments, external_commitments = get_podle_commitments()
+    for priv, utxo in priv_utxo_pairs:
+        for i in range(tries):
+            #Note that we will return the *lowest* index
+            #which is still available.
+            p = PoDLE(u=utxo, priv=priv)
+            c = p.generate_podle(i)
+            if c['commit'] in used_commitments:
+                continue
+            #persist for future checks
+            update_commitments(commitment=c['commit'])
+            return c
+    for u, ec in external_commitments.iteritems():
+        #use as many as were provided in the file, up to a max of tries
+        m = min([len(ec['reveal'].keys()), tries])
+        for i in [str(x) for x in range(m)]:
+            p = PoDLE(u=u,P=ec['P'],P2=ec['reveal'][i]['P2'],
+                      s=ec['reveal'][i]['s'], e=ec['reveal'][i]['e'])
+            if p.get_commitment() not in used_commitments:
+                update_commitments(commitment=p.get_commitment())
+                return p.reveal()
+        #If none of the entries in the 'reveal' list for this external
+        #commitment were available, they've all been used up, so
+        #remove this entry
+        if m == len(ec['reveal'].keys()):
+            update_commitments(external_to_remove=u)
+    #Failed to find any non-used valid commitment:
     return None
 
-def generate_podle_raw(priv, index=0):
-    '''Given a raw private key, in hex format,
-    construct a commitment sha256(P2), which is
-    the hash of the value x*J, where x is the private
-    key as a raw scalar, and J is a NUMS alternative
-    basepoint on the Elliptic Curve; we use J(i) where i
-    is an index, so as to be able to create multiple
-    commitments against the same privkey. The procedure
-    for generating the J(i) value is shown in getNUMS().
-    Also construct a signature (s,e) of Schnorr type,
-    which will serve as a zero knowledge proof that the
-    private key of P2 is the same as the private key of P (=x*G).
-    Signature is constructed as:
-    s = k + x*e
-    where k is a standard 32 byte nonce and:
-    e = sha256(k*G || k*J || P || P2)
-    
-    Possibly Joinmarket specific comment:
-    Users *should* generate with lower indices first,
-    since verifiers will give preference to lower indices
-    (each verifier may have their own policy about how high
-    an index to allow, which really means how many reuses of utxos
-    to allow in Joinmarket).
-    '''
-    #any other formatting abnormality will just throw in PrivateKey
-    if len(priv)==66 and priv[-2:]=='01':
-        priv = priv[:-2]
-    priv = secp256k1.PrivateKey(safe_from_hex(priv), ctx=ctx)
-    P = priv.pubkey
-    #TODO nonce could be rfc6979
-    k = os.urandom(32)
-    J = getNUMS(index)
-    KG = secp256k1.PrivateKey(k, ctx=ctx).pubkey
-    KJ = J.tweak_mul(k)
-    P2 = getP2(priv, J)
-    commitment = hashlib.sha256(P2.serialize()).digest()
-    e = hashlib.sha256(''.join([x.serialize() for x in [KG, KJ, P, P2]])).digest()
-    k_int = decode(k, 256)
-    priv_int = decode(priv.private_key, 256)
-    e_int = decode(e, 256)
-    sig_int = (k_int + priv_int*e_int) % N
-    sig = encode(sig_int, 256, minlen=32)
-    P2hex, chex, shex, ehex = [safe_hexlify(x) for x in [P2.serialize(),
-                                                         commitment, sig, e]]
-    return {'P2':P2hex, 'commit': chex, 'sig': shex, 'e':ehex}
-
 def verify_podle(Pser, P2ser, sig, e, commitment, index_range = range(10)):
-    Pser, P2ser, sig, e, commitment = [safe_from_hex(x) for x in [
-        Pser, P2ser, sig, e, commitment]]
+    verifying_podle = PoDLE(P=Pser, P2=P2ser,s=sig,e=e)
     #check 1: Hash(P2ser) =?= commitment
-    if not hashlib.sha256(P2ser).digest() == commitment:
+    if not verifying_podle.verify(commitment, index_range):
         return False
-    for J in [getNUMS(i) for i in index_range]:
-        sig_priv = secp256k1.PrivateKey(sig,raw=True, ctx=ctx)
-        sG = sig_priv.pubkey
-        sJ = J.tweak_mul(sig)
-        P = secp256k1.PublicKey(Pser, raw=True, ctx=ctx)
-        P2 = secp256k1.PublicKey(P2ser, raw=True)
-        e_int = decode(e, 256)
-        minus_e = encode(-e_int % N, 256, minlen=32)
-        minus_e_P = P.tweak_mul(minus_e)
-        minus_e_P2 = P2.tweak_mul(minus_e)
-        KG = dummy_pub.combine([sG.public_key, minus_e_P.public_key])
-        KJ = dummy_pub.combine([sJ.public_key, minus_e_P2.public_key])
-        KGser = secp256k1.PublicKey(KG, ctx=ctx).serialize()
-        KJser = secp256k1.PublicKey(KJ, ctx=ctx).serialize()
-        #check 2: e =?= H(K_G || K_J || P || P2)
-        e_check = hashlib.sha256(KGser + KJser + Pser + P2ser).digest()
-        if e_check == e:
-            return True
-    #commitment fails for any NUMS in the provided range
-    return False
+    return True
 
 precomp_NUMS = {0: 
     '0296f47ec8e6d6a9c3379c2ce983a6752bcfa88d46f2a6ffe0dd12c9ae76d01a1f',
@@ -424,16 +622,3 @@ precomp_NUMS = {0:
  254: '023a0d381598e185bbff88494dc54e0a083d3b9ce9c8c4b86b5a4c9d5f949b1828',
  255: '02a0a8694820c794852110e5939a2c03f8482f81ed57396042c6b34557f6eb430a'}
 
-def run_tests():
-    for i in range(1000):
-        priv = os.urandom(32)
-        Priv = secp256k1.PrivateKey(priv, ctx=ctx)
-        Pser = safe_hexlify(Priv.pubkey.serialize())
-        podle_sig = generate_podle(safe_hexlify(priv), i%5)
-        P2ser, s, e, commitment = (podle_sig['P2'], podle_sig['sig'], 
-                                   podle_sig['e'], podle_sig['commit'])
-        if not verify_podle(Pser, P2ser, s, e, commitment):
-            print 'failed to verify'
-
-if __name__ == '__main__':
-    run_tests()
