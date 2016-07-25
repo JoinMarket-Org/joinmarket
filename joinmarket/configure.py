@@ -70,7 +70,7 @@ class AttributeDict(object):
 
 # todo: same as above.  decide!!!
 global_singleton = AttributeDict()
-global_singleton.JM_VERSION = 4
+global_singleton.JM_VERSION = 5
 global_singleton.nickname = None
 global_singleton.DUST_THRESHOLD = 2730
 global_singleton.bc_interface = None

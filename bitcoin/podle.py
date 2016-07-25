@@ -141,7 +141,7 @@ class PoDLE(object):
 
     @classmethod
     def deserialize_revelation(cls, ser_rev, separator='|'):
-        ser_list = ser_rev.split('|')
+        ser_list = ser_rev.split(separator)
         if len(ser_list) != 5:
             raise PoDLEError("Failed to deserialize, wrong format")
         utxo, P, P2, s, e = ser_list
