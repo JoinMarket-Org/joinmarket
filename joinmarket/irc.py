@@ -261,6 +261,9 @@ class IRCMessageChannel(MessageChannel):
 
     def __handle_privmsg(self, source, target, message):
         nick = get_irc_nick(source)
+        #ensure return value 'parsed' is length > 2
+        if len(message) < 4:
+            return
         if target == self.nick:
             if message[0] == '\x01':
                 endindex = message[1:].find('\x01')
