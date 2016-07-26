@@ -99,7 +99,7 @@ def test_blockr_sync(setup_blockr, net, seed, gaplimit, showprivkey, method):
                                privkey))
         total_balance += balance_depth
         print('for mixdepth=%d balance=%.8fbtc' % (m, balance_depth / 1e8))
-    assert total_balance == 96143257    
+    assert total_balance == 96085297
     
 
 @pytest.fixture(scope="module")
