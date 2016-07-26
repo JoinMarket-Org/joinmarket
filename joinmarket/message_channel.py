@@ -868,9 +868,10 @@ class MessageChannel(object):
         #Otherwise squatter/attacker can persuade us to send privmsgs to him.
         if self.on_privmsg_trigger:
             self.on_privmsg_trigger(nick, self)
-
-        for command in message[1:].split(COMMAND_PREFIX):
-            _chunks = command.split(" ")[:-2]
+        #strip sig from message for processing, having verified
+        message = " ".join(message[1:].split(" ")[:-2])
+        for command in message.split(COMMAND_PREFIX):
+            _chunks = command.split(" ")
 
             #Decrypt if necessary
             if _chunks[0] in encrypted_commands:
