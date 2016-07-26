@@ -284,9 +284,12 @@ class MessageChannelCollection(object):
             cmd = orderlist[0]['ordertype']
             msg = ' '.join(orderlines[0].split(' ')[1:])
             msg += ''.join(orderlines[1:])
-            for mc in self.available_channels():
-                if nick in self.nicks_seen[mc]:
-                    self.privmsg(nick, cmd, msg, mc)
+            if new_mc:
+                self.privmsg(nick, cmd, msg, new_mc)
+            else:
+                for mc in self.available_channels():
+                    if nick in self.nicks_seen[mc]:
+                        self.privmsg(nick, cmd, msg, mc)
 
     @check_privmsg
     def send_pubkey(self, nick, pubkey):
