@@ -267,6 +267,14 @@ class MessageChannel(object):
 
     def on_privmsg(self, nick, message):
         """handles the case when a private message is received"""
+        #Aberrant short messages should be handled by subclasses
+        #in _privmsg, but this constitutes a sanity check. Note that
+        #messages which use an encrypted_command but present no
+        #ciphertext will be rejected with the ValueError on decryption.
+        #Other ill formatted messages will be caught in the try block.
+        if len(message) < 2:
+            return
+
         if message[0] != COMMAND_PREFIX:
             log.debug('message not a cmd')
             return

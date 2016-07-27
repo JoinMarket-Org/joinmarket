@@ -11,7 +11,7 @@ import pexpect
 import random
 import subprocess
 import unittest
-from commontest import local_command, interact, make_wallets
+from commontest import local_command, interact, make_wallets, make_sign_and_push
 
 import bitcoin as btc
 import pytest
@@ -56,41 +56,6 @@ def test_create_p2sh_output_tx(setup_tx_creation, nw, wallet_structures,
                                   amount,
                                   output_addr=output_addr)
         assert txid
-
-
-def make_sign_and_push(ins_full,
-                       wallet,
-                       amount,
-                       output_addr=None,
-                       change_addr=None,
-                       hashcode=btc.SIGHASH_ALL,
-                       estimate_fee = False):
-    total = sum(x['value'] for x in ins_full.values())
-    ins = ins_full.keys()
-    #random output address and change addr
-    output_addr = wallet.get_new_addr(1, 1) if not output_addr else output_addr
-    change_addr = wallet.get_new_addr(1, 0) if not change_addr else change_addr
-    fee_est = estimate_tx_fee(len(ins), 2) if estimate_fee else 10000
-    outs = [{'value': amount,
-             'address': output_addr}, {'value': total - amount - fee_est,
-                                       'address': change_addr}]
-
-    tx = btc.mktx(ins, outs)
-    de_tx = btc.deserialize(tx)
-    for index, ins in enumerate(de_tx['ins']):
-        utxo = ins['outpoint']['hash'] + ':' + str(ins['outpoint']['index'])
-        addr = ins_full[utxo]['address']
-        priv = wallet.get_key_from_addr(addr)
-        if index % 2:
-            priv = binascii.unhexlify(priv)
-        tx = btc.sign(tx, index, priv, hashcode=hashcode)
-    #pushtx returns False on any error
-    print btc.deserialize(tx)
-    push_succeed = jm_single().bc_interface.pushtx(tx)
-    if push_succeed:
-        return btc.txhash(tx)
-    else:
-        return False
 
 def test_absurd_fees(setup_tx_creation):
     """Test triggering of ValueError exception

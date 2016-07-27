@@ -10,7 +10,7 @@ from getpass import getpass
 
 import bitcoin as btc
 from joinmarket.slowaes import decryptData
-from joinmarket.blockchaininterface import BitcoinCoreInterface
+from joinmarket.blockchaininterface import BitcoinCoreInterface, RegtestBitcoinCoreInterface
 from joinmarket.configure import jm_single, get_network, get_p2pk_vbyte
 
 from joinmarket.support import get_log, select_gradual, select_greedy, \
@@ -143,7 +143,7 @@ class Wallet(AbstractWallet):
         for i in range(self.max_mix_depth):
             self.index.append([0, 0])
 
-    def read_wallet_file_data(self, filename):
+    def read_wallet_file_data(self, filename, pwd=None):
         self.path = None
         self.index_cache = [[0, 0]] * self.max_mix_depth
         path = os.path.join('wallets', filename)
@@ -168,7 +168,10 @@ class Wallet(AbstractWallet):
             self.index_cache = walletdata['index_cache']
         decrypted = False
         while not decrypted:
-            password = getpass('Enter wallet decryption passphrase: ')
+            if pwd:
+                password = pwd
+            else:
+                password = getpass('Enter wallet decryption passphrase: ')
             password_key = btc.bin_dbl_sha256(password)
             encrypted_seed = walletdata['encrypted_seed']
             try:
@@ -184,6 +187,8 @@ class Wallet(AbstractWallet):
                     raise ValueError
             except ValueError:
                 print('Incorrect password')
+                if pwd:
+                    raise
                 decrypted = False
         if self.storepassword:
             self.password_key = password_key
@@ -240,7 +245,8 @@ class Wallet(AbstractWallet):
         index[forchange] += 1
         # self.update_cache_index()
         bc_interface = jm_single().bc_interface
-        if isinstance(bc_interface, BitcoinCoreInterface):
+        if isinstance(bc_interface, BitcoinCoreInterface) or isinstance(
+            bc_interface, RegtestBitcoinCoreInterface):
             # do not import in the middle of sync_wallet()
             if bc_interface.wallet_synced:
                 if bc_interface.rpc('getaccount', [addr]) == '':

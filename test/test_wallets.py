@@ -10,7 +10,7 @@ import pexpect
 import random
 import subprocess
 import unittest
-from commontest import local_command, interact, make_wallets
+from commontest import local_command, interact, make_wallets, make_sign_and_push
 
 import bitcoin as btc
 import pytest
@@ -18,8 +18,171 @@ from joinmarket import load_program_config, jm_single
 from joinmarket import get_p2pk_vbyte, get_log, Wallet
 from joinmarket.support import chunks, select_gradual, \
      select_greedy, select_greediest
+from joinmarket.wallet import estimate_tx_fee
 
 log = get_log()
+
+def do_tx(wallet, amount):
+    ins_full = wallet.select_utxos(0, amount)
+    cj_addr = wallet.get_internal_addr(1)
+    change_addr = wallet.get_internal_addr(0)
+    wallet.update_cache_index()
+    txid = make_sign_and_push(ins_full, wallet, amount,
+                              output_addr=cj_addr,
+                              change_addr=change_addr,
+                              estimate_fee=True)
+    assert txid
+    time.sleep(2) #blocks
+    jm_single().bc_interface.sync_unspent(wallet)
+
+@pytest.mark.parametrize(
+    "num_txs, fake_count, wallet_structure, amount, wallet_file, password",
+    [
+        (3, 13, [11,3,4,5,6], 150000000, 'test_import_wallet.json', 'import-pwd'
+         ),
+        #Uncomment all these for thorough tests. Passing currently.
+        #Lots of used addresses
+        #(7, 1, [51,3,4,5,6], 150000000, 'test_import_wallet.json', 'import-pwd'
+        #),
+        #(3, 1, [3,1,4,5,6], 50000000, 'test_import_wallet.json', 'import-pwd'
+        #),
+        #No spams/fakes
+        #(2, 0, [5,20,1,1,1], 50000000, 'test_import_wallet.json', 'import-pwd'
+        # ),
+        #Lots of transactions and fakes
+        #(25, 30, [30,20,1,1,1], 50000000, 'test_import_wallet.json', 'import-pwd'
+        # ),
+    ])
+def test_wallet_sync(setup_wallets, num_txs, fake_count,
+                     wallet_structure, amount, wallet_file, password):
+    setup_import(mainnet=False)
+    wallet = make_wallets(1,[wallet_structure],
+                          fixed_seeds=[wallet_file],
+                          test_wallet=True, passwords=[password])[0]['wallet']
+    sync_count = 0
+    jm_single().bc_interface.wallet_synced = False
+    while not jm_single().bc_interface.wallet_synced:
+        jm_single().bc_interface.sync_wallet(wallet)
+        sync_count += 1
+        #avoid infinite loop
+        assert sync_count < 10
+        log.debug("Tried " + str(sync_count) + " times")
+
+    assert jm_single().bc_interface.wallet_synced
+    #do some transactions with the wallet, then close, then resync
+    for i in range(num_txs):
+        do_tx(wallet, amount)
+        log.debug("After doing a tx, index is now: " + str(wallet.index))
+        #simulate a spammer requesting a bunch of transactions. This
+        #mimics what happens in CoinJoinOrder.__init__()
+        for j in range(fake_count):
+            #Note that as in a real script run,
+            #the initial call to sync_wallet will
+            #have set wallet_synced to True, so these will
+            #trigger actual imports.
+            cj_addr = wallet.get_internal_addr(0)
+            change_addr = wallet.get_internal_addr(0)
+            wallet.update_cache_index()
+            log.debug("After doing a spam, index is now: " + str(wallet.index))
+
+    assert wallet.index[0][1] == num_txs+fake_count*2*num_txs
+
+    #Attempt re-sync, simulating a script restart.
+
+    jm_single().bc_interface.wallet_synced = False
+    sync_count = 0
+    #Probably should be fixed in main code:
+    #wallet.index_cache is only assigned in Wallet.__init__(),
+    #meaning a second sync in the same script, after some transactions,
+    #will not know about the latest index_cache value (see is_index_ahead_of_cache),
+    #whereas a real re-sync will involve reading the cache from disk.
+    #Hence, simulation of the fact that the cache index will
+    #be read from the file on restart:
+    wallet.index_cache = wallet.index
+
+    while not jm_single().bc_interface.wallet_synced:
+        #Wallet.__init__() resets index to zero.
+        wallet.index = []
+        for i in range(5):
+            wallet.index.append([0, 0])
+        #Wallet.__init__() also updates the cache index
+        #from file, but we can reuse from the above pre-loop setting,
+        #since nothing else in sync will overwrite the cache.
+
+        #for regtest add_watchonly_addresses does not exit(), so can
+        #just repeat as many times as possible. This might
+        #be usable for non-test code (i.e. no need to restart the
+        #script over and over again)?
+        sync_count += 1
+        log.debug("TRYING SYNC NUMBER: " + str(sync_count))
+        jm_single().bc_interface.sync_wallet(wallet)
+        #avoid infinite loop on failure.
+        assert sync_count < 10
+    #Wallet should recognize index_cache on sync, so should not need to
+    #run sync process more than twice (twice if cache bump has moved us
+    #past the first round of imports).
+    assert sync_count <= 2
+    #validate the wallet index values after sync
+    for i, ws in enumerate(wallet_structure):
+        assert wallet.index[i][0] == ws #spends into external only
+    #Same number as above; note it includes the spammer's extras.
+    assert wallet.index[0][1] == num_txs+fake_count*2*num_txs
+    assert wallet.index[1][1] == num_txs #one change per transaction
+    for i in range(2,5):
+        assert wallet.index[i][1] == 0 #unused
+
+    #Now try to do more transactions as sanity check.
+    do_tx(wallet, 50000000)
+
+
+@pytest.mark.parametrize(
+    "wallet_structure, wallet_file, password, ic",
+    [
+        #As usual, more test cases are preferable but time
+        #of build test is too long, so only one activated.
+        #([11,3,4,5,6], 'test_import_wallet.json', 'import-pwd',
+        # [(12,3),(100,99),(7, 40), (200, 201), (10,0)]
+        # ),
+        ([1,3,0,2,9], 'test_import_wallet.json', 'import-pwd',
+         [(0,7),(100,99),(0, 0), (200, 201), (21,41)]
+         ),
+    ])
+def test_wallet_sync_from_scratch(setup_wallets, wallet_structure,
+                                  wallet_file, password, ic):
+    """Simulate a scenario in which we use a new bitcoind, thusly:
+    generate a new wallet and simply pretend that it has an existing
+    index_cache. This will force import of all addresses up to
+    the index_cache values.
+    """
+    setup_import(mainnet=False)
+    wallet = make_wallets(1,[wallet_structure],
+                              fixed_seeds=[wallet_file],
+                              test_wallet=True, passwords=[password])[0]['wallet']
+    sync_count = 0
+    jm_single().bc_interface.wallet_synced = False
+    wallet.index_cache = ic
+    while not jm_single().bc_interface.wallet_synced:
+        wallet.index = []
+        for i in range(5):
+            wallet.index.append([0, 0])
+        jm_single().bc_interface.sync_wallet(wallet)
+        sync_count += 1
+        #avoid infinite loop
+        assert sync_count < 10
+        log.debug("Tried " + str(sync_count) + " times")
+    #after #586 we expect to ALWAYS succeed within 2 rounds
+    assert sync_count == 2
+    #for each external branch, the new index may be higher than
+    #the original index_cache if there was a higher used address
+    expected_wallet_index = []
+    for i, val in enumerate(wallet_structure):
+        if val > wallet.index_cache[i][0]:
+            expected_wallet_index.append([val, wallet.index_cache[i][1]])
+        else:
+            expected_wallet_index.append([wallet.index_cache[i][0],
+                                          wallet.index_cache[i][1]])
+    assert wallet.index == expected_wallet_index
+
 
 @pytest.mark.parametrize(
     "pwd, in_privs",
@@ -28,10 +191,11 @@ log = get_log()
                         "Kz6UJmQACJmLtaQj5A3JAge4kVTNQ8gbvXuwbmCj7bsaabudb3RD"]
          ),
     ])
-def test_import_privkey(setup_wallets, setup_import, pwd, in_privs):
+def test_import_privkey(setup_wallets, pwd, in_privs):
     """This tests successful import of WIF compressed private keys
     into the wallet for mainnet.
     """
+    setup_import()
     test_in = [pwd, ' '.join(in_privs)]
     expected = ['Enter wallet decryption passphrase:',
                 'to import:']
@@ -44,14 +208,13 @@ def test_import_privkey(setup_wallets, setup_import, pwd, in_privs):
     #p.close()
     testlog.close()
 
-@pytest.fixture(scope='function')
-def setup_import(request):
+def setup_import(mainnet=True):
     try:
         os.remove("wallets/test_import_wallet.json")
     except:
         pass
-    #generate a new *mainnet* wallet
-    jm_single().config.set("BLOCKCHAIN", "network", "mainnet")
+    if mainnet:
+        jm_single().config.set("BLOCKCHAIN", "network", "mainnet")
     pwd = 'import-pwd'
     test_in = [pwd, pwd, 'test_import_wallet.json']
     expected = ['Enter wallet encryption passphrase:',
@@ -69,10 +232,7 @@ def setup_import(request):
         print f.read()
     if p.exitstatus != 0:
         raise Exception('failed due to exit status: ' + str(p.exitstatus))
-    def import_teardown():
-        jm_single().config.set("BLOCKCHAIN", "network", "testnet")
-    request.addfinalizer(import_teardown)
-
+    jm_single().config.set("BLOCKCHAIN", "network", "testnet")
 
 @pytest.mark.parametrize(
     "nw, wallet_structures, mean_amt, sdev_amt, amount",
@@ -89,6 +249,7 @@ def test_utxo_selection(setup_wallets, nw, wallet_structures, mean_amt,
     """
     wallets = make_wallets(nw, wallet_structures, mean_amt, sdev_amt)
     for w in wallets.values():
+        jm_single().bc_interface.wallet_synced = False
         jm_single().bc_interface.sync_wallet(w['wallet'])
     for k, w in enumerate(wallets.values()):
         for algo in [select_gradual, select_greedy, select_greediest, None]:
