@@ -798,7 +798,14 @@ class MessageChannel(object):
                           ', dropping message')
                 return
             message = encrypt_encode(message, box)
-        sig = btc.ecdsa_sign(message, self.nick_priv)
+
+        #Anti-replay measure: append the message channel identifier
+        #to the signature; this prevents cross-channel replay but NOT
+        #same-channel replay (in case of snooper after dropped connection
+        #on this channel).
+        msg_to_be_signed = message + str(self.serverport)
+
+        sig = btc.ecdsa_sign(msg_to_be_signed, self.nick_priv)
         message += ' ' + self.nick_pubkey + ' ' + sig
         #forward to the implementation class (use single _ for polymrphsm to work)
         self._privmsg(nick, cmd, message)
@@ -835,7 +842,7 @@ class MessageChannel(object):
                     self.debug_on_pubmsg_cmd(nick, _chunks)
 
     def verify_nick(self, nick, sig, message):
-        if not btc.ecdsa_verify(message, sig[1], sig[0]):
+        if not btc.ecdsa_verify(message + str(self.serverport), sig[1], sig[0]):
             log.debug("nick signature verification failed, ignoring.")
             return False
         #check that nick matches hash of pubkey
@@ -867,6 +874,7 @@ class MessageChannel(object):
             #This is an impostor; just ignore
             log.debug("Message received from unverified counterparty; ignoring")
             return
+
         #Marks the nick as active on this channel; note *only* if verified.
         #Otherwise squatter/attacker can persuade us to send privmsgs to him.
         if self.on_privmsg_trigger:
