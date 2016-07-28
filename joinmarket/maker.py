@@ -90,11 +90,7 @@ class CoinJoinOrder(object):
         # orders to find out which addresses you use
         self.maker.msgchan.send_pubkey(nick, self.kp.hex_pk())
 
-    def auth_counterparty(self, nick, i_utxo_pubkey, btc_sig, i_utxo, cr):
-        self.i_utxo_pubkey = i_utxo_pubkey
-        if not btc.ecdsa_verify(self.taker_pk, btc_sig, self.i_utxo_pubkey):
-            log.debug('signature didnt match pubkey and message')
-            return False
+    def auth_counterparty(self, nick, cr):
         #deserialize the commitment revelation
         cr_dict = btc.PoDLE.deserialize_revelation(cr)
         #check the validity of the proof of discrete log equivalence
@@ -107,15 +103,11 @@ class CoinJoinOrder(object):
             return False
         #finally, check that the proffered utxos are real,
         #and corresponds to the pubkeys
-        res = jm_single().bc_interface.query_utxo_set([i_utxo, cr_dict['utxo']])
-        if len(res) != 2:
-            log.debug("One of provided authorizing utxos is not valid")
+        res = jm_single().bc_interface.query_utxo_set([cr_dict['utxo']])
+        if len(res) != 1:
+            log.debug("authorizing utxo is not valid")
             return False
-        if res[0]['address'] != btc.pubkey_to_address(i_utxo_pubkey,
-                                                      get_p2pk_vbyte()):
-            log.debug("Invalid authorizing utxo pubkey: " + str(i_utxo_pubkey))
-            return False
-        if res[1]['address'] != btc.pubkey_to_address(cr_dict['P'],
+        if res[0]['address'] != btc.pubkey_to_address(cr_dict['P'],
                                                          get_p2pk_vbyte()):
             log.debug("Invalid podle pubkey: " + str(cr_dict['P']))
             return False
@@ -123,7 +115,6 @@ class CoinJoinOrder(object):
         #(need to edit query_utxo_set if we want coin age)
 
         # authorisation of taker passed
-        # (but input utxo pubkey is checked in verify_unsigned_tx).
 
         # Send auth request to taker
         # Need to choose an input utxo pubkey to sign with
@@ -194,16 +185,6 @@ class CoinJoinOrder(object):
     def verify_unsigned_tx(self, txd):
         tx_utxo_set = set(ins['outpoint']['hash'] + ':' + str(
                 ins['outpoint']['index']) for ins in txd['ins'])
-        # complete authentication: check the tx input uses the authing pubkey
-        input_utxo_data = jm_single().bc_interface.query_utxo_set(
-                list(tx_utxo_set))
-
-        if None in input_utxo_data:
-            return False, 'some utxos already spent or not confirmed yet'
-        input_addresses = [u['address'] for u in input_utxo_data]
-        if btc.pubtoaddr(
-                self.i_utxo_pubkey, get_p2pk_vbyte()) not in input_addresses:
-            return False, "authenticating bitcoin address is not contained"
 
         my_utxo_set = set(self.utxos.keys())
         if not tx_utxo_set.issuperset(my_utxo_set):
@@ -295,11 +276,10 @@ class Maker(CoinJoinerPeer):
         finally:
             self.wallet_unspent_lock.release()
 
-    def on_seen_auth(self, nick, pubkey, sig, i_utxo, cr):
+    def on_seen_auth(self, nick, cr):
         if nick not in self.active_orders or self.active_orders[nick] is None:
             self.msgchan.send_error(nick, 'No open order from this nick')
-        if not self.active_orders[nick].auth_counterparty(nick, pubkey, sig,
-                                                          i_utxo, cr):
+        if not self.active_orders[nick].auth_counterparty(nick, cr):
             self.active_orders[nick] = None
             self.msgchan.send_error(nick, "Authorisation failed")
 

@@ -326,8 +326,8 @@ class MessageChannelCollection(object):
                            commitment)
 
     @check_privmsg
-    def send_auth(self, nick, pubkey, sig, auth_utxo, cr):
-        self.active_channels[nick].send_auth(nick, pubkey, sig, auth_utxo, cr)
+    def send_auth(self, nick, cr):
+        self.active_channels[nick].send_auth(nick, cr)
 
     @check_privmsg
     def send_error(self, nick, errormsg):
@@ -753,9 +753,8 @@ class MessageChannel(object):
             msg += ' ' + commitment
             self.privmsg(c, 'fill', msg)
 
-    def send_auth(self, nick, pubkey, sig, auth_utxo, cr):
-        message = ' '.join([str(x) for x in [pubkey, sig, auth_utxo, cr]])
-        self.privmsg(nick, 'auth', message)
+    def send_auth(self, nick, cr):
+        self.privmsg(nick, 'auth', str(cr))
 
     def send_tx(self, nick_list, txhex):
         txb64 = base64.b64encode(txhex.decode('hex'))
@@ -947,15 +946,11 @@ class MessageChannel(object):
                         self.on_order_fill(nick, oid, amount, taker_pk, commit)
                 elif _chunks[0] == 'auth':
                     try:
-                        i_utxo_pubkey = _chunks[1]
-                        btc_sig = _chunks[2]
-                        i_utxo = _chunks[3]
-                        cr = _chunks[4]
+                        cr = _chunks[1]
                     except (ValueError, IndexError) as e:
                         self.send_error(nick, str(e))
                     if self.on_seen_auth:
-                        self.on_seen_auth(nick, i_utxo_pubkey, btc_sig,
-                                          i_utxo, cr)
+                        self.on_seen_auth(nick, cr)
                 elif _chunks[0] == 'tx':
                     b64tx = _chunks[1]
                     try:

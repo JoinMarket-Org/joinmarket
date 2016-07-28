@@ -35,9 +35,8 @@ class CoinJoinTX(object):
                  my_change_addr,
                  total_txfee,
                  finishcallback,
-                 choose_orders_recover,
-                 auth_addr=None,
-                 auth_utxo=None):
+                 choose_orders_recover
+                 ):
         """
         if my_change is None then there wont be a change address
         thats used if you want to entirely coinjoin one utxo with no change left over
@@ -60,8 +59,6 @@ class CoinJoinTX(object):
         self.my_cj_addr = my_cj_addr
         self.my_change_addr = my_change_addr
         self.choose_orders_recover = choose_orders_recover
-        self.auth_addr = auth_addr
-        self.auth_utxo = auth_utxo
         self.timeout_lock = threading.Condition()  # used to wait() and notify()
         # used to restrict access to certain variables across threads
         self.timeout_thread_lock = threading.Condition()
@@ -81,10 +78,6 @@ class CoinJoinTX(object):
         # create DH keypair on the fly for this Tx object
         self.kp = init_keypair()
         self.crypto_boxes = {}
-        if not self.auth_addr:
-            self.auth_addr = self.input_utxos.itervalues().next()['address']
-            self.auth_utxo = self.input_utxos.iterkeys().next()
-        self.auth_priv = self.wallet.get_key_from_addr(self.auth_addr)
         #Create commitment to fulfil anti-DOS requirement of makers,
         #storing the corresponding reveal/proof data for next step.
         self.commitment, self.reveal_commitment = self.make_commitment(wallet,
@@ -129,11 +122,8 @@ class CoinJoinTX(object):
             log.debug("Unable to setup crypto box with " + nick + ": " + repr(e))
             self.msgchan.send_error(nick, "invalid nacl pubkey: " + maker_pk)
             return
-        my_btc_pub = btc.privtopub(self.auth_priv)
-        my_btc_sig = btc.ecdsa_sign(self.kp.hex_pk(), self.auth_priv)
 
-        self.msgchan.send_auth(nick, my_btc_pub, my_btc_sig, self.auth_utxo,
-                               self.reveal_commitment)
+        self.msgchan.send_auth(nick, self.reveal_commitment)
 
     def auth_counterparty(self, nick, btc_sig, auth_pub):
         """Validate the counterpartys claim to own the btc
@@ -622,14 +612,14 @@ class Taker(OrderbookWatch):
                  my_change_addr,
                  total_txfee,
                  finishcallback=None,
-                 choose_orders_recover=None,
-                 auth_addr=None):
+                 choose_orders_recover=None
+                 ):
         self.cjtx = None
         self.cjtx = CoinJoinTX(
                 self.msgchan, wallet, self.db, cj_amount, orders,
                 input_utxos, my_cj_addr, my_change_addr,
                 total_txfee, finishcallback,
-                choose_orders_recover, auth_addr)
+                choose_orders_recover)
 
     def on_error(self):
         pass  # TODO implement
