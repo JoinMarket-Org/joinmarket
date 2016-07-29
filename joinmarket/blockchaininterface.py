@@ -906,8 +906,8 @@ class RegtestBitcoinCoreInterface(BitcoinCoreInterface):
         for address in addresses:
             self.rpc('importaddress', [address, 'watchonly'])
             res.append({'address': address,
-                        'balance': int(Decimal(1e8) * Decimal(self.rpc(
-                            'getreceivedbyaddress', [address])))})
+                        'balance': int(round(Decimal(1e8) * Decimal(self.rpc(
+                            'getreceivedbyaddress', [address]))))})
         return {'data': res}
 
 # todo: won't run anyways

@@ -35,7 +35,8 @@ class CoinJoinTX(object):
                  my_change_addr,
                  total_txfee,
                  finishcallback,
-                 choose_orders_recover
+                 choose_orders_recover,
+                 commitment_creator
                  ):
         """
         if my_change is None then there wont be a change address
@@ -59,6 +60,7 @@ class CoinJoinTX(object):
         self.my_cj_addr = my_cj_addr
         self.my_change_addr = my_change_addr
         self.choose_orders_recover = choose_orders_recover
+        self.commitment_creator = commitment_creator
         self.timeout_lock = threading.Condition()  # used to wait() and notify()
         # used to restrict access to certain variables across threads
         self.timeout_thread_lock = threading.Condition()
@@ -80,36 +82,10 @@ class CoinJoinTX(object):
         self.crypto_boxes = {}
         #Create commitment to fulfil anti-DOS requirement of makers,
         #storing the corresponding reveal/proof data for next step.
-        self.commitment, self.reveal_commitment = self.make_commitment(wallet,
+        self.commitment, self.reveal_commitment = self.commitment_creator(wallet,
                                                                        input_utxos)
         self.msgchan.fill_orders(self.active_orders, self.cj_amount,
                                  self.kp.hex_pk(), self.commitment)
-
-    def make_commitment(self, wallet, input_utxos):
-        """The Taker default commitment function, which uses PoDLE.
-        Alternative commitment types should use a different commit type byte.
-        This will allow future upgrades to provide different style commitments
-        by subclassing Taker and changing the commit_type_byte; existing makers
-        will simply not accept this new type of commitment.
-        """
-        commit_type_byte = "P"
-        podle_data = None
-        priv_utxo_pairs = []
-        tries = jm_single().config.getint("POLICY", "taker_utxo_retries")
-        for k, v in input_utxos.iteritems():
-            addr = v['address']
-            priv = wallet.get_key_from_addr(addr)
-            priv_utxo_pairs.append((priv, k))
-        #For podle data format see: btc.podle.PoDLE.reveal()
-        podle_data = btc.generate_podle(priv_utxo_pairs, tries)
-        if podle_data:
-            log.debug("Generated PoDLE: " + pprint.pformat(podle_data))
-            revelation = btc.PoDLE(u=podle_data['utxo'],P=podle_data['P'],
-                                   P2=podle_data['P2'],s=podle_data['sig'],
-                                   e=podle_data['e']).serialize_revelation()
-            return (commit_type_byte + podle_data["commit"], revelation)
-        else:
-            raise btc.PoDLEError("Failed to generate commitment for transaction.")
 
     def start_encryption(self, nick, maker_pk):
         if nick not in self.active_orders.keys():
@@ -619,7 +595,7 @@ class Taker(OrderbookWatch):
                 self.msgchan, wallet, self.db, cj_amount, orders,
                 input_utxos, my_cj_addr, my_change_addr,
                 total_txfee, finishcallback,
-                choose_orders_recover)
+                choose_orders_recover, self.make_commitment)
 
     def on_error(self):
         pass  # TODO implement
@@ -644,6 +620,41 @@ class Taker(OrderbookWatch):
         with self.cjtx.timeout_thread_lock:
             self.cjtx.add_signature(nick, sig)
 
+    def make_commitment(self, wallet, input_utxos):
+        """The Taker default commitment function, which uses PoDLE.
+        Alternative commitment types should use a different commit type byte.
+        This will allow future upgrades to provide different style commitments
+        by subclassing Taker and changing the commit_type_byte; existing makers
+        will simply not accept this new type of commitment.
+        """
+        def priv_utxo_pairs_from_utxos(utxos):
+            priv_utxo_pairs = []
+            for k, v in utxos.iteritems():
+                addr = v['address']
+                priv = wallet.get_key_from_addr(addr)
+                priv_utxo_pairs.append((priv, k))
+            return priv_utxo_pairs
+        commit_type_byte = "P"
+        podle_data = None
+        tries = jm_single().config.getint("POLICY", "taker_utxo_retries")
+        priv_utxo_pairs = priv_utxo_pairs_from_utxos(input_utxos)
+        #For podle data format see: btc.podle.PoDLE.reveal()
+        podle_data = btc.generate_podle(priv_utxo_pairs, tries)
+        if not podle_data:
+            #We defer to a second round to try *all* utxos in wallet;
+            #this is because it's much cleaner to use the utxos involved
+            #in the transaction, about to be consumed, rather than use
+            #random utxos that will persist after.
+            priv_utxo_pairs = priv_utxo_pairs_from_utxos(wallet.unspent)
+            podle_data = btc.generate_podle(priv_utxo_pairs, tries)
+        if podle_data:
+            log.debug("Generated PoDLE: " + pprint.pformat(podle_data))
+            revelation = btc.PoDLE(u=podle_data['utxo'],P=podle_data['P'],
+                                   P2=podle_data['P2'],s=podle_data['sig'],
+                                   e=podle_data['e']).serialize_revelation()
+            return (commit_type_byte + podle_data["commit"], revelation)
+        else:
+            raise btc.PoDLEError("Failed to generate commitment for transaction.")
 
 # this stuff copied and slightly modified from pybitcointools
 def donation_address(cjtx):

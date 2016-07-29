@@ -305,6 +305,73 @@ def test_external_commitment_used(setup_podle):
     #Cleanup - remove the external commitments added
     btc.update_commitments(external_to_remove=ecs)
 
+def test_tx_commitments_used(setup_podle):
+    tries = jm_single().config.getint("POLICY","taker_utxo_retries")
+    #Don't want to wait too long, but must account for possible
+    #throttling with !auth
+    jm_single().maker_timeout_sec = 12
+    amount = 120000000
+    wallets = make_wallets(3,
+                        wallet_structures=[[1,2,1,0,0],[1,2,0,0,0],[2,2,1,0,0]],
+                        mean_amt=1)
+    #the sendpayment bot uses the last wallet in the list
+    wallet = wallets[2]['wallet']
+    yigen_procs = []
+    for i in range(2):
+        ygp = local_command([python_cmd, yg_cmd,\
+                             str(wallets[i]['seed'])], bg=True)
+        time.sleep(2)  #give it a chance
+        yigen_procs.append(ygp)
+
+    time.sleep(5)
+    destaddr = btc.privkey_to_address(
+            binascii.hexlify(os.urandom(32)),
+            magicbyte=get_p2pk_vbyte())
+    addr_valid, errormsg = validate_address(destaddr)
+    assert addr_valid, "Invalid destination address: " + destaddr + \
+           ", error message: " + errormsg
+
+    log.debug('starting sendpayment')
+
+    jm_single().bc_interface.sync_wallet(wallet)
+    log.debug("Here is the whole wallet: \n" + str(wallet.unspent))
+    #Trigger PING LAG sending artificially
+    joinmarket.irc.PING_INTERVAL = 3
+
+    mcs = [IRCMessageChannel(c) for c in get_irc_mchannels()]
+    mcc = MessageChannelCollection(mcs)
+    #add all utxo in mixdepth 0 to 'used' list of commitments,
+    utxos = wallet.get_utxos_by_mixdepth()[0]
+    for u, addrval in utxos.iteritems():
+        priv = wallet.get_key_from_addr(addrval['address'])
+        podle = btc.PoDLE(u, priv)
+        for i in range(tries):
+            #loop because we want to use up all retries of this utxo
+            commitment = podle.generate_podle(i)['commit']
+            btc.update_commitments(commitment=commitment)
+
+    #Now test a sendpayment from mixdepth 0 with all the depth 0 utxos
+    #used up, so that the other utxos in the wallet get used.
+    taker = sendpayment.SendPayment(mcc, wallet, destaddr, amount, 2,
+                                    5000, 3, 0, True,
+                                    weighted_order_choose)
+    try:
+        log.debug('starting message channels')
+        mcc.run()
+    finally:
+        if any(yigen_procs):
+            for ygp in yigen_procs:
+                #NB *GENTLE* shutdown is essential for
+                #test coverage reporting!
+                ygp.send_signal(signal.SIGINT)
+                ygp.wait()
+    #wait for block generation
+    time.sleep(5)
+    received = jm_single().bc_interface.get_received_by_addr(
+        [destaddr], None)['data'][0]['balance']
+    assert received == amount, "sendpayment failed - coins not arrived, " +\
+           "received: " + str(received)
+
 def test_external_commitments(setup_podle):
     """Add this generated commitment to the external list
     {txid:N:{'P':pubkey, 'reveal':{1:{'P2':P2,'s':s,'e':e}, 2:{..},..}}}
