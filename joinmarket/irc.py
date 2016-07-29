@@ -8,7 +8,7 @@ import threading
 import time
 import Queue
 
-from joinmarket.configure import get_config_irc_channel
+from joinmarket.configure import get_config_irc_channel, jm_single
 from joinmarket.message_channel import MessageChannel, CJPeerError, COMMAND_PREFIX
 from joinmarket.enc_wrapper import encrypt_encode, decode_decrypt
 from joinmarket.support import get_log, chunks
@@ -226,12 +226,16 @@ class IRCMessageChannel(MessageChannel):
     def _pubmsg(self, message):
         line = "PRIVMSG " + self.channel + " :" + message
         assert len(line) <= MAX_PRIVMSG_LEN
-        self.send_raw(line)
+        ob = False
+        if any([x in line for x in jm_single().ordername_list]):
+            ob = True
+        self.send_raw(line, ob)
 
     def _privmsg(self, nick, cmd, message):
         """Send a privmsg to an irc counterparty,
         using chunking as appropriate for long messages.
         """
+        ob = True if cmd in jm_single().ordername_list else False
         header = "PRIVMSG " + nick + " :"
         max_chunk_len = MAX_PRIVMSG_LEN - len(header) - len(cmd) - 4
         # 1 for command prefix 1 for space 2 for trailer
@@ -243,14 +247,14 @@ class IRCMessageChannel(MessageChannel):
             trailer = ' ~' if m == message_chunks[-1] else ' ;'
             if m == message_chunks[0]:
                 m = COMMAND_PREFIX + cmd + ' ' + m
-            self.send_raw(header + m + trailer)
+            self.send_raw(header + m + trailer, ob)
 
-    def send_raw(self, line):
+    def send_raw(self, line, ob=False):
         # Messages are queued and prioritised.
         # This is an addressing of github #300
         if line.startswith("PING") or line.startswith("PONG"):
             self.pingQ.put(line)
-        elif "relorder" in line or "absorder" in line:
+        elif ob:
                 self.obQ.put(line)
         else:
             self.throttleQ.put(line)
