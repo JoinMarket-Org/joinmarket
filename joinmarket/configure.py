@@ -169,9 +169,9 @@ tx_broadcast = self
 # random-maker = every peer on joinmarket has a chance of broadcasting, including yourself
 
 taker_utxo_retries = 1
-#number of retries allowed for a specific utxo, to prevent DOS/snooping.
-#Higher settings make DOS more difficult, but also prevent honest users
-#from retrying if an error occurs.
+# number of retries allowed for a specific utxo, to prevent DOS/snooping.
+# Lower settings make snooping more expensive, but also prevent honest users
+# from retrying if an error occurs.
 """
 
 
