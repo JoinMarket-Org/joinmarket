@@ -91,7 +91,8 @@ def jm_single():
 # FIXME: Add rpc_* options here in the future!
 required_options = {'BLOCKCHAIN': ['blockchain_source', 'network'],
                     'MESSAGING': ['host', 'channel', 'port'],
-                    'POLICY': ['absurd_fee_per_kb', 'taker_utxo_retries']}
+                    'POLICY': ['absurd_fee_per_kb', 'taker_utxo_retries',
+                               'taker_utxo_age']}
 
 defaultconfig = \
     """
@@ -168,10 +169,16 @@ tx_broadcast = self
 # not-self = never broadcast with your own ip
 # random-maker = every peer on joinmarket has a chance of broadcasting, including yourself
 
-taker_utxo_retries = 1
+#THE FOLLOWING SETTINGS ARE REQUIRED TO DEFEND AGAINST SNOOPERS.
+#DON'T ALTER THEM UNLESS YOU UNDERSTAND THE IMPLICATIONS.
+taker_utxo_retries = 3
 # number of retries allowed for a specific utxo, to prevent DOS/snooping.
 # Lower settings make snooping more expensive, but also prevent honest users
 # from retrying if an error occurs.
+
+taker_utxo_age = 5
+# number of confirmations required for the commitment utxo mentioned above.
+# this effectively rate-limits a snooper.
 """
 
 

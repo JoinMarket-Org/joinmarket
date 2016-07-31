@@ -109,11 +109,12 @@ class BlockchainInterface(object):
         pass
 
     @abc.abstractmethod
-    def query_utxo_set(self, txouts):
+    def query_utxo_set(self, txouts, includeconf=False):
         """
         takes a utxo or a list of utxos
         returns None if they are spend or unconfirmed
         otherwise returns value in satoshis, address and output script
+        optionally return the coin age in number of blocks
         """
         # address and output script contain the same information btw
 
@@ -356,7 +357,7 @@ class BlockrInterface(BlockchainInterface):
             return False
         return True
 
-    def query_utxo_set(self, txout):
+    def query_utxo_set(self, txout, includeconf=False):
         if not isinstance(txout, list):
             txout = [txout]
         txids = [h[:64] for h in txout]
@@ -381,10 +382,13 @@ class BlockrInterface(BlockchainInterface):
             if vout['is_spent'] == 1:
                 result.append(None)
             else:
-                result.append({'value': int(Decimal(vout['amount']) * Decimal(
+                result_dict = {'value': int(Decimal(vout['amount']) * Decimal(
                     '1e8')),
                                'address': vout['address'],
-                               'script': vout['extras']['script']})
+                               'script': vout['extras']['script']}
+                if includeconf:
+                    result_dict['confirms'] = int(d['confirmations'])
+                result.append(result_dict)
         return result
 
     def estimate_fee_per_kb(self, N):
@@ -786,7 +790,7 @@ class BitcoinCoreInterface(BlockchainInterface):
             return False
         return True
 
-    def query_utxo_set(self, txout):
+    def query_utxo_set(self, txout, includeconf=False):
         if not isinstance(txout, list):
             txout = [txout]
         result = []
@@ -795,10 +799,13 @@ class BitcoinCoreInterface(BlockchainInterface):
             if ret is None:
                 result.append(None)
             else:
-                result.append({'value': int(Decimal(str(ret['value'])) *
+                result_dict = {'value': int(Decimal(str(ret['value'])) *
                                             Decimal('1e8')),
                                'address': ret['scriptPubKey']['addresses'][0],
-                               'script': ret['scriptPubKey']['hex']})
+                               'script': ret['scriptPubKey']['hex']}
+                if includeconf:
+                    result_dict['confirms'] = int(ret['confirmations'])
+                result.append(result_dict)
         return result
 
     def estimate_fee_per_kb(self, N):

@@ -84,7 +84,24 @@ class CoinJoinTX(object):
         #storing the corresponding reveal/proof data for next step.
         self.commitment, self.reveal_commitment = self.commitment_creator(wallet,
                                                                        input_utxos)
-        self.msgchan.fill_orders(self.active_orders, self.cj_amount,
+        if not self.commitment:
+            log.debug("Cannot construct transaction, failed to generate "
+                      "commitment, shutting down.")
+            #Test only:
+            if jm_single().config.get(
+                "BLOCKCHAIN", "blockchain_source") == 'regtest':
+                raise btc.PoDLEError("For testing raising podle exception")
+            #The timeout/recovery code is designed to handle non-responsive
+            #counterparties, but this condition means that the current bot
+            #is not able to create transactions following its *own* rules,
+            #so shutting down is appropriate no matter what style
+            #of bot this is.
+            #These two settings shut down the timeout thread and avoid recovery.
+            self.all_responded = True
+            self.end_timeout_thread = True
+            self.msgchan.shutdown()
+        else:
+            self.msgchan.fill_orders(self.active_orders, self.cj_amount,
                                  self.kp.hex_pk(), self.commitment)
 
     def start_encryption(self, nick, maker_pk):
@@ -627,26 +644,46 @@ class Taker(OrderbookWatch):
         by subclassing Taker and changing the commit_type_byte; existing makers
         will simply not accept this new type of commitment.
         """
-        def priv_utxo_pairs_from_utxos(utxos):
+
+        def filter_by_coin_age(utxos, age):
+            log.debug("Starting filter with this set: ")
+            log.debug(str(utxos))
+            results = jm_single().bc_interface.query_utxo_set(utxos,
+                                                              includeconf=True)
+            newresults = []
+            log.debug("Got results: " + str(results))
+            for i, r in enumerate(results):
+                if r['confirms'] >= age:
+                    log.debug("Appending: " + str(utxos[i]))
+                    newresults.append(utxos[i])
+            return newresults
+
+        def priv_utxo_pairs_from_utxos(utxos, age):
             priv_utxo_pairs = []
-            for k, v in utxos.iteritems():
+            new_utxos = filter_by_coin_age(utxos.keys(), age)
+            new_utxos_dict = {k: v for k, v in utxos.items() if k in new_utxos}
+            for k, v in new_utxos_dict.iteritems():
                 addr = v['address']
                 priv = wallet.get_key_from_addr(addr)
                 priv_utxo_pairs.append((priv, k))
             return priv_utxo_pairs
+
         commit_type_byte = "P"
         podle_data = None
         tries = jm_single().config.getint("POLICY", "taker_utxo_retries")
-        priv_utxo_pairs = priv_utxo_pairs_from_utxos(input_utxos)
+        age = jm_single().config.getint("POLICY", "taker_utxo_age")
+        priv_utxo_pairs = priv_utxo_pairs_from_utxos(input_utxos, age)
         #For podle data format see: btc.podle.PoDLE.reveal()
-        podle_data = btc.generate_podle(priv_utxo_pairs, tries)
+        #In first round try, don't use external commitments
+        podle_data = btc.generate_podle(priv_utxo_pairs, tries, False)
         if not podle_data:
             #We defer to a second round to try *all* utxos in wallet;
             #this is because it's much cleaner to use the utxos involved
             #in the transaction, about to be consumed, rather than use
-            #random utxos that will persist after.
-            priv_utxo_pairs = priv_utxo_pairs_from_utxos(wallet.unspent)
-            podle_data = btc.generate_podle(priv_utxo_pairs, tries)
+            #random utxos that will persist after. At this step we also
+            #allow use of external utxos in the json file.
+            priv_utxo_pairs = priv_utxo_pairs_from_utxos(wallet.unspent, age)
+            podle_data = btc.generate_podle(priv_utxo_pairs, tries, True)
         if podle_data:
             log.debug("Generated PoDLE: " + pprint.pformat(podle_data))
             revelation = btc.PoDLE(u=podle_data['utxo'],P=podle_data['P'],
@@ -654,7 +691,7 @@ class Taker(OrderbookWatch):
                                    e=podle_data['e']).serialize_revelation()
             return (commit_type_byte + podle_data["commit"], revelation)
         else:
-            raise btc.PoDLEError("Failed to generate commitment for transaction.")
+            return (None, None)
 
 # this stuff copied and slightly modified from pybitcointools
 def donation_address(cjtx):

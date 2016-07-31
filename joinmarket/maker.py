@@ -101,12 +101,17 @@ class CoinJoinOrder(object):
             log.debug(
                 "PODLE verification failed; counterparty utxo is not verified.")
             return False
-        #finally, check that the proffered utxos are real,
-        #and corresponds to the pubkeys
-        res = jm_single().bc_interface.query_utxo_set([cr_dict['utxo']])
+        #finally, check that the proffered utxo is real, old enough,
+        #and corresponds to the pubkey
+        res = jm_single().bc_interface.query_utxo_set([cr_dict['utxo']],
+                                                      includeconf=True)
         if len(res) != 1:
             log.debug("authorizing utxo is not valid")
             return False
+        age = jm_single().config.getint("POLICY", "taker_utxo_age")
+        if res[0]['confirms'] < age:
+            log.debug("Invalid commitment utxo, not old enough: " + str(age))
+            return
         if res[0]['address'] != btc.pubkey_to_address(cr_dict['P'],
                                                          get_p2pk_vbyte()):
             log.debug("Invalid podle pubkey: " + str(cr_dict['P']))

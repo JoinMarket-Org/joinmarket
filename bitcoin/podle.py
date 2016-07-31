@@ -312,7 +312,7 @@ def update_commitments(commitment=None, external_to_remove=None,
     with open(PODLE_COMMIT_FILE, "wb") as f:
         f.write(json.dumps(to_write))
 
-def generate_podle(priv_utxo_pairs, tries=1):
+def generate_podle(priv_utxo_pairs, tries=1, allow_external=False):
     """Given a list of privkeys, try to generate a
     PoDLE which is not yet used more than tries times.
     This effectively means satisfying two criteria:
@@ -340,20 +340,21 @@ def generate_podle(priv_utxo_pairs, tries=1):
             #persist for future checks
             update_commitments(commitment=c['commit'])
             return c
-    for u, ec in external_commitments.iteritems():
-        #use as many as were provided in the file, up to a max of tries
-        m = min([len(ec['reveal'].keys()), tries])
-        for i in [str(x) for x in range(m)]:
-            p = PoDLE(u=u,P=ec['P'],P2=ec['reveal'][i]['P2'],
-                      s=ec['reveal'][i]['s'], e=ec['reveal'][i]['e'])
-            if p.get_commitment() not in used_commitments:
-                update_commitments(commitment=p.get_commitment())
-                return p.reveal()
-        #If none of the entries in the 'reveal' list for this external
-        #commitment were available, they've all been used up, so
-        #remove this entry
-        if m == len(ec['reveal'].keys()):
-            update_commitments(external_to_remove=u)
+    if allow_external:
+        for u, ec in external_commitments.iteritems():
+            #use as many as were provided in the file, up to a max of tries
+            m = min([len(ec['reveal'].keys()), tries])
+            for i in [str(x) for x in range(m)]:
+                p = PoDLE(u=u,P=ec['P'],P2=ec['reveal'][i]['P2'],
+                          s=ec['reveal'][i]['s'], e=ec['reveal'][i]['e'])
+                if p.get_commitment() not in used_commitments:
+                    update_commitments(commitment=p.get_commitment())
+                    return p.reveal()
+            #If none of the entries in the 'reveal' list for this external
+            #commitment were available, they've all been used up, so
+            #remove this entry
+            if m == len(ec['reveal'].keys()):
+                update_commitments(external_to_remove=u)
     #Failed to find any non-used valid commitment:
     return None
 

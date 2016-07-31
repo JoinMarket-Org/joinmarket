@@ -131,14 +131,9 @@ def test_failed_sendpayment(setup_podle, num_ygs, wallet_structures, mean_amt,
 
     #A significant delay is needed to wait for the yield generators to sync
     time.sleep(20)
-    if btc.secp_present:
-        destaddr = btc.privkey_to_address(
+    destaddr = btc.privkey_to_address(
             os.urandom(32),
             from_hex=False,
-            magicbyte=get_p2pk_vbyte())
-    else:
-        destaddr = btc.privkey_to_address(
-            os.urandom(32),
             magicbyte=get_p2pk_vbyte())
 
     addr_valid, errormsg = validate_address(destaddr)
@@ -305,17 +300,36 @@ def test_external_commitment_used(setup_podle):
     #Cleanup - remove the external commitments added
     btc.update_commitments(external_to_remove=ecs)
 
-def test_tx_commitments_used(setup_podle):
+@pytest.mark.parametrize(
+    "consume_tx, age_required, cmt_age",
+    [
+        (True, 9, 5),
+        (True, 9, 12),
+    ])
+def test_tx_commitments_used(setup_podle, consume_tx, age_required, cmt_age):
     tries = jm_single().config.getint("POLICY","taker_utxo_retries")
+    #remember and reset at the end
+    taker_utxo_age = jm_single().config.getint("POLICY", "taker_utxo_age")
+    jm_single().config.set("POLICY", "taker_utxo_age", str(age_required))
     #Don't want to wait too long, but must account for possible
     #throttling with !auth
     jm_single().maker_timeout_sec = 12
-    amount = 120000000
+    amount = 0
     wallets = make_wallets(3,
                         wallet_structures=[[1,2,1,0,0],[1,2,0,0,0],[2,2,1,0,0]],
                         mean_amt=1)
     #the sendpayment bot uses the last wallet in the list
     wallet = wallets[2]['wallet']
+
+    #make_wallets calls grab_coins which mines 1 block per individual payout,
+    #so the age of the coins depends on where they are in that list. The sendpayment
+    #is the last wallet in the list, and we choose the non-tx utxos which are in
+    #mixdepth 1 and 2 (2 and 1 utxos in each respectively). We filter for those
+    #that have sufficient age, so to get 1 which is old enough, it will be the oldest,
+    #which will have an age of 2 + 1 (the first utxo spent to that wallet).
+    #So if we need an age of 6, we need to mine 3 more blocks.
+    blocks_reqd = cmt_age - 3
+    jm_single().bc_interface.tick_forward_chain(blocks_reqd)
     yigen_procs = []
     for i in range(2):
         ygp = local_command([python_cmd, yg_cmd,\
@@ -340,15 +354,16 @@ def test_tx_commitments_used(setup_podle):
 
     mcs = [IRCMessageChannel(c) for c in get_irc_mchannels()]
     mcc = MessageChannelCollection(mcs)
-    #add all utxo in mixdepth 0 to 'used' list of commitments,
-    utxos = wallet.get_utxos_by_mixdepth()[0]
-    for u, addrval in utxos.iteritems():
-        priv = wallet.get_key_from_addr(addrval['address'])
-        podle = btc.PoDLE(u, priv)
-        for i in range(tries):
-            #loop because we want to use up all retries of this utxo
-            commitment = podle.generate_podle(i)['commit']
-            btc.update_commitments(commitment=commitment)
+    if consume_tx:
+        #add all utxo in mixdepth 0 to 'used' list of commitments,
+        utxos = wallet.get_utxos_by_mixdepth()[0]
+        for u, addrval in utxos.iteritems():
+            priv = wallet.get_key_from_addr(addrval['address'])
+            podle = btc.PoDLE(u, priv)
+            for i in range(tries):
+                #loop because we want to use up all retries of this utxo
+                commitment = podle.generate_podle(i)['commit']
+                btc.update_commitments(commitment=commitment)
 
     #Now test a sendpayment from mixdepth 0 with all the depth 0 utxos
     #used up, so that the other utxos in the wallet get used.
@@ -369,7 +384,11 @@ def test_tx_commitments_used(setup_podle):
     time.sleep(5)
     received = jm_single().bc_interface.get_received_by_addr(
         [destaddr], None)['data'][0]['balance']
-    assert received == amount, "sendpayment failed - coins not arrived, " +\
+    jm_single().config.set("POLICY", "taker_utxo_age", str(taker_utxo_age))
+    if cmt_age < age_required:
+        assert received == 0, "Coins arrived but shouldn't"
+    else:
+        assert received != 0, "sendpayment failed - coins not arrived, " +\
            "received: " + str(received)
 
 def test_external_commitments(setup_podle):
