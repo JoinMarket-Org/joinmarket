@@ -83,7 +83,8 @@ class CoinJoinTX(object):
         #Create commitment to fulfil anti-DOS requirement of makers,
         #storing the corresponding reveal/proof data for next step.
         self.commitment, self.reveal_commitment = self.commitment_creator(wallet,
-                                                                       input_utxos)
+                                                                       input_utxos,
+                                                                    self.cj_amount)
         if not self.commitment:
             log.debug("Cannot construct transaction, failed to generate "
                       "commitment, shutting down.")
@@ -637,7 +638,7 @@ class Taker(OrderbookWatch):
         with self.cjtx.timeout_thread_lock:
             self.cjtx.add_signature(nick, sig)
 
-    def make_commitment(self, wallet, input_utxos):
+    def make_commitment(self, wallet, input_utxos, cjamount):
         """The Taker default commitment function, which uses PoDLE.
         Alternative commitment types should use a different commit type byte.
         This will allow future upgrades to provide different style commitments
@@ -645,22 +646,18 @@ class Taker(OrderbookWatch):
         will simply not accept this new type of commitment.
         """
 
-        def filter_by_coin_age(utxos, age):
-            log.debug("Starting filter with this set: ")
-            log.debug(str(utxos))
+        def filter_by_coin_age_amt(utxos, age, amt):
             results = jm_single().bc_interface.query_utxo_set(utxos,
                                                               includeconf=True)
             newresults = []
-            log.debug("Got results: " + str(results))
             for i, r in enumerate(results):
-                if r['confirms'] >= age:
-                    log.debug("Appending: " + str(utxos[i]))
+                if r['confirms'] >= age and r['value'] >= amt:
                     newresults.append(utxos[i])
             return newresults
 
-        def priv_utxo_pairs_from_utxos(utxos, age):
+        def priv_utxo_pairs_from_utxos(utxos, age, amt):
             priv_utxo_pairs = []
-            new_utxos = filter_by_coin_age(utxos.keys(), age)
+            new_utxos = filter_by_coin_age_amt(utxos.keys(), age, amt)
             new_utxos_dict = {k: v for k, v in utxos.items() if k in new_utxos}
             for k, v in new_utxos_dict.iteritems():
                 addr = v['address']
@@ -672,7 +669,10 @@ class Taker(OrderbookWatch):
         podle_data = None
         tries = jm_single().config.getint("POLICY", "taker_utxo_retries")
         age = jm_single().config.getint("POLICY", "taker_utxo_age")
-        priv_utxo_pairs = priv_utxo_pairs_from_utxos(input_utxos, age)
+        #Minor rounding errors don't matter here
+        amt = int(cjamount * jm_single().config.getint(
+            "POLICY", "taker_utxo_amtpercent") / 100.0)
+        priv_utxo_pairs = priv_utxo_pairs_from_utxos(input_utxos, age, amt)
         #For podle data format see: btc.podle.PoDLE.reveal()
         #In first round try, don't use external commitments
         podle_data = btc.generate_podle(priv_utxo_pairs, tries, False)
@@ -682,7 +682,7 @@ class Taker(OrderbookWatch):
             #in the transaction, about to be consumed, rather than use
             #random utxos that will persist after. At this step we also
             #allow use of external utxos in the json file.
-            priv_utxo_pairs = priv_utxo_pairs_from_utxos(wallet.unspent, age)
+            priv_utxo_pairs = priv_utxo_pairs_from_utxos(wallet.unspent, age, amt)
             podle_data = btc.generate_podle(priv_utxo_pairs, tries, True)
         if podle_data:
             log.debug("Generated PoDLE: " + pprint.pformat(podle_data))

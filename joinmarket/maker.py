@@ -101,7 +101,7 @@ class CoinJoinOrder(object):
             log.debug(
                 "PODLE verification failed; counterparty utxo is not verified.")
             return False
-        #finally, check that the proffered utxo is real, old enough,
+        #finally, check that the proffered utxo is real, old enough, large enough,
         #and corresponds to the pubkey
         res = jm_single().bc_interface.query_utxo_set([cr_dict['utxo']],
                                                       includeconf=True)
@@ -110,7 +110,14 @@ class CoinJoinOrder(object):
             return False
         age = jm_single().config.getint("POLICY", "taker_utxo_age")
         if res[0]['confirms'] < age:
-            log.debug("Invalid commitment utxo, not old enough: " + str(age))
+            log.debug("Invalid commitment utxo, not old enough: " + str(
+                res[0]['confirms']))
+            return
+        reqd_amt = int(self.cj_amount * jm_single().config.getint(
+            "POLICY", "taker_utxo_amtpercent") / 100.0)
+        if res[0]['value'] < reqd_amt:
+            log.debug("Invalid commitment utxo, too small: " + str(
+                res[0]['value']))
             return
         if res[0]['address'] != btc.pubkey_to_address(cr_dict['P'],
                                                          get_p2pk_vbyte()):

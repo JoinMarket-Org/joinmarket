@@ -92,7 +92,7 @@ def jm_single():
 required_options = {'BLOCKCHAIN': ['blockchain_source', 'network'],
                     'MESSAGING': ['host', 'channel', 'port'],
                     'POLICY': ['absurd_fee_per_kb', 'taker_utxo_retries',
-                               'taker_utxo_age']}
+                               'taker_utxo_age', 'taker_utxo_amtpercent']}
 
 defaultconfig = \
     """
@@ -179,6 +179,11 @@ taker_utxo_retries = 3
 taker_utxo_age = 5
 # number of confirmations required for the commitment utxo mentioned above.
 # this effectively rate-limits a snooper.
+
+taker_utxo_amtpercent = 20
+# percentage of coinjoin amount that the commitment utxo must have
+# as a minimum BTC amount. Thus 20 means a 1BTC coinjoin requires the
+# utxo to be at least 0.2 btc.
 """
 
 
