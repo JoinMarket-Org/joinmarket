@@ -95,7 +95,7 @@ def add_external_commitments(utxo_datas):
 def main():
     parser = OptionParser(
         usage=
-        'usage: %prog [options] [txid:n] [WIF commpressed private key]',
+        'usage: %prog [options] [txid:n]',
         description="Adds one or more utxos to the list that can be used to make"
                     "commitments for anti-snooping. Note that this utxo, and its"
                     "PUBkey, will be revealed to makers, so consider the privacy"
@@ -107,8 +107,12 @@ def main():
                     
                     " 'Utxo' means unspent transaction output, it must not"
                     " already be spent."
-                    
-                    " BE CAREFUL about passing private keys on the command line!"
+
+                    " If you enter a utxo without the -r option, you will be "
+                    " prompted to enter the private key - it must be in "
+                    " WIF compressed format."
+
+                    " BE CAREFUL about handling private keys!"
                     " Don't do this in insecure environments."
                     
                     " Also note this ONLY works for standard (p2pkh) utxos."
@@ -151,11 +155,13 @@ def main():
                 if not u:
                     quit(parser, "Failed to parse utxo info: " + str(ul))
                 utxo_data.append((u, priv))
-    elif len(args) == 2:
-        u, priv = args[:2]
+    elif len(args) == 1:
+        u = args[0]
+        priv = raw_input(
+            'input private key for ' + u + ', in WIF compressed format : ')
         u, priv = get_utxo_info(','.join([u, priv]))
         if not u:
-            quit(parser, "Failed to parse utxo info: " + str(args[:2]))
+            quit(parser, "Failed to parse utxo info: " + u)
         utxo_data.append((u, priv))
     else:
         quit(parser, 'Invalid syntax')
