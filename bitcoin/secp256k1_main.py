@@ -125,92 +125,20 @@ def ecdsa_sign(msg, priv, usehex=True):
     if usehex:
         #arguments to raw sign must be consistently hex or bin
         hashed_msg = binascii.hexlify(hashed_msg)
-    dersig = ecdsa_raw_sign(hashed_msg, priv, usehex, rawmsg=True)
-    #see comments to legacy* functions
-    #also, note those functions only handles binary, not hex
+    sig = ecdsa_raw_sign(hashed_msg, priv, usehex, rawmsg=True)
+    #note those functions only handles binary, not hex
     if usehex:
-        dersig = binascii.unhexlify(dersig)
-    sig = legacy_ecdsa_sign_convert(dersig)
+        sig = binascii.unhexlify(sig)
     return base64.b64encode(sig)
 
 def ecdsa_verify(msg, sig, pub, usehex=True):
     hashed_msg = message_sig_hash(msg)
     sig = base64.b64decode(sig)
-    #see comments to legacy* functions
-    sig = legacy_ecdsa_verify_convert(sig)
     if usehex:
         #arguments to raw_verify must be consistently hex or bin
         hashed_msg = binascii.hexlify(hashed_msg)
         sig = binascii.hexlify(sig)
     return ecdsa_raw_verify(hashed_msg, pub, sig, usehex, rawmsg=True)
-
-#A sadly necessary hack until all joinmarket bots are running secp256k1 code.
-#pybitcointools *message* signatures (not transaction signatures) used an old signature
-#format, basically: [27+y%2] || 32 byte r || 32 byte s,
-#instead of DER. These two functions translate the new version into the old so that
-#counterparty bots can verify successfully.
-def legacy_ecdsa_sign_convert(dersig):
-    #note there is no sanity checking of DER format (e.g. leading length byte)
-    dersig = dersig[2:]  #e.g. 3045
-    rlen = ord(dersig[1])  #ignore leading 02
-    #length of r and s: ALWAYS <=33, USUALLY >=32 but can be shorter
-    if rlen > 33:
-        raise Exception("Incorrectly formatted DER sig:" + binascii.hexlify(
-            dersig))
-    if dersig[2] == '\x00':
-        r = dersig[3:2 + rlen]
-        ssig = dersig[2 + rlen:]
-    else:
-        r = dersig[2:2 + rlen]
-        ssig = dersig[2 + rlen:]
-
-    slen = ord(ssig[1])  #ignore leading 02
-    if slen > 33:
-        raise Exception("Incorrectly formatted DER sig:" + binascii.hexlify(
-            dersig))
-    if len(ssig) != 2 + slen:
-        raise Exception("Incorrectly formatted DER sig:" + binascii.hexlify(
-            dersig))
-    if ssig[2] == '\x00':
-        s = ssig[3:2 + slen]
-    else:
-        s = ssig[2:2 + slen]
-
-        #the legacy version requires padding of r and s to 32 bytes with leading zeros
-    r = '\x00' * (32 - len(r)) + r
-    s = '\x00' * (32 - len(s)) + s
-
-    #note: in the original pybitcointools implementation,
-    #verification ignored the leading byte (it's only needed for pubkey recovery)
-    #so we just ignore parity here.
-    return chr(27) + r + s
-
-def legacy_ecdsa_verify_convert(sig):
-    sig = sig[1:]  #ignore parity byte
-    r, s = sig[:32], sig[32:]
-    if not len(s) == 32:
-        #signature is invalid.
-        return False
-    #legacy code can produce high S. Need to reintroduce N ::cry::
-    N = 115792089237316195423570985008687907852837564279074904382605163141518161494337
-    s_int = decode(s, 256)
-    # note // is integer division operator in both 2.7 and 3
-    s_int = N - s_int if s_int > N // 2 else s_int  #enforce low S.
-
-    #on re-encoding, don't use the minlen parameter, because
-    #DER does not used fixed (32 byte) length values, so we
-    #don't prepend zero bytes to shorter numbers.
-    s = encode(s_int, 256)
-
-    #as above, remove any front zero padding from r.
-    r = encode(decode(r, 256), 256)
-
-    #canonicalize r and s
-    r, s = ['\x00' + x if ord(x[0]) > 127 else x for x in [r, s]]
-    rlen = chr(len(r))
-    slen = chr(len(s))
-    total_len = 2 + len(r) + 2 + len(s)
-    return '\x30' + chr(total_len) + '\x02' + rlen + r + '\x02' + slen + s
 
 #Use secp256k1 to handle all EC and ECDSA operations.
 #Data types: only hex and binary.
