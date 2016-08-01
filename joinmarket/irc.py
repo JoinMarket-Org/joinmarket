@@ -389,6 +389,7 @@ class IRCMessageChannel(MessageChannel):
         MessageChannel.__init__(self)
         self.give_up = True
         self.serverport = (configdata['host'], configdata['port'])
+        self.hostid = configdata['hostid']
         self.socks5 = configdata["socks5"]
         self.usessl = configdata["usessl"]
         self.socks5_host = configdata["socks5_host"]

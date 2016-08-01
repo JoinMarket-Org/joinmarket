@@ -109,6 +109,10 @@ rpc_password = password
 
 [MESSAGING]
 host = irc.cyberguerrilla.org
+#set this to the server name before TLD, e.g. "chat.freenode.net" -> freenode
+#use the CLEARNET server name even if using an onion. It should thus be the
+#same for every user. Examples: "cyberguerrilla", "freenode", "rizon" etc.
+hostid = cyberguerrilla
 channel = joinmarket-pit
 port = 6697
 usessl = true
@@ -162,34 +166,36 @@ absurd_fee_per_kb = 150000
 # spends from unconfirmed inputs, which may then get malleated or double-spent!
 # other counterparties are likely to reject unconfirmed inputs... don't do it.
 
-tx_broadcast = self
 #options: self, random-peer, not-self, random-maker
 # self = broadcast transaction with your own ip
 # random-peer = everyone who took part in the coinjoin has a chance of broadcasting
 # not-self = never broadcast with your own ip
 # random-maker = every peer on joinmarket has a chance of broadcasting, including yourself
+tx_broadcast = self
 
 #THE FOLLOWING SETTINGS ARE REQUIRED TO DEFEND AGAINST SNOOPERS.
 #DON'T ALTER THEM UNLESS YOU UNDERSTAND THE IMPLICATIONS.
-taker_utxo_retries = 3
+
 # number of retries allowed for a specific utxo, to prevent DOS/snooping.
 # Lower settings make snooping more expensive, but also prevent honest users
 # from retrying if an error occurs.
+taker_utxo_retries = 3
 
-taker_utxo_age = 5
 # number of confirmations required for the commitment utxo mentioned above.
 # this effectively rate-limits a snooper.
+taker_utxo_age = 5
 
-taker_utxo_amtpercent = 20
 # percentage of coinjoin amount that the commitment utxo must have
 # as a minimum BTC amount. Thus 20 means a 1BTC coinjoin requires the
 # utxo to be at least 0.2 btc.
+taker_utxo_amtpercent = 20
 """
 
 
 def get_irc_mchannels():
-    fields = [("host", str), ("port", int), ("channel", str), ("usessl", str),
-              ("socks5", str), ("socks5_host", str), ("socks5_port", str)]
+    fields = [("host", str), ("hostid", str), ("port", int), ("channel", str),
+              ("usessl", str), ("socks5", str), ("socks5_host", str),
+              ("socks5_port", str)]
     configdata = {}
     for f, t in fields:
         vals = jm_single().config.get("MESSAGING", f).split(",")

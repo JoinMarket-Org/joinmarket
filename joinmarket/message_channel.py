@@ -802,7 +802,7 @@ class MessageChannel(object):
         #to the signature; this prevents cross-channel replay but NOT
         #same-channel replay (in case of snooper after dropped connection
         #on this channel).
-        msg_to_be_signed = message + str(self.serverport)
+        msg_to_be_signed = message + str(self.hostid)
 
         sig = btc.ecdsa_sign(msg_to_be_signed, self.nick_priv)
         message += ' ' + self.nick_pubkey + ' ' + sig
@@ -841,7 +841,7 @@ class MessageChannel(object):
                     self.debug_on_pubmsg_cmd(nick, _chunks)
 
     def verify_nick(self, nick, sig, message):
-        if not btc.ecdsa_verify(message + str(self.serverport), sig[1], sig[0]):
+        if not btc.ecdsa_verify(message + str(self.hostid), sig[1], sig[0]):
             log.debug("nick signature verification failed, ignoring.")
             return False
         #check that nick matches hash of pubkey
