@@ -52,29 +52,12 @@ class AttributeDict(object):
         """
         return getattr(self, key)
 
-# global_singleton = AttributeDict(
-#         **{'log': log,
-#            'JM_VERSION': 3,
-#            'nickname': None,
-#            'DUST_THRESHOLD': 2730,
-#            'bc_interface': None,
-#            'ordername_list': ["absorder", "relorder"],
-#            'maker_timeout_sec': 30,
-#            'debug_file_lock': threading.Lock(),
-#            'debug_file_handle': None,
-#            'core_alert': None,
-#            'joinmarket_alert': None,
-#            'debug_silence': False,
-#            'config': SafeConfigParser(),
-#            'config_location': 'joinmarket.cfg'})
-
-# todo: same as above.  decide!!!
 global_singleton = AttributeDict()
 global_singleton.JM_VERSION = 5
 global_singleton.nickname = None
 global_singleton.DUST_THRESHOLD = 2730
 global_singleton.bc_interface = None
-global_singleton.ordername_list = ['absorder', 'relorder']
+global_singleton.ordername_list = ['absoffer', 'reloffer']
 global_singleton.maker_timeout_sec = 60
 global_singleton.debug_file_lock = threading.Lock()
 global_singleton.debug_file_handle = None

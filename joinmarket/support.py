@@ -189,9 +189,9 @@ def select_greediest(unspent, value):
 
 
 def calc_cj_fee(ordertype, cjfee, cj_amount):
-    if ordertype == 'absorder':
+    if ordertype == 'absoffer':
         real_cjfee = int(cjfee)
-    elif ordertype == 'relorder':
+    elif ordertype == 'reloffer':
         real_cjfee = int((Decimal(cjfee) * Decimal(cj_amount)).quantize(Decimal(
             1)))
     else:
@@ -322,7 +322,7 @@ def choose_sweep_orders(db,
     i.e. sweep an entire group of utxos
 
     solve for cjamount when mychange = 0
-    for an order with many makers, a mixture of absorder and relorder
+    for an order with many makers, a mixture of absoffer and reloffer
     mychange = totalin - cjamount - total_txfee - sum(absfee) - sum(relfee*cjamount)
     => 0 = totalin - mytxfee - sum(absfee) - cjamount*(1 + sum(relfee))
     => cjamount = (totalin - mytxfee - sum(absfee)) / (1 + sum(relfee))
@@ -338,9 +338,9 @@ def choose_sweep_orders(db,
         sumtxfee_contribution = 0
         for order in ordercombo:
             sumtxfee_contribution += order['txfee']
-            if order['ordertype'] == 'absorder':
+            if order['ordertype'] == 'absoffer':
                 sumabsfee += int(order['cjfee'])
-            elif order['ordertype'] == 'relorder':
+            elif order['ordertype'] == 'reloffer':
                 sumrelfee += Decimal(order['cjfee'])
             else:
                 raise RuntimeError('unknown order type: {}'.format(order[

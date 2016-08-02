@@ -170,9 +170,9 @@ if output_size_min != jm_single().DUST_THRESHOLD:
 
 def sanity_check(offers):
     for offer in offers:
-        if offer['ordertype'] == 'absorder':
+        if offer['ordertype'] == 'absoffer':
             assert isinstance(offer['cjfee'], int)
-        elif offer['ordertype'] == 'relorder':
+        elif offer['ordertype'] == 'reloffer':
             assert isinstance(offer['cjfee'], int) or isinstance(offer['cjfee'],
                                                                  float)
         assert offer['maxsize'] > 0
@@ -185,9 +185,9 @@ def sanity_check(offers):
         assert (isinstance(offer['maxsize'], int) or isinstance(offer['maxsize'], long))
         assert isinstance(offer['txfee'], int)
         assert offer['minsize'] >= offer_low
-        if offer['ordertype'] == 'absorder':
+        if offer['ordertype'] == 'absoffer':
             profit_max = offer['cjfee'] - offer['txfee']
-        elif offer['ordertype'] == 'relorder':
+        elif offer['ordertype'] == 'reloffer':
             profit_min = int(float(offer['cjfee']) *
                              offer['minsize']) - offer['txfee']
             profit_max = int(float(offer['cjfee']) *
@@ -199,7 +199,7 @@ def sanity_check(offers):
 def offer_data_chart(offers):
     has_rel = False
     for offer in offers:
-        if offer['ordertype'] == 'relorder':
+        if offer['ordertype'] == 'reloffer':
             has_rel = True
     offer_display = []
     header = 'oid'.rjust(4)
@@ -219,14 +219,14 @@ def offer_data_chart(offers):
     offer_display.append(header)
     for offer in offers:
         oid = str(offer['oid'])
-        if offer['ordertype'] == 'absorder':
+        if offer['ordertype'] == 'absoffer':
             ot = 'abs'
             cjfee = str(offer['cjfee'])
             minrev = '-'
             maxrev = offer['cjfee']
             minprof = '-'
             maxprof = int(maxrev - offer['txfee'])
-        elif offer['ordertype'] == 'relorder':
+        elif offer['ordertype'] == 'reloffer':
             ot = 'rel'
             cjfee = str('%.8f' % (offer['cjfee'] * 100))
             minrev = str(int(offer['cjfee'] * offer['minsize']))
@@ -363,9 +363,9 @@ def create_oscillator_offers(largest_mixdepth_size, sorted_mix_balance):
             cjfee = offer['price_ceiling']
         assert offer['type'] in ('absolute', 'relative')
         if offer['type'] == 'absolute':
-            ordertype = 'absorder'
+            ordertype = 'absoffer'
         elif offer['type'] == 'relative':
-            ordertype = 'relorder'
+            ordertype = 'reloffer'
             cjfee = float('%.10f' % (cjfee / 1e10))
         oid += 1
         offerx = {'oid': oid,

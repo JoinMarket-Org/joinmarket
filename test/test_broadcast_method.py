@@ -108,7 +108,7 @@ def test_broadcast_random_maker(setup_tx_notify):
     for m in makers:
         cjtx.db.execute(
             'INSERT INTO orderbook VALUES(?, ?, ?, ?, ?, ?, ?);',
-            (m, 0, 'absorder', 0, 2100000000000001, 1000, 1000))
+            (m, 0, 'absoffer', 0, 2100000000000001, 1000, 1000))
     msgchan_pushtx_count[0] = dict(zip(makers, [0]*len(makers)))
     N = 1000
     for i in xrange(N):

@@ -66,18 +66,18 @@ min_output_size = random.randrange(15000, 300000)  # varied
 #min_output_size = 15000 
 #min_output_size = jm_single().DUST_THRESHOLD # 546 satoshis
 
-# minimum profit you require for a transaction (exact absorders for dust exempt)
+# minimum profit you require for a transaction (exact absoffers for dust exempt)
 profit_req_per_transaction = 1
 
 # You can override the above autogenerate options for maximum customization
 override_offers = None  # comment this line if using below
 """
 override_offers = [
-    {'ordertype': 'absorder', 'oid': 0, 'minsize': 0,     'maxsize': 100000000,   'cjfee': 0,      'txfee': 2000}, 
-    {'ordertype': 'absorder', 'oid': 1, 'minsize': 0,     'maxsize': 1500000000,  'cjfee': 300000, 'txfee': 2000}, 
-    {'ordertype': 'relorder', 'oid': 2, 'minsize': 15000, 'maxsize': 100000000,   'cjfee': 0.0001, 'txfee': 2000},
-    {'ordertype': 'relorder', 'oid': 3, 'minsize': 15000, 'maxsize': 1000000000,  'cjfee': 0.0002, 'txfee': 2000},
-    {'ordertype': 'relorder', 'oid': 4, 'minsize': 15000, 'maxsize': 2500000000,  'cjfee': 0.0003, 'txfee': 2000},
+    {'ordertype': 'absoffer', 'oid': 0, 'minsize': 0,     'maxsize': 100000000,   'cjfee': 0,      'txfee': 2000},
+    {'ordertype': 'absoffer', 'oid': 1, 'minsize': 0,     'maxsize': 1500000000,  'cjfee': 300000, 'txfee': 2000},
+    {'ordertype': 'reloffer', 'oid': 2, 'minsize': 15000, 'maxsize': 100000000,   'cjfee': 0.0001, 'txfee': 2000},
+    {'ordertype': 'reloffer', 'oid': 3, 'minsize': 15000, 'maxsize': 1000000000,  'cjfee': 0.0002, 'txfee': 2000},
+    {'ordertype': 'reloffer', 'oid': 4, 'minsize': 15000, 'maxsize': 2500000000,  'cjfee': 0.0003, 'txfee': 2000},
     ]
 """
 
@@ -177,10 +177,10 @@ class YieldGenerator(Maker):
                 o) for o in override_offers]))
             # make sure custom offers dont create a negative net
             for offer in override_offers:
-                if offer['ordertype'] == 'absorder':
+                if offer['ordertype'] == 'absoffer':
                     profit = offer['cjfee']
                     needed = 'make txfee be less then the cjfee'
-                elif offer['ordertype'] == 'relorder':
+                elif offer['ordertype'] == 'reloffer':
                     profit = calc_cj_fee(offer['ordertype'], offer['cjfee'],
                                          offer['minsize'])
                     if float(offer['cjfee']) > 0:
@@ -313,16 +313,16 @@ class YieldGenerator(Maker):
         offers = []
         oid = 0
 
-        # create absorders for mixdepth dust
+        # create absoffers for mixdepth dust
         offer_levels = []
         for m in sorted_mix_balance:
             if m[1] == 0:
                 continue
             #elif False: # disabled
-            #elif m[1] <= 2e8:  # absorder all mixdepths less then
+            #elif m[1] <= 2e8:  # absoffer all mixdepths less then
             elif m[1] <= offer_lowx:
                 offer = {'oid': oid,
-                         'ordertype': 'absorder',
+                         'ordertype': 'absoffer',
                          'minsize': m[1],
                          'maxsize': m[1],
                          'txfee': 0,
@@ -343,17 +343,17 @@ class YieldGenerator(Maker):
             elif cjfee < 0:
                 sys.exit('negative fee not supported here')
             if min_needed <= lower:
-                # create a regular relorder
+                # create a regular reloffer
                 offer = {'oid': oid,
-                         'ordertype': 'relorder',
+                         'ordertype': 'reloffer',
                          'minsize': lower,
                          'maxsize': upper,
                          'txfee': txfee,
                          'cjfee': cjfee}
             elif min_needed > lower and min_needed < upper:
-                # create two offers. An absolute for lower bound need, and relorder for the rest
+                # create two offers. An absolute for lower bound need, and reloffer for the rest
                 offer = {'oid': oid,
-                         'ordertype': 'absorder',
+                         'ordertype': 'absoffer',
                          'minsize': lower,
                          'maxsize': min_needed - 1,
                          'txfee': txfee,
@@ -361,7 +361,7 @@ class YieldGenerator(Maker):
                 oid += 1
                 offers.append(offer)
                 offer = {'oid': oid,
-                         'ordertype': 'relorder',
+                         'ordertype': 'reloffer',
                          'minsize': min_needed,
                          'maxsize': upper,
                          'txfee': txfee,
@@ -369,12 +369,12 @@ class YieldGenerator(Maker):
             elif min_needed >= upper:
                 # just create an absolute offer
                 offer = {'oid': oid,
-                         'ordertype': 'absorder',
+                         'ordertype': 'absoffer',
                          'minsize': lower,
                          'maxsize': upper,
                          'txfee': txfee,
                          'cjfee': profit_req_per_transaction + txfee}
-                # todo: combine neighboring absorders into a single one
+                # todo: combine neighboring absoffers into a single one
             oid += 1
             offers.append(offer)
 
@@ -388,15 +388,15 @@ class YieldGenerator(Maker):
         deluxe_offer_display.append(header)
         for o in offers:
             line = str(o['oid']).rjust(5)
-            if o['ordertype'] == 'absorder':
+            if o['ordertype'] == 'absoffer':
                 line += 'abs'.rjust(7)
-            elif o['ordertype'] == 'relorder':
+            elif o['ordertype'] == 'reloffer':
                 line += 'rel'.rjust(7)
             line += str(o['minsize'] / 1e8).rjust(15)
             line += str(o['maxsize'] / 1e8).rjust(15)
-            if o['ordertype'] == 'absorder':
+            if o['ordertype'] == 'absoffer':
                 line += str(o['cjfee']).rjust(22)
-            elif o['ordertype'] == 'relorder':
+            elif o['ordertype'] == 'reloffer':
                 line += str(int(float(o['cjfee']) * int(o['minsize']))).rjust(
                     22)
                 line += str(int(float(o['cjfee']) * int(o['maxsize']))).rjust(

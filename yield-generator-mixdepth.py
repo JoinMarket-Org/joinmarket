@@ -117,7 +117,7 @@ class YieldGenerator(Maker):
             #the maker class reads specific keys from the dict, but others
             # are allowed in there and will be ignored
             order = {'oid': oid + 1,
-                     'ordertype': 'relorder',
+                     'ordertype': 'reloffer',
                      'minsize': max(mins - jm_single().DUST_THRESHOLD,
                                     jm_single().DUST_THRESHOLD) + 1,
                      'maxsize': max(balance - max(jm_single().DUST_THRESHOLD, txfee),
@@ -131,12 +131,12 @@ class YieldGenerator(Maker):
         absorder_size = min(minsize, sorted_mix_balance[0][1])
         if absorder_size != 0:
             lowest_cjfee = thecjfee[min(oid, len(thecjfee) - 1)]
-            absorder_fee = calc_cj_fee('relorder', lowest_cjfee, minsize)
-            log.debug('absorder fee = ' + str(absorder_fee) + ' uses cjfee=' +
+            absorder_fee = calc_cj_fee('reloffer', lowest_cjfee, minsize)
+            log.debug('absoffer fee = ' + str(absorder_fee) + ' uses cjfee=' +
                       str(lowest_cjfee))
-            #the absorder is always oid=0
+            #the absoffer is always oid=0
             order = {'oid': 0,
-                     'ordertype': 'absorder',
+                     'ordertype': 'absoffer',
                      'minsize': jm_single().DUST_THRESHOLD + 1,
                      'maxsize': absorder_size - jm_single().DUST_THRESHOLD,
                      'txfee': txfee,
@@ -203,7 +203,7 @@ class YieldGenerator(Maker):
         self.tx_unconfirm_timestamp[cjorder.cj_addr] = int(time.time())
         '''
 		case 0
-		the absorder will basically never get changed, unless there are no utxos left, when neworders==[]
+		the absoffer will basically never get changed, unless there are no utxos left, when neworders==[]
 		case 1
 		a single coin is split into two coins across levels
 		must announce a new order, plus modify the old order
@@ -226,8 +226,8 @@ class YieldGenerator(Maker):
         cancel_orders = []
         ann_orders = []
 
-        neworders = [o for o in myorders if o['ordertype'] == 'relorder']
-        oldorders = [o for o in oldorderlist if o['ordertype'] == 'relorder']
+        neworders = [o for o in myorders if o['ordertype'] == 'reloffer']
+        oldorders = [o for o in oldorderlist if o['ordertype'] == 'reloffer']
         #new_setdiff_old = The relative complement of `new` in `old` = members in `new` which are not in `old`
         new_setdiff_old = [o for o in neworders if o not in oldorders]
         old_setdiff_new = [o for o in oldorders if o not in neworders]
@@ -249,11 +249,11 @@ class YieldGenerator(Maker):
                              for o in old_setdiff_new
                              if o['oid'] not in ann_oids]
 
-        #check if the absorder has changed, or if it needs to be newly announced
-        new_abs = [o for o in myorders if o['ordertype'] == 'absorder']
-        old_abs = [o for o in oldorderlist if o['ordertype'] == 'absorder']
+        #check if the absoffer has changed, or if it needs to be newly announced
+        new_abs = [o for o in myorders if o['ordertype'] == 'absoffer']
+        old_abs = [o for o in oldorderlist if o['ordertype'] == 'absoffer']
         if len(new_abs) > len(old_abs):
-            #announce an absorder where there wasnt one before
+            #announce an absoffer where there wasnt one before
             ann_orders = [new_abs[0]] + ann_orders
         elif len(new_abs) == len(old_abs) and len(old_abs) > 0:
             #maxsize is the only thing that changes, except cjfee but that changes at the same time

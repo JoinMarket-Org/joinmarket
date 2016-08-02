@@ -112,14 +112,14 @@ def do_nothing(arg, order, btc_unit, rel_unit):
 
 
 def ordertype_display(ordertype, order, btc_unit, rel_unit):
-    ordertypes = {'absorder': 'Absolute Fee', 'relorder': 'Relative Fee'}
+    ordertypes = {'absoffer': 'Absolute Fee', 'reloffer': 'Relative Fee'}
     return ordertypes[ordertype]
 
 
 def cjfee_display(cjfee, order, btc_unit, rel_unit):
-    if order['ordertype'] == 'absorder':
+    if order['ordertype'] == 'absoffer':
         return satoshi_to_unit(cjfee, order, btc_unit, rel_unit)
-    elif order['ordertype'] == 'relorder':
+    elif order['ordertype'] == 'reloffer':
         return str(float(cjfee) * rel_unit_to_factor[rel_unit]) + rel_unit
 
 
@@ -144,7 +144,7 @@ def create_orderbook_table(db, btc_unit, rel_unit):
                           ('minsize', satoshi_to_unit),
                           ('maxsize', satoshi_to_unit))
 
-    # somewhat complex sorting to sort by cjfee but with absorders on top
+    # somewhat complex sorting to sort by cjfee but with absoffers on top
 
     def orderby_cmp(x, y):
         if x['ordertype'] == y['ordertype']:
@@ -211,7 +211,7 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
             o = dict(row)
             if 'cjfee' in o:
                 o['cjfee'] = int(o['cjfee']) if o[
-                                                    'ordertype'] == 'absorder' else float(
+                                                    'ordertype'] == 'absoffer' else float(
                         o['cjfee'])
             result.append(o)
         return result

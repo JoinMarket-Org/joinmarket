@@ -357,7 +357,7 @@ class Maker(CoinJoinerPeer):
 		for utxo, addrvalue in self.wallet.unspent.iteritems():
 			total_value += addrvalue['value']
 
-		order = {'oid': 0, 'ordertype': 'relorder', 'minsize': 0,
+		order = {'oid': 0, 'ordertype': 'reloffer', 'minsize': 0,
 			'maxsize': total_value, 'txfee': 10000, 'cjfee': '0.002'}
 		return [order]
 		"""
@@ -366,7 +366,7 @@ class Maker(CoinJoinerPeer):
         orderlist = []
         for utxo, addrvalue in self.wallet.unspent.iteritems():
             order = {'oid': self.get_next_oid(),
-                     'ordertype': 'absorder',
+                     'ordertype': 'absoffer',
                      'minsize': 12000,
                      'maxsize': addrvalue['value'],
                      'txfee': 10000,
@@ -417,7 +417,7 @@ class Maker(CoinJoinerPeer):
             addr = btc.script_to_address(out['script'], get_p2pk_vbyte())
             if addr == cjorder.change_addr:
                 neworder = {'oid': self.get_next_oid(),
-                            'ordertype': 'absorder',
+                            'ordertype': 'absoffer',
                             'minsize': 12000,
                             'maxsize': out['value'],
                             'txfee': 10000,
@@ -426,7 +426,7 @@ class Maker(CoinJoinerPeer):
                 to_announce.append(neworder)
             if addr == cjorder.cj_addr:
                 neworder = {'oid': self.get_next_oid(),
-                            'ordertype': 'absorder',
+                            'ordertype': 'absoffer',
                             'minsize': 12000,
                             'maxsize': out['value'],
                             'txfee': 10000,

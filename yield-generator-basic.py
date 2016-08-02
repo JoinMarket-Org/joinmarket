@@ -21,7 +21,7 @@ from joinmarket import get_irc_mchannels
 txfee = 1000
 cjfee_a = 200
 cjfee_r = '0.002'
-ordertype = 'relorder'
+ordertype = 'reloffer'
 nickserv_password = ''
 minsize = 100000
 mix_levels = 5
@@ -77,9 +77,9 @@ class YieldGenerator(Maker):
         # print mix_balance
         max_mix = max(mix_balance, key=mix_balance.get)
         f = '0'
-        if ordertype == 'relorder':
+        if ordertype == 'reloffer':
             f = cjfee_r
-        elif ordertype == 'absorder':
+        elif ordertype == 'absoffer':
             f = str(txfee + cjfee_a)
         order = {'oid': 0,
                  'ordertype': ordertype,
@@ -167,7 +167,7 @@ def main():
 
     parser = OptionParser(usage='usage: %prog [options] [wallet file]')
     parser.add_option('-o', '--ordertype', action='store', type='string', dest='ordertype', default=ordertype,
-                      help='type of order; can be either relorder or absorder')
+                      help='type of order; can be either reloffer or absoffer')
     parser.add_option('-t', '--txfee', action='store', type='int', dest='txfee', default=txfee,
                       help='minimum miner fee in satoshis')
     parser.add_option('-c', '--cjfee', action='store', type='string', dest='cjfee', default='',
@@ -185,17 +185,17 @@ def main():
     seed = args[0]
     ordertype = options.ordertype
     txfee = options.txfee
-    if ordertype == 'relorder':
+    if ordertype == 'reloffer':
         if options.cjfee != '':
             cjfee_r = options.cjfee
         # minimum size is such that you always net profit at least 20% of the miner fee
         minsize = max(int(1.2 * txfee / float(cjfee_r)), options.minsize)
-    elif ordertype == 'absorder':
+    elif ordertype == 'absoffer':
         if options.cjfee != '':
             cjfee_a = int(options.cjfee)
         minsize = options.minsize
     else:
-        parser.error('You specified an incorrect order type which can be either relorder or absorder')
+        parser.error('You specified an incorrect order type which can be either reloffer or absoffer')
         sys.exit(0)
     nickserv_password = options.password
     mix_levels = options.mixlevels

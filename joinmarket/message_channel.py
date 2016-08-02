@@ -11,8 +11,8 @@ NICK_HASH_LENGTH = 10
 NICK_MAX_ENCODED = 14 #comes from base58 expansion; recalculate if above changes
 
 encrypted_commands = ["auth", "ioauth", "tx", "sig"]
-plaintext_commands = ["fill", "error", "pubkey", "orderbook", "relorder",
-                      "absorder", "push"]
+plaintext_commands = ["fill", "error", "pubkey", "orderbook", "push"]
+plaintext_commands += jm_single().ordername_list
 
 log = get_log()
 
@@ -40,7 +40,7 @@ class MessageChannelCollection(object):
     although bear in mind they need not be the same for
     both sides of the conversation.
     In the current joinmarket protocol, this "lock" 
-    is set at the time of the !relorder (etc) privmsg or
+    is set at the time of the !reloffer (etc) privmsg or
     pubmsg from the maker.
     Note that MessageChannel implementations must support
     asynchronous messaging (adding to Queue.Queue objects,
