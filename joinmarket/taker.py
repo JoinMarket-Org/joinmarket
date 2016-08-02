@@ -87,7 +87,9 @@ class CoinJoinTX(object):
                                                                     self.cj_amount)
         if not self.commitment:
             log.debug("Cannot construct transaction, failed to generate "
-                      "commitment, shutting down.")
+                      "commitment, shutting down. Please read commitments_debug.txt"
+                      "for some information on why this is, and what can be "
+                      "done to remedy it.")
             #Test only:
             if jm_single().config.get(
                 "BLOCKCHAIN", "blockchain_source") == 'regtest':
@@ -609,6 +611,11 @@ class Taker(OrderbookWatch):
                  choose_orders_recover=None
                  ):
         self.cjtx = None
+        #needed during commitment preparation, self.cjtx.cj_amount
+        #will be the amount after CoinJoinTx.__init__() completes.
+        #(and same for self.cjtx.wallet)
+        self.proposed_cj_amount = cj_amount
+        self.proposed_wallet = wallet
         self.cjtx = CoinJoinTX(
                 self.msgchan, wallet, self.db, cj_amount, orders,
                 input_utxos, my_cj_addr, my_change_addr,
@@ -644,26 +651,42 @@ class Taker(OrderbookWatch):
         This will allow future upgrades to provide different style commitments
         by subclassing Taker and changing the commit_type_byte; existing makers
         will simply not accept this new type of commitment.
+        In case of success, return the commitment and its opening.
+        In case of failure returns (None, None) and constructs a detailed
+        log for the user to read and discern the reason.
         """
 
         def filter_by_coin_age_amt(utxos, age, amt):
             results = jm_single().bc_interface.query_utxo_set(utxos,
                                                               includeconf=True)
             newresults = []
+            too_old = []
+            too_small = []
             for i, r in enumerate(results):
-                if r['confirms'] >= age and r['value'] >= amt:
+                valid_age = r['confirms'] >= age
+                valid_amt = r['value'] >= amt
+                if not valid_age:
+                    too_old.append(utxos[i])
+                if not valid_amt:
+                    too_small.append(utxos[i])
+                if valid_age and valid_amt:
                     newresults.append(utxos[i])
-            return newresults
+
+            return newresults, too_old, too_small
 
         def priv_utxo_pairs_from_utxos(utxos, age, amt):
+            #returns pairs list of (priv, utxo) for each valid utxo;
+            #also returns lists "too_old" and "too_small" for any
+            #utxos that did not satisfy the criteria for debugging.
             priv_utxo_pairs = []
-            new_utxos = filter_by_coin_age_amt(utxos.keys(), age, amt)
+            new_utxos, too_old, too_small = filter_by_coin_age_amt(
+                utxos.keys(), age, amt)
             new_utxos_dict = {k: v for k, v in utxos.items() if k in new_utxos}
             for k, v in new_utxos_dict.iteritems():
                 addr = v['address']
                 priv = wallet.get_key_from_addr(addr)
                 priv_utxo_pairs.append((priv, k))
-            return priv_utxo_pairs
+            return priv_utxo_pairs, too_old, too_small
 
         commit_type_byte = "P"
         podle_data = None
@@ -672,7 +695,10 @@ class Taker(OrderbookWatch):
         #Minor rounding errors don't matter here
         amt = int(cjamount * jm_single().config.getint(
             "POLICY", "taker_utxo_amtpercent") / 100.0)
-        priv_utxo_pairs = priv_utxo_pairs_from_utxos(input_utxos, age, amt)
+        priv_utxo_pairs, to, ts = priv_utxo_pairs_from_utxos(input_utxos, age, amt)
+        #Note that we ignore the "too old" and "too small" lists in the first
+        #pass through, because the same utxos appear in the whole-wallet check.
+
         #For podle data format see: btc.podle.PoDLE.reveal()
         #In first round try, don't use external commitments
         podle_data = btc.generate_podle(priv_utxo_pairs, tries, False)
@@ -682,7 +708,8 @@ class Taker(OrderbookWatch):
             #in the transaction, about to be consumed, rather than use
             #random utxos that will persist after. At this step we also
             #allow use of external utxos in the json file.
-            priv_utxo_pairs = priv_utxo_pairs_from_utxos(wallet.unspent, age, amt)
+            priv_utxo_pairs, to, ts = priv_utxo_pairs_from_utxos(wallet.unspent,
+                                                                 age, amt)
             podle_data = btc.generate_podle(priv_utxo_pairs, tries, True)
         if podle_data:
             log.debug("Generated PoDLE: " + pprint.pformat(podle_data))
@@ -691,6 +718,54 @@ class Taker(OrderbookWatch):
                                    e=podle_data['e']).serialize_revelation()
             return (commit_type_byte + podle_data["commit"], revelation)
         else:
+            #we know that priv_utxo_pairs all passed age and size tests, so
+            #they must have failed the retries test. Summarize this info
+            #and publish to commitments_debug.txt
+            with open("commitments_debug.txt", "wb") as f:
+                f.write("THIS IS A TEMPORARY FILE FOR DEBUGGING; "
+                            "IT CAN BE SAFELY DELETED ANY TIME.\n")
+                f.write("***\n")
+                f.write("1: Utxos that passed age and size limits, but have "
+                            "been used too many times (see taker_utxo_retries "
+                            "in the config):\n")
+                if len(priv_utxo_pairs) == 0:
+                    f.write("None\n")
+                else:
+                    for p, u in priv_utxo_pairs:
+                        f.write(str(u) + "\n")
+                f.write("2: Utxos that have less than " + jm_single().config.get(
+                    "POLICY", "taker_utxo_age") + " confirmations:\n")
+                if len(to) == 0:
+                    f.write("None\n")
+                else:
+                    for t in to:
+                        f.write(str(t) + "\n")
+                f.write("3: Utxos that were not at least " + \
+                        jm_single().config.get(
+                            "POLICY", "taker_utxo_amtpercent") + "% of the "
+                        "size of the coinjoin amount " + str(
+                            self.proposed_cj_amount) + "\n")
+                if len(ts) == 0:
+                    f.write("None\n")
+                else:
+                    for t in ts:
+                        f.write(str(t) + "\n")
+                f.write('***\n')
+                f.write("Utxos that appeared in item 1 cannot be used again.\n")
+                f.write("Utxos only in item 2 can be used by waiting for more "
+                        "confirmations, (set by the value of taker_utxo_age).\n")
+                f.write("Utxos only in item 3 are not big enough for this "
+                        "coinjoin transaction, set by the value "
+                        "of taker_utxo_amtpercent.\n")
+                f.write("If you cannot source a utxo from your wallet according "
+                        "to these rules, use the tool add-utxo.py to source a "
+                        "utxo external to your joinmarket wallet. Read the help "
+                        "with 'python add-utxo.py --help'\n\n")
+                f.write("You can also reset the rules in the joinmarket.cfg "
+                        "file, but this is generally inadvisable.\n")
+                f.write("***\nFor reference, here are the utxos in your wallet:\n")
+                f.write("\n" + str(self.proposed_wallet.unspent))
+
             return (None, None)
 
 # this stuff copied and slightly modified from pybitcointools

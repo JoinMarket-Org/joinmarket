@@ -249,6 +249,13 @@ def main():
                       dest='mixdepth',
                       help='mixing depth to spend from, default=0',
                       default=0)
+    parser.add_option('-a',
+                          '--amtmixdepths',
+                          action='store',
+                          type='int',
+                          dest='amtmixdepths',
+                          help='number of mixdepths in wallet, default 5',
+                          default=5)
     parser.add_option('-g',
                       '--gap-limit',
                       type="int",
@@ -306,7 +313,7 @@ def main():
     log.debug('starting sendpayment')
 
     if not options.userpcwallet:
-        wallet = Wallet(wallet_name, options.mixdepth + 1, options.gaplimit)
+        wallet = Wallet(wallet_name, options.amtmixdepths, options.gaplimit)
     else:
         wallet = BitcoinCoreWallet(fromaccount=wallet_name)
     jm_single().bc_interface.sync_wallet(wallet)
