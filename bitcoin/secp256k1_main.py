@@ -285,12 +285,19 @@ def ecdsa_raw_verify(msg, pub, sig, usehex, rawmsg=False):
     If rawmsg is False, the secp256k1 lib will hash the message as part
     of the ECDSA-SHA256 verification algo.
     Return value: True if the signature is valid for this pubkey, False
-    otherwise. '''
-    if rawmsg and len(msg) != 32:
-        raise Exception("Invalid hash input to ECDSA raw sign.")
-    newpub = secp256k1.PublicKey(pubkey=pub, raw=True, ctx=ctx)
-    sigobj = newpub.ecdsa_deserialize(sig)
-    return newpub.ecdsa_verify(msg, sigobj, raw=rawmsg)
+    otherwise.
+    Since the arguments may come from external messages their content is
+    not guaranteed, so return False on any parsing exception.
+    '''
+    try:
+        if rawmsg:
+            assert len(msg) == 32
+        newpub = secp256k1.PublicKey(pubkey=pub, raw=True, ctx=ctx)
+        sigobj = newpub.ecdsa_deserialize(sig)
+        retval = newpub.ecdsa_verify(msg, sigobj, raw=rawmsg)
+    except:
+        return False
+    return retval
 
 def estimate_tx_size(ins, outs, txtype='p2pkh'):
     '''Estimate transaction size.
