@@ -18,8 +18,9 @@ from optparse import OptionParser
 # https://stackoverflow.com/questions/2801882/generating-a-png-with-matplotlib-when-display-is-undefined
 import matplotlib
 
-from joinmarket import jm_single, load_program_config, IRCMessageChannel
-from joinmarket import random_nick, calc_cj_fee, OrderbookWatch
+from joinmarket import jm_single, load_program_config, MessageChannelCollection
+from joinmarket import random_nick, calc_cj_fee, OrderbookWatch, get_irc_mchannels
+from joinmarket import IRCMessageChannel
 
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -366,14 +367,14 @@ def main():
     (options, args) = parser.parse_args()
 
     hostport = (options.host, options.port)
-
-    irc = IRCMessageChannel(jm_single().nickname)
+    mcs = [IRCMessageChannel(c) for c in get_irc_mchannels()]
+    mcc = MessageChannelCollection(mcs)
 
     # todo: is the call to GUITaker needed, or the return. taker unused
-    taker = GUITaker(irc, hostport)
+    taker = GUITaker(mcc, hostport)
     print('starting irc')
 
-    irc.run()
+    mcc.run()
 
 
 if __name__ == "__main__":
