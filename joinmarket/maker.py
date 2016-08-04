@@ -95,34 +95,34 @@ class CoinJoinOrder(object):
         cr_dict = btc.PoDLE.deserialize_revelation(cr)
         #check the validity of the proof of discrete log equivalence
         tries = jm_single().config.getint("POLICY", "taker_utxo_retries")
+        def reject(msg):
+            log.debug("Counterparty commitment not accepted, reason: " + msg)
+            return False
         if not btc.verify_podle(cr_dict['P'], cr_dict['P2'], cr_dict['sig'],
                                 cr_dict['e'], self.maker.commit,
                                 index_range=range(tries)):
-            log.debug(
-                "PODLE verification failed; counterparty utxo is not verified.")
-            return False
+            reason = "verify_podle failed"
+            return reject(reason)
         #finally, check that the proffered utxo is real, old enough, large enough,
         #and corresponds to the pubkey
         res = jm_single().bc_interface.query_utxo_set([cr_dict['utxo']],
                                                       includeconf=True)
         if len(res) != 1:
-            log.debug("authorizing utxo is not valid")
-            return False
+            reason = "authorizing utxo is not valid"
+            return reject(reason)
         age = jm_single().config.getint("POLICY", "taker_utxo_age")
         if res[0]['confirms'] < age:
-            log.debug("Invalid commitment utxo, not old enough: " + str(
-                res[0]['confirms']))
-            return
+            reason = "commitment utxo not old enough: " + str(res[0]['confirms'])
+            return reject(reason)
         reqd_amt = int(self.cj_amount * jm_single().config.getint(
             "POLICY", "taker_utxo_amtpercent") / 100.0)
         if res[0]['value'] < reqd_amt:
-            log.debug("Invalid commitment utxo, too small: " + str(
-                res[0]['value']))
-            return
+            reason = "commitment utxo too small: " + str(res[0]['value'])
+            return reject(reason)
         if res[0]['address'] != btc.pubkey_to_address(cr_dict['P'],
                                                          get_p2pk_vbyte()):
-            log.debug("Invalid podle pubkey: " + str(cr_dict['P']))
-            return False
+            reason = "Invalid podle pubkey: " + str(cr_dict['P'])
+            return reject(reason)
         #TODO: could add check for coin age and value here
         #(need to edit query_utxo_set if we want coin age)
 
@@ -138,6 +138,13 @@ class CoinJoinOrder(object):
         btc_sig = btc.ecdsa_sign(self.kp.hex_pk(), auth_key)
         self.maker.msgchan.send_ioauth(nick, self.utxos.keys(), auth_pub,
                                        self.cj_addr, self.change_addr, btc_sig)
+        #In case of *blacklisted (ie already used commitments, we already
+        #broadcasted them on receipt; in case of valid, and now used commitments,
+        #we broadcast them here, and not early - to avoid accidentally
+        #blacklisting commitments that are broadcast between makers in real time
+        #for the same transaction.
+        #TODO de-hardcode hp2
+        self.maker.msgchan.pubmsg("!hp2 " + self.maker.commit)
         return True
 
     def recv_tx(self, nick, txhex):
@@ -245,7 +252,8 @@ class Maker(CoinJoinerPeer):
                                                 self.on_nick_leave, None)
         msgchan.register_maker_callbacks(self.on_orderbook_requested,
                                          self.on_order_fill, self.on_seen_auth,
-                                         self.on_seen_tx, self.on_push_tx)
+                                         self.on_seen_tx, self.on_push_tx,
+                                         self.on_commitment_seen)
         msgchan.set_cjpeer(self)
 
         self.active_orders = {}
@@ -266,6 +274,19 @@ class Maker(CoinJoinerPeer):
     def on_orderbook_requested(self, nick, mc=None):
         self.msgchan.announce_orders(self.orderlist, nick, mc)
 
+    def on_commitment_seen(self, nick, commitment):
+        if jm_single().config.has_option("POLICY", "accept_commitment_broadcasts"):
+            blacklist_add = jm_single().config.getint("POLICY",
+                                                    "accept_commitment_broadcasts")
+        else:
+            blacklist_add = 0
+        if blacklist_add > 0:
+            #just add if necessary, ignore return value.
+            check_utxo_blacklist(commitment)
+            log.debug("Commitment: " + str(commitment) + " blacklisted.")
+        else:
+            log.debug("Commitment: " + str(commitment) + " ignored.")
+
     def on_order_fill(self, nick, oid, amount, taker_pubkey, commit):
         if nick in self.active_orders and self.active_orders[nick] is not None:
             self.active_orders[nick] = None
@@ -275,10 +296,12 @@ class Maker(CoinJoinerPeer):
                 nick, "Unsupported commitment type: " + str(commit[0]))
             return
         commit = commit[1:]
-        if not check_utxo_blacklist(commit, jm_single().nickname):
+        if not check_utxo_blacklist(commit):
             log.debug("Taker utxo commitment is blacklisted, rejecting.")
             self.msgchan.send_error(nick,
                                 "Commitment is blacklisted: " + str(commit))
+            #TODO de-hardcode the hp2 command
+            self.msgchan.pubmsg("!hp2 " + commit)
             return
         self.commit = commit
         self.wallet_unspent_lock.acquire()

@@ -58,9 +58,11 @@ global_singleton.nickname = None
 global_singleton.DUST_THRESHOLD = 2730
 global_singleton.bc_interface = None
 global_singleton.ordername_list = ['absoffer', 'reloffer']
+global_singleton.commitment_broadcast_list = ['hp2']
 global_singleton.maker_timeout_sec = 60
 global_singleton.debug_file_lock = threading.Lock()
 global_singleton.debug_file_handle = None
+global_singleton.blacklist_file_lock = threading.Lock()
 global_singleton.core_alert = core_alert
 global_singleton.joinmarket_alert = joinmarket_alert
 global_singleton.debug_silence = debug_silence
@@ -168,6 +170,12 @@ taker_utxo_age = 5
 # as a minimum BTC amount. Thus 20 means a 1BTC coinjoin requires the
 # utxo to be at least 0.2 btc.
 taker_utxo_amtpercent = 20
+
+#Set to 1 to accept broadcast PoDLE commitments from other bots, and
+#add them to your blacklist (only relevant for Makers).
+#There is no way to spoof these values, so the only "risk" is that
+#someone fills your blacklist file with a lot of data.
+accept_commitment_broadcasts = 1
 """
 
 
@@ -228,32 +236,30 @@ def validate_address(addr):
     return True, 'address validated'
 
 
-def check_utxo_blacklist(commitment, nick=None):
+def check_utxo_blacklist(commitment):
     """Compare a given commitment (H(P2) for PoDLE)
     with the persisted blacklist log file;
     if it has been used before, return False (disallowed),
     else return True.
     Persist the usage of this commitment to the blacklist file.
-    The nick parameter allows creating different blacklist
-    files per bot instance, ONLY for testing.
     """
     #TODO format error checking?
     fname = "blacklist"
-    if nick and jm_single().config.get("BLOCKCHAIN",
-                                       "blockchain_source") == 'regtest':
-        fname += "_" + nick
-    if os.path.isfile(fname):
-        with open(fname, "rb") as f:
-            blacklisted_commitments = [x.strip() for x in f.readlines()]
-    else:
-        blacklisted_commitments = []
-    if commitment in blacklisted_commitments:
-        return False
-    else:
-        blacklisted_commitments += [commitment]
-    with open(fname, "wb") as f:
-        for c in blacklisted_commitments:
-            f.write(c + '\n')
+    if jm_single().config.get("BLOCKCHAIN", "blockchain_source") == 'regtest':
+        fname += "_" + jm_single().nickname
+    with jm_single().blacklist_file_lock:
+        if os.path.isfile(fname):
+                with open(fname, "rb") as f:
+                    blacklisted_commitments = [x.strip() for x in f.readlines()]
+        else:
+            blacklisted_commitments = []
+        if commitment in blacklisted_commitments:
+            return False
+        else:
+            blacklisted_commitments += [commitment]
+        with open(fname, "wb") as f:
+            f.write('\n'.join(blacklisted_commitments))
+            f.flush()
     return True
 
 

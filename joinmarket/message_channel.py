@@ -13,6 +13,7 @@ NICK_MAX_ENCODED = 14 #comes from base58 expansion; recalculate if above changes
 encrypted_commands = ["auth", "ioauth", "tx", "sig"]
 plaintext_commands = ["fill", "error", "pubkey", "orderbook", "push"]
 plaintext_commands += jm_single().ordername_list
+plaintext_commands += jm_single().commitment_broadcast_list
 
 log = get_log()
 
@@ -549,7 +550,8 @@ class MessageChannelCollection(object):
                                  on_order_fill=None,
                                  on_seen_auth=None,
                                  on_seen_tx=None,
-                                 on_push_tx=None):
+                                 on_push_tx=None,
+                                 on_commitment_seen=None):
         """Special cases:
         on_orderbook_requested must trigger addition to the nicks_seen
         database, so that makers can know that a taker is in principle
@@ -561,7 +563,8 @@ class MessageChannelCollection(object):
                                         on_order_fill,
                                         on_seen_auth,
                                         on_seen_tx,
-                                        on_push_tx)
+                                        on_push_tx,
+                                        on_commitment_seen)
 
     def on_privmsg(self, nick, mchan):
         """Registered as a callback for all mchannels:
@@ -693,12 +696,14 @@ class MessageChannel(object):
                                  on_order_fill=None,
                                  on_seen_auth=None,
                                  on_seen_tx=None,
-                                 on_push_tx=None):
+                                 on_push_tx=None,
+                                 on_commitment_seen=None):
         self.on_orderbook_requested = on_orderbook_requested
         self.on_order_fill = on_order_fill
         self.on_seen_auth = on_seen_auth
         self.on_seen_tx = on_seen_tx
         self.on_push_tx = on_push_tx
+        self.on_commitment_seen = on_commitment_seen
 
     def announce_orders(self, orderlines):
         self._announce_orders(orderlines)
@@ -721,6 +726,21 @@ class MessageChannel(object):
                 log.debug('index error parsing chunks, possibly malformed'
                           'offer by other party. No user action required.')
                 # TODO what now? just ignore iirc
+            finally:
+                return True
+        return False
+    
+    def check_for_commitments(self, nick, _chunks):
+        if _chunks[0] in jm_single().commitment_broadcast_list:
+            try:
+                counterparty = nick
+                commitment = _chunks[1]
+                if self.on_commitment_seen:
+                    self.on_commitment_seen(counterparty, commitment)
+            except IndexError as e:
+                log.warning(e)
+                log.debug('index error parsing chunks, possibly malformed'
+                          'offer by other party. No user action required.')
             finally:
                 return True
         return False
@@ -823,6 +843,8 @@ class MessageChannel(object):
             _chunks = command.split(" ")
             if self.check_for_orders(nick, _chunks):
                 pass
+            if self.check_for_commitments(nick, _chunks):
+                pass            
             elif _chunks[0] == 'cancel':
                 # !cancel [oid]
                 try:
@@ -910,7 +932,6 @@ class MessageChannel(object):
                 # orderbook watch commands
                 if self.check_for_orders(nick, _chunks):
                     pass
-
                 # taker commands
                 elif _chunks[0] == 'pubkey':
                     maker_pk = _chunks[1]
