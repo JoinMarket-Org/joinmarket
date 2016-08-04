@@ -283,9 +283,11 @@ class Maker(CoinJoinerPeer):
         if blacklist_add > 0:
             #just add if necessary, ignore return value.
             check_utxo_blacklist(commitment)
-            log.debug("Commitment: " + str(commitment) + " blacklisted.")
+            log.debug("Received commitment broadcast by other maker: " + str(
+                commitment) + ", now blacklisted.")
         else:
-            log.debug("Commitment: " + str(commitment) + " ignored.")
+            log.debug("Received commitment broadcast by other maker: " + str(
+                commitment) + ", ignored.")
 
     def on_order_fill(self, nick, oid, amount, taker_pubkey, commit):
         if nick in self.active_orders and self.active_orders[nick] is not None:
