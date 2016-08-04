@@ -92,10 +92,6 @@ rpc_password = password
 
 [MESSAGING]
 host = irc.cyberguerrilla.org
-#set this to the server name before TLD, e.g. "chat.freenode.net" -> freenode
-#use the CLEARNET server name even if using an onion. It should thus be the
-#same for every user. Examples: "cyberguerrilla", "freenode", "rizon" etc.
-hostid = cyberguerrilla
 channel = joinmarket-pit
 port = 6697
 usessl = true
@@ -176,7 +172,7 @@ taker_utxo_amtpercent = 20
 
 
 def get_irc_mchannels():
-    fields = [("host", str), ("hostid", str), ("port", int), ("channel", str),
+    fields = [("host", str), ("port", int), ("channel", str),
               ("usessl", str), ("socks5", str), ("socks5_host", str),
               ("socks5_port", str)]
     configdata = {}
