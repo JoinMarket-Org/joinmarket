@@ -551,7 +551,8 @@ class MessageChannelCollection(object):
                                  on_seen_auth=None,
                                  on_seen_tx=None,
                                  on_push_tx=None,
-                                 on_commitment_seen=None):
+                                 on_commitment_seen=None,
+                                 on_commitment_transferred=None):
         """Special cases:
         on_orderbook_requested must trigger addition to the nicks_seen
         database, so that makers can know that a taker is in principle
@@ -564,7 +565,8 @@ class MessageChannelCollection(object):
                                         on_seen_auth,
                                         on_seen_tx,
                                         on_push_tx,
-                                        on_commitment_seen)
+                                        on_commitment_seen,
+                                        on_commitment_transferred)
 
     def on_privmsg(self, nick, mchan):
         """Registered as a callback for all mchannels:
@@ -697,13 +699,15 @@ class MessageChannel(object):
                                  on_seen_auth=None,
                                  on_seen_tx=None,
                                  on_push_tx=None,
-                                 on_commitment_seen=None):
+                                 on_commitment_seen=None,
+                                 on_commitment_transferred=None):
         self.on_orderbook_requested = on_orderbook_requested
         self.on_order_fill = on_order_fill
         self.on_seen_auth = on_seen_auth
         self.on_seen_tx = on_seen_tx
         self.on_push_tx = on_push_tx
         self.on_commitment_seen = on_commitment_seen
+        self.on_commitment_transferred = on_commitment_transferred
 
     def announce_orders(self, orderlines):
         self._announce_orders(orderlines)
@@ -730,13 +734,22 @@ class MessageChannel(object):
                 return True
         return False
     
-    def check_for_commitments(self, nick, _chunks):
+    def check_for_commitments(self, nick, _chunks, private=False):
+        """If a commitment message is found in a pubmsg, trigger
+        callback on_commitment_seen, if as a privmsg, trigger
+        callback on_commitment_transferred. These callbacks are (for now)
+        only used by Makers.
+        """
         if _chunks[0] in jm_single().commitment_broadcast_list:
             try:
                 counterparty = nick
                 commitment = _chunks[1]
-                if self.on_commitment_seen:
-                    self.on_commitment_seen(counterparty, commitment)
+                if private:
+                    if self.on_commitment_transferred:
+                        self.on_commitment_transferred(counterparty, commitment)
+                else:
+                    if self.on_commitment_seen:
+                        self.on_commitment_seen(counterparty, commitment)
             except IndexError as e:
                 log.warning(e)
                 log.debug('index error parsing chunks, possibly malformed'
@@ -952,6 +965,8 @@ class MessageChannel(object):
                         self.on_sig(nick, sig)
 
                 # maker commands
+                if self.check_for_commitments(nick, _chunks, private=True):
+                    pass
                 if _chunks[0] == 'fill':
                     try:
                         oid = int(_chunks[1])

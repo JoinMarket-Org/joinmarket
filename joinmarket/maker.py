@@ -14,7 +14,7 @@ from joinmarket.enc_wrapper import init_keypair, as_init_encryption, init_pubkey
      NaclError
 
 from joinmarket.support import get_log, calc_cj_fee, debug_dump_object
-from joinmarket.taker import CoinJoinerPeer
+from joinmarket.taker import OrderbookWatch
 from joinmarket.wallet import Wallet
 
 log = get_log()
@@ -123,8 +123,6 @@ class CoinJoinOrder(object):
                                                          get_p2pk_vbyte()):
             reason = "Invalid podle pubkey: " + str(cr_dict['P'])
             return reject(reason)
-        #TODO: could add check for coin age and value here
-        #(need to edit query_utxo_set if we want coin age)
 
         # authorisation of taker passed
 
@@ -138,13 +136,12 @@ class CoinJoinOrder(object):
         btc_sig = btc.ecdsa_sign(self.kp.hex_pk(), auth_key)
         self.maker.msgchan.send_ioauth(nick, self.utxos.keys(), auth_pub,
                                        self.cj_addr, self.change_addr, btc_sig)
-        #In case of *blacklisted (ie already used commitments, we already
+        #In case of *blacklisted (ie already used) commitments, we already
         #broadcasted them on receipt; in case of valid, and now used commitments,
         #we broadcast them here, and not early - to avoid accidentally
         #blacklisting commitments that are broadcast between makers in real time
         #for the same transaction.
-        #TODO de-hardcode hp2
-        self.maker.msgchan.pubmsg("!hp2 " + self.maker.commit)
+        self.maker.transfer_commitment(self.maker.commit)
         return True
 
     def recv_tx(self, nick, txhex):
@@ -244,16 +241,17 @@ class CJMakerOrderError(StandardError):
     pass
 
 
-class Maker(CoinJoinerPeer):
+class Maker(OrderbookWatch):
     def __init__(self, msgchan, wallet):
-        CoinJoinerPeer.__init__(self, msgchan)
+        OrderbookWatch.__init__(self, msgchan)
         self.msgchan.register_channel_callbacks(self.on_welcome,
                                                 self.on_set_topic, None, None,
                                                 self.on_nick_leave, None)
         msgchan.register_maker_callbacks(self.on_orderbook_requested,
                                          self.on_order_fill, self.on_seen_auth,
                                          self.on_seen_tx, self.on_push_tx,
-                                         self.on_commitment_seen)
+                                         self.on_commitment_seen,
+                                         self.on_commitment_transferred)
         msgchan.set_cjpeer(self)
 
         self.active_orders = {}
@@ -274,7 +272,19 @@ class Maker(CoinJoinerPeer):
     def on_orderbook_requested(self, nick, mc=None):
         self.msgchan.announce_orders(self.orderlist, nick, mc)
 
+    def on_commitment_transferred(self, nick, commitment):
+        """Triggered when a privmsg is received from another maker
+	with a commitment to announce in public (obfuscation of source).
+        We simply post it in public (not affected by whether we ourselves
+        are *accepting* commitment broadcasts.
+	"""
+        self.msgchan.pubmsg("!hp2 " + commitment)
+
     def on_commitment_seen(self, nick, commitment):
+        """Triggered when we see a commitment for blacklisting
+	appear in the public pit channel. If the policy is set,
+	we blacklist this commitment.
+	"""
         if jm_single().config.has_option("POLICY", "accept_commitment_broadcasts"):
             blacklist_add = jm_single().config.getint("POLICY",
                                                     "accept_commitment_broadcasts")
@@ -289,6 +299,21 @@ class Maker(CoinJoinerPeer):
             log.debug("Received commitment broadcast by other maker: " + str(
                 commitment) + ", ignored.")
 
+    def transfer_commitment(self, commit):
+        """Send this commitment via privmsg to one (random)
+	other maker.
+	"""
+        crow = self.db.execute(
+                        'SELECT DISTINCT counterparty FROM orderbook ORDER BY ' +
+                        'RANDOM() LIMIT 1;'
+                    ).fetchone()
+        if crow is None:
+            return
+        counterparty = crow['counterparty']
+        #TODO de-hardcode hp2
+        log.debug("Sending commitment to: " + str(counterparty))
+        self.msgchan.privmsg(counterparty, 'hp2', commit)
+
     def on_order_fill(self, nick, oid, amount, taker_pubkey, commit):
         if nick in self.active_orders and self.active_orders[nick] is not None:
             self.active_orders[nick] = None
@@ -297,15 +322,16 @@ class Maker(CoinJoinerPeer):
             self.msgchan.send_error(
                 nick, "Unsupported commitment type: " + str(commit[0]))
             return
-        commit = commit[1:]
-        if not check_utxo_blacklist(commit):
+        #Strip the type byte before processing
+        scommit = commit[1:]
+        if not check_utxo_blacklist(scommit):
             log.debug("Taker utxo commitment is blacklisted, rejecting.")
             self.msgchan.send_error(nick,
-                                "Commitment is blacklisted: " + str(commit))
-            #TODO de-hardcode the hp2 command
-            self.msgchan.pubmsg("!hp2 " + commit)
+                                "Commitment is blacklisted: " + str(scommit))
+            #Keep the type byte for communication so not scommit:
+            self.transfer_commitment(commit)
             return
-        self.commit = commit
+        self.commit = scommit
         self.wallet_unspent_lock.acquire()
         try:
             self.active_orders[nick] = CoinJoinOrder(self, nick, oid, amount,
