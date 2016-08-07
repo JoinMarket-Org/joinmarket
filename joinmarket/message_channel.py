@@ -480,7 +480,7 @@ class MessageChannelCollection(object):
         message channels.
 
         on_nick_change: a bot which changes its nick on one channel
-        but not both is a problem TODO
+        must also successfully change its nick on all channels, or quit.
 
         on_disconnect: must be maintained here; if a bot disconnects
         only one it must remain viable, otherwise this has no point!
@@ -491,14 +491,25 @@ class MessageChannelCollection(object):
         self.on_disconnect = on_disconnect
         self.on_nick_leave = on_nick_leave
         self.on_connect = on_connect
+        self.on_nick_change = on_nick_change
         for mc in self.mchannels:
             mc.register_channel_callbacks(self.on_welcome_trigger,
                                           on_set_topic,
                                           self.on_connect_trigger,
                                           self.on_disconnect_trigger,
                                           self.on_nick_leave_trigger,
-                                          on_nick_change,
+                                          self.on_nick_change_trigger,
                                           self.see_nick)
+
+    def on_nick_change_trigger(self, new_nick):
+        """If any underlying messagechannel object fails to register
+        a nick/username, trigger all of them to change to the newly
+        chosen nick/user.
+        """
+        for mc in self.available_channels():
+            mc.change_nick(new_nick)
+        if self.on_nick_change:
+            self.on_nick_change(new_nick)
 
     def on_order_seen_trigger(self, mc, counterparty, oid, ordertype, minsize,
                               maxsize, txfee, cjfee):
@@ -648,6 +659,12 @@ class MessageChannel(object):
         to the shared public channel (pit), if nick=None,
         or to an individual counterparty nick. Note that
         calling code will access this via self.announce_orders."""
+
+    @abc.abstractmethod
+    def change_nick(self, new_nick):
+        """Change the nick/username for this message channel
+        instance to new_nick
+        """
 
     """END OF SUBCLASS IMPLEMENTATION SECTION"""
 

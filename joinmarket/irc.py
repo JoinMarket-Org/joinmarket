@@ -251,6 +251,10 @@ class IRCMessageChannel(MessageChannel):
                 m = COMMAND_PREFIX + cmd + ' ' + m
             self.send_raw(header + m + trailer, ob)
 
+    def change_nick(self, new_nick):
+        self.nick = new_nick
+        self.send_raw('NICK ' + self.nick)
+
     def send_raw(self, line, ob=False):
         # Messages are queued and prioritised.
         # This is an addressing of github #300
@@ -313,9 +317,10 @@ class IRCMessageChannel(MessageChannel):
                 if self.on_nick_leave:
                     self.on_nick_leave(nick, self)
         elif _chunks[1] == '433':  # nick in use
-            # self.nick = random_nick()
-            self.nick += '_'  # helps keep identity constant if just _ added
-            self.send_raw('NICK ' + self.nick)
+            # helps keep identity constant if just _ added
+            #request new nick on *all* channels via callback
+            if self.on_nick_change:
+                self.on_nick_change(self.nick + '_')
         if self.password:
             if _chunks[1] == 'CAP':
                 if _chunks[3] != 'ACK':
