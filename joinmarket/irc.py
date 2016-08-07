@@ -10,6 +10,7 @@ import Queue
 
 from joinmarket.configure import get_config_irc_channel, jm_single
 from joinmarket.message_channel import MessageChannel, CJPeerError, COMMAND_PREFIX
+from joinmarket.message_channel import NICK_MAX_ENCODED
 from joinmarket.enc_wrapper import encrypt_encode, decode_decrypt
 from joinmarket.support import get_log, chunks
 from joinmarket.socks import socksocket, setdefaultproxy, PROXY_TYPE_SOCKS5
@@ -69,7 +70,8 @@ def get_irc_text(line):
 
 
 def get_irc_nick(source):
-    return source[1:source.find('!')]
+    full_nick = source[1:source.find('!')]
+    return full_nick[:NICK_MAX_ENCODED+2]
 
 
 class ThrottleThread(threading.Thread):
