@@ -371,16 +371,18 @@ class IRCMessageChannel(MessageChannel):
             if self.on_nick_leave:
                 self.on_nick_leave(nick, self)
         elif _chunks[1] == '005':
-            ##:port80b.se.quakenet.org 005 J5BzJGGfyw5GaPc MAXNICKLEN=15
-            ##TOPICLEN=250 AWAYLEN=160 KICKLEN=250 CHANNELLEN=200
-            ##MAXCHANNELLEN=200 CHANTYPES=#& PREFIX=(ov)@+ STATUSMSG=@+
-            ##CHANMODES=b,k,l,imnpstrDducCNMT CASEMAPPING=rfc1459
-            ##NETWORK=QuakeNet :are supported by this server
-            parameter_chunk = line[line.find(_chunks[2]) + len(_chunks[2]) + 1
-                : line[1:].find(':')]
-            for params in parameter_chunk.split(' '):
-                if params.lower().startswith('network='):
-                    self.hostid = params[8:]
+            '''
+            :port80b.se.quakenet.org 005 J5BzJGGfyw5GaPc MAXNICKLEN=15
+            TOPICLEN=250 AWAYLEN=160 KICKLEN=250 CHANNELLEN=200
+            MAXCHANNELLEN=200 CHANTYPES=#& PREFIX=(ov)@+ STATUSMSG=@+
+            CHANMODES=b,k,l,imnpstrDducCNMT CASEMAPPING=rfc1459
+            NETWORK=QuakeNet :are supported by this server
+            '''
+            for chu in _chunks[3:]:
+                if chu[0] == ':':
+                    break
+                if chu.lower().startswith('network='):
+                    self.hostid = chu[8:]
                     log.debug('found network name: ' + self.hostid + ';')
 
     def __init__(self,
