@@ -387,7 +387,7 @@ class BlockrInterface(BlockchainInterface):
                                'address': vout['address'],
                                'script': vout['extras']['script']}
                 if includeconf:
-                    result_dict['confirms'] = int(d['confirmations'])
+                    result_dict['confirms'] = int(txdata['confirmations'])
                 result.append(result_dict)
         return result
 
