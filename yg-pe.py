@@ -106,14 +106,11 @@ class YieldGeneratorPrivEnhance(YieldGenerator):
         #to the next mixdepth. Otherwise, we set "cjoutdepth" to the minimum.
 
         nonmax_mix_balance = [m for m in filtered_mix_balance if m[0] != max_mix]
-        mixdepth = None
-        for m, bal in nonmax_mix_balance:
-            if m != max_mix:
-                mixdepth = m
-                break
-        if not mixdepth:
+        if not nonmax_mix_balance:
             log.debug("Could not spend from a mixdepth which is not max")
             mixdepth = max_mix
+        else:
+            mixdepth = nonmax_mix_balance[0][0]
         log.debug('filling offer, mixdepth=' + str(mixdepth))
 
         # mixdepth is the chosen depth we'll be spending from
@@ -121,6 +118,9 @@ class YieldGeneratorPrivEnhance(YieldGenerator):
         # to minimize chance of it becoming the largest, and reannouncing offer.
         if mixdepth == min_mix:
             cjoutmix = (mixdepth + 1) % self.wallet.max_mix_depth
+            #don't send cjout to max
+            if cjoutmix == max_mix:
+                cjoutmix = (cjoutmix + 1) % self.wallet.max_mix_depth
         else:
             cjoutmix = min_mix
         cj_addr = self.wallet.get_internal_addr(cjoutmix)
