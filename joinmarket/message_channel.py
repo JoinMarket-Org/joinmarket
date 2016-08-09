@@ -921,6 +921,10 @@ class MessageChannel(object):
         sig = message[1:].split(' ')[-2:]
         #reconstruct original message without cmd
         rawmessage = ' '.join(message[1:].split(' ')[1:-2])
+        #sanity check that the sig was appended properly
+        if len(sig) != 2 or len(rawmessage) == 0:
+            log.debug("Sig not properly appended to privmsg, ignoring")
+            return
         if not self.verify_nick(nick, sig, rawmessage):
             #This is an impostor; just ignore
             log.debug("Message received from unverified counterparty; ignoring")
