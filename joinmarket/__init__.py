@@ -21,6 +21,7 @@ from .configure import load_program_config, jm_single, get_p2pk_vbyte, \
     get_network, jm_single, get_network, validate_address, get_irc_mchannels, \
     check_utxo_blacklist
 from .blockchaininterface import BlockrInterface, BlockchainInterface
+from .yieldgenerator import YieldGenerator, ygmain
 # Set default logging handler to avoid "No handler found" warnings.
 
 try:
