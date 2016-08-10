@@ -80,16 +80,23 @@ class CoinJoinTX(object):
         # create DH keypair on the fly for this Tx object
         self.kp = init_keypair()
         self.crypto_boxes = {}
-        #Create commitment to fulfil anti-DOS requirement of makers,
-        #storing the corresponding reveal/proof data for next step.
-        self.commitment, self.reveal_commitment = self.commitment_creator(wallet,
-                                                                       input_utxos,
-                                                                    self.cj_amount)
+        self.get_commitment(input_utxos, self.cj_amount)
+        self.msgchan.fill_orders(self.active_orders, self.cj_amount,
+                                 self.kp.hex_pk(), self.commitment)
+
+    def get_commitment(self, utxos, amount):
+        """Create commitment to fulfil anti-DOS requirement of makers,
+        storing the corresponding reveal/proof data for next step.
+        """
+        self.commitment, self.reveal_commitment = \
+            self.commitment_creator(self.wallet, utxos, amount)
         if not self.commitment:
             log.debug("Cannot construct transaction, failed to generate "
                       "commitment, shutting down. Please read commitments_debug.txt"
                       "for some information on why this is, and what can be "
                       "done to remedy it.")
+            #TODO: would like to raw_input here to show the user, but
+            #interactivity is undesirable here.
             #Test only:
             if jm_single().config.get(
                 "BLOCKCHAIN", "blockchain_source") == 'regtest':
@@ -103,9 +110,6 @@ class CoinJoinTX(object):
             self.all_responded = True
             self.end_timeout_thread = True
             self.msgchan.shutdown()
-        else:
-            self.msgchan.fill_orders(self.active_orders, self.cj_amount,
-                                 self.kp.hex_pk(), self.commitment)
 
     def start_encryption(self, nick, maker_pk):
         if nick not in self.active_orders.keys():
@@ -418,7 +422,8 @@ class CoinJoinTX(object):
                        '{}').format(
                     pprint.pformat(self.active_orders),
                     pprint.pformat(self.nonrespondants)))
-
+            #Re-source commitment; previous attempt will have been blacklisted
+            self.get_commitment(self.input_utxos, self.cj_amount)
             self.msgchan.fill_orders(new_orders, self.cj_amount,
                                      self.kp.hex_pk(), self.commitment)
         else:
