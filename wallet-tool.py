@@ -129,12 +129,8 @@ if method == 'display' or method == 'displayall' or method == 'summary':
                 balance_depth += balance
                 used = ('used' if k < wallet.index[m][forchange] else ' new')
                 if options.showprivkey:
-                    if btc.secp_present:
-                        privkey = btc.wif_compressed_privkey(
+                    privkey = btc.wif_compressed_privkey(
                     wallet.get_key(m, forchange, k), get_p2pk_vbyte())
-                    else:
-                        privkey = btc.encode_privkey(wallet.get_key(m,
-                                forchange, k), 'wif_compressed', get_p2pk_vbyte())
                 else:
                     privkey = ''
                 if (method == 'displayall' or balance > 0 or
@@ -153,12 +149,8 @@ if method == 'display' or method == 'displayall' or method == 'summary':
                 used = (' used' if balance > 0.0 else 'empty')
                 balance_depth += balance
                 if options.showprivkey:
-                    if btc.secp_present:
-                        wip_privkey = btc.wif_compressed_privkey(
+                    wip_privkey = btc.wif_compressed_privkey(
                     privkey, get_p2pk_vbyte())
-                    else:
-                        wip_privkey = btc.encode_privkey(privkey,
-                                            'wif_compressed', get_p2pk_vbyte())
                 else:
                     wip_privkey = ''
                 cus_print(' ' * 13 + '%-35s%s %.8f btc %s' % (
@@ -222,29 +214,8 @@ elif method == 'importprivkey':
     for privkey in privkeys:
         # TODO is there any point in only accepting wif format? check what
         # other wallets do
-        if not btc.secp_present:
-            privkey_format = btc.get_privkey_format(privkey)
-            if privkey_format not in ['wif', 'wif_compressed']:
-                print('ERROR: privkey not in wallet import format')
-                print(privkey, 'skipped')
-                continue
-            if privkey_format == 'wif':
-                # TODO if they actually use an unc privkey, make sure the unc
-                # address is used
-
-                # r = raw_input('WARNING: Using uncompressed private key, the vast ' +
-                #   'majority of JoinMarket transactions use compressed keys\n' +
-                #       'being so unusual is bad for privacy. Continue? (y/n):')
-                # if r != 'y':
-                #   sys.exit(0)
-                print('Uncompressed privkeys not supported (yet)')
-                print(privkey, 'skipped')
-                continue
-        if btc.secp_present:
-            privkey_bin = btc.from_wif_privkey(privkey,
+        privkey_bin = btc.from_wif_privkey(privkey,
                                         vbyte=get_p2pk_vbyte()).decode('hex')[:-1]
-        else:
-            privkey_bin = btc.encode_privkey(privkey, 'hex').decode('hex')
         encrypted_privkey = encryptData(wallet.password_key, privkey_bin)
         if 'imported_keys' not in wallet.walletdata:
             wallet.walletdata['imported_keys'] = []

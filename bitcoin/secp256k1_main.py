@@ -18,6 +18,35 @@ ctx = secp256k1.lib.secp256k1_context_create(secp256k1.ALL_FLAGS)
 #Standard prefix for Bitcoin message signing.
 BITCOIN_MESSAGE_MAGIC = '\x18' + 'Bitcoin Signed Message:\n'
 
+"""A custom nonce function acting as a pass-through.
+Only used for reusable donation pubkeys (stealth).
+"""
+from cffi import FFI
+
+ffi = FFI()
+ffi.cdef('static int nonce_function_rand(unsigned char *nonce32,'
+         'const unsigned char *msg32,const unsigned char *key32,'
+         'const unsigned char *algo16,void *data,unsigned int attempt);')
+
+ffi.set_source("_noncefunc",
+"""
+static int nonce_function_rand(unsigned char *nonce32,
+const unsigned char *msg32,
+const unsigned char *key32,
+const unsigned char *algo16,
+void *data,
+unsigned int attempt)
+{
+memcpy(nonce32,data,32);
+return 1;
+}
+""")
+
+ffi.compile()
+
+import _noncefunc
+from _noncefunc import ffi
+
 def privkey_to_address(priv, from_hex=True, magicbyte=0):
     return pubkey_to_address(privkey_to_pubkey(priv, from_hex), magicbyte)
 
@@ -270,10 +299,14 @@ def ecdsa_raw_sign(msg,
         newpriv = secp256k1.PrivateKey(p, raw=True, ctx=ctx)
     else:
         newpriv = secp256k1.PrivateKey(priv, raw=False, ctx=ctx)
-    if usenonce and len(usenonce) != 32:
-        raise ValueError("Invalid nonce passed to ecdsa_sign: " + str(usenonce))
-
-    sig = newpriv.ecdsa_sign(msg, raw=rawmsg)
+    if usenonce:
+        if len(usenonce) != 32:
+            raise ValueError("Invalid nonce passed to ecdsa_sign: " + str(
+                usenonce))
+        nf = ffi.addressof(_noncefunc.lib, "nonce_function_rand")
+        ndata = ffi.new("char [32]", usenonce)
+        usenonce = (nf, ndata)
+    sig = newpriv.ecdsa_sign(msg, raw=rawmsg, custom_nonce=usenonce)
     return newpriv.ecdsa_serialize(sig)
 
 @hexbin

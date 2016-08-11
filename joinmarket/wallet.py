@@ -200,13 +200,10 @@ class Wallet(AbstractWallet):
                         epk_m['encrypted_privkey'].decode( 'hex')).encode('hex')
                 #Imported keys are stored as 32 byte strings only, so the
                 #second version below is sufficient, really.
-                if not btc.secp_present:
-                    privkey = btc.encode_privkey(privkey, 'hex_compressed')
-                else:
-                    if len(privkey) != 64:
-                        raise Exception(
-                        "Unexpected privkey format; already compressed?:" + privkey)
-                    privkey += "01"
+                if len(privkey) != 64:
+                    raise Exception(
+                    "Unexpected privkey format; already compressed?:" + privkey)
+                privkey += "01"
                 if epk_m['mixdepth'] not in self.imported_privkeys:
                     self.imported_privkeys[epk_m['mixdepth']] = []
                 self.addr_cache[btc.privtoaddr(

@@ -108,15 +108,10 @@ def test_tumbler(setup_tumbler, num_ygs, wallet_structures, mean_amt, sdev_amt,
     time.sleep(20)
     destaddrs = []
     for i in range(3):
-        if btc.secp_present:
-            destaddr = btc.privkey_to_address(
-                os.urandom(32),
-                from_hex=False,
-                magicbyte=get_p2pk_vbyte())
-        else:
-            destaddr = btc.privkey_to_address(
-                os.urandom(32),
-                magicbyte=get_p2pk_vbyte())
+        destaddr = btc.privkey_to_address(
+            os.urandom(32),
+            from_hex=False,
+            magicbyte=get_p2pk_vbyte())
         addr_valid, errormsg = validate_address(destaddr)
         assert addr_valid, "Invalid destination address: " + destaddr + \
                    ", error message: " + errormsg

@@ -27,11 +27,12 @@ yg_cmd = 'yield-generator-basic.py'
 
 
 @pytest.mark.parametrize(
-    "num_ygs, wallet_structures, mean_amt, mixdepth, sending_amt, ygcfs, fails",
+    "num_ygs, wallet_structures, mean_amt, mixdepth, sending_amt, ygcfs, fails, donate",
     [
         #Some tests are commented out to keep build test time reasonable.
         # basic 1sp 2yg.
-        (4, [[1, 0, 0, 0, 0]] * 5, 10, 0, 100000000, None, None),
+        #(4, [[1, 0, 0, 0, 0]] * 5, 10, 0, 100000000, None, None, 0.5),
+        (4, [[1, 0, 0, 0, 0]] * 5, 10, 0, 100000000, None, None, None),
         #Testing different message channel collections. (Needs manual config at
         #the moment - create different config files for each yg).
         #(4, [[1, 0, 0, 0, 0]] * 5, 10, 0, 100000000, ["j2.cfg", "j3.cfg",
@@ -39,14 +40,14 @@ yg_cmd = 'yield-generator-basic.py'
         # 1sp 3yg, 2 mixdepths - testing different failure times to
         #see if recovery works.
         #(5, [[1, 2, 0, 0, 0]] * 6, 4, 1, 1234500, None, None),
-        (4, [[1, 2, 0, 0, 0]] * 5, 4, 1, 1234500, None, ('break',0,6)),
+        (4, [[1, 2, 0, 0, 0]] * 5, 4, 1, 1234500, None, ('break',0,6), None),
         #(5, [[1, 2, 0, 0, 0]] * 6, 4, 1, 1234500, None, ('shutdown',0,12)),
         #(5, [[1, 2, 0, 0, 0]] * 6, 4, 1, 1234500, None, ('break',1, 6)),
         # 1sp 6yg, 4 mixdepths, sweep from depth 0 (test large number of makers)
-        (8, [[1, 3, 0, 0, 0]] * 9, 4, 0, 0, None, None),
+        (8, [[1, 3, 0, 0, 0]] * 9, 4, 0, 0, None, None, None),
     ])
 def test_sendpayment(setup_regtest, num_ygs, wallet_structures, mean_amt,
-                     mixdepth, sending_amt, ygcfs, fails):
+                     mixdepth, sending_amt, ygcfs, fails, donate):
     """Test of sendpayment code, with yield generators in background.
     """
     log = get_log()
@@ -80,18 +81,15 @@ def test_sendpayment(setup_regtest, num_ygs, wallet_structures, mean_amt,
 
     #A significant delay is needed to wait for the yield generators to sync
     time.sleep(20)
-    if btc.secp_present:
+    if donate:
+        destaddr = None
+    else:
         destaddr = btc.privkey_to_address(
             os.urandom(32),
             from_hex=False,
             magicbyte=get_p2pk_vbyte())
-    else:
-        destaddr = btc.privkey_to_address(
-            os.urandom(32),
-            magicbyte=get_p2pk_vbyte())
-
-    addr_valid, errormsg = validate_address(destaddr)
-    assert addr_valid, "Invalid destination address: " + destaddr + \
+        addr_valid, errormsg = validate_address(destaddr)
+        assert addr_valid, "Invalid destination address: " + destaddr + \
            ", error message: " + errormsg
 
     #TODO paramatetrize this as a test variable
@@ -124,14 +122,15 @@ def test_sendpayment(setup_regtest, num_ygs, wallet_structures, mean_amt,
                 ygp.wait()
     #wait for block generation
     time.sleep(5)
-    received = jm_single().bc_interface.get_received_by_addr(
-        [destaddr], None)['data'][0]['balance']
-    if amount != 0:
-        assert received == amount, "sendpayment failed - coins not arrived, " +\
-           "received: " + str(received)
-    #TODO: how to check success for sweep case?
-    else:
-        assert received != 0
+    if not donate:
+        received = jm_single().bc_interface.get_received_by_addr(
+            [destaddr], None)['data'][0]['balance']
+        if amount != 0:
+            assert received == amount, "sendpayment failed - coins not arrived, " +\
+               "received: " + str(received)
+        #TODO: how to check success for sweep case?
+        else:
+            assert received != 0
 
 
 @pytest.fixture(scope="module")

@@ -4,6 +4,7 @@ import io
 import logging
 import threading
 import os
+import binascii
 
 from ConfigParser import SafeConfigParser, NoOptionError
 
@@ -235,6 +236,18 @@ def validate_address(addr):
         return False, "Address has correct checksum but wrong length."
     return True, 'address validated'
 
+def donation_address(reusable_donation_pubkey=None):
+    if not reusable_donation_pubkey:
+        reusable_donation_pubkey = ('02be838257fbfddabaea03afbb9f16e852'
+                                    '9dfe2de921260a5c46036d97b5eacf2a')
+    sign_k = binascii.hexlify(os.urandom(32))
+    c = btc.sha256(btc.multiply(sign_k,
+                                reusable_donation_pubkey, True))
+    sender_pubkey = btc.add_pubkeys([reusable_donation_pubkey,
+                                     btc.privtopub(c+'01', True)], True)
+    sender_address = btc.pubtoaddr(sender_pubkey, get_p2pk_vbyte())
+    log.debug('sending coins to ' + sender_address)
+    return sender_address, sign_k
 
 def check_utxo_blacklist(commitment):
     """Compare a given commitment (H(P2) for PoDLE)
@@ -295,15 +308,6 @@ def load_program_config():
     # configure the interface to the blockchain on startup
     global_singleton.bc_interface = get_blockchain_interface_instance(
         global_singleton.config)
-
-    #print warning if not using libsecp256k1
-    if not btc.secp_present:
-        log.debug(
-            "WARNING: You are not using the binding to libsecp256k1. The "
-            "crypto code in use has poorer performance and security "
-            "properties. Consider installing the binding with `pip install "
-            "secp256k1`.")
-
 
 def get_blockchain_interface_instance(_config):
     # todo: refactor joinmarket module to get rid of loops
