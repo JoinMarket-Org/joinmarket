@@ -107,7 +107,7 @@ class CoinJoinOrder(object):
         #and corresponds to the pubkey
         res = jm_single().bc_interface.query_utxo_set([cr_dict['utxo']],
                                                       includeconf=True)
-        if len(res) != 1:
+        if len(res) != 1 or not res[0]:
             reason = "authorizing utxo is not valid"
             return reject(reason)
         age = jm_single().config.getint("POLICY", "taker_utxo_age")

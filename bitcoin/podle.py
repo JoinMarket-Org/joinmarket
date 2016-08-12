@@ -287,7 +287,8 @@ def update_commitments(commitment=None, external_to_remove=None,
             try:
                 c = json.loads(f.read())
             except ValueError:
-                pass
+                print "the file: " + PODLE_COMMIT_FILE + " is not valid json."
+                sys.exit(0)
 
     if 'used' in c:
         commitments = c['used']

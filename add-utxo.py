@@ -147,7 +147,6 @@ def main():
     if options.in_file:
         with open(options.in_file, "rb") as f:
             utxo_info = f.readlines()
-            print utxo_info
         for ul in utxo_info:
             ul = ul.rstrip()
             if ul:

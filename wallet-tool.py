@@ -20,7 +20,8 @@ description = (
     'balances. (displayall) Shows ALL addresses and balances. '
     '(summary) Shows a summary of mixing depth balances. (generate) '
     'Generates a new wallet. (recover) Recovers a wallet from the 12 '
-    'word recovery seed. (showseed) Shows the wallet recovery seed '
+    'word recovery seed. (showutxos) Shows all utxos in the wallet '
+    '(showseed) Shows the wallet recovery seed '
     'and hex seed. (importprivkey) Adds privkeys to this wallet, '
     'privkeys are spaces or commas separated. (listwallets) Lists '
     'all wallets with creator and timestamp. (history) Show all '
@@ -70,7 +71,7 @@ if not options.maxmixdepth:
 
 noseed_methods = ['generate', 'recover', 'listwallets']
 methods = ['display', 'displayall', 'summary', 'showseed', 'importprivkey',
-    'history']
+    'history', 'showutxos']
 methods.extend(noseed_methods)
 noscan_methods = ['showseed', 'importprivkey']
 
@@ -101,6 +102,11 @@ else:
         if 'listunspent_args' not in jm_single().config.options('POLICY'):
             jm_single().config.set('POLICY','listunspent_args', '[0]')
         jm_single().bc_interface.sync_wallet(wallet)
+
+if method == 'showutxos':
+    from pprint import pformat
+    print(pformat(wallet.unspent))
+    sys.exit(0)
 
 if method == 'display' or method == 'displayall' or method == 'summary':
 

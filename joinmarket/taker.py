@@ -691,7 +691,8 @@ class Taker(OrderbookWatch):
             for k, v in new_utxos_dict.iteritems():
                 addr = v['address']
                 priv = wallet.get_key_from_addr(addr)
-                priv_utxo_pairs.append((priv, k))
+                if priv: #can be null from create-unsigned
+                    priv_utxo_pairs.append((priv, k))
             return priv_utxo_pairs, too_old, too_small
 
         commit_type_byte = "P"
@@ -714,8 +715,9 @@ class Taker(OrderbookWatch):
             #in the transaction, about to be consumed, rather than use
             #random utxos that will persist after. At this step we also
             #allow use of external utxos in the json file.
-            priv_utxo_pairs, to, ts = priv_utxo_pairs_from_utxos(wallet.unspent,
-                                                                 age, amt)
+            if wallet.unspent:
+                priv_utxo_pairs, to, ts = priv_utxo_pairs_from_utxos(
+                    wallet.unspent, age, amt)
             podle_data = btc.generate_podle(priv_utxo_pairs, tries, True)
         if podle_data:
             log.debug("Generated PoDLE: " + pprint.pformat(podle_data))
