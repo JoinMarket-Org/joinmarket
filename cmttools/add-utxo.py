@@ -8,61 +8,18 @@ the anti-snooping feature employed by makers.
 
 import binascii
 import sys
+import os
+import json
+from pprint import pformat
+
+#needed until Jmkt is a package
+script_dir = os.path.dirname(os.path.realpath(__file__))
+sys.path.insert(0, os.path.dirname(script_dir))
+
 from optparse import OptionParser
 import bitcoin as btc
-
-from joinmarket import load_program_config
-from joinmarket import jm_single, get_p2pk_vbyte
-
-def quit(parser, errmsg):
-    parser.error(errmsg)
-    sys.exit(0)
-
-def get_utxo_info(upriv):
-    """Verify that the input string parses correctly as (utxo, priv)
-    and return that.
-    """
-    try:
-        u, priv = upriv.split(',')
-        u = u.strip()
-        priv = priv.strip()
-        txid, n = u.split(':')
-        assert len(txid)==64
-        assert len(n) in [1,2]
-        n = int(n)
-        assert n in range(256)
-    except:
-        #not sending data to stdout in case privkey info
-        print "Failed to parse utxo information for utxo"
-    try:
-        hexpriv = btc.from_wif_privkey(priv, vbyte=get_p2pk_vbyte())
-    except:
-        print "failed to parse privkey, make sure it's WIF compressed format."
-    return u, priv
-    
-def validate_utxo_data(utxo_datas):
-    """For each txid: N, privkey, first
-    convert the privkey and convert to address,
-    then use the blockchain instance to look up
-    the utxo and check that its address field matches.
-    """
-    for u, priv in utxo_datas:
-        print 'validating this utxo: ' + str(u)
-        hexpriv = btc.from_wif_privkey(priv, vbyte=get_p2pk_vbyte())
-        addr = btc.privkey_to_address(hexpriv, magicbyte=get_p2pk_vbyte())
-        print 'claimed address: ' + addr
-        res = jm_single().bc_interface.query_utxo_set([u])
-        print 'blockchain shows this data: ' + str(res)
-        if len(res) != 1:
-            print "utxo not found on blockchain: " + str(u)
-            return False
-        if res[0]['address'] != addr:
-            print "privkey corresponds to the wrong address for utxo: " + str(u)
-            print "blockchain returned address: " + res[0]['address']
-            print "your privkey gave this address: " + addr
-            return False
-    print 'all utxos validated OK'
-    return True
+from joinmarket import load_program_config, jm_single, get_p2pk_vbyte
+from commitment_utils import get_utxo_info, validate_utxo_data, quit
 
 def add_external_commitments(utxo_datas):
     """Persist the PoDLE commitments for this utxo
@@ -96,26 +53,26 @@ def main():
     parser = OptionParser(
         usage=
         'usage: %prog [options] [txid:n]',
-        description="Adds one or more utxos to the list that can be used to make"
-                    "commitments for anti-snooping. Note that this utxo, and its"
-                    "PUBkey, will be revealed to makers, so consider the privacy"
-                    " implication."
+        description="Adds one or more utxos to the list that can be used to make "
+                    "commitments for anti-snooping. Note that this utxo, and its "
+                    "PUBkey, will be revealed to makers, so consider the privacy "
+                    "implication. "
                     
-                    " It may be useful to those who are having trouble making"
-                    " coinjoins due to several unsuccessful attempts (especially"
-                    " if your joinmarket wallet is new)."
+                    "It may be useful to those who are having trouble making "
+                    "coinjoins due to several unsuccessful attempts (especially "
+                    "if your joinmarket wallet is new). "
                     
-                    " 'Utxo' means unspent transaction output, it must not"
-                    " already be spent."
+                    "'Utxo' means unspent transaction output, it must not "
+                    "already be spent. "
 
-                    " If you enter a utxo without the -r option, you will be "
-                    " prompted to enter the private key - it must be in "
-                    " WIF compressed format."
+                    "If you enter a utxo without the -r option, you will be "
+                    "prompted to enter the private key here - it must be in "
+                    "WIF compressed format. "
 
-                    " BE CAREFUL about handling private keys!"
-                    " Don't do this in insecure environments."
+                    "BE CAREFUL about handling private keys! "
+                    "Don't do this in insecure environments. "
                     
-                    " Also note this ONLY works for standard (p2pkh) utxos."
+                    "Also note this ONLY works for standard (p2pkh) utxos."
     )
     parser.add_option(
         '-r',
@@ -123,8 +80,26 @@ def main():
         action='store',
         type='str',
         dest='in_file',
-        help='name of plain text file containing utxos, one per line, format (txid:N), (WIF compressed privkey)'
+        help='name of plain text csv file containing utxos, one per line, format: '
+        'txid:N, WIF-compressed-privkey'
     )
+    parser.add_option(
+        '-R',
+        '--read-from-json',
+        action='store',
+        type='str',
+        dest='in_json',
+        help='name of json formatted file containing utxos with private keys, as '
+        'output from "python wallet-tool.py -u -p walletname showutxos"'
+        )
+    parser.add_option(
+        '-d',
+        '--delete-external',
+        action='store_true',
+        dest='delete_ext',
+        help='deletes the current list of external commitment utxos',
+        default=False
+        )
     parser.add_option(
         '-v',
         '--validate-utxos',
@@ -144,6 +119,23 @@ def main():
     (options, args) = parser.parse_args()
     load_program_config()
     utxo_data = []
+    if options.delete_ext:
+        other = options.in_file or options.in_json
+        if len(args) > 0 or other:
+            if raw_input("You have chosen to delete commitments, other arguments "
+                         "will be ignored; continue? (y/n)") != 'y':
+                print "Quitting"
+                sys.exit(0)
+        c, e = btc.get_podle_commitments()
+        print pformat(e)
+        if raw_input(
+            "You will remove the above commitments; are you sure? (y/n): ") != 'y':
+            print "Quitting"
+            sys.exit(0)
+        btc.update_commitments(external_to_remove=e)
+        print "Commitments deleted."
+        sys.exit(0)
+
     if options.in_file:
         with open(options.in_file, "rb") as f:
             utxo_info = f.readlines()
@@ -154,6 +146,18 @@ def main():
                 if not u:
                     quit(parser, "Failed to parse utxo info: " + str(ul))
                 utxo_data.append((u, priv))
+    elif options.in_json:
+        if not os.path.isfile(options.in_json):
+            print "File: " + options.in_json + " not found."
+            sys.exit(0)
+        with open(options.in_json, "rb") as f:
+            try:
+                utxo_json = json.loads(f.read())
+            except:
+                print "Failed to read json from " + options.in_json
+                sys.exit(0)
+        for u, pva in utxo_json.iteritems():
+            utxo_data.append((u, pva['privkey']))
     elif len(args) == 1:
         u = args[0]
         priv = raw_input(

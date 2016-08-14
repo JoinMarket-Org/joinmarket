@@ -419,15 +419,17 @@ def test_external_commitments(setup_podle):
 
 @pytest.fixture(scope="module")
 def setup_podle(request):
+    load_program_config()
     prev_commits = False
     #back up any existing commitments
-    if os.path.exists("commitments.json"):
-        os.rename("commitments.json", "commitments.bak")
+    pcf = btc.get_commitment_file()
+    log.debug("Podle file: " + pcf)
+    if os.path.exists(pcf):
+        os.rename(pcf, pcf + ".bak")
         prev_commits = True
     def teardown():
         if prev_commits:
-            os.rename("commitments.bak", "commitments.json")
+            os.rename(pcf + ".bak", pcf)
         else:
-            os.remove("commitments.json")
+            os.remove(pcf)
     request.addfinalizer(teardown)
-    load_program_config()

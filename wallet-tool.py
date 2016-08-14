@@ -20,7 +20,10 @@ description = (
     'balances. (displayall) Shows ALL addresses and balances. '
     '(summary) Shows a summary of mixing depth balances. (generate) '
     'Generates a new wallet. (recover) Recovers a wallet from the 12 '
-    'word recovery seed. (showutxos) Shows all utxos in the wallet '
+    'word recovery seed. (showutxos) Shows all utxos in the wallet, '
+    'including the corresponding private keys if -p is chosen; the '
+    'data is also written to a file "walletname.json.utxos" if the '
+    'option -u is chosen (so be careful about private keys). '
     '(showseed) Shows the wallet recovery seed '
     'and hex seed. (importprivkey) Adds privkeys to this wallet, '
     'privkeys are spaces or commas separated. (listwallets) Lists '
@@ -55,6 +58,13 @@ parser.add_option('-M',
                   dest='mixdepth',
                   help='mixing depth to import private key into',
                   default=0)
+parser.add_option('-u',
+                  '--utxo-file-output',
+                  action='store_true',
+                  dest='utxos2file',
+                  default=False,
+                  help='when using showutxos method, write json data to file'
+                  )
 parser.add_option('--csv',
                   action='store_true',
                   dest='csv',
@@ -104,8 +114,32 @@ else:
         jm_single().bc_interface.sync_wallet(wallet)
 
 if method == 'showutxos':
-    from pprint import pformat
-    print(pformat(wallet.unspent))
+    unsp = {}
+    if options.showprivkey:
+        for u, av in wallet.unspent.iteritems():
+            addr = av['address']
+            key = wallet.get_key_from_addr(addr)
+            wifkey = btc.wif_compressed_privkey(key, vbyte=get_p2pk_vbyte())
+            unsp[u] = {'address': av['address'],
+                       'value': av['value'], 'privkey': wifkey}
+    else:
+        unsp = wallet.unspent
+    outdata = json.dumps(unsp, indent=4)
+    if options.utxos2file:
+        utxofilename = seed + '.utxos' #will be .json.utxos for "real"/file wallet
+        utxolocation = os.path.join('wallets', utxofilename)
+        if os.path.isfile(utxolocation):
+            if raw_input('File: ' + utxolocation + \
+                         ' already exists; overwrite? (y/n): ') != 'y':
+                print('Quitting')
+                sys.exit(0)
+        with open(utxolocation, 'wb') as f:
+            f.write(outdata)
+    print(outdata)
+    if options.utxos2file:
+        print("The above data was written to: " + utxolocation)
+        if options.showprivkey:
+            print("Remember, this file contains private keys!")
     sys.exit(0)
 
 if method == 'display' or method == 'displayall' or method == 'summary':

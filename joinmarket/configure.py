@@ -5,15 +5,13 @@ import logging
 import threading
 import os
 import binascii
+import sys
 
 from ConfigParser import SafeConfigParser, NoOptionError
 
 import bitcoin as btc
 from joinmarket.jsonrpc import JsonRpc
 from joinmarket.support import get_log, joinmarket_alert, core_alert, debug_silence
-
-# config = SafeConfigParser()
-# config_location = 'joinmarket.cfg'
 
 log = get_log()
 
@@ -69,6 +67,7 @@ global_singleton.joinmarket_alert = joinmarket_alert
 global_singleton.debug_silence = debug_silence
 global_singleton.config = SafeConfigParser()
 global_singleton.config_location = 'joinmarket.cfg'
+global_singleton.commit_file_location = 'cmttools/commitments.json'
 
 
 def jm_single():
@@ -177,6 +176,10 @@ taker_utxo_amtpercent = 20
 #There is no way to spoof these values, so the only "risk" is that
 #someone fills your blacklist file with a lot of data.
 accept_commitment_broadcasts = 1
+
+#Location of your commitments.json file (stores commitments you've used
+#and those you want to use in future), relative to root joinmarket directory.
+commit_file_location = cmttools/commitments.json
 """
 
 
@@ -277,12 +280,15 @@ def check_utxo_blacklist(commitment):
 
 
 def load_program_config():
+    #set the location of joinmarket
+    jmkt_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+    log.debug("Joinmarket directory is: " + str(jmkt_dir))
     global_singleton.config.readfp(io.BytesIO(defaultconfig))
-    loadedFiles = global_singleton.config.read([global_singleton.config_location
-                                               ])
+    jmkt_config_location = os.path.join(jmkt_dir, global_singleton.config_location)
+    loadedFiles = global_singleton.config.read([jmkt_config_location])
     # Create default config file if not found
     if len(loadedFiles) != 1:
-        with open(global_singleton.config_location, "w") as configfile:
+        with open(jmkt_config_location, "w") as configfile:
             configfile.write(defaultconfig)
 
     # check for sections
@@ -308,6 +314,15 @@ def load_program_config():
     # configure the interface to the blockchain on startup
     global_singleton.bc_interface = get_blockchain_interface_instance(
         global_singleton.config)
+    #set the location of the commitments file
+    try:
+        global_singleton.commit_file_location = global_singleton.config.get(
+            "POLICY", "commit_file_location")
+    except NoOptionError:
+            log.debug("No commitment file location in config, using default "
+                      "location cmttools/commitments.json")
+    btc.set_commitment_file(os.path.join(jmkt_dir,
+                                         global_singleton.commit_file_location))
 
 def get_blockchain_interface_instance(_config):
     # todo: refactor joinmarket module to get rid of loops

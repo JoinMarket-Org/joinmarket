@@ -7,9 +7,16 @@ import json
 from py2specials import *
 from py3specials import *
 from secp256k1_main import ctx
-PODLE_COMMIT_FILE = "commitments.json"
+PODLE_COMMIT_FILE = None
 N = 115792089237316195423570985008687907852837564279074904382605163141518161494337
 dummy_pub = secp256k1.PublicKey(ctx=ctx)
+
+def set_commitment_file(file_loc):
+    global PODLE_COMMIT_FILE
+    PODLE_COMMIT_FILE = file_loc
+
+def get_commitment_file():
+    return PODLE_COMMIT_FILE
 
 class PoDLEError(Exception):
     pass
@@ -311,7 +318,7 @@ def update_commitments(commitment=None, external_to_remove=None,
     to_write['used'] = commitments
     to_write['external'] = external
     with open(PODLE_COMMIT_FILE, "wb") as f:
-        f.write(json.dumps(to_write))
+        f.write(json.dumps(to_write, indent=4))
 
 def generate_podle(priv_utxo_pairs, tries=1, allow_external=False):
     """Given a list of privkeys, try to generate a
