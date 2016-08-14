@@ -444,7 +444,7 @@ elif method == 'history':
             skip_n1(mixdepth_dst)]
         if options.csv:
             printable_data += [tx['txid']]
-        l = s().join(printable_data)
+        l = s().join(map('"{}"'.format, printable_data))
         print(l)
 
         if tx_type != 'cj internal':
