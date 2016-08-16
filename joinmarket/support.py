@@ -367,11 +367,11 @@ def choose_sweep_orders(db,
     orders_fees = sorted(orders_fees, key=feekey)
     chosen_orders = []
     while len(chosen_orders) < n:
-        if len(orders_fees) < n - len(chosen_orders):
-            log.debug('ERROR not enough liquidity in the orderbook')
-            # TODO handle not enough liquidity better, maybe an Exception
-            return None, 0, 0
         for i in range(n - len(chosen_orders)):
+            if len(orders_fees) < n - len(chosen_orders):
+                log.debug('ERROR not enough liquidity in the orderbook')
+                # TODO handle not enough liquidity better, maybe an Exception
+                return None, 0, 0
             chosen_order, chosen_fee = chooseOrdersBy(orders_fees, n)
             log.debug('chosen = ' + str(chosen_order))
             # remove all orders from that same counterparty

@@ -68,7 +68,7 @@ global_singleton.debug_silence = debug_silence
 global_singleton.config = SafeConfigParser()
 global_singleton.config_location = 'joinmarket.cfg'
 global_singleton.commit_file_location = 'cmttools/commitments.json'
-
+global_singleton.wait_for_commitments = 0
 
 def jm_single():
     return global_singleton

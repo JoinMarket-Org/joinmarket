@@ -88,11 +88,17 @@ class CoinJoinTX(object):
         """Create commitment to fulfil anti-DOS requirement of makers,
         storing the corresponding reveal/proof data for next step.
         """
-        self.commitment, self.reveal_commitment = \
-            self.commitment_creator(self.wallet, utxos, amount)
+        while True:
+            self.commitment, self.reveal_commitment = self.commitment_creator(
+                self.wallet, utxos, amount)
+            if (self.commitment) or (jm_single().config.getint(
+                "POLICY", "wait_for_commitments") == 0):
+                break
+            log.debug("Failed to source commitments, waiting 3 minutes")
+            time.sleep(3 * 60)
         if not self.commitment:
             log.debug("Cannot construct transaction, failed to generate "
-                      "commitment, shutting down. Please read commitments_debug.txt"
+                    "commitment, shutting down. Please read commitments_debug.txt "
                       "for some information on why this is, and what can be "
                       "done to remedy it.")
             #TODO: would like to raw_input here to show the user, but
