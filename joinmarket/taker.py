@@ -91,8 +91,7 @@ class CoinJoinTX(object):
         while True:
             self.commitment, self.reveal_commitment = self.commitment_creator(
                 self.wallet, utxos, amount)
-            if (self.commitment) or (jm_single().config.getint(
-                "POLICY", "wait_for_commitments") == 0):
+            if (self.commitment) or (jm_single().wait_for_commitments == 0):
                 break
             log.debug("Failed to source commitments, waiting 3 minutes")
             time.sleep(3 * 60)
@@ -603,7 +602,7 @@ class Taker(OrderbookWatch):
         # that some other guy doesnt send you confusing stuff
 
     def get_crypto_box_from_nick(self, nick):
-        if nick in self.cjtx.crypto_boxes:
+        if nick in self.cjtx.crypto_boxes and self.cjtx.crypto_boxes[nick] != None:
             return self.cjtx.crypto_boxes[nick][
                 1]  # libsodium encryption object
         else:

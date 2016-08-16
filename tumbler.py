@@ -633,7 +633,7 @@ def main():
     wallet = Wallet(wallet_file,
                     max_mix_depth=options['mixdepthsrc'] + options['mixdepthcount'])
     jm_single().bc_interface.sync_wallet(wallet)
-    jm_single().config.set("POLICY", "wait_for_commitments", "1")
+    jm_single().wait_for_commitments = 1
     log.debug('starting tumbler')
     mcs = [IRCMessageChannel(c) for c in get_irc_mchannels()]
     mcc = MessageChannelCollection(mcs)

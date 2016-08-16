@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.dirname(script_dir))
 from optparse import OptionParser
 import bitcoin as btc
 from joinmarket import load_program_config, jm_single, get_p2pk_vbyte
+from joinmarket import Wallet
 from commitment_utils import get_utxo_info, validate_utxo_data, quit
 
 def add_external_commitments(utxo_datas):
@@ -64,8 +65,9 @@ def main():
                     
                     "'Utxo' means unspent transaction output, it must not "
                     "already be spent. "
-
-                    "If you enter a utxo without the -r option, you will be "
+                    "The options -w, -r and -R offer ways to load these utxos "
+                    "from a file or wallet. "
+                    "If you enter a single utxo without these options, you will be "
                     "prompted to enter the private key here - it must be in "
                     "WIF compressed format. "
 
@@ -92,6 +94,32 @@ def main():
         help='name of json formatted file containing utxos with private keys, as '
         'output from "python wallet-tool.py -u -p walletname showutxos"'
         )
+    parser.add_option(
+        '-w',
+        '--load-wallet',
+        action='store',
+        type='str',
+        dest='loadwallet',
+        help='name of wallet from which to load utxos and use as commitments.'
+        )
+    parser.add_option(
+        '-g',
+        '--gap-limit',
+        action='store',
+        type='int',
+        dest='gaplimit',
+        default = 6,
+        help='Only to be used with -w; gap limit for Joinmarket wallet, default 6.'
+    )
+    parser.add_option(
+        '-M',
+        '--max-mixdepth',
+        action='store',
+        type='int',
+        dest='maxmixdepth',
+        default=5,
+        help='Only to be used with -w; number of mixdepths for wallet, default 5.'
+    )
     parser.add_option(
         '-d',
         '--delete-external',
@@ -120,7 +148,7 @@ def main():
     load_program_config()
     utxo_data = []
     if options.delete_ext:
-        other = options.in_file or options.in_json
+        other = options.in_file or options.in_json or options.loadwallet
         if len(args) > 0 or other:
             if raw_input("You have chosen to delete commitments, other arguments "
                          "will be ignored; continue? (y/n)") != 'y':
@@ -136,7 +164,25 @@ def main():
         print "Commitments deleted."
         sys.exit(0)
 
-    if options.in_file:
+    #Three options (-w, -r, -R) for loading utxo and privkey pairs from a wallet,
+    #csv file or json file.
+    if options.loadwallet:
+        os.chdir('..') #yuck (see earlier comment about package)
+        wallet = Wallet(options.loadwallet,
+                            options.maxmixdepth,
+                            options.gaplimit)
+        os.chdir(os.path.join(os.getcwd(), 'cmttools'))
+        jm_single().bc_interface.sync_wallet(wallet)
+        unsp = {}
+        for u, av in wallet.unspent.iteritems():
+                    addr = av['address']
+                    key = wallet.get_key_from_addr(addr)
+                    wifkey = btc.wif_compressed_privkey(key, vbyte=get_p2pk_vbyte())
+                    unsp[u] = {'address': av['address'],
+                               'value': av['value'], 'privkey': wifkey}
+        for u, pva  in unsp.iteritems():
+            utxo_data.append((u, pva['privkey']))
+    elif options.in_file:
         with open(options.in_file, "rb") as f:
             utxo_info = f.readlines()
         for ul in utxo_info:

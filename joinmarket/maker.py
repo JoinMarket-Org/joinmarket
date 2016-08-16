@@ -266,6 +266,8 @@ class Maker(OrderbookWatch):
                 'wrong ordering of protocol events, no crypto object, nick=' +
                 nick)
             return None
+        elif not self.active_orders[nick]:
+            return None
         else:
             return self.active_orders[nick].crypto_box
 

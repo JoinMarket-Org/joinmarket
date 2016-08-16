@@ -58,13 +58,6 @@ parser.add_option('-M',
                   dest='mixdepth',
                   help='mixing depth to import private key into',
                   default=0)
-parser.add_option('-u',
-                  '--utxo-file-output',
-                  action='store_true',
-                  dest='utxos2file',
-                  default=False,
-                  help='when using showutxos method, write json data to file'
-                  )
 parser.add_option('--csv',
                   action='store_true',
                   dest='csv',
@@ -124,22 +117,7 @@ if method == 'showutxos':
                        'value': av['value'], 'privkey': wifkey}
     else:
         unsp = wallet.unspent
-    outdata = json.dumps(unsp, indent=4)
-    if options.utxos2file:
-        utxofilename = seed + '.utxos' #will be .json.utxos for "real"/file wallet
-        utxolocation = os.path.join('wallets', utxofilename)
-        if os.path.isfile(utxolocation):
-            if raw_input('File: ' + utxolocation + \
-                         ' already exists; overwrite? (y/n): ') != 'y':
-                print('Quitting')
-                sys.exit(0)
-        with open(utxolocation, 'wb') as f:
-            f.write(outdata)
-    print(outdata)
-    if options.utxos2file:
-        print("The above data was written to: " + utxolocation)
-        if options.showprivkey:
-            print("Remember, this file contains private keys!")
+    print(json.dumps(unsp, indent=4))
     sys.exit(0)
 
 if method == 'display' or method == 'displayall' or method == 'summary':
