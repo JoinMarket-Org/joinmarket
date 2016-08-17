@@ -36,7 +36,10 @@ class CoinJoinTX(object):
                  total_txfee,
                  finishcallback,
                  choose_orders_recover,
-                 auth_addr=None):
+                 auth_addr=None,
+                 kp=None,
+                 my_btc_sig=None,
+                 my_btc_pub=None):
         """
         if my_change is None then there wont be a change address
         thats used if you want to entirely coinjoin one utxo with no change left over
@@ -78,6 +81,26 @@ class CoinJoinTX(object):
         self.outputs = []
         # create DH keypair on the fly for this Tx object
         self.kp = init_keypair()
+        if kp:
+            print('kp is {0}'.format(kp))
+            self.kp = kp
+            if my_btc_sig and my_btc_pub:
+                self.my_btc_sig = my_btc_sig
+                self.my_btc_pub = my_btc_pub
+            else:
+                print('ERROR: if key pair is provided, a btc sig and pub has to be provided, too.')
+                return
+        else:
+            #create DH keypair on the fly for this Tx object
+            self.kp = init_keypair()
+        if my_btc_sig == None:
+            if self.auth_addr:
+                self.my_btc_addr = self.auth_addr
+            else:
+                self.my_btc_addr = self.input_utxos.itervalues().next()['address']
+            my_btc_priv = self.wallet.get_key_from_addr(self.my_btc_addr)
+            self.my_btc_pub = btc.privtopub(my_btc_priv)
+            self.my_btc_sig = btc.ecdsa_sign(self.kp.hex_pk(), my_btc_priv)
         self.crypto_boxes = {}
         self.msgchan.fill_orders(self.active_orders, self.cj_amount,
                                  self.kp.hex_pk())
@@ -94,14 +117,7 @@ class CoinJoinTX(object):
             self.msgchan.send_error(nick, "invalid nacl pubkey: " + maker_pk)
             return
         # send authorisation request
-        if self.auth_addr:
-            my_btc_addr = self.auth_addr
-        else:
-            my_btc_addr = self.input_utxos.itervalues().next()['address']
-        my_btc_priv = self.wallet.get_key_from_addr(my_btc_addr)
-        my_btc_pub = btc.privtopub(my_btc_priv)
-        my_btc_sig = btc.ecdsa_sign(self.kp.hex_pk(), my_btc_priv)
-        self.msgchan.send_auth(nick, my_btc_pub, my_btc_sig)
+        self.msgchan.send_auth(nick, self.my_btc_pub, self.my_btc_sig)
 
     def auth_counterparty(self, nick, btc_sig, cj_pub):
         """Validate the counterpartys claim to own the btc
@@ -571,13 +587,16 @@ class Taker(OrderbookWatch):
                  total_txfee,
                  finishcallback=None,
                  choose_orders_recover=None,
-                 auth_addr=None):
-        self.cjtx = None
+                 auth_addr=None,
+                 kp=None,
+                 my_btc_sig=None,
+                 my_btc_pub=None):
         self.cjtx = CoinJoinTX(
                 self.msgchan, wallet, self.db, cj_amount, orders,
                 input_utxos, my_cj_addr, my_change_addr,
                 total_txfee, finishcallback,
-                choose_orders_recover, auth_addr)
+                choose_orders_recover, auth_addr,
+                kp, my_btc_sig, my_btc_pub)
 
     def on_error(self):
         pass  # TODO implement
