@@ -256,7 +256,7 @@ def getP2(priv, nums_pt):
 
 def get_podle_commitments():
     """Returns set of commitments used as a list:
-    [H(P2),..] (hex)
+    [H(P2),..] (hex) and a dict of all existing external commitments.
     It is presumed that each H(P2) can
     be used only once (this may not literally be true, but represents
     good joinmarket "citizenship").
@@ -320,7 +320,7 @@ def update_commitments(commitment=None, external_to_remove=None,
     with open(PODLE_COMMIT_FILE, "wb") as f:
         f.write(json.dumps(to_write, indent=4))
 
-def generate_podle(priv_utxo_pairs, tries=1, allow_external=False):
+def generate_podle(priv_utxo_pairs, tries=1, allow_external=None):
     """Given a list of privkeys, try to generate a
     PoDLE which is not yet used more than tries times.
     This effectively means satisfying two criteria:
@@ -349,7 +349,9 @@ def generate_podle(priv_utxo_pairs, tries=1, allow_external=False):
             update_commitments(commitment=c['commit'])
             return c
     if allow_external:
-        for u, ec in external_commitments.iteritems():
+        filtered_external = dict(
+            [(x, external_commitments[x]) for x in allow_external])
+        for u, ec in filtered_external.iteritems():
             #use as many as were provided in the file, up to a max of tries
             m = min([len(ec['reveal'].keys()), tries])
             for i in [str(x) for x in range(m)]:

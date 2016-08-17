@@ -713,7 +713,7 @@ class Taker(OrderbookWatch):
 
         #For podle data format see: btc.podle.PoDLE.reveal()
         #In first round try, don't use external commitments
-        podle_data = btc.generate_podle(priv_utxo_pairs, tries, False)
+        podle_data = btc.generate_podle(priv_utxo_pairs, tries)
         if not podle_data:
             #We defer to a second round to try *all* utxos in wallet;
             #this is because it's much cleaner to use the utxos involved
@@ -723,7 +723,12 @@ class Taker(OrderbookWatch):
             if wallet.unspent:
                 priv_utxo_pairs, to, ts = priv_utxo_pairs_from_utxos(
                     wallet.unspent, age, amt)
-            podle_data = btc.generate_podle(priv_utxo_pairs, tries, True)
+            #Pre-filter the set of external commitments that work for this
+            #transaction according to its size and age.
+            dummy, extdict = btc.get_podle_commitments()
+            ext_valid, ext_to, ext_ts = filter_by_coin_age_amt(extdict.keys(),
+                                                               age, amt)
+            podle_data = btc.generate_podle(priv_utxo_pairs, tries, ext_valid)
         if podle_data:
             log.debug("Generated PoDLE: " + pprint.pformat(podle_data))
             revelation = btc.PoDLE(u=podle_data['utxo'],P=podle_data['P'],
