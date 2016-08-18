@@ -36,7 +36,8 @@ class CoinJoinTX(object):
                  total_txfee,
                  finishcallback,
                  choose_orders_recover,
-                 auth_addr=None):
+                 auth_addr=None,
+                 estimate_fee=estimate_tx_fee):
         """
         if my_change is None then there wont be a change address
         thats used if you want to entirely coinjoin one utxo with no change left over
@@ -60,6 +61,7 @@ class CoinJoinTX(object):
         self.my_change_addr = my_change_addr
         self.choose_orders_recover = choose_orders_recover
         self.auth_addr = auth_addr
+        self.estimate_fee = estimate_fee
         self.timeout_lock = threading.Condition()  # used to wait() and notify()
         # used to restrict access to certain variables across threads
         self.timeout_thread_lock = threading.Condition()
@@ -163,7 +165,7 @@ class CoinJoinTX(object):
                            self.input_utxos.iteritems()])
         if self.my_change_addr:
             #Estimate fee per choice of next/3/6 blocks targetting.
-            estimated_fee = estimate_tx_fee(len(sum(
+            estimated_fee = self.estimate_fee(len(sum(
                 self.utxos.values(),[])), len(self.outputs)+2)
             log.debug("Based on initial guess: "+str(
                 self.total_txfee)+", we estimated a fee of: "+str(estimated_fee))
@@ -571,13 +573,14 @@ class Taker(OrderbookWatch):
                  total_txfee,
                  finishcallback=None,
                  choose_orders_recover=None,
-                 auth_addr=None):
+                 auth_addr=None,
+                 estimate_fee=estimate_tx_fee):
         self.cjtx = None
         self.cjtx = CoinJoinTX(
                 self.msgchan, wallet, self.db, cj_amount, orders,
                 input_utxos, my_cj_addr, my_change_addr,
                 total_txfee, finishcallback,
-                choose_orders_recover, auth_addr)
+                choose_orders_recover, auth_addr, estimate_fee)
 
     def on_error(self):
         pass  # TODO implement

@@ -44,7 +44,7 @@ def json_changebase(obj, changer):
 
 
 def deserialize(tx):
-    if isinstance(tx, str) and re.match('^[0-9a-fA-F]*$', tx):
+    if isinstance(tx, basestring) and re.match('^[0-9a-fA-F]*$', tx):
         #tx = bytes(bytearray.fromhex(tx))
         return json_changebase(
             deserialize(binascii.unhexlify(tx)), lambda x: safe_hexlify(x))
@@ -158,7 +158,7 @@ def signature_form(tx, i, script, hashcode=SIGHASH_ALL):
     return newtx
 
 def txhash(tx, hashcode=None):
-    if isinstance(tx, str) and re.match('^[0-9a-fA-F]*$', tx):
+    if isinstance(tx, basestring) and re.match('^[0-9a-fA-F]*$', tx):
         tx = changebase(tx, 16, 256)
     if hashcode:
         return dbl_sha256(from_string_to_bytes(tx) + encode(
@@ -238,7 +238,7 @@ scriptaddr = p2sh_scriptaddr
 
 
 def deserialize_script(script):
-    if isinstance(script, str) and re.match('^[0-9a-fA-F]*$', script):
+    if isinstance(script, basestring) and re.match('^[0-9a-fA-F]*$', script):
         return json_changebase(
             deserialize_script(binascii.unhexlify(script)),
             lambda x: safe_hexlify(x))
@@ -372,10 +372,10 @@ def apply_multisignatures(*args):
     tx, i, script = args[0], int(args[1]), args[2]
     sigs = args[3] if isinstance(args[3], list) else list(args[3:])
 
-    if isinstance(script, str) and re.match('^[0-9a-fA-F]*$', script):
+    if isinstance(script, basestring) and re.match('^[0-9a-fA-F]*$', script):
         script = binascii.unhexlify(script)
     sigs = [binascii.unhexlify(x) if x[:2] == '30' else x for x in sigs]
-    if isinstance(tx, str) and re.match('^[0-9a-fA-F]*$', tx):
+    if isinstance(tx, basestring) and re.match('^[0-9a-fA-F]*$', tx):
         return safe_hexlify(apply_multisignatures(
             binascii.unhexlify(tx), i, script, sigs))
 
