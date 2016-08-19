@@ -28,17 +28,34 @@ def pytest_addoption(parser):
                      default='bitcoinrpc',
                      help="the RPC username for your test bitcoin instance (default=bitcoinrpc)")
 
-def teardown():
-    #didn't find a stop command in miniircd, so just kill
-    global miniircd_proc
-    miniircd_proc.kill()
+## a lot of these sleeps should be replaced by rpc calls which detech
+## when bitcoin core is ready
+def start_bitcoind(additional_args=None):
+    if not additional_args:
+        additional_args = []
+    #start up regtest blockchain
+    btc_proc = subprocess.call([bitcoin_path + "bitcoind", "-regtest",
+            "-daemon", "-conf=" + bitcoin_conf] + additional_args)
+    time.sleep(20)
+    #generate blocks
+    local_command([bitcoin_path + "bitcoin-cli", "-regtest", "-rpcuser=" +
+            bitcoin_rpcusername, "-rpcpassword=" + bitcoin_rpcpassword,
+            "generate", "101"])
+    time.sleep(10)
 
+def stop_bitcoind():
     #shut down bitcoin and remove the regtest dir
     local_command([bitcoin_path + "bitcoin-cli", "-regtest", "-rpcuser=" + bitcoin_rpcusername,
                    "-rpcpassword=" + bitcoin_rpcpassword, "stop"])
     #note, it is better to clean out ~/.bitcoin/regtest but too
     #dangerous to automate it here perhaps
+    time.sleep(10)
 
+def teardown():
+    #didn't find a stop command in miniircd, so just kill
+    global miniircd_proc
+    miniircd_proc.kill()
+    stop_bitcoind()
 
 @pytest.fixture(scope="session", autouse=True)
 def setup(request):
@@ -57,10 +74,5 @@ def setup(request):
     miniircd_proc = local_command(
         ["./miniircd/miniircd", "--motd=" + cwd + "/miniircd/testmotd"],
         bg=True)
-    #start up regtest blockchain
-    btc_proc = subprocess.call([bitcoin_path + "bitcoind", "-regtest",
-                                "-daemon", "-conf=" + bitcoin_conf])
-    time.sleep(3)
-    #generate blocks
-    local_command([bitcoin_path + "bitcoin-cli", "-regtest", "-rpcuser=" + bitcoin_rpcusername,
-                   "-rpcpassword=" + bitcoin_rpcpassword, "generate", "101"])
+
+    start_bitcoind()

@@ -406,7 +406,7 @@ def bitcoincore_timeout_callback(uc_called, txout_set, txnotify_fun_list,
     log.debug('timeoutfun txout_set=\n' + pprint.pformat(txout_set))
     timeoutfun(uc_called)
 
-class NotifyRequestHeader(BaseHTTPServer.BaseHTTPRequestHandler):
+class NotifyRequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     def __init__(self, request, client_address, base_server):
         self.btcinterface = base_server.btcinterface
         self.base_server = base_server
@@ -414,8 +414,12 @@ class NotifyRequestHeader(BaseHTTPServer.BaseHTTPRequestHandler):
                 self, request, client_address, base_server)
 
     def do_HEAD(self):
-        pages = ('/walletnotify?', '/alertnotify?')
+        if self.btcinterface.notify_hook:
+            self.btcinterface.notify_hook(self)
+        else:
+            log.debug('no notify hook')
 
+        pages = ('/walletnotify?', '/alertnotify?')
         if self.path.startswith('/walletnotify?'):
             txid = self.path[len(pages[0]):]
             if not re.match('^[0-9a-fA-F]*$', txid):
@@ -424,7 +428,7 @@ class NotifyRequestHeader(BaseHTTPServer.BaseHTTPRequestHandler):
             try:
                 tx = self.btcinterface.rpc('getrawtransaction', [txid])
             except (JsonRpcError, JsonRpcConnectionError) as e:
-                log.debug('transaction not found, probably a conflict')
+                log.debug('transaction not found, not ours or a conflict')
                 return
             if not re.match('^[0-9a-fA-F]*$', tx):
                 log.debug('not a txhex')
@@ -484,7 +488,8 @@ class NotifyRequestHeader(BaseHTTPServer.BaseHTTPRequestHandler):
             log.debug('Got an alert!\nMessage=' + jm_single().core_alert[0])
 
         else:
-            log.debug('ERROR: This is not a handled URL path.  You may want to check your notify URL for typos.')
+            if not self.btcinterface.notify_hook:
+                log.debug('ERROR: This is not a handled URL path.  You may want to check your notify URL for typos.')
 
         request = urllib2.Request('http://localhost:' + str(self.base_server.server_address[1] + 1) + self.path)
         request.get_method = lambda : 'HEAD'
@@ -514,7 +519,7 @@ class BitcoinCoreNotifyThread(threading.Thread):
         for inc in range(10):
             hostport = (notify_host, notify_port + inc)
             try:
-                httpd = BaseHTTPServer.HTTPServer(hostport, NotifyRequestHeader)
+                httpd = BaseHTTPServer.HTTPServer(hostport, NotifyRequestHandler)
             except Exception:
                 continue
             httpd.btcinterface = self.btcinterface
@@ -541,12 +546,18 @@ class BitcoinCoreInterface(BlockchainInterface):
             raise Exception('wrong network configured')
 
         self.notifythread = None
+        self.notify_hook = None
         self.txnotify_fun = []
         self.wallet_synced = False
 
     @staticmethod
     def get_wallet_name(wallet):
         return 'joinmarket-wallet-' + btc.dbl_sha256(wallet.keys[0][0])[:6]
+
+    def start_notify_thread(self):
+        if not self.notifythread:
+            self.notifythread = BitcoinCoreNotifyThread(self)
+            self.notifythread.start()
 
     def rpc(self, method, args):
         if method not in ['importaddress', 'walletpassphrase']:
@@ -725,9 +736,7 @@ class BitcoinCoreInterface(BlockchainInterface):
 
     def add_tx_notify(self, txd, unconfirmfun, confirmfun, notifyaddr,
             timeoutfun=None):
-        if not self.notifythread:
-            self.notifythread = BitcoinCoreNotifyThread(self)
-            self.notifythread.start()
+        self.start_notify_thread()
         one_addr_imported = False
         for outs in txd['outs']:
             addr = btc.script_to_address(outs['script'], get_p2pk_vbyte())
@@ -791,13 +800,13 @@ class RegtestBitcoinCoreInterface(BitcoinCoreInterface):
         super(RegtestBitcoinCoreInterface, self).__init__(jsonRpc, 'regtest')
         self.pushtx_failure_prob = 0
         self.tick_forward_chain_interval = 2
-	self.absurd_fees = False
+        self.absurd_fees = False
 
     def estimate_fee_per_kb(self, N):
-	if not self.absurd_fees:
-	    return super(RegtestBitcoinCoreInterface, self).estimate_fee_per_kb(N)
-	else:
-	    return jm_single().config.getint("POLICY", "absurd_fee_per_kb") + 100
+        if not self.absurd_fees:
+            return super(RegtestBitcoinCoreInterface, self).estimate_fee_per_kb(N)
+        else:
+            return jm_single().config.getint("POLICY", "absurd_fee_per_kb") + 100
 
     def pushtx(self, txhex):
         if self.pushtx_failure_prob != 0 and random.random() <\

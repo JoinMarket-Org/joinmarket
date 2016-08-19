@@ -114,6 +114,6 @@ class JsonRpc(object):
             raise JsonRpcConnectionError("invalid id returned by query")
 
         if response["error"] is not None:
-            raise JsonRpcError(response["error"])
+            raise JsonRpcError(response)
 
         return response["result"]
