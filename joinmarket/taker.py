@@ -674,6 +674,9 @@ class Taker(OrderbookWatch):
             too_old = []
             too_small = []
             for i, r in enumerate(results):
+                #results return "None" if txo is spent; drop this
+                if not r:
+                    continue
                 valid_age = r['confirms'] >= age
                 valid_amt = r['value'] >= amt
                 if not valid_age:

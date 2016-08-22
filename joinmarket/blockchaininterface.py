@@ -379,7 +379,7 @@ class BlockrInterface(BlockchainInterface):
         for txo in txout:
             txdata = [d for d in data if d['tx'] == txo[:64]][0]
             vout = [v for v in txdata['vouts'] if v['n'] == int(txo[65:])][0]
-            if vout['is_spent'] == 1:
+            if "is_spent" in vout and vout['is_spent'] == 1:
                 result.append(None)
             else:
                 result_dict = {'value': int(Decimal(vout['amount']) * Decimal(
