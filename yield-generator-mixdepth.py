@@ -81,6 +81,18 @@ class YieldGenerator(Maker):
         timestamp = datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
         self.log_statement([timestamp, '', '', '', '', '', '', 'Connected'])
 
+    @staticmethod
+    def _join_orders(a, b):
+        if a['ordertype'] == b['ordertype'] and a['cjfee'] == b['cjfee']:
+            return {
+                'ordertype': a['ordertype'],
+                'cjfee': a['cjfee'],
+                'oid': min(a['oid'], b['oid']),
+                'minsize': min(a['minsize'], b['minsize']),
+                'maxsize': max(a['maxsize'], b['maxsize']),
+                'txfee': a['txfee'],
+            }
+
     def create_my_orders(self):
         mix_balance = self.wallet.get_balance_by_mixdepth()
         log.debug('mix_balance = ' + str(mix_balance))
@@ -149,6 +161,29 @@ class YieldGenerator(Maker):
         for order in orders[:]:
             if order['minsize'] < 0 or order['maxsize'] <= 0 or order['minsize'] > order['maxsize']:
                 orders.remove(order)
+
+        # join orders
+        restart = True
+        while restart:
+            restart = False
+            for a in orders:
+                for b in orders:
+                    if a == b:
+                        continue
+                    u = self._join_orders(a, b)
+                    if u:
+                        print(a, b)
+                        orders.remove(a)
+                        orders.remove(b)
+                        orders.append(u)
+                        restart = True
+                        break
+                if restart:
+                    break
+
+        # Re-enumerate orders
+        for i, order in enumerate(orders):
+            order['oid'] = i
 
         return orders
 
