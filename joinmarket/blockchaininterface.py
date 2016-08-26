@@ -194,7 +194,14 @@ class BlockrInterface(BlockchainInterface):
             blockr_url = 'https://' + self.blockr_domain + \
                          '.blockr.io/api/v1/address/unspent/'
             res = btc.make_request(blockr_url + ','.join(req))
-            data = json.loads(res)['data']
+            data = json.loads(res)
+            # {"status":"error","data":null,"code":429,"message":"Too many requests. Wait a bit..."}
+            if data['status'] == 'error' and data['code'] == 429:
+                log.debug('Service error: ' + data['message'])
+                time.sleep(20)
+                i -= inc
+                continue
+            data = data['data']
             if 'unspent' in data:
                 data = [data]
             for dat in data:
