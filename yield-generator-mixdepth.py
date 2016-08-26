@@ -146,10 +146,9 @@ class YieldGenerator(Maker):
         log.debug('generated orders = \n' + '\n'.join([str(o) for o in orders]))
 
         # sanity check
-        for order in orders:
-            assert order['minsize'] >= 0
-            assert order['maxsize'] > 0
-            assert order['minsize'] <= order['maxsize']
+        for order in orders[:]:
+            if order['minsize'] < 0 or order['maxsize'] <= 0 or order['minsize'] > order['maxsize']:
+                orders.remove(order)
 
         return orders
 
