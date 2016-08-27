@@ -182,6 +182,7 @@ class YieldGenerator(Maker):
                     break
 
         # Re-enumerate orders
+        orders.sort(key=lambda y: y['cjfee'])
         for i, order in enumerate(orders):
             order['oid'] = i
 
