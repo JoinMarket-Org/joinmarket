@@ -142,6 +142,8 @@ class CoinJoinOrder(object):
         #blacklisting commitments that are broadcast between makers in real time
         #for the same transaction.
         self.maker.transfer_commitment(self.maker.commit)
+        #now persist the fact that the commitment is actually used.
+        check_utxo_blacklist(self.maker.commit, persist=True)
         return True
 
     def recv_tx(self, nick, txhex):
@@ -294,7 +296,7 @@ class Maker(OrderbookWatch):
             blacklist_add = 0
         if blacklist_add > 0:
             #just add if necessary, ignore return value.
-            check_utxo_blacklist(commitment)
+            check_utxo_blacklist(commitment, persist=True)
             log.debug("Received commitment broadcast by other maker: " + str(
                 commitment) + ", now blacklisted.")
         else:
@@ -330,6 +332,9 @@ class Maker(OrderbookWatch):
             log.debug("Taker utxo commitment is blacklisted, rejecting.")
             self.msgchan.send_error(nick,
                                 "Commitment is blacklisted: " + str(scommit))
+            #Note that broadcast is happening here to reflect an already
+            #consumed commitment; it can also be broadcast separately (earlier) on
+            #valid usage in CoinjoinOrder.auth_counterparty().
             #Keep the type byte for communication so not scommit:
             self.transfer_commitment(commit)
             return

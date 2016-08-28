@@ -252,12 +252,12 @@ def donation_address(reusable_donation_pubkey=None):
     log.debug('sending coins to ' + sender_address)
     return sender_address, sign_k
 
-def check_utxo_blacklist(commitment):
+def check_utxo_blacklist(commitment, persist=False):
     """Compare a given commitment (H(P2) for PoDLE)
     with the persisted blacklist log file;
     if it has been used before, return False (disallowed),
     else return True.
-    Persist the usage of this commitment to the blacklist file.
+    If flagged, persist the usage of this commitment to the blacklist file.
     """
     #TODO format error checking?
     fname = "blacklist"
@@ -271,11 +271,14 @@ def check_utxo_blacklist(commitment):
             blacklisted_commitments = []
         if commitment in blacklisted_commitments:
             return False
-        else:
+        elif persist:
             blacklisted_commitments += [commitment]
-        with open(fname, "wb") as f:
-            f.write('\n'.join(blacklisted_commitments))
-            f.flush()
+            with open(fname, "wb") as f:
+                f.write('\n'.join(blacklisted_commitments))
+                f.flush()
+        #If the commitment is new and we are *not* persisting, nothing to do
+        #(we only add it to the list on sending io_auth, which represents actual
+        #usage).
     return True
 
 
