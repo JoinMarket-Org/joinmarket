@@ -33,22 +33,39 @@ Widespread use of JoinMarket could improve bitcoin's fungibility as a commodity.
     make check
     sudo make install
     ```
-+ (optional, recommended): Install the libsecp256k1 Python library:
+
++ Install Python dependencies:
+    You need `pip` (e.g. `sudo apt-get python-pip`, recent Python usually ships with pip).
+
+    (Setuptools version must be >= 3.3).
+
+    (Recommended but not needed) : use `virtualenv` to keep dependencies isolated.
+
+    If on Linux/OSX:
+
+    The Python binding to libsecp256k1 will most likely have some dependencies; read the [Wiki article](https://github.com/JoinMarket-Org/joinmarket/wiki/Installing-the-libsecp256k1-binding).
+
+    Try running the below without following those instructions, most likely it will fail and you will then have to follow them.
 
     ```
-    pip install secp256k1
+    pip install -r requirements.txt
     ```
 
- Note that this requires `pip`. This library will make use of libsecp256k1 if you already have it installed on your system. Most likely you won't, and it will try to build libsecp256k1 automatically for you. This requires some development packages; please read the installation details [here](https://github.com/ludbb/secp256k1-py#installation), provided for Debian/Ubuntu and OS X. Please also note that if you can't complete this step, Joinmarket will still run correctly, with two disadvantages: wallet loading is much slower without libsecp256k1, and the ECC crypto code is far less robust and well tested.
+    If on Windows:
+
+    ```
+    pip install -r requirements-windows.txt
+    ```
+
 + Matplotlib for displaying the graphs in orderbook-watcher (optional)
 
 ###DEBIAN / UBUNTU QUICK INSTALL FOR USERS:
 
 1. `sudo apt-get update -y && sudo apt-get upgrade -y && sudo apt-get install python libsodium-dev -y`
-2. `pip install secp256k1` (optional but recommended)
+2. `pip install -r requirements.txt`
 2. `sudo apt-get install python-matplotlib -y` (optional)
-3. Download JoinMarket 0.1.4 source from [here](https://github.com/joinmarket-org/joinmarket/releases/tag/v0.1.4)
-4. Extract or unzip and `cd joinmarket-0.1.4`
+3. Download JoinMarket 0.2.0 source from [here](https://github.com/joinmarket-org/joinmarket/releases/tag/v0.2.0)
+4. Extract or unzip and `cd joinmarket-0.2.0`
 4. Generating your first wallet will populate the configuration file: `joinmarket.cfg`.
    Check if the default settings suit your needs.
 
