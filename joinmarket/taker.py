@@ -118,14 +118,19 @@ class CoinJoinTX(object):
             log.debug(('recv_txio => nick={} not in '
                        'nonrespondants {}').format(nick, self.nonrespondants))
             return
-        self.utxos[nick] = utxo_list
-        utxo_data = jm_single().bc_interface.query_utxo_set(self.utxos[nick])
+        duplicate_utxos = set(sum(self.utxos.values(), [])).intersection(set(utxo_list))
+        if len(duplicate_utxos) > 0:
+            log.debug('ERROR duplicate UTXOs: \n' + pprint.pformat(
+                duplicate_utxos))
+            return
+        utxo_data = jm_single().bc_interface.query_utxo_set(utxo_list)
         if None in utxo_data:
             log.debug(('ERROR outputs unconfirmed or already spent. '
                        'utxo_data={}').format(pprint.pformat(utxo_data)))
             # when internal reviewing of makers is created, add it here to
             # immediately quit; currently, the timeout thread suffices.
             return
+        self.utxos[nick] = utxo_list
 
         total_input = sum([d['value'] for d in utxo_data])
         real_cjfee = calc_cj_fee(self.active_orders[nick]['ordertype'],
