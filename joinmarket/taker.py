@@ -729,8 +729,11 @@ class Taker(OrderbookWatch):
             #Pre-filter the set of external commitments that work for this
             #transaction according to its size and age.
             dummy, extdict = btc.get_podle_commitments()
-            ext_valid, ext_to, ext_ts = filter_by_coin_age_amt(extdict.keys(),
+            if len(extdict.keys()) > 0:
+                ext_valid, ext_to, ext_ts = filter_by_coin_age_amt(extdict.keys(),
                                                                age, amt)
+            else:
+                ext_valid = None
             podle_data = btc.generate_podle(priv_utxo_pairs, tries, ext_valid)
         if podle_data:
             log.debug("Generated PoDLE: " + pprint.pformat(podle_data))
