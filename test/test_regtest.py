@@ -8,7 +8,8 @@ from commontest import local_command, make_wallets
 import os
 import pytest
 import time
-from joinmarket import Taker, load_program_config, IRCMessageChannel
+from joinmarket import Taker, load_program_config, IRCMessageChannel, \
+     MatrixMessageChannel
 from joinmarket import validate_address, jm_single
 from joinmarket import random_nick, get_p2pk_vbyte
 from joinmarket import get_log, choose_sweep_orders, choose_orders, \
@@ -43,7 +44,7 @@ def test_sendpayment(setup_regtest, num_ygs, wallet_structures, mean_amt,
     makercount = num_ygs
     answeryes = True
     txfee = 5000
-    waittime = 5
+    waittime = 15
     amount = sending_amt
     wallets = make_wallets(makercount + 1,
                            wallet_structures=wallet_structures,
@@ -85,16 +86,21 @@ def test_sendpayment(setup_regtest, num_ygs, wallet_structures, mean_amt,
     
     #Trigger PING LAG sending artificially
     joinmarket.irc.PING_INTERVAL = 3
-    
-    irc = IRCMessageChannel(jm_single().nickname)
+
+    if jm_single().config.has_option("MESSAGING", "matrix_host"):
+        mcClass = MatrixMessageChannel
+    else:
+        mcClass = IRCMessageChannel
+    mchannel = mcClass(jm_single().nickname)
+
     #hack fix for #356 if multiple orders per counterparty
     if amount==0: makercount=2
-    taker = sendpayment.SendPayment(irc, wallet, destaddr, amount, makercount,
+    taker = sendpayment.SendPayment(mchannel, wallet, destaddr, amount, makercount,
                                     txfee, waittime, mixdepth, answeryes,
                                     chooseOrdersFunc)
     try:
-        log.debug('starting irc')
-        irc.run()
+        log.debug('starting message channel')
+        mchannel.run()
     finally:
         if any(yigen_procs):
             for ygp in yigen_procs:
