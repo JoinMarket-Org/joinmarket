@@ -3,15 +3,15 @@ from __future__ import absolute_import, print_function
 import io
 import logging
 import threading
+import os
+import binascii
+import sys
 
 from ConfigParser import SafeConfigParser, NoOptionError
 
 import bitcoin as btc
 from joinmarket.jsonrpc import JsonRpc
 from joinmarket.support import get_log, joinmarket_alert, core_alert, debug_silence
-
-# config = SafeConfigParser()
-# config_location = 'joinmarket.cfg'
 
 log = get_log()
 
@@ -37,15 +37,13 @@ class AttributeDict(object):
     def __setattr__(self, name, value):
         if name == 'nickname' and value:
             logFormatter = logging.Formatter(
-                    ('%(asctime)s [%(threadName)-12.12s] '
-                     '[%(levelname)-5.5s]  %(message)s'))
-            fileHandler = logging.FileHandler(
-                    'logs/{}.log'.format(value))
+                ('%(asctime)s [%(threadName)-12.12s] '
+                 '[%(levelname)-5.5s]  %(message)s'))
+            fileHandler = logging.FileHandler('logs/{}.log'.format(value))
             fileHandler.setFormatter(logFormatter)
             log.addHandler(fileHandler)
 
         super(AttributeDict, self).__setattr__(name, value)
-
 
     def __getitem__(self, key):
         """
@@ -53,39 +51,24 @@ class AttributeDict(object):
         """
         return getattr(self, key)
 
-
-# global_singleton = AttributeDict(
-#         **{'log': log,
-#            'JM_VERSION': 3,
-#            'nickname': None,
-#            'DUST_THRESHOLD': 2730,
-#            'bc_interface': None,
-#            'ordername_list': ["absorder", "relorder"],
-#            'maker_timeout_sec': 30,
-#            'debug_file_lock': threading.Lock(),
-#            'debug_file_handle': None,
-#            'core_alert': None,
-#            'joinmarket_alert': None,
-#            'debug_silence': False,
-#            'config': SafeConfigParser(),
-#            'config_location': 'joinmarket.cfg'})
-
-# todo: same as above.  decide!!!
 global_singleton = AttributeDict()
-global_singleton.JM_VERSION = 4
+global_singleton.JM_VERSION = 5
 global_singleton.nickname = None
 global_singleton.DUST_THRESHOLD = 2730
 global_singleton.bc_interface = None
-global_singleton.ordername_list = ['absorder', 'relorder']
+global_singleton.ordername_list = ['absoffer', 'reloffer']
+global_singleton.commitment_broadcast_list = ['hp2']
 global_singleton.maker_timeout_sec = 60
 global_singleton.debug_file_lock = threading.Lock()
 global_singleton.debug_file_handle = None
+global_singleton.blacklist_file_lock = threading.Lock()
 global_singleton.core_alert = core_alert
 global_singleton.joinmarket_alert = joinmarket_alert
 global_singleton.debug_silence = debug_silence
 global_singleton.config = SafeConfigParser()
 global_singleton.config_location = 'joinmarket.cfg'
-
+global_singleton.commit_file_location = 'cmttools/commitments.json'
+global_singleton.wait_for_commitments = 0
 
 def jm_single():
     return global_singleton
@@ -93,7 +76,8 @@ def jm_single():
 # FIXME: Add rpc_* options here in the future!
 required_options = {'BLOCKCHAIN': ['blockchain_source', 'network'],
                     'MESSAGING': ['host', 'channel', 'port'],
-                    'POLICY': ['absurd_fee_per_kb']}
+                    'POLICY': ['absurd_fee_per_kb', 'taker_utxo_retries',
+                               'taker_utxo_age', 'taker_utxo_amtpercent']}
 
 defaultconfig = \
     """
@@ -163,17 +147,63 @@ absurd_fee_per_kb = 150000
 # spends from unconfirmed inputs, which may then get malleated or double-spent!
 # other counterparties are likely to reject unconfirmed inputs... don't do it.
 
-tx_broadcast = self
 #options: self, random-peer, not-self, random-maker
 # self = broadcast transaction with your own ip
 # random-peer = everyone who took part in the coinjoin has a chance of broadcasting
 # not-self = never broadcast with your own ip
 # random-maker = every peer on joinmarket has a chance of broadcasting, including yourself
+tx_broadcast = self
+
+#THE FOLLOWING SETTINGS ARE REQUIRED TO DEFEND AGAINST SNOOPERS.
+#DON'T ALTER THEM UNLESS YOU UNDERSTAND THE IMPLICATIONS.
+
+# number of retries allowed for a specific utxo, to prevent DOS/snooping.
+# Lower settings make snooping more expensive, but also prevent honest users
+# from retrying if an error occurs.
+taker_utxo_retries = 3
+
+# number of confirmations required for the commitment utxo mentioned above.
+# this effectively rate-limits a snooper.
+taker_utxo_age = 5
+
+# percentage of coinjoin amount that the commitment utxo must have
+# as a minimum BTC amount. Thus 20 means a 1BTC coinjoin requires the
+# utxo to be at least 0.2 btc.
+taker_utxo_amtpercent = 20
+
+#Set to 1 to accept broadcast PoDLE commitments from other bots, and
+#add them to your blacklist (only relevant for Makers).
+#There is no way to spoof these values, so the only "risk" is that
+#someone fills your blacklist file with a lot of data.
+accept_commitment_broadcasts = 1
+
+#Location of your commitments.json file (stores commitments you've used
+#and those you want to use in future), relative to root joinmarket directory.
+commit_file_location = cmttools/commitments.json
 """
 
 
-def get_config_irc_channel():
-    channel = '#' + global_singleton.config.get("MESSAGING", "channel")
+def get_irc_mchannels():
+    fields = [("host", str), ("port", int), ("channel", str),
+              ("usessl", str), ("socks5", str), ("socks5_host", str),
+              ("socks5_port", str)]
+    configdata = {}
+    for f, t in fields:
+        vals = jm_single().config.get("MESSAGING", f).split(",")
+        if t == str:
+            vals = [x.strip() for x in vals]
+        else:
+            vals = [t(x) for x in vals]
+        configdata[f] = vals
+    configs = []
+    for i in range(len(configdata['host'])):
+        newconfig = dict([(x, configdata[x][i]) for x in configdata])
+        configs.append(newconfig)
+    return configs
+
+
+def get_config_irc_channel(channel_name):
+    channel = "#" + channel_name
     if get_network() == 'testnet':
         channel += '-test'
     return channel
@@ -209,21 +239,66 @@ def validate_address(addr):
         return False, "Address has correct checksum but wrong length."
     return True, 'address validated'
 
+def donation_address(reusable_donation_pubkey=None):
+    if not reusable_donation_pubkey:
+        reusable_donation_pubkey = ('02be838257fbfddabaea03afbb9f16e852'
+                                    '9dfe2de921260a5c46036d97b5eacf2a')
+    sign_k = binascii.hexlify(os.urandom(32))
+    c = btc.sha256(btc.multiply(sign_k,
+                                reusable_donation_pubkey, True))
+    sender_pubkey = btc.add_pubkeys([reusable_donation_pubkey,
+                                     btc.privtopub(c+'01', True)], True)
+    sender_address = btc.pubtoaddr(sender_pubkey, get_p2pk_vbyte())
+    log.debug('sending coins to ' + sender_address)
+    return sender_address, sign_k
+
+def check_utxo_blacklist(commitment, persist=False):
+    """Compare a given commitment (H(P2) for PoDLE)
+    with the persisted blacklist log file;
+    if it has been used before, return False (disallowed),
+    else return True.
+    If flagged, persist the usage of this commitment to the blacklist file.
+    """
+    #TODO format error checking?
+    fname = "blacklist"
+    if jm_single().config.get("BLOCKCHAIN", "blockchain_source") == 'regtest':
+        fname += "_" + jm_single().nickname
+    with jm_single().blacklist_file_lock:
+        if os.path.isfile(fname):
+                with open(fname, "rb") as f:
+                    blacklisted_commitments = [x.strip() for x in f.readlines()]
+        else:
+            blacklisted_commitments = []
+        if commitment in blacklisted_commitments:
+            return False
+        elif persist:
+            blacklisted_commitments += [commitment]
+            with open(fname, "wb") as f:
+                f.write('\n'.join(blacklisted_commitments))
+                f.flush()
+        #If the commitment is new and we are *not* persisting, nothing to do
+        #(we only add it to the list on sending io_auth, which represents actual
+        #usage).
+    return True
+
 
 def load_program_config():
+    #set the location of joinmarket
+    jmkt_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+    log.debug("Joinmarket directory is: " + str(jmkt_dir))
     global_singleton.config.readfp(io.BytesIO(defaultconfig))
-    loadedFiles = global_singleton.config.read(
-            [global_singleton.config_location])
+    jmkt_config_location = os.path.join(jmkt_dir, global_singleton.config_location)
+    loadedFiles = global_singleton.config.read([jmkt_config_location])
     # Create default config file if not found
     if len(loadedFiles) != 1:
-        with open(global_singleton.config_location, "w") as configfile:
+        with open(jmkt_config_location, "w") as configfile:
             configfile.write(defaultconfig)
 
     # check for sections
     for s in required_options:
         if s not in global_singleton.config.sections():
             raise Exception(
-                    "Config file does not contain the required section: " + s)
+                "Config file does not contain the required section: " + s)
     # then check for specific options
     for k, v in required_options.iteritems():
         for o in v:
@@ -234,22 +309,23 @@ def load_program_config():
 
     try:
         global_singleton.maker_timeout_sec = global_singleton.config.getint(
-                'TIMEOUT', 'maker_timeout_sec')
+            'TIMEOUT', 'maker_timeout_sec')
     except NoOptionError:
         log.debug('TIMEOUT/maker_timeout_sec not found in .cfg file, '
                   'using default value')
 
     # configure the interface to the blockchain on startup
     global_singleton.bc_interface = get_blockchain_interface_instance(
-            global_singleton.config)
-
-    #print warning if not using libsecp256k1
-    if not btc.secp_present:
-        log.debug("WARNING: You are not using the binding to libsecp256k1. The "
-                  "crypto code in use has poorer performance and security "
-                  "properties. Consider installing the binding with `pip install "
-                  "secp256k1`.")
-
+        global_singleton.config)
+    #set the location of the commitments file
+    try:
+        global_singleton.commit_file_location = global_singleton.config.get(
+            "POLICY", "commit_file_location")
+    except NoOptionError:
+            log.debug("No commitment file location in config, using default "
+                      "location cmttools/commitments.json")
+    btc.set_commitment_file(os.path.join(jmkt_dir,
+                                         global_singleton.commit_file_location))
 
 def get_blockchain_interface_instance(_config):
     # todo: refactor joinmarket module to get rid of loops
@@ -269,7 +345,8 @@ def get_blockchain_interface_instance(_config):
         rpc = JsonRpc(rpc_host, rpc_port, rpc_user, rpc_password)
         bc_interface = BitcoinCoreInterface(rpc, network)
     elif source == 'json-rpc':
-        bitcoin_cli_cmd = _config.get("BLOCKCHAIN", "bitcoin_cli_cmd").split(' ')
+        bitcoin_cli_cmd = _config.get("BLOCKCHAIN",
+                                      "bitcoin_cli_cmd").split(' ')
         rpc = CliJsonRpc(bitcoin_cli_cmd, testnet)
         bc_interface = BitcoinCoreInterface(rpc, network)
     elif source == 'regtest':

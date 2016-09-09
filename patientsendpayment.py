@@ -85,7 +85,7 @@ class PatientSendPayment(Maker, Taker):
         # choose an absolute fee order to discourage people from
         # mixing smaller amounts
         order = {'oid': 0,
-                 'ordertype': 'absorder',
+                 'ordertype': 'absoffer',
                  'minsize': 0,
                  'maxsize': self.amount,
                  'txfee': self.txfee,
@@ -110,7 +110,7 @@ class PatientSendPayment(Maker, Taker):
         available_balance = self.wallet.get_balance_by_mixdepth()[self.mixdepth]
         if available_balance >= self.amount:
             order = {'oid': 0,
-                     'ordertype': 'absorder',
+                     'ordertype': 'absoffer',
                      'minsize': 0,
                      'maxsize': self.amount,
                      'txfee': self.txfee,
@@ -123,7 +123,7 @@ class PatientSendPayment(Maker, Taker):
     def on_tx_confirmed(self, cjorder, confirmations, txid, balance):
         if len(self.orderlist) == 0:
             order = {'oid': 0,
-                     'ordertype': 'absorder',
+                     'ordertype': 'absoffer',
                      'minsize': 0,
                      'maxsize': self.amount,
                      'txfee': self.txfee,

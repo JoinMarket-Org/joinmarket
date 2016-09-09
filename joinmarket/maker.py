@@ -8,12 +8,13 @@ import threading
 
 import bitcoin as btc
 from joinmarket import IRCMessageChannel
-from joinmarket.configure import get_p2pk_vbyte, load_program_config, jm_single
+from joinmarket.configure import get_p2pk_vbyte, load_program_config, jm_single, \
+     check_utxo_blacklist
 from joinmarket.enc_wrapper import init_keypair, as_init_encryption, init_pubkey, \
      NaclError
 
 from joinmarket.support import get_log, calc_cj_fee, debug_dump_object
-from joinmarket.taker import CoinJoinerPeer
+from joinmarket.taker import OrderbookWatch
 from joinmarket.wallet import Wallet
 
 log = get_log()
@@ -89,21 +90,60 @@ class CoinJoinOrder(object):
         # orders to find out which addresses you use
         self.maker.msgchan.send_pubkey(nick, self.kp.hex_pk())
 
-    def auth_counterparty(self, nick, i_utxo_pubkey, btc_sig):
-        self.i_utxo_pubkey = i_utxo_pubkey
-
-        if not btc.ecdsa_verify(self.taker_pk, btc_sig, self.i_utxo_pubkey):
-            print('signature didnt match pubkey and message')
+    def auth_counterparty(self, nick, cr):
+        #deserialize the commitment revelation
+        cr_dict = btc.PoDLE.deserialize_revelation(cr)
+        #check the validity of the proof of discrete log equivalence
+        tries = jm_single().config.getint("POLICY", "taker_utxo_retries")
+        def reject(msg):
+            log.debug("Counterparty commitment not accepted, reason: " + msg)
             return False
+        if not btc.verify_podle(cr_dict['P'], cr_dict['P2'], cr_dict['sig'],
+                                cr_dict['e'], self.maker.commit,
+                                index_range=range(tries)):
+            reason = "verify_podle failed"
+            return reject(reason)
+        #finally, check that the proffered utxo is real, old enough, large enough,
+        #and corresponds to the pubkey
+        res = jm_single().bc_interface.query_utxo_set([cr_dict['utxo']],
+                                                      includeconf=True)
+        if len(res) != 1 or not res[0]:
+            reason = "authorizing utxo is not valid"
+            return reject(reason)
+        age = jm_single().config.getint("POLICY", "taker_utxo_age")
+        if res[0]['confirms'] < age:
+            reason = "commitment utxo not old enough: " + str(res[0]['confirms'])
+            return reject(reason)
+        reqd_amt = int(self.cj_amount * jm_single().config.getint(
+            "POLICY", "taker_utxo_amtpercent") / 100.0)
+        if res[0]['value'] < reqd_amt:
+            reason = "commitment utxo too small: " + str(res[0]['value'])
+            return reject(reason)
+        if res[0]['address'] != btc.pubkey_to_address(cr_dict['P'],
+                                                         get_p2pk_vbyte()):
+            reason = "Invalid podle pubkey: " + str(cr_dict['P'])
+            return reject(reason)
+
         # authorisation of taker passed
-        # (but input utxo pubkey is checked in verify_unsigned_tx).
+
         # Send auth request to taker
-        # TODO the next 2 lines are a little inefficient.
-        btc_key = self.maker.wallet.get_key_from_addr(self.cj_addr)
-        btc_pub = btc.privtopub(btc_key)
-        btc_sig = btc.ecdsa_sign(self.kp.hex_pk(), btc_key)
-        self.maker.msgchan.send_ioauth(nick, self.utxos.keys(), btc_pub,
-                                       self.change_addr, btc_sig)
+        # Need to choose an input utxo pubkey to sign with
+        # (no longer using the coinjoin pubkey from 0.2.0)
+        # Just choose the first utxo in self.utxos and retrieve key from wallet.
+        auth_address = self.utxos[self.utxos.keys()[0]]['address']
+        auth_key = self.maker.wallet.get_key_from_addr(auth_address)
+        auth_pub = btc.privtopub(auth_key)
+        btc_sig = btc.ecdsa_sign(self.kp.hex_pk(), auth_key)
+        self.maker.msgchan.send_ioauth(nick, self.utxos.keys(), auth_pub,
+                                       self.cj_addr, self.change_addr, btc_sig)
+        #In case of *blacklisted (ie already used) commitments, we already
+        #broadcasted them on receipt; in case of valid, and now used commitments,
+        #we broadcast them here, and not early - to avoid accidentally
+        #blacklisting commitments that are broadcast between makers in real time
+        #for the same transaction.
+        self.maker.transfer_commitment(self.maker.commit)
+        #now persist the fact that the commitment is actually used.
+        check_utxo_blacklist(self.maker.commit, persist=True)
         return True
 
     def recv_tx(self, nick, txhex):
@@ -133,7 +173,6 @@ class CoinJoinOrder(object):
         jm_single().bc_interface.add_tx_notify(
                 self.tx, self.unconfirm_callback,
                 self.confirm_callback, self.cj_addr)
-        log.debug('sending sigs ' + str(sigs))
         self.maker.msgchan.send_sigs(nick, sigs)
         self.maker.active_orders[nick] = None
 
@@ -164,16 +203,6 @@ class CoinJoinOrder(object):
     def verify_unsigned_tx(self, txd):
         tx_utxo_set = set(ins['outpoint']['hash'] + ':' + str(
                 ins['outpoint']['index']) for ins in txd['ins'])
-        # complete authentication: check the tx input uses the authing pubkey
-        input_utxo_data = jm_single().bc_interface.query_utxo_set(
-                list(tx_utxo_set))
-
-        if None in input_utxo_data:
-            return False, 'some utxos already spent or not confirmed yet'
-        input_addresses = [u['address'] for u in input_utxo_data]
-        if btc.pubtoaddr(
-                self.i_utxo_pubkey, get_p2pk_vbyte()) not in input_addresses:
-            return False, "authenticating bitcoin address is not contained"
 
         my_utxo_set = set(self.utxos.keys())
         if not tx_utxo_set.issuperset(my_utxo_set):
@@ -214,16 +243,18 @@ class CJMakerOrderError(StandardError):
     pass
 
 
-class Maker(CoinJoinerPeer):
+class Maker(OrderbookWatch):
     def __init__(self, msgchan, wallet):
-        CoinJoinerPeer.__init__(self, msgchan)
+        OrderbookWatch.__init__(self, msgchan)
         self.msgchan.register_channel_callbacks(self.on_welcome,
                                                 self.on_set_topic, None, None,
                                                 self.on_nick_leave, None)
         msgchan.register_maker_callbacks(self.on_orderbook_requested,
                                          self.on_order_fill, self.on_seen_auth,
-                                         self.on_seen_tx, self.on_push_tx)
-        msgchan.cjpeer = self
+                                         self.on_seen_tx, self.on_push_tx,
+                                         self.on_commitment_seen,
+                                         self.on_commitment_transferred)
+        msgchan.set_cjpeer(self)
 
         self.active_orders = {}
         self.wallet = wallet
@@ -237,16 +268,77 @@ class Maker(CoinJoinerPeer):
                 'wrong ordering of protocol events, no crypto object, nick=' +
                 nick)
             return None
+        elif not self.active_orders[nick]:
+            return None
         else:
             return self.active_orders[nick].crypto_box
 
-    def on_orderbook_requested(self, nick):
-        self.msgchan.announce_orders(self.orderlist, nick)
+    def on_orderbook_requested(self, nick, mc=None):
+        self.msgchan.announce_orders(self.orderlist, nick, mc)
 
-    def on_order_fill(self, nick, oid, amount, taker_pubkey):
+    def on_commitment_transferred(self, nick, commitment):
+        """Triggered when a privmsg is received from another maker
+	with a commitment to announce in public (obfuscation of source).
+        We simply post it in public (not affected by whether we ourselves
+        are *accepting* commitment broadcasts.
+	"""
+        self.msgchan.pubmsg("!hp2 " + commitment)
+
+    def on_commitment_seen(self, nick, commitment):
+        """Triggered when we see a commitment for blacklisting
+	appear in the public pit channel. If the policy is set,
+	we blacklist this commitment.
+	"""
+        if jm_single().config.has_option("POLICY", "accept_commitment_broadcasts"):
+            blacklist_add = jm_single().config.getint("POLICY",
+                                                    "accept_commitment_broadcasts")
+        else:
+            blacklist_add = 0
+        if blacklist_add > 0:
+            #just add if necessary, ignore return value.
+            check_utxo_blacklist(commitment, persist=True)
+            log.debug("Received commitment broadcast by other maker: " + str(
+                commitment) + ", now blacklisted.")
+        else:
+            log.debug("Received commitment broadcast by other maker: " + str(
+                commitment) + ", ignored.")
+
+    def transfer_commitment(self, commit):
+        """Send this commitment via privmsg to one (random)
+	other maker.
+	"""
+        crow = self.db.execute(
+                        'SELECT DISTINCT counterparty FROM orderbook ORDER BY ' +
+                        'RANDOM() LIMIT 1;'
+                    ).fetchone()
+        if crow is None:
+            return
+        counterparty = crow['counterparty']
+        #TODO de-hardcode hp2
+        log.debug("Sending commitment to: " + str(counterparty))
+        self.msgchan.privmsg(counterparty, 'hp2', commit)
+
+    def on_order_fill(self, nick, oid, amount, taker_pubkey, commit):
         if nick in self.active_orders and self.active_orders[nick] is not None:
             self.active_orders[nick] = None
             log.debug('had a partially filled order but starting over now')
+        if not commit[0] == "P":
+            self.msgchan.send_error(
+                nick, "Unsupported commitment type: " + str(commit[0]))
+            return
+        #Strip the type byte before processing
+        scommit = commit[1:]
+        if not check_utxo_blacklist(scommit):
+            log.debug("Taker utxo commitment is blacklisted, rejecting.")
+            self.msgchan.send_error(nick,
+                                "Commitment is blacklisted: " + str(scommit))
+            #Note that broadcast is happening here to reflect an already
+            #consumed commitment; it can also be broadcast separately (earlier) on
+            #valid usage in CoinjoinOrder.auth_counterparty().
+            #Keep the type byte for communication so not scommit:
+            self.transfer_commitment(commit)
+            return
+        self.commit = scommit
         self.wallet_unspent_lock.acquire()
         try:
             self.active_orders[nick] = CoinJoinOrder(self, nick, oid, amount,
@@ -254,12 +346,12 @@ class Maker(CoinJoinerPeer):
         finally:
             self.wallet_unspent_lock.release()
 
-    def on_seen_auth(self, nick, pubkey, sig):
+    def on_seen_auth(self, nick, cr):
         if nick not in self.active_orders or self.active_orders[nick] is None:
             self.msgchan.send_error(nick, 'No open order from this nick')
-        self.active_orders[nick].auth_counterparty(nick, pubkey, sig)
-        # TODO if auth_counterparty returns false, remove this order from active_orders
-        # and send an error
+        if not self.active_orders[nick].auth_counterparty(nick, cr):
+            self.active_orders[nick] = None
+            self.msgchan.send_error(nick, "Authorisation failed")
 
     def on_seen_tx(self, nick, txhex):
         if nick not in self.active_orders or self.active_orders[nick] is None:
@@ -323,7 +415,7 @@ class Maker(CoinJoinerPeer):
 		for utxo, addrvalue in self.wallet.unspent.iteritems():
 			total_value += addrvalue['value']
 
-		order = {'oid': 0, 'ordertype': 'relorder', 'minsize': 0,
+		order = {'oid': 0, 'ordertype': 'reloffer', 'minsize': 0,
 			'maxsize': total_value, 'txfee': 10000, 'cjfee': '0.002'}
 		return [order]
 		"""
@@ -332,7 +424,7 @@ class Maker(CoinJoinerPeer):
         orderlist = []
         for utxo, addrvalue in self.wallet.unspent.iteritems():
             order = {'oid': self.get_next_oid(),
-                     'ordertype': 'absorder',
+                     'ordertype': 'absoffer',
                      'minsize': 12000,
                      'maxsize': addrvalue['value'],
                      'txfee': 10000,
@@ -383,7 +475,7 @@ class Maker(CoinJoinerPeer):
             addr = btc.script_to_address(out['script'], get_p2pk_vbyte())
             if addr == cjorder.change_addr:
                 neworder = {'oid': self.get_next_oid(),
-                            'ordertype': 'absorder',
+                            'ordertype': 'absoffer',
                             'minsize': 12000,
                             'maxsize': out['value'],
                             'txfee': 10000,
@@ -392,7 +484,7 @@ class Maker(CoinJoinerPeer):
                 to_announce.append(neworder)
             if addr == cjorder.cj_addr:
                 neworder = {'oid': self.get_next_oid(),
-                            'ordertype': 'absorder',
+                            'ordertype': 'absoffer',
                             'minsize': 12000,
                             'maxsize': out['value'],
                             'txfee': 10000,

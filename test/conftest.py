@@ -9,7 +9,7 @@ bitcoin_path = None
 bitcoin_conf = None
 bitcoin_rpcpassword = None
 bitcoin_rpcusername = None
-miniircd_proc = None
+miniircd_procs = []
 
 
 def pytest_addoption(parser):
@@ -27,11 +27,17 @@ def pytest_addoption(parser):
                      action="store",
                      default='bitcoinrpc',
                      help="the RPC username for your test bitcoin instance (default=bitcoinrpc)")
+    parser.addoption("--nirc",
+                     type="int",
+                     action="store",
+                     default=1,
+                     help="the number of local miniircd instances")
 
 def teardown():
     #didn't find a stop command in miniircd, so just kill
-    global miniircd_proc
-    miniircd_proc.kill()
+    global miniircd_procs
+    for m in miniircd_procs:
+        m.kill()
 
     #shut down bitcoin and remove the regtest dir
     local_command([bitcoin_path + "bitcoin-cli", "-regtest", "-rpcuser=" + bitcoin_rpcusername,
@@ -53,10 +59,14 @@ def setup(request):
     #start up miniircd
     #minor bug in miniircd (seems); need *full* unqualified path for motd file
     cwd = os.getcwd()
-    global miniircd_proc
-    miniircd_proc = local_command(
-        ["./miniircd/miniircd", "--motd=" + cwd + "/miniircd/testmotd"],
-        bg=True)
+    n_irc = request.config.getoption("--nirc")
+    global miniircd_procs
+    for i in range(n_irc):
+        miniircd_proc = local_command(
+            ["./miniircd/miniircd", "--ports=" + str(6667+i),
+             "--motd=" + cwd + "/miniircd/testmotd"],
+            bg=True)
+        miniircd_procs.append(miniircd_proc)
     #start up regtest blockchain
     btc_proc = subprocess.call([bitcoin_path + "bitcoind", "-regtest",
                                 "-daemon", "-conf=" + bitcoin_conf])

@@ -10,6 +10,7 @@ import pexpect
 import random
 import subprocess
 import unittest
+from decimal import Decimal
 from commontest import local_command, interact, make_wallets, make_sign_and_push
 
 import bitcoin as btc
@@ -34,6 +35,42 @@ def do_tx(wallet, amount):
     assert txid
     time.sleep(2) #blocks
     jm_single().bc_interface.sync_unspent(wallet)
+
+"""
+@pytest.mark.parametrize(
+    "num_txs, gap_count, gap_limit, wallet_structure, amount, wallet_file, password",
+    [
+        (3, 450, 461, [11,3,4,5,6], 150000000, 'test_import_wallet.json', 'import-pwd'
+         ),
+    ])
+def test_wallet_gap_sync(setup_wallets, num_txs, gap_count, gap_limit,
+                     wallet_structure, amount, wallet_file, password):
+    #Starting with a nonexistent index_cache, try syncing with a large
+    #gap limit
+    setup_import(mainnet=False)
+    wallet = make_wallets(1,[wallet_structure],
+                          fixed_seeds=[wallet_file],
+                          test_wallet=True, passwords=[password])[0]['wallet']
+    wallet.gaplimit = gap_limit
+    #Artificially insert coins at position (0, wallet_structures[0] + gap_count)
+    dest = wallet.get_addr(0, 0, wallet_structure[0] + gap_count)
+    btcamt = amount/(1e8)
+    jm_single().bc_interface.grab_coins(dest, amt=float(Decimal(btcamt).quantize(Decimal(10)**-8)))
+    time.sleep(2)
+    sync_count = 0
+    jm_single().bc_interface.wallet_synced = False
+    while not jm_single().bc_interface.wallet_synced:
+        wallet.index = []
+        for i in range(5):
+            wallet.index.append([0, 0])
+        jm_single().bc_interface.sync_wallet(wallet)
+        sync_count += 1
+        #avoid infinite loop
+        assert sync_count < 10
+        log.debug("Tried " + str(sync_count) + " times")
+
+    assert jm_single().bc_interface.wallet_synced
+"""
 
 @pytest.mark.parametrize(
     "num_txs, fake_count, wallet_structure, amount, wallet_file, password",

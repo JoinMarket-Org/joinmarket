@@ -1,3 +1,5 @@
+sudo: required
+dist: trusty
 language: python
 python:
  - "2.7_with_system_site_packages"
@@ -27,11 +29,13 @@ script:
  - cd ..
 #set up joinmarket.cfg
  - cp test/regtest_joinmarket.cfg joinmarket.cfg
+#install miniircd
+ - git clone git://github.com/Joinmarket-Org/miniircd.git
 #setup bitcoin config file
  - mkdir /home/travis/.bitcoin
  - cp test/bitcoin.conf /home/travis/.bitcoin/.
  - chmod 600 /home/travis/.bitcoin/bitcoin.conf
- - PYTHONPATH=.:$PYTHONPATH py.test --cov-report html --btcconf=/home/travis/.bitcoin/bitcoin.conf --btcpwd=123456abcdef --ignore test/test_tumbler.py
+ - PYTHONPATH=.:$PYTHONPATH py.test --cov=joinmarket/ --cov=test/ --cov=bitcoin/ --cov-report html --nirc=2 --btcconf=/home/travis/.bitcoin/bitcoin.conf --btcuser=bitcoinrpc --btcpwd=123456abcdef --ignore test/test_tumbler.py
  - cd logs
  - for x in `ls`; do tail -50 $x; done
  - cd ..

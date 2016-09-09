@@ -18,8 +18,9 @@ from optparse import OptionParser
 # https://stackoverflow.com/questions/2801882/generating-a-png-with-matplotlib-when-display-is-undefined
 import matplotlib
 
-from joinmarket import jm_single, load_program_config, IRCMessageChannel
-from joinmarket import random_nick, calc_cj_fee, OrderbookWatch
+from joinmarket import jm_single, load_program_config, MessageChannelCollection
+from joinmarket import random_nick, calc_cj_fee, OrderbookWatch, get_irc_mchannels
+from joinmarket import IRCMessageChannel
 
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -112,14 +113,14 @@ def do_nothing(arg, order, btc_unit, rel_unit):
 
 
 def ordertype_display(ordertype, order, btc_unit, rel_unit):
-    ordertypes = {'absorder': 'Absolute Fee', 'relorder': 'Relative Fee'}
+    ordertypes = {'absoffer': 'Absolute Fee', 'reloffer': 'Relative Fee'}
     return ordertypes[ordertype]
 
 
 def cjfee_display(cjfee, order, btc_unit, rel_unit):
-    if order['ordertype'] == 'absorder':
+    if order['ordertype'] == 'absoffer':
         return satoshi_to_unit(cjfee, order, btc_unit, rel_unit)
-    elif order['ordertype'] == 'relorder':
+    elif order['ordertype'] == 'reloffer':
         return str(float(cjfee) * rel_unit_to_factor[rel_unit]) + rel_unit
 
 
@@ -144,7 +145,7 @@ def create_orderbook_table(db, btc_unit, rel_unit):
                           ('minsize', satoshi_to_unit),
                           ('maxsize', satoshi_to_unit))
 
-    # somewhat complex sorting to sort by cjfee but with absorders on top
+    # somewhat complex sorting to sort by cjfee but with absoffers on top
 
     def orderby_cmp(x, y):
         if x['ordertype'] == y['ordertype']:
@@ -211,7 +212,7 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
             o = dict(row)
             if 'cjfee' in o:
                 o['cjfee'] = int(o['cjfee']) if o[
-                                                    'ordertype'] == 'absorder' else float(
+                                                    'ordertype'] == 'absoffer' else float(
                         o['cjfee'])
             result.append(o)
         return result
@@ -366,14 +367,14 @@ def main():
     (options, args) = parser.parse_args()
 
     hostport = (options.host, options.port)
-
-    irc = IRCMessageChannel(jm_single().nickname)
+    mcs = [IRCMessageChannel(c) for c in get_irc_mchannels()]
+    mcc = MessageChannelCollection(mcs)
 
     # todo: is the call to GUITaker needed, or the return. taker unused
-    taker = GUITaker(irc, hostport)
+    taker = GUITaker(mcc, hostport)
     print('starting irc')
 
-    irc.run()
+    mcc.run()
 
 
 if __name__ == "__main__":
