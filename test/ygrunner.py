@@ -24,8 +24,8 @@ from joinmarket import load_program_config, jm_single
 
 #for running bots as subprocesses
 python_cmd = 'python2'
-#yg_cmd = 'yield-generator-basic.py'
-yg_cmd = 'yield-generator-mixdepth.py'
+yg_cmd = 'yield-generator-basic.py'
+#yg_cmd = 'yield-generator-mixdepth.py'
 #yg_cmd = 'yield-generator-deluxe.py'
 
 @pytest.mark.parametrize(

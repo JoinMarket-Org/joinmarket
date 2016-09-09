@@ -22,9 +22,7 @@ import bitcoin as btc
 #for running bots as subprocesses
 python_cmd = 'python2'
 yg_cmd = 'yield-generator-basic.py'
-#yg_cmd = 'yield-generator-mixdepth.py'
-#yg_cmd = 'yield-generator-deluxe.py'
-
+#yg_cmd = 'yg-pe.py'
 
 @pytest.mark.parametrize(
     "num_ygs, wallet_structures, mean_amt, mixdepth, sending_amt, ygcfs, fails, donate",

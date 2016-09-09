@@ -23,14 +23,9 @@ mix_levels = 5
 log = get_log()
 
 # is a maker for the purposes of generating a yield from held
-# bitcoins without ruining privacy for the taker, the taker could easily check
-# the history of the utxos this bot sends, so theres not much incentive
-# to ruin the privacy for barely any more yield
-# sell-side algorithm:
-# add up the value of each utxo for each mixing depth,
-# announce a relative-fee order of the highest balance
-# spent from utxos that try to make the highest balance even higher
-# so try to keep coins concentrated in one mixing depth
+# bitcoins while maximising the difficulty of spying on activity;
+# this is primarily attempted by avoiding reannouncemnt of orders
+# after transactions whereever that is possible.
 class YieldGeneratorPrivEnhance(YieldGenerator):
 
 
@@ -175,5 +170,8 @@ class YieldGeneratorPrivEnhance(YieldGenerator):
 
 
 if __name__ == "__main__":
-    ygmain(YieldGeneratorPrivEnhance)
+    ygmain(YieldGeneratorPrivEnhance, txfee=txfee,
+           cjfee_a=cjfee_a, cjfee_r=cjfee_r,
+           ordertype=ordertype, nickserv_password=nickserv_password,
+           minsize=minsize, mix_levels=mix_levels)
     print('done')

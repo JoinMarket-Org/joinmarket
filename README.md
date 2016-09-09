@@ -14,6 +14,9 @@ Widespread use of JoinMarket could improve bitcoin's fungibility as a commodity.
 
 ##Installation
 
+#####A NOTE ON UPDATING
+The installation is slightly changed, with the secp256k1 python binding no longer being optional, and libnacl now being installed via pip, not locally. The short version is: do follow the below process, for example the secp256k1 binding must be the latest version else you'll get errors. Of course if you already have libsodium you don't need to re-install it.
+
 #####REQUIRED INSTALLATION DEPENDENCIES
 
 + You will need python 2.7
