@@ -15,9 +15,9 @@ Widespread use of JoinMarket could improve bitcoin's fungibility as a commodity.
 ##Installation
 
 #####A NOTE ON UPDATING
-The installation is slightly changed, with the secp256k1 python binding no longer being optional, and libnacl now being installed via pip, not locally. The short version is: do follow the below process, for example the secp256k1 binding must be the latest version else you'll get errors. Of course if you already have libsodium you don't need to re-install it.
+The installation is slightly changed, with the secp256k1 python binding no longer being optional, and libnacl now being installed via pip, not locally. The short version is: do follow the below process, for example the secp256k1 binding must be the latest version else you'll get errors. Of course if you already have libsodium you don't need to re-install it. Be sure to read the [release notes](https://github.com/JoinMarket-Org/joinmarket/blob/develop/doc/release-notes-0.2.0.md).
 
-#####REQUIRED INSTALLATION DEPENDENCIES
+#####REQUIRED INSTALLATION DEPENDENCIES (for Linux)
 
 + You will need python 2.7
 
@@ -54,12 +54,6 @@ The installation is slightly changed, with the secp256k1 python binding no longe
     pip install -r requirements.txt
     ```
 
-    If on Windows:
-
-    ```
-    pip install -r requirements-windows.txt
-    ```
-
 + Matplotlib for displaying the graphs in orderbook-watcher (optional)
 
 ###DEBIAN / UBUNTU QUICK INSTALL FOR USERS:
@@ -92,7 +86,7 @@ Run the tests:
 
 Generating html code coverage reports:
 
-    PYTHONPATH=.:$PYTHONPATH py.test --cov-report html --btcroot=/path/to/bitcoin/bin/ --btcconf=/path/to/bitcoin.conf --btcpwd=123456abcdef
+    PYTHONPATH=.:$PYTHONPATH py.test --cov-report html --nirc=2 --btcroot=/path/to/bitcoin/bin/ --btcconf=/path/to/bitcoin.conf --btcpwd=123456abcdef
     open htmlcov/index.html
 
 See more information on testing in the [Wiki page](https://github.com/JoinMarket-Org/joinmarket/wiki/Testing)
