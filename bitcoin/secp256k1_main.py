@@ -306,7 +306,12 @@ def ecdsa_raw_sign(msg,
         nf = ffi.addressof(_noncefunc.lib, "nonce_function_rand")
         ndata = ffi.new("char [32]", usenonce)
         usenonce = (nf, ndata)
-    sig = newpriv.ecdsa_sign(msg, raw=rawmsg, custom_nonce=usenonce)
+    if usenonce:
+        sig = newpriv.ecdsa_sign(msg, raw=rawmsg, custom_nonce=usenonce)
+    else:
+        #partial fix for secp256k1-transient not including customnonce;
+        #partial because donations will crash on windows in the "if".
+        sig = newpriv.ecdsa_sign(msg, raw=rawmsg)
     return newpriv.ecdsa_serialize(sig)
 
 @hexbin
