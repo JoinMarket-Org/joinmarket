@@ -77,7 +77,7 @@ class YieldGenerator(Maker):
 
 
 def ygmain(ygclass, txfee=1000, cjfee_a=200, cjfee_r=0.002, ordertype='reloffer',
-           nickserv_password='', minsize=100000, mix_levels=5):
+           nickserv_password='', minsize=100000, mix_levels=5, gaplimit=6):
     import sys
 
     parser = OptionParser(usage='usage: %prog [options] [wallet file]')
@@ -99,6 +99,9 @@ def ygmain(ygclass, txfee=1000, cjfee_a=200, cjfee_r=0.002, ordertype='reloffer'
     parser.add_option('-m', '--mixlevels', action='store', type='int',
                       dest='mixlevels', default=mix_levels,
                       help='number of mixdepths to use')
+    parser.add_option('-g', '--gap-limit', action='store', type="int",
+                      dest='gaplimit', default=6,
+                      help='gap limit for wallet, default=6')
     (options, args) = parser.parse_args()
     if len(args) < 1:
         parser.error('Needs a wallet')
@@ -138,7 +141,7 @@ def ygmain(ygclass, txfee=1000, cjfee_a=200, cjfee_r=0.002, ordertype='reloffer'
         if ret[0] != 'y':
             return
 
-    wallet = Wallet(seed, max_mix_depth=mix_levels)
+    wallet = Wallet(seed, max_mix_depth=mix_levels, gaplimit=gaplimit)
     jm_single().bc_interface.sync_wallet(wallet)
 
     log.debug('starting yield generator')
