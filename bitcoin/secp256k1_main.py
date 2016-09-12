@@ -240,7 +240,10 @@ def multiply(s, pub, usehex, rawpub=True):
     ('raw' options passed in)
     '''
     newpub = secp256k1.PublicKey(pub, raw=rawpub, ctx=ctx)
-    res = newpub.tweak_mul(s)
+    #see note to "tweak_mul" function in podle.py
+    res = secp256k1._tweak_public(newpub,
+                                   secp256k1.lib.secp256k1_ec_pubkey_tweak_mul,
+                                   s)
     return res.serialize()
 
 @hexbin

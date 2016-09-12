@@ -18,6 +18,13 @@ def set_commitment_file(file_loc):
 def get_commitment_file():
     return PODLE_COMMIT_FILE
 
+def tweak_mul(point, scalar):
+    """Temporary hack because Windows binding had a bug in tweak_mul.
+    Can be removed when Windows binding is updated.
+    """
+    return secp256k1._tweak_public(point,
+                                   secp256k1.lib.secp256k1_ec_pubkey_tweak_mul,
+                                   scalar)
 class PoDLEError(Exception):
     pass
 
@@ -111,7 +118,7 @@ class PoDLE(object):
         k = os.urandom(32)
         J = getNUMS(index)
         KG = secp256k1.PrivateKey(k, ctx=ctx).pubkey
-        KJ = J.tweak_mul(k)
+        KJ = tweak_mul(J, k)
         self.P2 = getP2(self.priv, J)
         self.get_commitment()
         self.e = hashlib.sha256(''.join(
@@ -166,11 +173,11 @@ class PoDLE(object):
         for J in [getNUMS(i) for i in index_range]:
             sig_priv = secp256k1.PrivateKey(self.s, raw=True, ctx=ctx)
             sG = sig_priv.pubkey
-            sJ = J.tweak_mul(self.s)
+            sJ = tweak_mul(J, self.s)
             e_int = decode(self.e, 256)
             minus_e = encode(-e_int % N, 256, minlen=32)
-            minus_e_P = self.P.tweak_mul(minus_e)
-            minus_e_P2 = self.P2.tweak_mul(minus_e)
+            minus_e_P = tweak_mul(self.P, minus_e)
+            minus_e_P2 = tweak_mul(self.P2, minus_e)
             KG = dummy_pub.combine([sG.public_key, minus_e_P.public_key])
             KJ = dummy_pub.combine([sJ.public_key, minus_e_P2.public_key])
             KGser = secp256k1.PublicKey(KG, ctx=ctx).serialize()
@@ -252,7 +259,7 @@ def getP2(priv, nums_pt):
     library), calculate priv*nums_pt
     """
     priv_raw = priv.private_key
-    return nums_pt.tweak_mul(priv_raw)
+    return tweak_mul(nums_pt, priv_raw)
 
 def get_podle_commitments():
     """Returns set of commitments used as a list:
