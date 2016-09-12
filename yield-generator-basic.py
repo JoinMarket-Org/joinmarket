@@ -42,15 +42,19 @@ class YieldGeneratorBasic(YieldGenerator):
         # print mix_balance
         max_mix = max(mix_balance, key=mix_balance.get)
         f = '0'
-        if ordertype == 'reloffer':
-            f = cjfee_r
+        if self.ordertype == 'reloffer':
+            f = self.cjfee_r
+            #minimum size bumped if necessary such that you always profit
+            #least 50% of the miner fee
+            self.minsize = int(1.5 * self.txfee / float(self.cjfee_r))
         elif ordertype == 'absoffer':
-            f = str(txfee + cjfee_a)
+            f = str(self.txfee + self.cjfee_a)
         order = {'oid': 0,
-                 'ordertype': ordertype,
-                 'minsize': minsize,
-                 'maxsize': mix_balance[max_mix] - max(jm_single().DUST_THRESHOLD,txfee),
-                 'txfee': txfee,
+                 'ordertype': self.ordertype,
+                 'minsize': self.minsize,
+                 'maxsize': mix_balance[max_mix] - max(
+                     jm_single().DUST_THRESHOLD,txfee),
+                 'txfee': self.txfee,
                  'cjfee': f}
 
         # sanity check
