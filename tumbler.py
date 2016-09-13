@@ -634,9 +634,9 @@ def main():
                     max_mix_depth=options['mixdepthsrc'] + options['mixdepthcount'])
     jm_single().bc_interface.sync_wallet(wallet)
     jm_single().wait_for_commitments = 1
-    log.debug('starting tumbler')
     mcs = [IRCMessageChannel(c) for c in get_irc_mchannels()]
     mcc = MessageChannelCollection(mcs)
+    log.debug('starting tumbler')
     tumbler = Tumbler(mcc, wallet, tx_list, options)
     try:
         log.debug('connecting to message channels')

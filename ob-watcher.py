@@ -20,7 +20,9 @@ import matplotlib
 
 from joinmarket import jm_single, load_program_config, MessageChannelCollection
 from joinmarket import random_nick, calc_cj_fee, OrderbookWatch, get_irc_mchannels
-from joinmarket import IRCMessageChannel
+from joinmarket import IRCMessageChannel, get_log
+
+log = get_log()
 
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -344,7 +346,6 @@ class GUITaker(OrderbookWatch):
 
 
 def main():
-    jm_single().nickname = random_nick()  # watcher' +binascii.hexlify(os.urandom(4))
     load_program_config()
 
     parser = OptionParser(
@@ -369,7 +370,7 @@ def main():
     hostport = (options.host, options.port)
     mcs = [IRCMessageChannel(c) for c in get_irc_mchannels()]
     mcc = MessageChannelCollection(mcs)
-
+    log.debug("Starting ob-watcher")
     # todo: is the call to GUITaker needed, or the return. taker unused
     taker = GUITaker(mcc, hostport)
     print('starting irc')

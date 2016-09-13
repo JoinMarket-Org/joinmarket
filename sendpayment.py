@@ -320,6 +320,7 @@ def main():
 
     mcs = [IRCMessageChannel(c) for c in get_irc_mchannels()]
     mcc = MessageChannelCollection(mcs)
+    log.debug("starting sendpayment")
     taker = SendPayment(mcc, wallet, destaddr, amount, options.makercount,
                         options.txfee, options.waittime, options.mixdepth,
                         options.answeryes, chooseOrdersFunc)

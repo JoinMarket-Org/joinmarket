@@ -141,11 +141,11 @@ def ygmain(ygclass, txfee=1000, cjfee_a=200, cjfee_r=0.002, ordertype='reloffer'
     wallet = Wallet(seed, max_mix_depth=mix_levels)
     jm_single().bc_interface.sync_wallet(wallet)
 
-    log.debug('starting yield generator')
     mcs = [IRCMessageChannel(c, realname='btcint=' + jm_single().config.get(
                                  "BLOCKCHAIN", "blockchain_source"),
                         password=nickserv_password) for c in get_irc_mchannels()]
     mcc = MessageChannelCollection(mcs)
+    log.debug('starting yield generator')
     maker = ygclass(mcc, wallet, [options.txfee, cjfee_a, cjfee_r,
                                   options.ordertype, options.minsize, mix_levels])
     try:
