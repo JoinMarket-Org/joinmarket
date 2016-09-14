@@ -9,7 +9,8 @@ import os
 import shutil
 import pytest
 import time
-from joinmarket import Taker, load_program_config, IRCMessageChannel
+from joinmarket import (Taker, load_program_config, IRCMessageChannel,
+                        BitcoinCoreWallet)
 from joinmarket import validate_address, jm_single, get_irc_mchannels
 from joinmarket import random_nick, get_p2pk_vbyte, MessageChannelCollection
 from joinmarket import get_log, choose_sweep_orders, choose_orders, \
@@ -25,12 +26,14 @@ yg_cmd = 'yield-generator-basic.py'
 #yg_cmd = 'yg-pe.py'
 
 @pytest.mark.parametrize(
-    "num_ygs, wallet_structures, mean_amt, mixdepth, sending_amt, ygcfs, fails, donate",
+    "num_ygs, wallet_structures, mean_amt, mixdepth, sending_amt, ygcfs, fails, donate, rpcwallet",
     [
         #Some tests are commented out to keep build test time reasonable.
+        #Note that rpcwallet tests cannot be amt=0 and must have mixdepth=0
         # basic 1sp 2yg.
         #(4, [[1, 0, 0, 0, 0]] * 5, 10, 0, 100000000, None, None, 0.5),
-        (4, [[1, 0, 0, 0, 0]] * 5, 10, 0, 100000000, None, None, None),
+        #(4, [[1, 0, 0, 0, 0]] * 5, 10, 0, 100000000, None, None, None, False),
+        (4, [[1, 0, 0, 0, 0]] * 5, 10, 0, 100000000, None, None, None, True),
         #Testing different message channel collections. (Needs manual config at
         #the moment - create different config files for each yg).
         #(4, [[1, 0, 0, 0, 0]] * 5, 10, 0, 100000000, ["j2.cfg", "j3.cfg",
@@ -38,14 +41,15 @@ yg_cmd = 'yield-generator-basic.py'
         # 1sp 3yg, 2 mixdepths - testing different failure times to
         #see if recovery works.
         #(5, [[1, 2, 0, 0, 0]] * 6, 4, 1, 1234500, None, None),
-        (4, [[1, 2, 0, 0, 0]] * 5, 4, 1, 1234500, None, ('break',0,6), None),
+        (4, [[1, 2, 0, 0, 0]] * 5, 4, 1, 1234500, None, ('break',0,6), None, False),
+        #(4, [[1, 2, 0, 0, 0]] * 5, 4, 0, 1234500, None, ('break',0,6), None, True),
         #(5, [[1, 2, 0, 0, 0]] * 6, 4, 1, 1234500, None, ('shutdown',0,12)),
         #(5, [[1, 2, 0, 0, 0]] * 6, 4, 1, 1234500, None, ('break',1, 6)),
         # 1sp 6yg, 4 mixdepths, sweep from depth 0 (test large number of makers)
-        (8, [[1, 3, 0, 0, 0]] * 9, 4, 0, 0, None, None, None),
+        (8, [[1, 3, 0, 0, 0]] * 9, 4, 0, 0, None, None, None, False),
     ])
 def test_sendpayment(setup_regtest, num_ygs, wallet_structures, mean_amt,
-                     mixdepth, sending_amt, ygcfs, fails, donate):
+                     mixdepth, sending_amt, ygcfs, fails, donate, rpcwallet):
     """Test of sendpayment code, with yield generators in background.
     """
     log = get_log()
@@ -58,7 +62,10 @@ def test_sendpayment(setup_regtest, num_ygs, wallet_structures, mean_amt,
                            wallet_structures=wallet_structures,
                            mean_amt=mean_amt)
     #the sendpayment bot uses the last wallet in the list
-    wallet = wallets[makercount]['wallet']
+    if not rpcwallet:
+        wallet = wallets[makercount]['wallet']
+    else:
+        wallet = BitcoinCoreWallet(fromaccount="")
 
     yigen_procs = []
     if ygcfs:

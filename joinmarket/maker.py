@@ -492,34 +492,3 @@ class Maker(OrderbookWatch):
                             'utxo': txid + ':' + str(i)}
                 to_announce.append(neworder)
         return [], to_announce
-
-
-def main():
-    from socket import gethostname
-    nickname = 'cj-maker-' + btc.sha256(gethostname())[:6]
-    import sys
-    seed = sys.argv[
-        1
-    ]  # btc.sha256('dont use brainwallets except for holding testnet coins')
-
-    load_program_config()
-    wallet = Wallet(seed, max_mix_depth=5)
-    jm_single().bc_interface.sync_wallet(wallet)
-
-    irc = IRCMessageChannel(nickname)
-    maker = Maker(irc, wallet)
-    try:
-        print('connecting to irc')
-        irc.run()
-    except:
-        log.debug('CRASHING, DUMPING EVERYTHING')
-        log.debug('wallet seed = ' + seed)
-        debug_dump_object(wallet, ['addr_cache'])
-        debug_dump_object(maker)
-        import traceback
-        traceback.print_exc()
-
-
-if __name__ == "__main__":
-    main()
-    print('done')

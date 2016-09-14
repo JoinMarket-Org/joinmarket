@@ -323,7 +323,8 @@ class BitcoinCoreWallet(AbstractWallet):
 
     def get_key_from_addr(self, addr):
         self.ensure_wallet_unlocked()
-        return jm_single().bc_interface.rpc('dumpprivkey', [addr])
+        wifkey = jm_single().bc_interface.rpc('dumpprivkey', [addr])
+        return btc.from_wif_privkey(wifkey, vbyte=get_p2pk_vbyte())
 
     def get_utxos_by_mixdepth(self):
         unspent_list = jm_single().bc_interface.rpc('listunspent', [])
