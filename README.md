@@ -14,8 +14,8 @@ Widespread use of JoinMarket could improve bitcoin's fungibility as a commodity.
 
 ##Installation
 
-#####A NOTE ON UPDATING
-The installation is slightly changed, with the secp256k1 python binding no longer being optional, and libnacl now being installed via pip, not locally. The short version is: do follow the below process, for example the secp256k1 binding must be the latest version else you'll get errors. Of course if you already have libsodium you don't need to re-install it. Be sure to read the [release notes](https://github.com/JoinMarket-Org/joinmarket/blob/develop/doc/release-notes-0.2.0.md).
+#####A NOTE ON UPDATING FROM PRE-0.2 VERSIONS
+The installation is slightly changed, with the secp256k1 python binding no longer being optional, and libnacl now being installed via pip, not locally. The short version is: do follow the below process, for example the secp256k1 binding must be the latest version else you'll get errors. Of course if you already have libsodium you don't need to re-install it. Be sure to read the [release notes](https://github.com/JoinMarket-Org/joinmarket/blob/develop/doc/release-notes-0.2.1.md).
 
 #####REQUIRED INSTALLATION DEPENDENCIES (for Linux)
 
@@ -61,8 +61,8 @@ The installation is slightly changed, with the secp256k1 python binding no longe
 1. `sudo apt-get update -y && sudo apt-get upgrade -y && sudo apt-get install python libsodium-dev -y`
 2. `pip install -r requirements.txt`
 2. `sudo apt-get install python-matplotlib -y` (optional)
-3. Download JoinMarket 0.2.0 source from [here](https://github.com/joinmarket-org/joinmarket/releases/tag/v0.2.0)
-4. Extract or unzip and `cd joinmarket-0.2.0`
+3. Download JoinMarket 0.2.1 source from [here](https://github.com/joinmarket-org/joinmarket/releases/tag/v0.2.1)
+4. Extract or unzip and `cd joinmarket-0.2.1`
 4. Generating your first wallet will populate the configuration file: `joinmarket.cfg`.
    Check if the default settings suit your needs.
 
