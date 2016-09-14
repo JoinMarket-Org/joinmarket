@@ -155,7 +155,7 @@ def ygmain(ygclass, txfee=1000, cjfee_a=200, cjfee_r=0.002, ordertype='reloffer'
         log.debug('CRASHING, DUMPING EVERYTHING')
         debug_dump_object(wallet, ['addr_cache', 'keys', 'seed'])
         debug_dump_object(maker)
-        debug_dump_object(mcc)
+        debug_dump_object(mcc, ['nick_priv', 'nick_pkh_raw'])
         import traceback
         log.debug(traceback.format_exc())
 
