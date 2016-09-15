@@ -18,6 +18,7 @@ ordertype = 'reloffer'
 nickserv_password = ''
 minsize = 100000
 mix_levels = 5
+gaplimit = 6
 
 log = get_log()
 
@@ -133,5 +134,5 @@ if __name__ == "__main__":
     ygmain(YieldGeneratorBasic, txfee=txfee, cjfee_a=cjfee_a,
            cjfee_r=cjfee_r, ordertype=ordertype,
            nickserv_password=nickserv_password,
-           minsize=minsize, mix_levels=mix_levels)
+           minsize=minsize, mix_levels=mix_levels, gaplimit=gaplimit)
     print('done')
