@@ -46,7 +46,7 @@ class YieldGeneratorBasic(YieldGenerator):
             f = self.cjfee_r
             #minimum size bumped if necessary such that you always profit
             #least 50% of the miner fee
-            self.minsize = int(1.5 * self.txfee / float(self.cjfee_r))
+            self.minsize = max(int(1.5 * self.txfee / float(self.cjfee_r)), self.minsize)
         elif ordertype == 'absoffer':
             f = str(self.txfee + self.cjfee_a)
         order = {'oid': 0,
