@@ -10,7 +10,7 @@ import shutil
 import pytest
 import time
 from joinmarket import (Taker, load_program_config, IRCMessageChannel,
-                        BitcoinCoreWallet)
+                        BitcoinCoreWallet, sync_wallet)
 from joinmarket import validate_address, jm_single, get_irc_mchannels
 from joinmarket import get_p2pk_vbyte, MessageChannelCollection
 from joinmarket import get_log, choose_sweep_orders, choose_orders, \
@@ -102,7 +102,7 @@ def test_sendpayment(setup_regtest, num_ygs, wallet_structures, mean_amt,
 
     log.debug('starting sendpayment')
 
-    jm_single().bc_interface.sync_wallet(wallet)
+    sync_wallet(wallet)
     
     #Trigger PING LAG sending artificially
     joinmarket.irc.PING_INTERVAL = 3

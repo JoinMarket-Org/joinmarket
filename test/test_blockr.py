@@ -11,7 +11,7 @@ import json
 
 import bitcoin as btc
 import pytest
-from joinmarket import load_program_config, jm_single
+from joinmarket import load_program_config, jm_single, sync_wallet
 from joinmarket.blockchaininterface import BlockrInterface
 from joinmarket import get_p2pk_vbyte, get_log, Wallet
 
@@ -62,7 +62,7 @@ def test_blockr_estimate_fee(setup_blockr):
 def test_blockr_sync(setup_blockr, net, seed, gaplimit, showprivkey, method):
     jm_single().config.set("BLOCKCHAIN", "network", net)
     wallet = Wallet(seed, max_mix_depth = 5)
-    jm_single().bc_interface.sync_wallet(wallet)
+    sync_wallet(wallet)
 
     #copy pasted from wallet-tool; some boiled down form of
     #this should really be in wallet.py in the joinmarket module.

@@ -13,7 +13,7 @@ from pprint import pprint
 
 from joinmarket import jm_single, Taker, load_program_config, \
     IRCMessageChannel, MessageChannelCollection
-from joinmarket import validate_address
+from joinmarket import validate_address, sync_wallet
 from joinmarket import get_log, rand_norm_array, rand_pow_array, \
     rand_exp_array, choose_orders, weighted_order_choose, choose_sweep_orders, \
     debug_dump_object, get_irc_mchannels
@@ -545,6 +545,12 @@ def main():
             default=9,
             help=
             'maximum amount of times to re-create a transaction before giving up, default 9')
+    parser.add_option('--fast',
+                      action='store_true',
+                      dest='fastsync',
+                      default=False,
+                      help=('choose to do fast wallet sync, only for Core and '
+                      'only for previously synced wallet'))
     (options, args) = parser.parse_args()
     options = vars(options)
 
@@ -631,7 +637,7 @@ def main():
     # python tumbler.py -N 2 1 -c 3 0.001 -l 0.1 -M 3 -a 0 wallet_file 1xxx 1yyy
     wallet = Wallet(wallet_file,
                     max_mix_depth=options['mixdepthsrc'] + options['mixdepthcount'])
-    jm_single().bc_interface.sync_wallet(wallet)
+    sync_wallet(wallet, fast=options.fastsync)
     jm_single().wait_for_commitments = 1
     mcs = [IRCMessageChannel(c) for c in get_irc_mchannels()]
     mcc = MessageChannelCollection(mcs)

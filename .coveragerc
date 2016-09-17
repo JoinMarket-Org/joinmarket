@@ -10,6 +10,7 @@ omit =
  test/tumbler-test.py
  test/test_tumbler.py
  test/test_donations.py
+ test/ygrunner.py
 
 [report]
 # Regexes for lines to exclude from consideration

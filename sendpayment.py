@@ -15,7 +15,7 @@ from joinmarket import Taker, load_program_config, IRCMessageChannel, \
 from joinmarket import validate_address, jm_single
 from joinmarket import get_log, choose_sweep_orders, choose_orders, \
     pick_order, cheapest_order_choose, weighted_order_choose, debug_dump_object
-from joinmarket import Wallet, BitcoinCoreWallet
+from joinmarket import Wallet, BitcoinCoreWallet, sync_wallet
 from joinmarket.wallet import estimate_tx_fee
 
 log = get_log()
@@ -276,6 +276,12 @@ def main():
         help=('Use the Bitcoin Core wallet through json rpc, instead '
               'of the internal joinmarket wallet. Requires '
               'blockchain_source=json-rpc'))
+    parser.add_option('--fast',
+                      action='store_true',
+                      dest='fastsync',
+                      default=False,
+                      help=('choose to do fast wallet sync, only for Core and '
+                      'only for previously synced wallet'))
     (options, args) = parser.parse_args()
 
     if len(args) < 3:
@@ -316,7 +322,7 @@ def main():
         wallet = Wallet(wallet_name, options.amtmixdepths, options.gaplimit)
     else:
         wallet = BitcoinCoreWallet(fromaccount=wallet_name)
-    jm_single().bc_interface.sync_wallet(wallet)
+    sync_wallet(wallet, fast=options.fastsync)
 
     mcs = [IRCMessageChannel(c) for c in get_irc_mchannels()]
     mcc = MessageChannelCollection(mcs)
