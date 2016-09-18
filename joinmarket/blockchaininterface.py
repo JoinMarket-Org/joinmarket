@@ -155,8 +155,7 @@ class BlockrInterface(BlockchainInterface):
                     blockr_url = 'https://' + self.blockr_domain
                     blockr_url += '.blockr.io/api/v1/address/txs/'
 
-                    res = btc.make_request(blockr_url + ','.join(addrs))
-                    data = json.loads(res)['data']
+                    data = btc.make_request_blockr(blockr_url + ','.join(addrs))['data']
                     for dat in data:
                         if dat['nb_txs'] != 0:
                             last_used_addr = dat['address']
@@ -198,15 +197,7 @@ class BlockrInterface(BlockchainInterface):
 
             blockr_url = 'https://' + self.blockr_domain + \
                          '.blockr.io/api/v1/address/unspent/'
-            res = btc.make_request(blockr_url + ','.join(req))
-            data = json.loads(res)
-            # {"status":"error","data":null,"code":429,"message":"Too many requests. Wait a bit..."}
-            if data['status'] == 'error' and data['code'] == 429:
-                log.debug('Service error: ' + data['message'])
-                time.sleep(20)
-                i -= inc
-                continue
-            data = data['data']
+            data = btc.make_request_blockr(blockr_url + ','.join(req))['data']
             if 'unspent' in data:
                 data = [data]
             for dat in data:
@@ -269,8 +260,8 @@ class BlockrInterface(BlockchainInterface):
                     blockr_url += '.blockr.io/api/v1/address/unspent/'
                     random.shuffle(self.output_addresses
                                   )  # seriously weird bug with blockr.io
-                    data = json.loads(btc.make_request(blockr_url + ','.join(
-                        self.output_addresses) + '?unconfirmed=1'))['data']
+                    data = btc.make_request_blockr(blockr_url + ','.join(
+                        self.output_addresses) + '?unconfirmed=1')['data']
 
                     shared_txid = None
                     for unspent_list in data:
@@ -288,8 +279,8 @@ class BlockrInterface(BlockchainInterface):
                     )  # here for some race condition bullshit with blockr.io
                     blockr_url = 'https://' + self.blockr_domain
                     blockr_url += '.blockr.io/api/v1/tx/raw/'
-                    data = json.loads(btc.make_request(blockr_url + ','.join(
-                        shared_txid)))['data']
+                    data = btc.make_request_blockr(blockr_url + ','.join(
+                        shared_txid))['data']
                     if not isinstance(data, list):
                         data = [data]
                     for txinfo in data:
@@ -317,8 +308,8 @@ class BlockrInterface(BlockchainInterface):
                         return
                     blockr_url = 'https://' + self.blockr_domain
                     blockr_url += '.blockr.io/api/v1/address/txs/'
-                    data = json.loads(btc.make_request(blockr_url + ','.join(
-                        self.output_addresses)))['data']
+                    data = btc.make_request_blockr(blockr_url + ','.join(
+                        self.output_addresses))['data']
                     shared_txid = None
                     for addrtxs in data:
                         txs = set(str(txdata['tx'])
@@ -332,8 +323,8 @@ class BlockrInterface(BlockchainInterface):
                         continue
                     blockr_url = 'https://' + self.blockr_domain
                     blockr_url += '.blockr.io/api/v1/tx/raw/'
-                    data = json.loads(btc.make_request(blockr_url + ','.join(
-                        shared_txid)))['data']
+                    data = btc.make_request_blockr(blockr_url + ','.join(
+                        shared_txid))['data']
                     if not isinstance(data, list):
                         data = [data]
                     for txinfo in data:
@@ -377,8 +368,8 @@ class BlockrInterface(BlockchainInterface):
         data = []
         for ids in txids:
             blockr_url = 'https://' + self.blockr_domain + '.blockr.io/api/v1/tx/info/'
-            blockr_data = json.loads(btc.make_request(blockr_url + ','.join(
-                ids)))['data']
+            data = btc.make_request_blockr(blockr_url + ','.join(
+                ids))['data']
             if not isinstance(blockr_data, list):
                 blockr_data = [blockr_data]
             data += blockr_data
