@@ -6,6 +6,8 @@ import sys
 import os
 import time
 import binascii
+from mock import patch
+import json
 
 import bitcoin as btc
 import pytest
@@ -20,7 +22,7 @@ blockr_root_url = "https://tbtc.blockr.io/api/v1/"
 
 def test_blockr_bad_request():
     with pytest.raises(Exception) as e_info:
-        btc.make_request(blockr_root_url+"address/txs/", "0000")
+        btc.make_request_blockr(blockr_root_url+"address/txs/", "0000")
 
 def test_blockr_bad_pushtx():
     inps = [("00000000", "btc"), ("00000000", "testnet"),
@@ -45,7 +47,7 @@ def test_blockr_estimate_fee(setup_blockr):
     #sanity checks:
     assert res[0] < 200000
     assert res[2] < 150000
-        
+
 @pytest.mark.parametrize(
     "net, seed, gaplimit, showprivkey, method",
     [
@@ -61,7 +63,7 @@ def test_blockr_sync(setup_blockr, net, seed, gaplimit, showprivkey, method):
     jm_single().config.set("BLOCKCHAIN", "network", net)
     wallet = Wallet(seed, max_mix_depth = 5)
     jm_single().bc_interface.sync_wallet(wallet)
-    
+
     #copy pasted from wallet-tool; some boiled down form of
     #this should really be in wallet.py in the joinmarket module.
     def cus_print(s):
@@ -96,7 +98,31 @@ def test_blockr_sync(setup_blockr, net, seed, gaplimit, showprivkey, method):
         total_balance += balance_depth
         print('for mixdepth=%d balance=%.8fbtc' % (m, balance_depth / 1e8))
     assert total_balance == 96085297
-    
+
+@patch('bitcoin.bci.make_request')
+def test_blockr_error_429(make_request):
+    error = {u'code': 429,
+             u'data': None,
+             u'message': u'Too many requests. Wait a bit...',
+             u'status': u'error'}
+    success = {u'code': 200,
+               u'data': {u'address': u'mqG1k82TDWfxSYFyDRkomjYonDUYjPRbsb',
+                         u'limit_txs': 200,
+                         u'nb_txs': 1,
+                         u'nb_txs_displayed': 1,
+                         u'txs': [{u'amount': 1,
+                                   u'amount_multisig': 0,
+                                   u'confirmations': 400,
+                                   u'time_utc': u'2016-09-15T19:46:14Z',
+                                   u'tx': u'6a1bfbdd011cbb2ab2a000d477bd6372150238b4c24e43a850220dba4dbf2c0d'}]},
+               u'message': u'',
+               u'status': u'success'}
+    make_request.side_effect = map(json.dumps, [error]*3 + [success])
+
+    d = btc.make_request_blockr(blockr_root_url + "address/txs/", "mqG1k82TDWfxSYFyDRkomjYonDUYjPRbsb")
+    assert d['code'] == 200
+    assert d['data'] is not None
+
 
 @pytest.fixture(scope="module")
 def setup_blockr(request):
