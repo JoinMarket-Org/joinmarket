@@ -2,14 +2,24 @@
 import json, re
 import random
 import sys
-try:
-    from urllib.request import build_opener
-except:
-    from urllib2 import build_opener
+import platform
+if platform.system() == "Windows":
+    import ssl
+    import urllib2
+else:
+    try:
+        from urllib.request import build_opener
+    except:
+        from urllib2 import build_opener
 
 # Makes a request to a given URL (first arg) and optional params (second arg)
 def make_request(*args):
-    opener = build_opener()
+    if platform.system() == "Windows":
+        sctx = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
+        sh = urllib2.HTTPSHandler(debuglevel=0, context=sctx)
+        opener = urllib2.build_opener(sh)
+    else:
+        opener = build_opener()
     opener.addheaders = [('User-agent',
                           'Mozilla/5.0' + str(random.randrange(1000000)))]
     try:

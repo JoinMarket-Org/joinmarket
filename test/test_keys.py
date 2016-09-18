@@ -11,9 +11,6 @@ import pytest
 
 
 def test_read_raw_privkeys():
-    if not btc.secp_present:
-        #these are tests of format which the pybtc library didnt do
-        return
     badkeys = ['', '\x07'*31,'\x07'*34, '\x07'*33]
     for b in badkeys:
         with pytest.raises(Exception) as e_info:

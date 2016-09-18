@@ -8,10 +8,11 @@ import sqlite3
 import sys
 import time
 import threading
+import json
 from decimal import InvalidOperation, Decimal
 
 import bitcoin as btc
-from joinmarket.configure import jm_single, get_p2pk_vbyte
+from joinmarket.configure import jm_single, get_p2pk_vbyte, donation_address
 from joinmarket.enc_wrapper import init_keypair, as_init_encryption, init_pubkey, \
      NaclError
 from joinmarket.support import get_log, calc_cj_fee
@@ -19,7 +20,6 @@ from joinmarket.wallet import estimate_tx_fee
 from joinmarket.irc import B_PER_SEC
 
 log = get_log()
-
 
 class CoinJoinTX(object):
     # soon the taker argument will be removed and just be replaced by wallet
@@ -36,7 +36,8 @@ class CoinJoinTX(object):
                  total_txfee,
                  finishcallback,
                  choose_orders_recover,
-                 auth_addr=None):
+                 commitment_creator
+                 ):
         """
         if my_change is None then there wont be a change address
         thats used if you want to entirely coinjoin one utxo with no change left over
@@ -59,7 +60,7 @@ class CoinJoinTX(object):
         self.my_cj_addr = my_cj_addr
         self.my_change_addr = my_change_addr
         self.choose_orders_recover = choose_orders_recover
-        self.auth_addr = auth_addr
+        self.commitment_creator = commitment_creator
         self.timeout_lock = threading.Condition()  # used to wait() and notify()
         # used to restrict access to certain variables across threads
         self.timeout_thread_lock = threading.Condition()
@@ -79,8 +80,41 @@ class CoinJoinTX(object):
         # create DH keypair on the fly for this Tx object
         self.kp = init_keypair()
         self.crypto_boxes = {}
+        self.get_commitment(input_utxos, self.cj_amount)
         self.msgchan.fill_orders(self.active_orders, self.cj_amount,
-                                 self.kp.hex_pk())
+                                 self.kp.hex_pk(), self.commitment)
+
+    def get_commitment(self, utxos, amount):
+        """Create commitment to fulfil anti-DOS requirement of makers,
+        storing the corresponding reveal/proof data for next step.
+        """
+        while True:
+            self.commitment, self.reveal_commitment = self.commitment_creator(
+                self.wallet, utxos, amount)
+            if (self.commitment) or (jm_single().wait_for_commitments == 0):
+                break
+            log.debug("Failed to source commitments, waiting 3 minutes")
+            time.sleep(3 * 60)
+        if not self.commitment:
+            log.debug("Cannot construct transaction, failed to generate "
+                    "commitment, shutting down. Please read commitments_debug.txt "
+                      "for some information on why this is, and what can be "
+                      "done to remedy it.")
+            #TODO: would like to raw_input here to show the user, but
+            #interactivity is undesirable here.
+            #Test only:
+            if jm_single().config.get(
+                "BLOCKCHAIN", "blockchain_source") == 'regtest':
+                raise btc.PoDLEError("For testing raising podle exception")
+            #The timeout/recovery code is designed to handle non-responsive
+            #counterparties, but this condition means that the current bot
+            #is not able to create transactions following its *own* rules,
+            #so shutting down is appropriate no matter what style
+            #of bot this is.
+            #These two settings shut down the timeout thread and avoid recovery.
+            self.all_responded = True
+            self.end_timeout_thread = True
+            self.msgchan.shutdown()
 
     def start_encryption(self, nick, maker_pk):
         if nick not in self.active_orders.keys():
@@ -93,27 +127,24 @@ class CoinJoinTX(object):
             log.debug("Unable to setup crypto box with " + nick + ": " + repr(e))
             self.msgchan.send_error(nick, "invalid nacl pubkey: " + maker_pk)
             return
-        # send authorisation request
-        if self.auth_addr:
-            my_btc_addr = self.auth_addr
-        else:
-            my_btc_addr = self.input_utxos.itervalues().next()['address']
-        my_btc_priv = self.wallet.get_key_from_addr(my_btc_addr)
-        my_btc_pub = btc.privtopub(my_btc_priv)
-        my_btc_sig = btc.ecdsa_sign(self.kp.hex_pk(), my_btc_priv)
-        self.msgchan.send_auth(nick, my_btc_pub, my_btc_sig)
 
-    def auth_counterparty(self, nick, btc_sig, cj_pub):
+        self.msgchan.send_auth(nick, self.reveal_commitment)
+
+    def auth_counterparty(self, nick, btc_sig, auth_pub):
         """Validate the counterpartys claim to own the btc
         address/pubkey that will be used for coinjoining
-        with an ecdsa verification."""
-        # crypto_boxes[nick][0] = maker_pubkey
-        if not btc.ecdsa_verify(self.crypto_boxes[nick][0], btc_sig, cj_pub):
+        with an ecdsa verification.
+        Note that this is only a first-step
+        authorisation; it checks the btc signature, but
+        the authorising pubkey is checked to be part of the
+        transactoin in recv_txio.
+        """
+        if not btc.ecdsa_verify(self.crypto_boxes[nick][0], btc_sig, auth_pub):
             log.debug('signature didnt match pubkey and message')
             return False
         return True
 
-    def recv_txio(self, nick, utxo_list, cj_pub, change_addr):
+    def recv_txio(self, nick, utxo_list, auth_pub, cj_addr, change_addr):
         if nick not in self.nonrespondants:
             log.debug(('recv_txio => nick={} not in '
                        'nonrespondants {}').format(nick, self.nonrespondants))
@@ -125,6 +156,16 @@ class CoinJoinTX(object):
                        'utxo_data={}').format(pprint.pformat(utxo_data)))
             # when internal reviewing of makers is created, add it here to
             # immediately quit; currently, the timeout thread suffices.
+            return
+        #Complete maker authorization:
+        #Extract the address fields from the utxos
+        #Construct the Bitcoin address for the auth_pub field
+        #Ensure that at least one address from utxos corresponds.
+        input_addresses = [d['address'] for d in utxo_data]
+        auth_address = btc.pubkey_to_address(auth_pub, get_p2pk_vbyte())
+        if not auth_address in input_addresses:
+            log.debug("ERROR maker's authorising pubkey is not included "
+                      "in the transaction: " + str(auth_address))
             return
 
         total_input = sum([d['value'] for d in utxo_data])
@@ -148,7 +189,6 @@ class CoinJoinTX(object):
                'cjamount={:d} txfee={:d} realcjfee={:d}').format
         log.debug(fmt(nick, total_input, self.cj_amount,
             self.active_orders[nick]['txfee'], real_cjfee))
-        cj_addr = btc.pubtoaddr(cj_pub, get_p2pk_vbyte())
         self.outputs.append({'address': cj_addr, 'value': self.cj_amount})
         self.cjfee_total += real_cjfee
         self.maker_txfee_contributions += self.active_orders[nick]['txfee']
@@ -302,13 +342,14 @@ class CoinJoinTX(object):
         if self.my_cj_addr:
             return self.my_cj_addr
         else:
-            return donation_address(self)
+            addr, self.sign_k = donation_address()
+            return addr
 
     def sign_tx(self, tx, i, priv):
         if self.my_cj_addr:
             return btc.sign(tx, i, priv)
         else:
-            return sign_donation_tx(tx, i, priv)
+            return btc.sign(tx, i, priv, usenonce=btc.safe_from_hex(self.sign_k))
 
     def self_sign(self):
         # now sign it ourselves
@@ -387,9 +428,10 @@ class CoinJoinTX(object):
                        '{}').format(
                     pprint.pformat(self.active_orders),
                     pprint.pformat(self.nonrespondants)))
-
+            #Re-source commitment; previous attempt will have been blacklisted
+            self.get_commitment(self.input_utxos, self.cj_amount)
             self.msgchan.fill_orders(new_orders, self.cj_amount,
-                                     self.kp.hex_pk())
+                                     self.kp.hex_pk(), self.commitment)
         else:
             log.debug('nonresponse to !tx')
             # nonresponding to !tx, have to restart tx from the beginning
@@ -465,7 +507,7 @@ class OrderbookWatch(CoinJoinerPeer):
         self.msgchan.register_channel_callbacks(
                 self.on_welcome, self.on_set_topic, None, self.on_disconnect,
                 self.on_nick_leave, None)
-
+        self.dblock = threading.Lock()
         con = sqlite3.connect(":memory:", check_same_thread=False)
         con.row_factory = sqlite3.Row
         self.db = con.cursor()
@@ -476,6 +518,7 @@ class OrderbookWatch(CoinJoinerPeer):
     def on_order_seen(self, counterparty, oid, ordertype, minsize, maxsize,
                       txfee, cjfee):
         try:
+            self.dblock.acquire(True)
             if int(oid) < 0 or int(oid) > sys.maxint:
                 log.debug(
                     "Got invalid order ID: " + oid + " from " + counterparty)
@@ -509,12 +552,12 @@ class OrderbookWatch(CoinJoinerPeer):
                        "from {}").format
                 log.debug(fmt(minsize, maxsize, counterparty))
                 return
-            if ordertype == 'absorder' and not isinstance(cjfee, int):
+            if ordertype == 'absoffer' and not isinstance(cjfee, int):
                 try:
                     cjfee = int(cjfee)
                 except ValueError:
                     log.debug("Got non integer coinjoin fee: " + str(cjfee) +
-                            " for an absorder from " + counterparty)
+                            " for an absoffer from " + counterparty)
                     return
             self.db.execute(
                     'INSERT INTO orderbook VALUES(?, ?, ?, ?, ?, ?, ?);',
@@ -523,21 +566,27 @@ class OrderbookWatch(CoinJoinerPeer):
                          cjfee))))  # any parseable Decimal is a valid cjfee
         except InvalidOperation:
             log.debug("Got invalid cjfee: " + cjfee + " from " + counterparty)
-        except:
+        except Exception as e:
             log.debug("Error parsing order " + oid + " from " + counterparty)
+            log.debug("Exception was: " + repr(e))
+        finally:
+            self.dblock.release()
 
     def on_order_cancel(self, counterparty, oid):
-        self.db.execute(("DELETE FROM orderbook WHERE "
+        with self.dblock:
+            self.db.execute(("DELETE FROM orderbook WHERE "
                          "counterparty=? AND oid=?;"), (counterparty, oid))
 
     def on_welcome(self):
         self.msgchan.request_orderbook()
 
     def on_nick_leave(self, nick):
-        self.db.execute('DELETE FROM orderbook WHERE counterparty=?;', (nick,))
+        with self.dblock:
+            self.db.execute('DELETE FROM orderbook WHERE counterparty=?;', (nick,))
 
     def on_disconnect(self):
-        self.db.execute('DELETE FROM orderbook;')
+        with self.dblock:
+            self.db.execute('DELETE FROM orderbook;')
 
 
 # assume this only has one open cj tx at a time
@@ -546,14 +595,14 @@ class Taker(OrderbookWatch):
         OrderbookWatch.__init__(self, msgchan)
         msgchan.register_taker_callbacks(self.on_error, self.on_pubkey,
                                          self.on_ioauth, self.on_sig)
-        msgchan.cjpeer = self
+        msgchan.set_cjpeer(self)
         self.cjtx = None
         self.maker_pks = {}
         # TODO have a list of maker's nick we're coinjoining with, so
         # that some other guy doesnt send you confusing stuff
 
     def get_crypto_box_from_nick(self, nick):
-        if nick in self.cjtx.crypto_boxes:
+        if nick in self.cjtx.crypto_boxes and self.cjtx.crypto_boxes[nick] != None:
             return self.cjtx.crypto_boxes[nick][
                 1]  # libsodium encryption object
         else:
@@ -570,14 +619,19 @@ class Taker(OrderbookWatch):
                  my_change_addr,
                  total_txfee,
                  finishcallback=None,
-                 choose_orders_recover=None,
-                 auth_addr=None):
+                 choose_orders_recover=None
+                 ):
         self.cjtx = None
+        #needed during commitment preparation, self.cjtx.cj_amount
+        #will be the amount after CoinJoinTx.__init__() completes.
+        #(and same for self.cjtx.wallet)
+        self.proposed_cj_amount = cj_amount
+        self.proposed_wallet = wallet
         self.cjtx = CoinJoinTX(
                 self.msgchan, wallet, self.db, cj_amount, orders,
                 input_utxos, my_cj_addr, my_change_addr,
                 total_txfee, finishcallback,
-                choose_orders_recover, auth_addr)
+                choose_orders_recover, self.make_commitment)
 
     def on_error(self):
         pass  # TODO implement
@@ -589,67 +643,153 @@ class Taker(OrderbookWatch):
             time.sleep(0.5)
         self.cjtx.start_encryption(nick, maker_pubkey)
 
-    def on_ioauth(self, nick, utxo_list, cj_pub, change_addr, btc_sig):
-        if not self.cjtx.auth_counterparty(nick, btc_sig, cj_pub):
+    def on_ioauth(self, nick, utxo_list, auth_pub, cj_addr, change_addr, btc_sig):
+        if not self.cjtx.auth_counterparty(nick, btc_sig, auth_pub):
             fmt = ('Authenticated encryption with counterparty: {}'
                     ' not established. TODO: send rejection message').format
             log.debug(fmt(nick))
             return
         with self.cjtx.timeout_thread_lock:
-            self.cjtx.recv_txio(nick, utxo_list, cj_pub, change_addr)
+            self.cjtx.recv_txio(nick, utxo_list, auth_pub, cj_addr, change_addr)
 
     def on_sig(self, nick, sig):
         with self.cjtx.timeout_thread_lock:
             self.cjtx.add_signature(nick, sig)
 
+    def make_commitment(self, wallet, input_utxos, cjamount):
+        """The Taker default commitment function, which uses PoDLE.
+        Alternative commitment types should use a different commit type byte.
+        This will allow future upgrades to provide different style commitments
+        by subclassing Taker and changing the commit_type_byte; existing makers
+        will simply not accept this new type of commitment.
+        In case of success, return the commitment and its opening.
+        In case of failure returns (None, None) and constructs a detailed
+        log for the user to read and discern the reason.
+        """
 
-# this stuff copied and slightly modified from pybitcointools
-def donation_address(cjtx):
-    from bitcoin.main import multiply, G, deterministic_generate_k, add_pubkeys
-    reusable_donation_pubkey = ('02be838257fbfddabaea03afbb9f16e852'
-                                '9dfe2de921260a5c46036d97b5eacf2a')
+        def filter_by_coin_age_amt(utxos, age, amt):
+            results = jm_single().bc_interface.query_utxo_set(utxos,
+                                                              includeconf=True)
+            newresults = []
+            too_old = []
+            too_small = []
+            for i, r in enumerate(results):
+                #results return "None" if txo is spent; drop this
+                if not r:
+                    continue
+                valid_age = r['confirms'] >= age
+                valid_amt = r['value'] >= amt
+                if not valid_age:
+                    too_old.append(utxos[i])
+                if not valid_amt:
+                    too_small.append(utxos[i])
+                if valid_age and valid_amt:
+                    newresults.append(utxos[i])
 
-    donation_utxo_data = cjtx.input_utxos.iteritems().next()
-    global donation_utxo
-    donation_utxo = donation_utxo_data[0]
-    privkey = cjtx.wallet.get_key_from_addr(donation_utxo_data[1]['address'])
-    # tx without our inputs and outputs
-    tx = btc.mktx(cjtx.utxo_tx, cjtx.outputs)
-    msghash = btc.bin_txhash(tx, btc.SIGHASH_ALL)
-    # generate unpredictable k
-    global sign_k
-    sign_k = deterministic_generate_k(msghash, privkey)
-    c = btc.sha256(multiply(reusable_donation_pubkey, sign_k))
-    sender_pubkey = add_pubkeys(
-            reusable_donation_pubkey, multiply(
-                    G, c))
-    sender_address = btc.pubtoaddr(sender_pubkey, get_p2pk_vbyte())
-    log.debug('sending coins to ' + sender_address)
-    return sender_address
+            return newresults, too_old, too_small
+
+        def priv_utxo_pairs_from_utxos(utxos, age, amt):
+            #returns pairs list of (priv, utxo) for each valid utxo;
+            #also returns lists "too_old" and "too_small" for any
+            #utxos that did not satisfy the criteria for debugging.
+            priv_utxo_pairs = []
+            new_utxos, too_old, too_small = filter_by_coin_age_amt(
+                utxos.keys(), age, amt)
+            new_utxos_dict = {k: v for k, v in utxos.items() if k in new_utxos}
+            for k, v in new_utxos_dict.iteritems():
+                addr = v['address']
+                priv = wallet.get_key_from_addr(addr)
+                if priv: #can be null from create-unsigned
+                    priv_utxo_pairs.append((priv, k))
+            return priv_utxo_pairs, too_old, too_small
+
+        commit_type_byte = "P"
+        podle_data = None
+        tries = jm_single().config.getint("POLICY", "taker_utxo_retries")
+        age = jm_single().config.getint("POLICY", "taker_utxo_age")
+        #Minor rounding errors don't matter here
+        amt = int(cjamount * jm_single().config.getint(
+            "POLICY", "taker_utxo_amtpercent") / 100.0)
+        priv_utxo_pairs, to, ts = priv_utxo_pairs_from_utxos(input_utxos, age, amt)
+        #Note that we ignore the "too old" and "too small" lists in the first
+        #pass through, because the same utxos appear in the whole-wallet check.
+
+        #For podle data format see: btc.podle.PoDLE.reveal()
+        #In first round try, don't use external commitments
+        podle_data = btc.generate_podle(priv_utxo_pairs, tries)
+        if not podle_data:
+            #We defer to a second round to try *all* utxos in wallet;
+            #this is because it's much cleaner to use the utxos involved
+            #in the transaction, about to be consumed, rather than use
+            #random utxos that will persist after. At this step we also
+            #allow use of external utxos in the json file.
+            if wallet.unspent:
+                priv_utxo_pairs, to, ts = priv_utxo_pairs_from_utxos(
+                    wallet.unspent, age, amt)
+            #Pre-filter the set of external commitments that work for this
+            #transaction according to its size and age.
+            dummy, extdict = btc.get_podle_commitments()
+            if len(extdict.keys()) > 0:
+                ext_valid, ext_to, ext_ts = filter_by_coin_age_amt(extdict.keys(),
+                                                               age, amt)
+            else:
+                ext_valid = None
+            podle_data = btc.generate_podle(priv_utxo_pairs, tries, ext_valid)
+        if podle_data:
+            log.debug("Generated PoDLE: " + pprint.pformat(podle_data))
+            revelation = btc.PoDLE(u=podle_data['utxo'],P=podle_data['P'],
+                                   P2=podle_data['P2'],s=podle_data['sig'],
+                                   e=podle_data['e']).serialize_revelation()
+            return (commit_type_byte + podle_data["commit"], revelation)
+        else:
+            #we know that priv_utxo_pairs all passed age and size tests, so
+            #they must have failed the retries test. Summarize this info
+            #and publish to commitments_debug.txt
+            with open("commitments_debug.txt", "wb") as f:
+                f.write("THIS IS A TEMPORARY FILE FOR DEBUGGING; "
+                            "IT CAN BE SAFELY DELETED ANY TIME.\n")
+                f.write("***\n")
+                f.write("1: Utxos that passed age and size limits, but have "
+                            "been used too many times (see taker_utxo_retries "
+                            "in the config):\n")
+                if len(priv_utxo_pairs) == 0:
+                    f.write("None\n")
+                else:
+                    for p, u in priv_utxo_pairs:
+                        f.write(str(u) + "\n")
+                f.write("2: Utxos that have less than " + jm_single().config.get(
+                    "POLICY", "taker_utxo_age") + " confirmations:\n")
+                if len(to) == 0:
+                    f.write("None\n")
+                else:
+                    for t in to:
+                        f.write(str(t) + "\n")
+                f.write("3: Utxos that were not at least " + \
+                        jm_single().config.get(
+                            "POLICY", "taker_utxo_amtpercent") + "% of the "
+                        "size of the coinjoin amount " + str(
+                            self.proposed_cj_amount) + "\n")
+                if len(ts) == 0:
+                    f.write("None\n")
+                else:
+                    for t in ts:
+                        f.write(str(t) + "\n")
+                f.write('***\n')
+                f.write("Utxos that appeared in item 1 cannot be used again.\n")
+                f.write("Utxos only in item 2 can be used by waiting for more "
+                        "confirmations, (set by the value of taker_utxo_age).\n")
+                f.write("Utxos only in item 3 are not big enough for this "
+                        "coinjoin transaction, set by the value "
+                        "of taker_utxo_amtpercent.\n")
+                f.write("If you cannot source a utxo from your wallet according "
+                        "to these rules, use the tool add-utxo.py to source a "
+                        "utxo external to your joinmarket wallet. Read the help "
+                        "with 'python add-utxo.py --help'\n\n")
+                f.write("You can also reset the rules in the joinmarket.cfg "
+                        "file, but this is generally inadvisable.\n")
+                f.write("***\nFor reference, here are the utxos in your wallet:\n")
+                f.write("\n" + str(self.proposed_wallet.unspent))
+
+            return (None, None)
 
 
-def sign_donation_tx(tx, i, priv):
-    from bitcoin.main import fast_multiply, decode_privkey, G, inv, N
-    from bitcoin.transaction import der_encode_sig
-    k = sign_k
-    hashcode = btc.SIGHASH_ALL
-    i = int(i)
-    if len(priv) <= 33:
-        priv = btc.safe_hexlify(priv)
-    pub = btc.privkey_to_pubkey(priv)
-    address = btc.pubkey_to_address(pub)
-    signing_tx = btc.signature_form(
-            tx, i, btc.mk_pubkey_script(address), hashcode)
-
-    msghash = btc.bin_txhash(signing_tx, hashcode)
-    z = btc.hash_to_int(msghash)
-    # k = deterministic_generate_k(msghash, priv)
-    r, y = fast_multiply(G, k)
-    s = inv(k, N) * (z + r * decode_privkey(priv)) % N
-    rawsig = 27 + (y % 2), r, s
-
-    sig = der_encode_sig(*rawsig) + btc.encode(hashcode, 16, 2)
-    # sig = ecdsa_tx_sign(signing_tx, priv, hashcode)
-    txobj = btc.deserialize(tx)
-    txobj["ins"][i]["script"] = btc.serialize_script([sig, pub])
-    return btc.serialize(txobj)

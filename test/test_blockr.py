@@ -84,12 +84,8 @@ def test_blockr_sync(setup_blockr, net, seed, gaplimit, showprivkey, method):
                 balance_depth += balance
                 used = ('used' if k < wallet.index[m][forchange] else ' new')
                 if showprivkey:
-                    if btc.secp_present:
-                        privkey = btc.wif_compressed_privkey(
+                    privkey = btc.wif_compressed_privkey(
                     wallet.get_key(m, forchange, k), get_p2pk_vbyte())
-                    else:
-                        privkey = btc.encode_privkey(wallet.get_key(m,
-                                forchange, k), 'wif_compressed', get_p2pk_vbyte())
                 else:
                     privkey = ''
                 if (method == 'displayall' or balance > 0 or

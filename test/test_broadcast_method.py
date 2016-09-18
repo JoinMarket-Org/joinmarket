@@ -36,8 +36,10 @@ class DummyMessageChannel(MessageChannel):
     def _pubmsg(self, msg): pass
     def _privmsg(self, nick, cmd, message): pass
     def _announce_orders(self, orderlist, nick): pass
-
-    def fill_orders(self, nick_order_dict, cj_amount, taker_pubkey): pass
+    def change_nick(self, new_nick):
+        self.nick = new_nick
+    def fill_orders(self, nick_order_dict, cj_amount, taker_pubkey, commitment):
+        pass
 
     def push_tx(self, nick, txhex):
         msgchan_pushtx_count[0][nick] += 1
@@ -55,6 +57,9 @@ class DummyBlockchainInterface(BlockchainInterface):
         self_pushtx_count[0] += 1
         return True
 
+def dummy_commitment_creator(wallet, utxos, amount):
+    return "fake_commitment", "fake_reveal"
+
 def create_testing_cjtx(counterparty_list):
     msgchan_pushtx_count[0] = dict(zip(counterparty_list, [0]*
         len(counterparty_list)))
@@ -63,7 +68,7 @@ def create_testing_cjtx(counterparty_list):
     input_utxos = {'utxo-hex-here': {'value': 0, 'address': '1addr'}}
 
     cjtx = CoinJoinTX(DummyMessageChannel(), None, None, 0, orders, input_utxos
-        , '1cjaddr', '1changeaddr', 0, None, None, None)
+        , '1cjaddr', '1changeaddr', 0, None, None, dummy_commitment_creator)
     cjtx.latest_tx = btc.deserialize(sample_tx_hex)
     return cjtx
 
@@ -108,7 +113,7 @@ def test_broadcast_random_maker(setup_tx_notify):
     for m in makers:
         cjtx.db.execute(
             'INSERT INTO orderbook VALUES(?, ?, ?, ?, ?, ?, ?);',
-            (m, 0, 'absorder', 0, 2100000000000001, 1000, 1000))
+            (m, 0, 'absoffer', 0, 2100000000000001, 1000, 1000))
     msgchan_pushtx_count[0] = dict(zip(makers, [0]*len(makers)))
     N = 1000
     for i in xrange(N):

@@ -8,8 +8,9 @@ import threading
 import time
 import Queue
 
-from joinmarket.configure import jm_single, get_config_irc_channel
+from joinmarket.configure import get_config_irc_channel, jm_single
 from joinmarket.message_channel import MessageChannel, CJPeerError, COMMAND_PREFIX
+from joinmarket.message_channel import NICK_MAX_ENCODED
 from joinmarket.enc_wrapper import encrypt_encode, decode_decrypt
 from joinmarket.support import get_log, chunks
 from joinmarket.socks import socksocket, setdefaultproxy, PROXY_TYPE_SOCKS5
@@ -69,7 +70,8 @@ def get_irc_text(line):
 
 
 def get_irc_nick(source):
-    return source[1:source.find('!')]
+    full_nick = source[1:source.find('!')]
+    return full_nick[:NICK_MAX_ENCODED+2]
 
 
 class ThrottleThread(threading.Thread):
@@ -194,7 +196,7 @@ class IRCMessageChannel(MessageChannel):
         self.give_up = True
 
     # Maker callbacks
-    def _announce_orders(self, orderlist, nick):
+    def _announce_orders(self, orderlist):
         """This publishes orders to the pit and to
         counterparties. Note that it does *not* use chunking.
         So, it tries to optimise space usage thusly:
@@ -209,11 +211,10 @@ class IRCMessageChannel(MessageChannel):
         fitting as many list entries as possible onto one line,
         up to the limit of the IRC parameters (see MAX_PRIVMSG_LEN).
 
-        nick=None means announce publically. Theoretically, we
-        could use chunking for the non-public, but for simplicity
-        just have one function.
+        Order announce in private is handled by privmsg/_privmsg
+        using chunking, no longer using this function.
         """
-        header = 'PRIVMSG ' + (nick if nick else self.channel) + ' :'
+        header = 'PRIVMSG ' + self.channel + ' :'
         orderlines = []
         for i, order in enumerate(orderlist):
             orderlines.append(order)
@@ -227,12 +228,16 @@ class IRCMessageChannel(MessageChannel):
     def _pubmsg(self, message):
         line = "PRIVMSG " + self.channel + " :" + message
         assert len(line) <= MAX_PRIVMSG_LEN
-        self.send_raw(line)
+        ob = False
+        if any([x in line for x in jm_single().ordername_list]):
+            ob = True
+        self.send_raw(line, ob)
 
     def _privmsg(self, nick, cmd, message):
         """Send a privmsg to an irc counterparty,
         using chunking as appropriate for long messages.
         """
+        ob = True if cmd in jm_single().ordername_list else False
         header = "PRIVMSG " + nick + " :"
         max_chunk_len = MAX_PRIVMSG_LEN - len(header) - len(cmd) - 4
         # 1 for command prefix 1 for space 2 for trailer
@@ -244,14 +249,18 @@ class IRCMessageChannel(MessageChannel):
             trailer = ' ~' if m == message_chunks[-1] else ' ;'
             if m == message_chunks[0]:
                 m = COMMAND_PREFIX + cmd + ' ' + m
-            self.send_raw(header + m + trailer)
+            self.send_raw(header + m + trailer, ob)
 
-    def send_raw(self, line):
+    def change_nick(self, new_nick):
+        self.nick = new_nick
+        self.send_raw('NICK ' + self.nick)
+
+    def send_raw(self, line, ob=False):
         # Messages are queued and prioritised.
         # This is an addressing of github #300
         if line.startswith("PING") or line.startswith("PONG"):
             self.pingQ.put(line)
-        elif "relorder" in line or "absorder" in line:
+        elif ob:
                 self.obQ.put(line)
         else:
             self.throttleQ.put(line)
@@ -309,11 +318,12 @@ class IRCMessageChannel(MessageChannel):
                 raise IOError('we quit')
             else:
                 if self.on_nick_leave:
-                    self.on_nick_leave(nick)
+                    self.on_nick_leave(nick, self)
         elif _chunks[1] == '433':  # nick in use
-            # self.nick = random_nick()
-            self.nick += '_'  # helps keep identity constant if just _ added
-            self.send_raw('NICK ' + self.nick)
+            # helps keep identity constant if just _ added
+            #request new nick on *all* channels via callback
+            if self.on_nick_change:
+                self.on_nick_change(self.nick + '_')
         if self.password:
             if _chunks[1] == 'CAP':
                 if _chunks[3] != 'ACK':
@@ -342,7 +352,7 @@ class IRCMessageChannel(MessageChannel):
         elif _chunks[1] == '376':  # end of motd
             self.built_privmsg = {}
             if self.on_connect:
-                self.on_connect()
+                self.on_connect(self)
             self.send_raw('JOIN ' + self.channel)
             self.send_raw(
                 'MODE ' + self.nick + ' +B')  # marks as bots on unreal
@@ -351,7 +361,7 @@ class IRCMessageChannel(MessageChannel):
         elif _chunks[1] == '366':  # end of names list
             log.debug('Connected to IRC and joined channel')
             if self.on_welcome:
-                self.on_welcome()
+                self.on_welcome(self) #informs mc-collection that we are ready for use
         elif _chunks[1] == '332' or _chunks[1] == 'TOPIC':  # channel topic
             topic = get_irc_text(line)
             self.on_set_topic(topic)
@@ -363,40 +373,41 @@ class IRCMessageChannel(MessageChannel):
                 raise IOError(fmt(get_irc_nick(_chunks[0]), get_irc_text(line)))
             else:
                 if self.on_nick_leave:
-                    self.on_nick_leave(target)
+                    self.on_nick_leave(target, self)
         elif _chunks[1] == 'PART':
             nick = get_irc_nick(_chunks[0])
             if self.on_nick_leave:
-                self.on_nick_leave(nick)
-
-        # todo: cleanup
-        # elif _chunks[1] == 'JOIN':
-        #     channel = _chunks[2][1:]
-        #     nick = get_irc_nick(_chunks[0])
-        #
-        # elif chunks[1] == '005':
-        #     self.motd_fd = open("motd.txt", "w")
-        # elif chunks[1] == '372':
-        #     self.motd_fd.write(get_irc_text(line) + "\n")
-        # elif chunks[1] == '251':
-        #     self.motd_fd.close()
+                self.on_nick_leave(nick, self)
+        elif _chunks[1] == '005':
+            '''
+            :port80b.se.quakenet.org 005 J5BzJGGfyw5GaPc MAXNICKLEN=15
+            TOPICLEN=250 AWAYLEN=160 KICKLEN=250 CHANNELLEN=200
+            MAXCHANNELLEN=200 CHANTYPES=#& PREFIX=(ov)@+ STATUSMSG=@+
+            CHANMODES=b,k,l,imnpstrDducCNMT CASEMAPPING=rfc1459
+            NETWORK=QuakeNet :are supported by this server
+            '''
+            for chu in _chunks[3:]:
+                if chu[0] == ':':
+                    break
+                if chu.lower().startswith('network='):
+                    self.hostid = chu[8:]
+                    log.debug('found network name: ' + self.hostid + ';')
 
     def __init__(self,
-                 given_nick,
+                 configdata,
                  username='username',
                  realname='realname',
                  password=None):
         MessageChannel.__init__(self)
         self.give_up = True
-        self.cjpeer = None  # subclasses have to set this to self
-        self.given_nick = given_nick
-        self.nick = given_nick
-        config = jm_single().config
-        self.serverport = (config.get("MESSAGING", "host"),
-                           int(config.get("MESSAGING", "port")))
-        self.socks5_host = config.get("MESSAGING", "socks5_host")
-        self.socks5_port = int(config.get("MESSAGING", "socks5_port"))
-        self.channel = get_config_irc_channel()
+        self.serverport = (configdata['host'], configdata['port'])
+        #default hostid for use with miniircd which doesnt send NETWORK
+        self.hostid = configdata['host'] + str(configdata['port'])
+        self.socks5 = configdata["socks5"]
+        self.usessl = configdata["usessl"]
+        self.socks5_host = configdata["socks5_host"]
+        self.socks5_port = int(configdata["socks5_port"])
+        self.channel = get_config_irc_channel(configdata["channel"])
         self.userrealname = (username, realname)
         if password and len(password) == 0:
             password = None
@@ -415,9 +426,8 @@ class IRCMessageChannel(MessageChannel):
 
         while not self.give_up:
             try:
-                config = jm_single().config
                 log.debug('connecting')
-                if config.get("MESSAGING", "socks5").lower() == 'true':
+                if self.socks5.lower() == 'true':
                     log.debug("Using socks5 proxy %s:%d" %
                               (self.socks5_host, self.socks5_port))
                     setdefaultproxy(PROXY_TYPE_SOCKS5,
@@ -428,7 +438,7 @@ class IRCMessageChannel(MessageChannel):
                     self.sock = socket.socket(socket.AF_INET,
                                               socket.SOCK_STREAM)
                 self.sock.connect(self.serverport)
-                if config.get("MESSAGING", "usessl").lower() == 'true':
+                if self.usessl.lower() == 'true':
                     self.sock = ssl.wrap_socket(self.sock)
                 self.fd = self.sock.makefile()
                 self.password = None
@@ -460,7 +470,7 @@ class IRCMessageChannel(MessageChannel):
                 except Exception as e:
                     pass
             if self.on_disconnect:
-                self.on_disconnect()
+                self.on_disconnect(self)
             log.debug('disconnected irc')
             if not self.give_up:
                 time.sleep(30)

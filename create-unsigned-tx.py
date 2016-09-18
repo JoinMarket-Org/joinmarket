@@ -16,7 +16,8 @@ from joinmarket import load_program_config, validate_address, \
     jm_single, get_p2pk_vbyte, random_nick
 from joinmarket import get_log, choose_sweep_orders, choose_orders, \
     pick_order, cheapest_order_choose, weighted_order_choose
-from joinmarket import AbstractWallet, IRCMessageChannel, debug_dump_object
+from joinmarket import AbstractWallet, IRCMessageChannel, debug_dump_object, \
+     MessageChannelCollection, get_irc_mchannels
 
 import bitcoin as btc
 import sendpayment
@@ -78,24 +79,14 @@ class PaymentThread(threading.Thread):
             change_addr = self.taker.changeaddr
             choose_orders_recover = self.sendpayment_choose_orders
 
-        auth_addr = self.taker.utxo_data[self.taker.auth_utxo]['address']
         self.taker.start_cj(self.taker.wallet, cjamount, orders, utxos,
                             self.taker.destaddr, change_addr,
                             self.taker.options.txfee, self.finishcallback,
-                            choose_orders_recover, auth_addr)
+                            choose_orders_recover)
 
     def finishcallback(self, coinjointx):
         if coinjointx.all_responded:
-            # now sign it ourselves
             tx = btc.serialize(coinjointx.latest_tx)
-            for index, ins in enumerate(coinjointx.latest_tx['ins']):
-                utxo = ins['outpoint']['hash'] + ':' + str(ins['outpoint'][
-                    'index'])
-                if utxo != self.taker.auth_utxo:
-                    continue
-                addr = coinjointx.input_utxos[utxo]['address']
-                tx = btc.sign(tx, index,
-                              coinjointx.wallet.get_key_from_addr(addr))
             print 'unsigned tx = \n\n' + tx + '\n'
             log.debug('created unsigned tx, ending')
             self.taker.msgchan.shutdown()
@@ -145,11 +136,10 @@ class PaymentThread(threading.Thread):
 
 class CreateUnsignedTx(takermodule.Taker):
 
-    def __init__(self, msgchan, wallet, auth_utxo, cjamount, destaddr,
+    def __init__(self, msgchan, wallet, cjamount, destaddr,
                  changeaddr, utxo_data, options, chooseOrdersFunc):
         takermodule.Taker.__init__(self, msgchan)
         self.wallet = wallet
-        self.auth_utxo = auth_utxo
         self.cjamount = cjamount
         self.destaddr = destaddr
         self.changeaddr = changeaddr
@@ -164,8 +154,7 @@ class CreateUnsignedTx(takermodule.Taker):
 
 def main():
     parser = OptionParser(
-        usage='usage: %prog [options] [auth utxo] [cjamount] [cjaddr] ['
-        'changeaddr] [utxos..]',
+        usage='usage: %prog [options] [cjamount] [cjaddr] [changeaddr] [utxos..]',
         description=('Creates an unsigned coinjoin transaction. Outputs '
                      'a partially signed transaction hex string. The user '
                      'must sign their inputs independently and broadcast '
@@ -224,14 +213,14 @@ def main():
     # + ' command line in the format txid:output/value-in-satoshi')
     (options, args) = parser.parse_args()
 
-    if len(args) < 3:
-        parser.error('Needs a wallet, amount and destination address')
+    if len(args) < 4:
+        parser.error(
+            'Needs an amount, destination address, change address and utxos ')
         sys.exit(0)
-    auth_utxo = args[0]
-    cjamount = int(args[1])
-    destaddr = args[2]
-    changeaddr = args[3]
-    cold_utxos = args[4:]
+    cjamount = int(args[0])
+    destaddr = args[1]
+    changeaddr = args[2]
+    cold_utxos = args[3:]
 
     load_program_config()
     addr_valid1, errormsg1 = validate_address(destaddr)
@@ -248,21 +237,13 @@ def main():
             print 'ERROR: Address invalid. ' + errormsg2
         return
 
-    all_utxos = [auth_utxo] + cold_utxos
-    query_result = jm_single().bc_interface.query_utxo_set(all_utxos)
+    query_result = jm_single().bc_interface.query_utxo_set(cold_utxos)
     if None in query_result:
         print query_result
     utxo_data = {}
-    for utxo, data in zip(all_utxos, query_result):
+    for utxo, data in zip(cold_utxos, query_result):
         utxo_data[utxo] = {'address': data['address'], 'value': data['value']}
-    auth_privkey = raw_input('input private key for ' + utxo_data[auth_utxo][
-        'address'] + ' :')
-    if utxo_data[auth_utxo]['address'] != btc.privtoaddr(
-            auth_privkey,
-            magicbyte=get_p2pk_vbyte()):
-        print 'ERROR: privkey does not match auth utxo'
-        return
-
+    print("Got this utxo data: " + str(utxo_data))
     if options.pickorders and cjamount != 0:  # cant use for sweeping
         chooseOrdersFunc = pick_order
     elif options.choosecheapest:
@@ -270,24 +251,17 @@ def main():
     else:  # choose randomly (weighted)
         chooseOrdersFunc = weighted_order_choose
 
-    jm_single().nickname = random_nick()
     log.debug('starting sendpayment')
 
-    class UnsignedTXWallet(AbstractWallet):
-
-        def get_key_from_addr(self, addr):
-            log.debug('getting privkey of ' + addr)
-            if btc.privtoaddr(auth_privkey, magicbyte=get_p2pk_vbyte()) != addr:
-                raise RuntimeError('privkey doesnt match given address')
-            return auth_privkey
-
-    wallet = UnsignedTXWallet()
-    irc = IRCMessageChannel(jm_single().nickname)
-    taker = CreateUnsignedTx(irc, wallet, auth_utxo, cjamount, destaddr,
+    wallet = AbstractWallet()
+    wallet.unspent = None
+    mcs = [IRCMessageChannel(c, jm_single().nickname) for c in get_irc_mchannels()]
+    mcc = MessageChannelCollection(mcs)
+    taker = CreateUnsignedTx(mcc, wallet, cjamount, destaddr,
                              changeaddr, utxo_data, options, chooseOrdersFunc)
     try:
-        log.debug('starting irc')
-        irc.run()
+        log.debug('starting message channels')
+        mcc.run()
     except:
         log.debug('CRASHING, DUMPING EVERYTHING')
         debug_dump_object(wallet, ['addr_cache', 'keys', 'wallet_name', 'seed'])
