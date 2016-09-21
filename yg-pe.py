@@ -2,13 +2,10 @@
 from __future__ import print_function
 
 import datetime
-import os
 import time
 
-from joinmarket import jm_single, get_network, load_program_config
-from joinmarket import get_log, calc_cj_fee, debug_dump_object
-from joinmarket import Wallet
-from joinmarket import get_irc_mchannels
+from joinmarket import jm_single
+from joinmarket import get_log, calc_cj_fee
 from joinmarket import YieldGenerator, ygmain
 
 txfee = 1000
@@ -89,9 +86,9 @@ class YieldGeneratorPrivEnhance(YieldGenerator):
 
         # Avoid the max mixdepth wherever possible, to avoid changing the
         # offer. Algo:
-        #"mixdepth" is the mixdepth we are spending FROM, so it is also
+        # "mixdepth" is the mixdepth we are spending FROM, so it is also
         # the destination of change.
-        #"cjoutdepth" is the mixdepth we are sending coinjoin out to.
+        # "cjoutdepth" is the mixdepth we are sending coinjoin out to.
         #
         # Find a mixdepth, in the set that have enough, which is
         # not the maximum, and choose any from that set as "mixdepth".
