@@ -13,7 +13,7 @@ from optparse import OptionParser
 # import common
 from joinmarket import taker as takermodule
 from joinmarket import load_program_config, validate_address, \
-    jm_single, get_p2pk_vbyte, random_nick
+    jm_single, get_p2pk_vbyte
 from joinmarket import get_log, choose_sweep_orders, choose_orders, \
     pick_order, cheapest_order_choose, weighted_order_choose
 from joinmarket import AbstractWallet, IRCMessageChannel, debug_dump_object, \
@@ -251,14 +251,13 @@ def main():
     else:  # choose randomly (weighted)
         chooseOrdersFunc = weighted_order_choose
 
-    log.debug('starting sendpayment')
-
     wallet = AbstractWallet()
     wallet.unspent = None
-    mcs = [IRCMessageChannel(c, jm_single().nickname) for c in get_irc_mchannels()]
+    mcs = [IRCMessageChannel(c) for c in get_irc_mchannels()]
     mcc = MessageChannelCollection(mcs)
     taker = CreateUnsignedTx(mcc, wallet, cjamount, destaddr,
                              changeaddr, utxo_data, options, chooseOrdersFunc)
+    log.debug('starting create-unsigned-tx')
     try:
         log.debug('starting message channels')
         mcc.run()

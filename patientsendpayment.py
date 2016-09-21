@@ -9,7 +9,6 @@ from optparse import OptionParser
 # sys.path.insert(0, os.path.join(data_dir, 'joinmarket'))
 from joinmarket import Maker, Taker, load_program_config, IRCMessageChannel
 from joinmarket import validate_address, jm_single
-from joinmarket import random_nick
 from joinmarket import get_log, choose_orders, weighted_order_choose, \
     debug_dump_object
 from joinmarket import Wallet
@@ -229,16 +228,14 @@ def main():
         print 'not enough money at mixdepth=%d, exiting' % options.mixdepth
         return
 
-    jm_single().nickname = random_nick()
-
     log.debug('Running patient sender of a payment')
-
-    irc = IRCMessageChannel(jm_single().nickname)
-    PatientSendPayment(irc, wallet, destaddr, amount, options.makercount,
+    mcs = [IRCMessageChannel(c) for c in get_irc_mchannels()]
+    mcc = MessageChannelCollection(mcs)
+    PatientSendPayment(mcc, wallet, destaddr, amount, options.makercount,
                              options.txfee, options.cjfee, waittime,
                              options.mixdepth)
     try:
-        irc.run()
+        mcc.run()
     except:
         log.debug('CRASHING, DUMPING EVERYTHING')
         debug_dump_object(wallet, ['addr_cache', 'keys', 'seed'])

@@ -8,7 +8,6 @@ import time
 
 from joinmarket import OrderbookWatch, load_program_config, IRCMessageChannel
 from joinmarket import jm_single, MessageChannelCollection
-from joinmarket import random_nick
 from joinmarket import get_log, debug_dump_object, get_irc_mchannels
 
 log = get_log()
@@ -69,11 +68,10 @@ def main():
     txhex = args[0]
 
     load_program_config()
-    jm_single().nickname = random_nick()
-    log.debug('starting broadcast-tx')
-    mcs = [IRCMessageChannel(c, jm_single().nickname) for c in get_irc_mchannels()]
+    mcs = [IRCMessageChannel(c) for c in get_irc_mchannels()]
     mcc = MessageChannelCollection(mcs)
     taker = Broadcaster(mcc, options.waittime, txhex)
+    log.debug('starting broadcast-tx')
     try:
         log.debug('starting message channels')
         mcc.run()

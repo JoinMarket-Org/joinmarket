@@ -19,7 +19,7 @@ from optparse import OptionParser
 import matplotlib
 
 from joinmarket import jm_single, load_program_config, MessageChannelCollection
-from joinmarket import random_nick, calc_cj_fee, OrderbookWatch, get_irc_mchannels
+from joinmarket import calc_cj_fee, OrderbookWatch, get_irc_mchannels
 from joinmarket import IRCMessageChannel, get_log
 
 log = get_log()

@@ -14,7 +14,6 @@ from pprint import pprint
 from joinmarket import jm_single, Taker, load_program_config, \
     IRCMessageChannel, MessageChannelCollection
 from joinmarket import validate_address
-from joinmarket import random_nick
 from joinmarket import get_log, rand_norm_array, rand_pow_array, \
     rand_exp_array, choose_orders, weighted_order_choose, choose_sweep_orders, \
     debug_dump_object, get_irc_mchannels

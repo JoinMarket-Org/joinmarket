@@ -16,7 +16,7 @@ import time
 from pprint import pformat
 from joinmarket import Taker, load_program_config, IRCMessageChannel
 from joinmarket import validate_address, jm_single, get_irc_mchannels
-from joinmarket import random_nick, get_p2pk_vbyte, MessageChannelCollection
+from joinmarket import get_p2pk_vbyte, MessageChannelCollection
 from joinmarket import get_log, choose_sweep_orders, choose_orders, \
     pick_order, cheapest_order_choose, weighted_order_choose, debug_dump_object
 import joinmarket.irc
