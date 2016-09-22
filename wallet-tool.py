@@ -63,6 +63,11 @@ parser.add_option('--csv',
                   dest='csv',
                   default=False,
                   help=('When using the history method, output as csv'))
+parser.add_option('--show-xpub',
+                  action='store_true',
+                  dest='showxpub',
+                  default=False,
+                  help=('Display master xpub key for wallet and each mix level'))
 (options, args) = parser.parse_args()
 
 # if the index_cache stored in wallet.json is longer than the default
@@ -126,17 +131,18 @@ if method == 'display' or method == 'displayall' or method == 'summary':
         if method != 'summary':
             print(s)
 
+    if options.showxpub:
+        cus_print('wallet xpub: %s' % (btc.bip32_privtopub(wallet.master_key)))
+
     total_balance = 0
     for m in range(wallet.max_mix_depth):
         cus_print('mixing depth %d m/0/%d/' % (m, m))
+        if options.showxpub:
+            cus_print(' xpub: %s' % (btc.bip32_privtopub(wallet.mixing_depth_keys[m])))
         balance_depth = 0
         for forchange in [0, 1]:
-            if forchange == 0:
-                xpub_key = btc.bip32_privtopub(wallet.keys[m][forchange])
-            else:
-                xpub_key = ''
             cus_print(' ' + ('external' if forchange == 0 else 'internal') +
-                      ' addresses m/0/%d/%d' % (m, forchange) + ' ' + xpub_key)
+                      ' addresses m/0/%d/%d' % (m, forchange) )
 
             for k in range(wallet.index[m][forchange] + options.gaplimit):
                 addr = wallet.get_addr(m, forchange, k)
