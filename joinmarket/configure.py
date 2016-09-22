@@ -54,7 +54,8 @@ class AttributeDict(object):
 global_singleton = AttributeDict()
 global_singleton.JM_VERSION = 5
 global_singleton.nickname = None
-global_singleton.DUST_THRESHOLD = 2730
+global_singleton.BITCOIN_DUST_THRESHOLD = 2730
+global_singleton.DUST_THRESHOLD = 10 * global_singleton.BITCOIN_DUST_THRESHOLD 
 global_singleton.bc_interface = None
 global_singleton.ordername_list = ['absoffer', 'reloffer']
 global_singleton.commitment_broadcast_list = ['hp2']
