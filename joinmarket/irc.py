@@ -326,6 +326,8 @@ class IRCMessageChannel(MessageChannel):
             self.built_privmsg = {}
             if self.on_connect:
                 self.on_connect(self)
+            if self.hostid == 'agora-irc':
+                self.send_raw('PART #AGORA')
             self.send_raw('JOIN ' + self.channel)
             self.send_raw(
                 'MODE ' + self.nick + ' +B')  # marks as bots on unreal
