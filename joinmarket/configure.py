@@ -94,19 +94,19 @@ rpc_user = bitcoin
 rpc_password = password
 
 [MESSAGING]
-host = irc.cyberguerrilla.org
-channel = joinmarket-pit
-port = 6697
-usessl = true
-socks5 = false
-socks5_host = localhost
-socks5_port = 9050
+host = irc.cyberguerrilla.org, agora.anarplex.net
+channel = joinmarket-pit, joinmarket-pit
+port = 6697, 14716
+usessl = true, true
+socks5 = false, false
+socks5_host = localhost, localhost
+socks5_port = 9050, 9050
 #for tor
-#host = 6dvj6v5imhny3anf.onion
+#host = 6dvj6v5imhny3anf.onion, cfyfz6afpgfeirst.onion
 #onion / i2p have their own ports on CGAN
-#port = 6698
-#usessl = true
-#socks5 = true
+#port = 6698, 6667
+#usessl = true, false
+#socks5 = true, true
 
 [TIMEOUT]
 maker_timeout_sec = 30
