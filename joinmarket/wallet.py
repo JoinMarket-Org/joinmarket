@@ -43,6 +43,9 @@ class AbstractWallet(object):
 
     def __init__(self):
         self.max_mix_depth = 0
+        #some consumer scripts don't use an unspent, this marks it
+        #as specifically absent (rather than just empty).
+        self.unspent = None
         self.utxo_selector = btc.select  # default fallback: upstream
         try:
             config = jm_single().config

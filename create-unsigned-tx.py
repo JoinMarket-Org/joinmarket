@@ -252,7 +252,6 @@ def main():
         chooseOrdersFunc = weighted_order_choose
 
     wallet = AbstractWallet()
-    wallet.unspent = None
     mcs = [IRCMessageChannel(c) for c in get_irc_mchannels()]
     mcc = MessageChannelCollection(mcs)
     taker = CreateUnsignedTx(mcc, wallet, cjamount, destaddr,
