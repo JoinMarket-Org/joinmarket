@@ -265,16 +265,20 @@ class IRCMessageChannel(MessageChannel):
                 parsed = self.built_privmsg[nick]
                 # wipe the message buffer waiting for the next one
                 del self.built_privmsg[nick]
-                log.debug("<<privmsg nick=%s message=%s" % (nick, parsed))
+                log.debug("<<privmsg on %s: " %
+                (self.hostid) + "nick=%s message=%s" % (nick, parsed))
                 self.on_privmsg(nick, parsed)
             elif message[-1] != ';':
                 # drop the bad nick
                 del self.built_privmsg[nick]
         elif target == self.channel:
-            log.debug("<<pubmsg nick=%s message=%s" % (nick, message))
+            log.debug("<<pubmsg on %s: " %
+            (self.hostid) + "nick=%s message=%s" %
+            (nick, message))
             self.on_pubmsg(nick, message)
         else:
-            log.debug('what is this? privmsg src=%s target=%s message=%s;' %
+            log.debug("what is this? privmsg on %s: " %
+            (self.hostid) + "src=%s target=%s message=%s;" %
                       (source, target, message))
 
     def __handle_line(self, line):
@@ -300,18 +304,21 @@ class IRCMessageChannel(MessageChannel):
         if self.password:
             if _chunks[1] == 'CAP':
                 if _chunks[3] != 'ACK':
-                    log.debug('server does not support SASL, quitting')
+                    log.debug("server %s " %
+                    (self.hostid) + "does not support SASL, quitting")
                     self.shutdown()
                 self.send_raw('AUTHENTICATE PLAIN')
             elif _chunks[0] == 'AUTHENTICATE':
                 self.send_raw('AUTHENTICATE ' + base64.b64encode(
                     self.nick + '\x00' + self.nick + '\x00' + self.password))
             elif _chunks[1] == '903':
-                log.debug('Successfully authenticated')
+                log.debug("Successfully authenticated on %s" %
+                (self.hostid))
                 self.password = None
                 self.send_raw('CAP END')
             elif _chunks[1] == '904':
-                log.debug('Failed authentication, wrong password')
+                log.debug("Failed authentication %s " %
+                (self.hostid) + ", wrong password")
                 self.shutdown()
             return
 
@@ -334,7 +341,8 @@ class IRCMessageChannel(MessageChannel):
             self.send_raw(
                 'MODE ' + self.nick + ' -R')  # allows unreg'd private messages
         elif _chunks[1] == '366':  # end of names list
-            log.debug('Connected to IRC and joined channel')
+            log.debug("Connected to IRC and joined channel on %s " %
+                (self.hostid))
             if self.on_welcome:
                 self.on_welcome(self) #informs mc-collection that we are ready for use
         elif _chunks[1] == '332' or _chunks[1] == 'TOPIC':  # channel topic
@@ -401,7 +409,8 @@ class IRCMessageChannel(MessageChannel):
 
         while not self.give_up:
             try:
-                log.debug('connecting')
+                log.debug("connecting to host %s" %
+                              (self.hostid))
                 if self.socks5.lower() == 'true':
                     log.debug("Using socks5 proxy %s:%d" %
                               (self.socks5_host, self.socks5_port))
@@ -429,15 +438,18 @@ class IRCMessageChannel(MessageChannel):
                     except AttributeError as e:
                         raise IOError(repr(e))
                     if line is None:
-                        log.debug('line returned null')
+                        log.debug("line returned null from %s" %
+                            (self.hostid))
                         break
                     if len(line) == 0:
-                        log.debug('line was zero length')
+                        log.debug("line was zero length from %s" %
+                            (self.hostid))
                         break
                     self.__handle_line(line)
             except IOError as e:
                 import traceback
-                log.debug(traceback.format_exc())
+                log.debug("logging traceback from %s: \n" %
+                    (self.hostid) + traceback.format_exc())
             finally:
                 try:
                     self.fd.close()
@@ -446,7 +458,8 @@ class IRCMessageChannel(MessageChannel):
                     pass
             if self.on_disconnect:
                 self.on_disconnect(self)
-            log.debug('disconnected irc')
+            log.debug("disconnected from irc host %s" %
+                (self.hostid))
             if not self.give_up:
                 time.sleep(30)
         log.debug('ending irc')
