@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.dirname(script_dir))
 from optparse import OptionParser
 import bitcoin as btc
 from joinmarket import load_program_config, jm_single, get_p2pk_vbyte
-from joinmarket import Wallet
+from joinmarket import Wallet, sync_wallet
 from commitment_utils import get_utxo_info, validate_utxo_data, quit
 
 def add_external_commitments(utxo_datas):
@@ -144,6 +144,12 @@ def main():
         help='only validate the provided utxos (file or command line), not add',
         default=False
     )
+    parser.add_option('--fast',
+                      action='store_true',
+                      dest='fastsync',
+                      default=False,
+                      help=('choose to do fast wallet sync, only for Core and '
+                      'only for previously synced wallet'))
     (options, args) = parser.parse_args()
     load_program_config()
     utxo_data = []
@@ -172,7 +178,7 @@ def main():
                             options.maxmixdepth,
                             options.gaplimit)
         os.chdir(os.path.join(os.getcwd(), 'cmttools'))
-        jm_single().bc_interface.sync_wallet(wallet)
+        sync_wallet(wallet, fast=options.fastsync)
         unsp = {}
         for u, av in wallet.unspent.iteritems():
                     addr = av['address']

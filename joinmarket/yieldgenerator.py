@@ -11,7 +11,7 @@ from joinmarket import Maker, IRCMessageChannel, MessageChannelCollection
 from joinmarket import BlockrInterface
 from joinmarket import jm_single, get_network, load_program_config
 from joinmarket import get_log, calc_cj_fee, debug_dump_object
-from joinmarket import Wallet
+from joinmarket import Wallet, sync_wallet
 from joinmarket import get_irc_mchannels
 
 log = get_log()
@@ -102,6 +102,12 @@ def ygmain(ygclass, txfee=1000, cjfee_a=200, cjfee_r=0.002, ordertype='reloffer'
     parser.add_option('-g', '--gap-limit', action='store', type="int",
                       dest='gaplimit', default=6,
                       help='gap limit for wallet, default=6')
+    parser.add_option('--fast',
+                      action='store_true',
+                      dest='fastsync',
+                      default=False,
+                      help=('choose to do fast wallet sync, only for Core and '
+                      'only for previously synced wallet'))
     (options, args) = parser.parse_args()
     if len(args) < 1:
         parser.error('Needs a wallet')
@@ -142,7 +148,7 @@ def ygmain(ygclass, txfee=1000, cjfee_a=200, cjfee_r=0.002, ordertype='reloffer'
             return
 
     wallet = Wallet(seed, max_mix_depth=mix_levels, gaplimit=gaplimit)
-    jm_single().bc_interface.sync_wallet(wallet)
+    sync_wallet(wallet, fast=options.fastsync)
 
     mcs = [IRCMessageChannel(c, realname='btcint=' + jm_single().config.get(
                                  "BLOCKCHAIN", "blockchain_source"),

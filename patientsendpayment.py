@@ -10,7 +10,7 @@ from optparse import OptionParser
 from joinmarket import Maker, Taker, load_program_config, IRCMessageChannel
 from joinmarket import validate_address, jm_single
 from joinmarket import get_log, choose_orders, weighted_order_choose, \
-    debug_dump_object
+    debug_dump_object, sync_wallet
 from joinmarket import Wallet
 
 log = get_log()
@@ -194,6 +194,12 @@ def main():
             help=
             'Use the Bitcoin Core wallet through json rpc, instead of the internal joinmarket '
             + 'wallet. Requires blockchain_source=json-rpc')
+    parser.add_option('--fast',
+                      action='store_true',
+                      dest='fastsync',
+                      default=False,
+                      help=('choose to do fast wallet sync, only for Core and '
+                      'only for previously synced wallet'))
     (options, args) = parser.parse_args()
 
     if len(args) < 3:
@@ -221,7 +227,7 @@ def main():
         print 'not implemented yet'
         sys.exit(0)
     # wallet = BitcoinCoreWallet(fromaccount=wallet_name)
-    jm_single().bc_interface.sync_wallet(wallet)
+    sync_wallet(wallet, fast=options.fastsync)
 
     available_balance = wallet.get_balance_by_mixdepth()[options.mixdepth]
     if available_balance < amount:

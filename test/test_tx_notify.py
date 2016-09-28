@@ -9,7 +9,7 @@ from commontest import make_wallets
 import bitcoin as btc
 import pytest
 from joinmarket import load_program_config, jm_single
-from joinmarket import get_log, Wallet
+from joinmarket import get_log, Wallet, sync_wallet
 
 log = get_log()
 
@@ -71,7 +71,7 @@ def make_tx_add_notify():
     amount = 250000000
     txfee = 10000
     wallet = wallet_dict['wallet']
-    jm_single().bc_interface.sync_wallet(wallet)
+    sync_wallet(wallet)
     inputs = wallet.select_utxos(0, amount)
     ins = inputs.keys()
     input_value = sum([i['value'] for i in inputs.values()])

@@ -17,7 +17,7 @@ from pprint import pformat
 from joinmarket import Taker, load_program_config, IRCMessageChannel
 from joinmarket import validate_address, jm_single, get_irc_mchannels
 from joinmarket import get_p2pk_vbyte, MessageChannelCollection
-from joinmarket import get_log, choose_sweep_orders, choose_orders, \
+from joinmarket import get_log, choose_sweep_orders, choose_orders, sync_wallet, \
     pick_order, cheapest_order_choose, weighted_order_choose, debug_dump_object
 import joinmarket.irc
 import sendpayment
@@ -145,7 +145,7 @@ def test_failed_sendpayment(setup_podle, num_ygs, wallet_structures, mean_amt,
 
     log.debug('starting sendpayment')
 
-    jm_single().bc_interface.sync_wallet(wallet)
+    sync_wallet(wallet)
     
     #Trigger PING LAG sending artificially
     joinmarket.irc.PING_INTERVAL = 3
@@ -241,7 +241,7 @@ def test_external_commitment_used(setup_podle):
 
     log.debug('starting sendpayment')
 
-    jm_single().bc_interface.sync_wallet(wallet)
+    sync_wallet(wallet)
     
     #Trigger PING LAG sending artificially
     joinmarket.irc.PING_INTERVAL = 3
@@ -347,7 +347,7 @@ def test_tx_commitments_used(setup_podle, consume_tx, age_required, cmt_age):
 
     log.debug('starting sendpayment')
 
-    jm_single().bc_interface.sync_wallet(wallet)
+    sync_wallet(wallet)
     log.debug("Here is the whole wallet: \n" + str(wallet.unspent))
     #Trigger PING LAG sending artificially
     joinmarket.irc.PING_INTERVAL = 3

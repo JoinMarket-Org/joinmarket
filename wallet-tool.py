@@ -10,7 +10,7 @@ from optparse import OptionParser
 
 from joinmarket import load_program_config, get_network, Wallet, encryptData, \
     get_p2pk_vbyte, jm_single, mn_decode, mn_encode, BitcoinCoreInterface, \
-    JsonRpcError
+    JsonRpcError, sync_wallet
 
 import bitcoin as btc
 
@@ -63,6 +63,12 @@ parser.add_option('--csv',
                   dest='csv',
                   default=False,
                   help=('When using the history method, output as csv'))
+parser.add_option('--fast',
+                  action='store_true',
+                  dest='fastsync',
+                  default=False,
+                  help=('choose to do fast wallet sync, only for Core and '
+                  'only for previously synced wallet'))
 (options, args) = parser.parse_args()
 
 # if the index_cache stored in wallet.json is longer than the default
@@ -104,7 +110,8 @@ else:
         # unconfirmed balance is included in the wallet display by default
         if 'listunspent_args' not in jm_single().config.options('POLICY'):
             jm_single().config.set('POLICY','listunspent_args', '[0]')
-        jm_single().bc_interface.sync_wallet(wallet)
+
+        sync_wallet(wallet, fast=options.fastsync)
 
 if method == 'showutxos':
     unsp = {}
