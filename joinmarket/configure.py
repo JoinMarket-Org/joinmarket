@@ -250,7 +250,7 @@ def donation_address(reusable_donation_pubkey=None):
     sender_pubkey = btc.add_pubkeys([reusable_donation_pubkey,
                                      btc.privtopub(c+'01', True)], True)
     sender_address = btc.pubtoaddr(sender_pubkey, get_p2pk_vbyte())
-    log.debug('sending coins to ' + sender_address)
+    log.info('sending coins to ' + sender_address)
     return sender_address, sign_k
 
 def check_utxo_blacklist(commitment, persist=False):
@@ -286,7 +286,7 @@ def check_utxo_blacklist(commitment, persist=False):
 def load_program_config():
     #set the location of joinmarket
     jmkt_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-    log.debug("Joinmarket directory is: " + str(jmkt_dir))
+    log.info("Joinmarket directory is: " + str(jmkt_dir))
     global_singleton.config.readfp(io.BytesIO(defaultconfig))
     jmkt_config_location = os.path.join(jmkt_dir, global_singleton.config_location)
     loadedFiles = global_singleton.config.read([jmkt_config_location])
@@ -312,7 +312,7 @@ def load_program_config():
         global_singleton.maker_timeout_sec = global_singleton.config.getint(
             'TIMEOUT', 'maker_timeout_sec')
     except NoOptionError:
-        log.debug('TIMEOUT/maker_timeout_sec not found in .cfg file, '
+        log.info('TIMEOUT/maker_timeout_sec not found in .cfg file, '
                   'using default value')
 
     # configure the interface to the blockchain on startup
@@ -323,7 +323,7 @@ def load_program_config():
         global_singleton.commit_file_location = global_singleton.config.get(
             "POLICY", "commit_file_location")
     except NoOptionError:
-            log.debug("No commitment file location in config, using default "
+            log.info("No commitment file location in config, using default "
                       "location cmttools/commitments.json")
     btc.set_commitment_file(os.path.join(jmkt_dir,
                                          global_singleton.commit_file_location))

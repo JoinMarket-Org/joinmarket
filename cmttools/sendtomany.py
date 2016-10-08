@@ -38,7 +38,7 @@ def sign(utxo, priv, destaddrs):
     share = int((amt - estfee) / len(destaddrs))
     fee = amt - share*len(destaddrs)
     assert fee >= estfee
-    log.debug("Using fee: " + str(fee))
+    log.info("Using fee: " + str(fee))
     for i, addr in enumerate(destaddrs):
         outs.append({'address': addr, 'value': share})
     unsigned_tx = btc.mktx(ins, outs)
@@ -101,7 +101,7 @@ def main():
     log.debug("Deserialized:")
     log.debug(pformat(btc.deserialize(txsigned)))
     if raw_input('Would you like to push to the network? (y/n):')[0] != 'y':
-        log.debug("You chose not to broadcast the transaction, quitting.")
+        log.info("You chose not to broadcast the transaction, quitting.")
         return
     jm_single().bc_interface.pushtx(txsigned)
 

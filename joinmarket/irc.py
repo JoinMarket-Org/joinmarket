@@ -73,7 +73,7 @@ class ThrottleThread(threading.Thread):
                 except Queue.Empty:
                     pass
                 except:
-                    log.debug("failed to send ping message on socket")
+                    log.warn("failed to send ping message on socket")
                     break
                 #First throttling mechanism: no more than 1 line
                 #per MSG_INTERVAL seconds.
@@ -88,7 +88,7 @@ class ThrottleThread(threading.Thread):
                 bytes_recent = sum(len(i[0]) for i in self.msg_buffer)
                 if bytes_recent > B_PER_SEC * B_PER_SEC_INTERVAL:
                     if print_throttle_msg:
-                        log.debug("Throttling triggered, with: "+str(
+                        log.info("Throttling triggered, with: "+str(
                             bytes_recent)+ " bytes in the last "+str(
                                 B_PER_SEC_INTERVAL)+" seconds.")
                     print_throttle_msg = False
@@ -107,7 +107,7 @@ class ThrottleThread(threading.Thread):
                     last_msg_time = time.time()
                     self.msg_buffer.append((throttled_msg, last_msg_time))
                 except:
-                    log.debug("failed to send on socket")
+                    log.error("failed to send on socket")
                     try:
                         self.irc.fd.close()
                     except: pass
@@ -136,7 +136,7 @@ class PingThread(threading.Thread):
                 self.irc.lockcond.wait(PING_TIMEOUT)
                 self.irc.lockcond.release()
                 if not self.irc.ping_reply:
-                    log.debug('irc ping timed out')
+                    log.warn('irc ping timed out')
                     try:
                         self.irc.close()
                     except:
@@ -162,7 +162,7 @@ class IRCMessageChannel(MessageChannel):
         try:
             self.sock.sendall("QUIT\r\n")
         except IOError as e:
-            log.debug('errored while trying to quit: ' + repr(e))
+            log.info('errored while trying to quit: ' + repr(e))
 
     def shutdown(self):
         self.close()
@@ -265,14 +265,14 @@ class IRCMessageChannel(MessageChannel):
                 parsed = self.built_privmsg[nick]
                 # wipe the message buffer waiting for the next one
                 del self.built_privmsg[nick]
-                log.debug("<<privmsg on %s: " %
+                log.info("<<privmsg on %s: " %
                 (self.hostid) + "nick=%s message=%s" % (nick, parsed))
                 self.on_privmsg(nick, parsed)
             elif message[-1] != ';':
                 # drop the bad nick
                 del self.built_privmsg[nick]
         elif target == self.channel:
-            log.debug("<<pubmsg on %s: " %
+            log.info("<<pubmsg on %s: " %
             (self.hostid) + "nick=%s message=%s" %
             (nick, message))
             self.on_pubmsg(nick, message)
@@ -304,7 +304,7 @@ class IRCMessageChannel(MessageChannel):
         if self.password:
             if _chunks[1] == 'CAP':
                 if _chunks[3] != 'ACK':
-                    log.debug("server %s " %
+                    log.warn("server %s " %
                     (self.hostid) + "does not support SASL, quitting")
                     self.shutdown()
                 self.send_raw('AUTHENTICATE PLAIN')
@@ -312,12 +312,12 @@ class IRCMessageChannel(MessageChannel):
                 self.send_raw('AUTHENTICATE ' + base64.b64encode(
                     self.nick + '\x00' + self.nick + '\x00' + self.password))
             elif _chunks[1] == '903':
-                log.debug("Successfully authenticated on %s" %
+                log.info("Successfully authenticated on %s" %
                 (self.hostid))
                 self.password = None
                 self.send_raw('CAP END')
             elif _chunks[1] == '904':
-                log.debug("Failed authentication %s " %
+                log.warn("Failed authentication %s " %
                 (self.hostid) + ", wrong password")
                 self.shutdown()
             return
@@ -341,7 +341,7 @@ class IRCMessageChannel(MessageChannel):
             self.send_raw(
                 'MODE ' + self.nick + ' -R')  # allows unreg'd private messages
         elif _chunks[1] == '366':  # end of names list
-            log.debug("Connected to IRC and joined channel on %s " %
+            log.info("Connected to IRC and joined channel on %s " %
                 (self.hostid))
             if self.on_welcome:
                 self.on_welcome(self) #informs mc-collection that we are ready for use
@@ -409,7 +409,7 @@ class IRCMessageChannel(MessageChannel):
 
         while not self.give_up:
             try:
-                log.debug("connecting to host %s" %
+                log.info("connecting to host %s" %
                               (self.hostid))
                 if self.socks5.lower() == 'true':
                     log.debug("Using socks5 proxy %s:%d" %
@@ -458,9 +458,9 @@ class IRCMessageChannel(MessageChannel):
                     pass
             if self.on_disconnect:
                 self.on_disconnect(self)
-            log.debug("disconnected from irc host %s" %
+            log.info("disconnected from irc host %s" %
                 (self.hostid))
             if not self.give_up:
                 time.sleep(30)
-        log.debug('ending irc')
+        log.info('ending irc')
         self.give_up = True

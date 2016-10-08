@@ -52,7 +52,7 @@ log.addHandler(consoleHandler)
 # log = logging.getLogger('joinmarket')
 # log.addHandler(logging.NullHandler())
 
-log.debug('hello joinmarket')
+log.info('hello joinmarket')
 
 
 def get_log():
@@ -273,7 +273,7 @@ def choose_orders(db, cj_amount, n, chooseOrdersBy, ignored_makers=None):
 
     counterparties = set([o['counterparty'] for o in orders])
     if n > len(counterparties):
-        log.debug(('ERROR not enough liquidity in the orderbook n=%d '
+        log.error(('ERROR not enough liquidity in the orderbook n=%d '
                    'suitable-counterparties=%d amount=%d totalorders=%d') %
                   (n, len(counterparties), cj_amount, len(orders)))
         # TODO handle not enough liquidity better, maybe an Exception
@@ -294,7 +294,7 @@ def choose_orders(db, cj_amount, n, chooseOrdersBy, ignored_makers=None):
     else:
         orders_fees = sorted(orders_fees, key=feekey)  #sort by ascending cjfee
 
-    log.debug('considered orders = \n' + '\n'.join([str(o) for o in orders_fees
+    log.info('considered orders = \n' + '\n'.join([str(o) for o in orders_fees
                                                    ]))
     total_cj_fee = 0
     chosen_orders = []
@@ -306,7 +306,7 @@ def choose_orders(db, cj_amount, n, chooseOrdersBy, ignored_makers=None):
                        if o[0]['counterparty'] != chosen_order['counterparty']]
         chosen_orders.append(chosen_order)
         total_cj_fee += chosen_fee
-    log.debug('chosen orders = \n' + '\n'.join([str(o) for o in chosen_orders]))
+    log.info('chosen orders = \n' + '\n'.join([str(o) for o in chosen_orders]))
     result = dict([(o['counterparty'], o) for o in chosen_orders])
     return result, total_cj_fee
 
@@ -351,7 +351,7 @@ def choose_sweep_orders(db,
         cjamount = int(cjamount.quantize(Decimal(1)))
         return cjamount, int(sumabsfee + sumrelfee * cjamount)
 
-    log.debug('choosing sweep orders for total_input_value = ' + str(
+    log.info('choosing sweep orders for total_input_value = ' + str(
         total_input_value) + ' n=' + str(n))
     sqlorders = db.execute('SELECT * FROM orderbook WHERE minsize <= ?;',
                            (total_input_value,)).fetchall()
@@ -369,11 +369,11 @@ def choose_sweep_orders(db,
     while len(chosen_orders) < n:
         for i in range(n - len(chosen_orders)):
             if len(orders_fees) < n - len(chosen_orders):
-                log.debug('ERROR not enough liquidity in the orderbook')
+                log.error('ERROR not enough liquidity in the orderbook')
                 # TODO handle not enough liquidity better, maybe an Exception
                 return None, 0, 0
             chosen_order, chosen_fee = chooseOrdersBy(orders_fees, n)
-            log.debug('chosen = ' + str(chosen_order))
+            log.info('chosen = ' + str(chosen_order))
             # remove all orders from that same counterparty
             orders_fees = [
                 o
@@ -388,9 +388,9 @@ def choose_sweep_orders(db,
             maxsize = c['maxsize']
             if cj_amount > maxsize or cj_amount < minsize:
                 chosen_orders.remove(c)
-    log.debug('chosen orders = \n' + '\n'.join([str(o) for o in chosen_orders]))
+    log.info('chosen orders = \n' + '\n'.join([str(o) for o in chosen_orders]))
     result = dict([(o['counterparty'], o) for o in chosen_orders])
-    log.debug('cj amount = ' + str(cj_amount))
+    log.info('cj amount = ' + str(cj_amount))
     return result, cj_amount, total_fee
 
 
