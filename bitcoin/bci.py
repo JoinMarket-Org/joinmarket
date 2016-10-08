@@ -2,14 +2,28 @@
 import json, re
 import random
 import sys
-try:
-    from urllib.request import build_opener
-except:
-    from urllib2 import build_opener
+import time
+import platform
+from joinmarket.support import get_log
+if platform.system() == "Windows":
+    import ssl
+    import urllib2
+else:
+    try:
+        from urllib.request import build_opener
+    except:
+        from urllib2 import build_opener
+
+log = get_log()
 
 # Makes a request to a given URL (first arg) and optional params (second arg)
 def make_request(*args):
-    opener = build_opener()
+    if platform.system() == "Windows":
+        sctx = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
+        sh = urllib2.HTTPSHandler(debuglevel=0, context=sctx)
+        opener = urllib2.build_opener(sh)
+    else:
+        opener = build_opener()
     opener.addheaders = [('User-agent',
                           'Mozilla/5.0' + str(random.randrange(1000000)))]
     try:
@@ -20,6 +34,17 @@ def make_request(*args):
         except:
             p = e
         raise Exception(p)
+
+def make_request_blockr(*args):
+    counter = 0
+    while True:
+        data = json.loads(make_request(*args))
+        if data['status'] == 'error' and data['code'] == 429:
+            log.debug('Blockr service error: ' + data['message'])
+            time.sleep(min(60, 2**counter / 2.))
+            counter += 1
+            continue
+        return data
 
 # Pushes a transaction to the network using https://blockchain.info/pushtx
 def bci_pushtx(tx):

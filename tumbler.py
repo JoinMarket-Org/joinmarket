@@ -12,12 +12,11 @@ from optparse import OptionParser
 from pprint import pprint
 
 from joinmarket import jm_single, Taker, load_program_config, \
-    IRCMessageChannel
-from joinmarket import validate_address
-from joinmarket import random_nick
+    IRCMessageChannel, MessageChannelCollection
+from joinmarket import validate_address, sync_wallet
 from joinmarket import get_log, rand_norm_array, rand_pow_array, \
     rand_exp_array, choose_orders, weighted_order_choose, choose_sweep_orders, \
-    debug_dump_object
+    debug_dump_object, get_irc_mchannels
 from joinmarket import Wallet
 from joinmarket.wallet import estimate_tx_fee
 
@@ -345,14 +344,14 @@ class TumblerThread(threading.Thread):
 
         sqlorders = self.taker.db.execute(
                 'SELECT cjfee, ordertype FROM orderbook;').fetchall()
-        orders = [o['cjfee'] for o in sqlorders if o['ordertype'] == 'relorder']
+        orders = [o['cjfee'] for o in sqlorders if o['ordertype'] == 'reloffer']
         orders = sorted(orders)
         if len(orders) == 0:
             log.debug('There are no orders at all in the orderbook! '
                       'Is the bot connecting to the right server?')
             return
         relorder_fee = float(orders[0])
-        log.debug('relorder fee = ' + str(relorder_fee))
+        log.debug('reloffer fee = ' + str(relorder_fee))
         maker_count = sum([tx['makercount'] for tx in self.taker.tx_list])
         log.debug('uses ' + str(maker_count) + ' makers, at ' + str(
                 relorder_fee * 100) + '% per maker, estimated total cost ' + str(
@@ -546,6 +545,12 @@ def main():
             default=9,
             help=
             'maximum amount of times to re-create a transaction before giving up, default 9')
+    parser.add_option('--fast',
+                      action='store_true',
+                      dest='fastsync',
+                      default=False,
+                      help=('choose to do fast wallet sync, only for Core and '
+                      'only for previously synced wallet'))
     (options, args) = parser.parse_args()
     options = vars(options)
 
@@ -632,16 +637,15 @@ def main():
     # python tumbler.py -N 2 1 -c 3 0.001 -l 0.1 -M 3 -a 0 wallet_file 1xxx 1yyy
     wallet = Wallet(wallet_file,
                     max_mix_depth=options['mixdepthsrc'] + options['mixdepthcount'])
-    jm_single().bc_interface.sync_wallet(wallet)
-
-    jm_single().nickname = random_nick()
-
+    sync_wallet(wallet, fast=options.fastsync)
+    jm_single().wait_for_commitments = 1
+    mcs = [IRCMessageChannel(c) for c in get_irc_mchannels()]
+    mcc = MessageChannelCollection(mcs)
     log.debug('starting tumbler')
-    irc = IRCMessageChannel(jm_single().nickname)
-    tumbler = Tumbler(irc, wallet, tx_list, options)
+    tumbler = Tumbler(mcc, wallet, tx_list, options)
     try:
-        log.debug('connecting to irc')
-        irc.run()
+        log.debug('connecting to message channels')
+        mcc.run()
     except:
         log.debug('CRASHING, DUMPING EVERYTHING')
         debug_dump_object(wallet, ['addr_cache', 'keys', 'seed'])

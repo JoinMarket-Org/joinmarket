@@ -37,41 +37,6 @@ def test_valid_sigs(setup_ecc):
                 continue
             assert res==False
 
-def test_legacy_conversions(setup_ecc):
-    #run some checks of legacy conversion
-    for v in vectors['vectors']:
-        msg = v['msg']
-        sig = binascii.unhexlify(v['sig'])[:-1]
-        priv = v['privkey']
-        #check back-and-forth translation
-        assert btc.legacy_ecdsa_verify_convert(
-            btc.legacy_ecdsa_sign_convert(sig)) == sig
-        
-        #Correct cases passed, now try invalid signatures
-        
-        #screw up r-length
-        bad_sig = sig[:3] + '\x90' + sig[4:]
-        with pytest.raises(Exception) as e_info:
-            fake_sig = btc.legacy_ecdsa_sign_convert(bad_sig)
-        #screw up s-length
-        rlen = ord(sig[3])
-        bad_sig = sig[:4+rlen+1] + '\x90' + sig[4+rlen+2:]
-        with pytest.raises(Exception) as e_info:
-            fake_sig = btc.legacy_ecdsa_sign_convert(bad_sig)
-        #valid length, but doesn't match s
-        bad_sig = sig[:4+rlen+1] + '\x06' + sig[4+rlen+2:]
-        with pytest.raises(Exception) as e_info:
-            fake_sig = btc.legacy_ecdsa_sign_convert(bad_sig)    
-        #invalid inputs to legacy convert
-        #too short
-        bad_sig = '\x07'*32
-        assert not btc.legacy_ecdsa_verify_convert(bad_sig)
-        #r OK, s too short
-        bad_sig = '\x07'*64
-        assert not btc.legacy_ecdsa_verify_convert(bad_sig)
-        #note - no parity byte check, we don't bother (this is legacy)
-        
-
 @pytest.fixture(scope='module')
 def setup_ecc():
     global vectors

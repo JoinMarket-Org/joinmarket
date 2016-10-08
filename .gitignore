@@ -6,3 +6,6 @@ blockchain.cache
 env
 htmlcov/
 joinmarket.cfg
+cmttools/commitments.json
+blacklist
+

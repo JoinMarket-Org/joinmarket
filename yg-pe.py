@@ -1,15 +1,12 @@
 #! /usr/bin/env python
-from __future__ import absolute_import, print_function
+from __future__ import print_function
 
 import datetime
-import os
 import time
-from optparse import OptionParser
 
-from joinmarket import jm_single, get_network, load_program_config
-from joinmarket import get_log, calc_cj_fee, debug_dump_object
-from joinmarket import Wallet, YieldGenerator, ygmain
-from joinmarket import get_irc_mchannels
+from joinmarket import jm_single
+from joinmarket import get_log, calc_cj_fee
+from joinmarket import YieldGenerator, ygmain
 
 txfee = 1000
 cjfee_a = 200
@@ -20,41 +17,46 @@ minsize = 100000
 mix_levels = 5
 gaplimit = 6
 
+
 log = get_log()
 
 # is a maker for the purposes of generating a yield from held
-# bitcoins, offering from the maximum mixdepth and trying to offer
-# the largest amount within the constraints of mixing depth isolation.
-# It will often (but not always) reannounce orders after transactions,
-# thus is somewhat suboptimal in giving more information to spies.
-class YieldGeneratorBasic(YieldGenerator):
+# bitcoins while maximising the difficulty of spying on activity;
+# this is primarily attempted by avoiding reannouncemnt of orders
+# after transactions whereever that is possible.
+
+
+class YieldGeneratorPrivEnhance(YieldGenerator):
 
     def __init__(self, msgchan, wallet, offerconfig):
         self.txfee, self.cjfee_a, self.cjfee_r, self.ordertype, self.minsize, \
-                    self.mix_levels = offerconfig
-        super(YieldGeneratorBasic,self).__init__(msgchan, wallet)
+            self.mix_levels = offerconfig
+        super(YieldGeneratorPrivEnhance, self).__init__(msgchan, wallet)
 
     def create_my_orders(self):
         mix_balance = self.wallet.get_balance_by_mixdepth()
-        if len([b for m, b in mix_balance.iteritems() if b > 0]) == 0:
-            log.debug('do not have any coins left')
-            return []
-
-        # print mix_balance
-        max_mix = max(mix_balance, key=mix_balance.get)
+        # We publish ONLY the maximum amount and use minsize for lower bound;
+        # leave it to oid_to_order to figure out the right depth to use.
         f = '0'
-        if self.ordertype == 'reloffer':
+        if ordertype == 'reloffer':
             f = self.cjfee_r
-            #minimum size bumped if necessary such that you always profit
-            #least 50% of the miner fee
-            self.minsize = max(int(1.5 * self.txfee / float(self.cjfee_r)), self.minsize)
+            # minimum size bumped if necessary such that you always profit
+            # least 50% of the miner fee
+            self.minsize = max(
+                int(1.5 * self.txfee / float(self.cjfee_r)), self.minsize)
         elif ordertype == 'absoffer':
             f = str(self.txfee + self.cjfee_a)
+        mix_balance = dict([(m, b) for m, b in mix_balance.iteritems()
+                            if b > self.minsize])
+        if len(mix_balance) == 0:
+            log.debug('do not have any coins left')
+            return []
+        max_mix = max(mix_balance, key=mix_balance.get)
         order = {'oid': 0,
                  'ordertype': self.ordertype,
                  'minsize': self.minsize,
                  'maxsize': mix_balance[max_mix] - max(
-                     jm_single().DUST_THRESHOLD,txfee),
+                     jm_single().DUST_THRESHOLD, self.txfee),
                  'txfee': self.txfee,
                  'cjfee': f}
 
@@ -66,23 +68,59 @@ class YieldGeneratorBasic(YieldGenerator):
         return [order]
 
     def oid_to_order(self, cjorder, oid, amount):
+        """The only change from *basic here (for now) is that
+        we choose outputs to avoid increasing the max_mixdepth
+        as much as possible, thus avoiding reannouncement as
+        much as possible.
+        """
         total_amount = amount + cjorder.txfee
         mix_balance = self.wallet.get_balance_by_mixdepth()
         max_mix = max(mix_balance, key=mix_balance.get)
+        min_mix = min(mix_balance, key=mix_balance.get)
 
         filtered_mix_balance = [m
                                 for m in mix_balance.iteritems()
                                 if m[1] >= total_amount]
         if not filtered_mix_balance:
             return None, None, None
+
         log.debug('mix depths that have enough = ' + str(filtered_mix_balance))
-        filtered_mix_balance = sorted(filtered_mix_balance, key=lambda x: x[0])
-        mixdepth = filtered_mix_balance[0][0]
+
+        # Avoid the max mixdepth wherever possible, to avoid changing the
+        # offer. Algo:
+        #"mixdepth" is the mixdepth we are spending FROM, so it is also
+        # the destination of change.
+        #"cjoutdepth" is the mixdepth we are sending coinjoin out to.
+        #
+        # Find a mixdepth, in the set that have enough, which is
+        # not the maximum, and choose any from that set as "mixdepth".
+        # If not possible, it means only the max_mix depth has enough,
+        # so must choose "mixdepth" to be that.
+        # To find the cjoutdepth: ensure that max != min, if so it means
+        # we had only one depth; in that case, just set "cjoutdepth"
+        # to the next mixdepth. Otherwise, we set "cjoutdepth" to the minimum.
+
+        nonmax_mix_balance = [
+            m for m in filtered_mix_balance if m[0] != max_mix]
+        if not nonmax_mix_balance:
+            log.debug("Could not spend from a mixdepth which is not max")
+            mixdepth = max_mix
+        else:
+            mixdepth = nonmax_mix_balance[0][0]
         log.debug('filling offer, mixdepth=' + str(mixdepth))
 
         # mixdepth is the chosen depth we'll be spending from
-        cj_addr = self.wallet.get_internal_addr((mixdepth + 1) %
-                                                self.wallet.max_mix_depth)
+        # min_mixdepth is the one we want to send our cjout TO,
+        # to minimize chance of it becoming the largest, and reannouncing
+        # offer.
+        if mixdepth == min_mix:
+            cjoutmix = (mixdepth + 1) % self.wallet.max_mix_depth
+            # don't send cjout to max
+            if cjoutmix == max_mix:
+                cjoutmix = (cjoutmix + 1) % self.wallet.max_mix_depth
+        else:
+            cjoutmix = min_mix
+        cj_addr = self.wallet.get_internal_addr(cjoutmix)
         change_addr = self.wallet.get_internal_addr(mixdepth)
 
         utxos = self.wallet.select_utxos(mixdepth, total_amount)
@@ -111,6 +149,8 @@ class YieldGeneratorBasic(YieldGenerator):
         if len(neworders) == 0:
             return [0], []  # cancel old order
         # oldorder may not exist when this is called from on_tx_confirmed
+        # (this happens when we just spent from the max mixdepth and so had
+        # to cancel the order).
         if oldorder:
             if oldorder['maxsize'] == neworders[0]['maxsize']:
                 return [], []  # change nothing
@@ -130,9 +170,10 @@ class YieldGeneratorBasic(YieldGenerator):
                 confirm_time / 60.0, 2), ''])
         return self.on_tx_unconfirmed(cjorder, txid, None)
 
+
 if __name__ == "__main__":
-    ygmain(YieldGeneratorBasic, txfee=txfee, cjfee_a=cjfee_a,
-           cjfee_r=cjfee_r, ordertype=ordertype,
-           nickserv_password=nickserv_password,
+    ygmain(YieldGeneratorPrivEnhance, txfee=txfee,
+           cjfee_a=cjfee_a, cjfee_r=cjfee_r,
+           ordertype=ordertype, nickserv_password=nickserv_password,
            minsize=minsize, mix_levels=mix_levels, gaplimit=gaplimit)
     print('done')
