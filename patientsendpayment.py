@@ -116,7 +116,7 @@ class PatientSendPayment(Maker, Taker):
                      'cjfee': self.cjfee}
             return [], [order]
         else:
-            log.debug('not enough money left, have to wait until tx confirms')
+            log.warn('not enough money left, have to wait until tx confirms')
             return [0], []
 
     def on_tx_confirmed(self, cjorder, confirmations, txid, balance):
@@ -234,7 +234,7 @@ def main():
         print 'not enough money at mixdepth=%d, exiting' % options.mixdepth
         return
 
-    log.debug('Running patient sender of a payment')
+    log.info('Running patient sender of a payment')
     mcs = [IRCMessageChannel(c) for c in get_irc_mchannels()]
     mcc = MessageChannelCollection(mcs)
     PatientSendPayment(mcc, wallet, destaddr, amount, options.makercount,
@@ -243,7 +243,7 @@ def main():
     try:
         mcc.run()
     except:
-        log.debug('CRASHING, DUMPING EVERYTHING')
+        log.warn('CRASHING, DUMPING EVERYTHING')
         debug_dump_object(wallet, ['addr_cache', 'keys', 'seed'])
         # todo: looks wrong.  dump on the class object?
         # debug_dump_object(taker)
