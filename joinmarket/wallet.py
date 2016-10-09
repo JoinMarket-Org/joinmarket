@@ -24,7 +24,7 @@ def estimate_tx_fee(ins, outs, txtype='p2pkh'):
     based on information from the blockchain interface.
     '''
     tx_estimated_bytes = btc.estimate_tx_size(ins, outs, txtype)
-    log.debug("Estimated transaction size: "+str(tx_estimated_bytes))
+    log.info("Estimated transaction size: "+str(tx_estimated_bytes))
     fee_per_kb = jm_single().bc_interface.estimate_fee_per_kb(
         jm_single().config.getint("POLICY", "tx_fees"))
     absurd_fee = jm_single().config.getint("POLICY", "absurd_fee_per_kb")
@@ -32,7 +32,7 @@ def estimate_tx_fee(ins, outs, txtype='p2pkh'):
         #This error is considered critical; for safety reasons, shut down.
         raise ValueError("Estimated fee per kB greater than absurd value: " + \
                          str(absurd_fee) + ", quitting.")
-    log.debug("got estimated tx bytes: "+str(tx_estimated_bytes))
+    log.info("got estimated tx bytes: "+str(tx_estimated_bytes))
     return int((tx_estimated_bytes * fee_per_kb)/Decimal(1000.0))
 
 class AbstractWallet(object):
@@ -250,7 +250,7 @@ class Wallet(AbstractWallet):
             # do not import in the middle of sync_wallet()
             if bc_interface.wallet_synced:
                 if bc_interface.rpc('getaccount', [addr]) == '':
-                    log.debug('importing address ' + addr + ' to bitcoin core')
+                    log.info('importing address ' + addr + ' to bitcoin core')
                     bc_interface.rpc(
                             'importaddress',
                             [addr, bc_interface.get_wallet_name(self), False])

@@ -40,7 +40,7 @@ def make_request_blockr(*args):
     while True:
         data = json.loads(make_request(*args))
         if data['status'] == 'error' and data['code'] == 429:
-            log.debug('Blockr service error: ' + data['message'])
+            log.error('Blockr service error: ' + data['message'])
             time.sleep(min(60, 2**counter / 2.))
             counter += 1
             continue

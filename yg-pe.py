@@ -49,7 +49,8 @@ class YieldGeneratorPrivEnhance(YieldGenerator):
         mix_balance = dict([(m, b) for m, b in mix_balance.iteritems()
                             if b > self.minsize])
         if len(mix_balance) == 0:
-            log.debug('do not have any coins left')
+            log.error('You do not have any coins left. Cannot be an active '
+                      'maker with no funds.')
             return []
         max_mix = max(mix_balance, key=mix_balance.get)
         order = {'oid': 0,
@@ -107,7 +108,7 @@ class YieldGeneratorPrivEnhance(YieldGenerator):
             mixdepth = max_mix
         else:
             mixdepth = nonmax_mix_balance[0][0]
-        log.debug('filling offer, mixdepth=' + str(mixdepth))
+        log.info('filling offer, mixdepth=' + str(mixdepth))
 
         # mixdepth is the chosen depth we'll be spending from
         # min_mixdepth is the one we want to send our cjout TO,
@@ -134,8 +135,9 @@ class YieldGeneratorPrivEnhance(YieldGenerator):
                 utxos = self.wallet.select_utxos(
                     mixdepth, total_amount + jm_single().DUST_THRESHOLD)
             except Exception:
-                log.debug('dont have the required UTXOs to make a '
-                          'output above the dust threshold, quitting')
+                log.info('dont have the required UTXOs to make a '
+                          'output above the dust threshold, quitting. '
+                          'This can sometimes happen and does not require user action.')
                 return None, None, None
 
         return utxos, cj_addr, change_addr

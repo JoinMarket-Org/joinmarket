@@ -37,7 +37,7 @@ class YieldGeneratorBasic(YieldGenerator):
     def create_my_orders(self):
         mix_balance = self.wallet.get_balance_by_mixdepth()
         if len([b for m, b in mix_balance.iteritems() if b > 0]) == 0:
-            log.debug('do not have any coins left')
+            log.error('do not have any coins left')
             return []
 
         # print mix_balance
@@ -78,7 +78,7 @@ class YieldGeneratorBasic(YieldGenerator):
         log.debug('mix depths that have enough = ' + str(filtered_mix_balance))
         filtered_mix_balance = sorted(filtered_mix_balance, key=lambda x: x[0])
         mixdepth = filtered_mix_balance[0][0]
-        log.debug('filling offer, mixdepth=' + str(mixdepth))
+        log.info('filling offer, mixdepth=' + str(mixdepth))
 
         # mixdepth is the chosen depth we'll be spending from
         cj_addr = self.wallet.get_internal_addr((mixdepth + 1) %
@@ -96,7 +96,7 @@ class YieldGeneratorBasic(YieldGenerator):
                 utxos = self.wallet.select_utxos(
                     mixdepth, total_amount + jm_single().DUST_THRESHOLD)
             except Exception:
-                log.debug('dont have the required UTXOs to make a '
+                log.info('dont have the required UTXOs to make a '
                           'output above the dust threshold, quitting')
                 return None, None, None
 

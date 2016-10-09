@@ -148,7 +148,7 @@ class BlockrInterface(BlockchainInterface):
         self.last_sync_unspent = 0
 
     def sync_addresses(self, wallet):
-        log.debug('downloading wallet history')
+        log.info('downloading wallet history')
         # sets Wallet internal indexes to be at the next unused address
         for mix_depth in range(wallet.max_mix_depth):
             for forchange in [0, 1]:
@@ -185,7 +185,7 @@ class BlockrInterface(BlockchainInterface):
         # dont refresh unspent dict more often than 10 minutes
         rate_limit_time = 10 * 60
         if st - self.last_sync_unspent < rate_limit_time:
-            log.debug(
+            log.info(
                 'blockr sync_unspent() happened too recently (%dsec), skipping'
                 % (st - self.last_sync_unspent))
             return
@@ -193,7 +193,7 @@ class BlockrInterface(BlockchainInterface):
 
         addrs = wallet.addr_cache.keys()
         if len(addrs) == 0:
-            log.debug('no tx used')
+            log.info('no tx used')
             return
         i = 0
         while i < len(addrs):
@@ -262,7 +262,7 @@ class BlockrInterface(BlockchainInterface):
                 while not unconfirmed_txid:
                     time.sleep(unconfirm_poll_period)
                     if int(time.time()) - st > unconfirm_timeout:
-                        log.debug('checking for unconfirmed tx timed out')
+                        log.warn('checking for unconfirmed tx timed out')
                         if self.timeoutfun:
                             self.timeoutfun(False)
                         return
@@ -281,7 +281,7 @@ class BlockrInterface(BlockchainInterface):
                             shared_txid = txs
                         else:
                             shared_txid = shared_txid.intersection(txs)
-                    log.debug('sharedtxid = ' + str(shared_txid))
+                    log.info('sharedtxid = ' + str(shared_txid))
                     if len(shared_txid) == 0:
                         continue
                     time.sleep(
@@ -312,7 +312,7 @@ class BlockrInterface(BlockchainInterface):
                 while not confirmed_txid:
                     time.sleep(confirm_poll_period)
                     if int(time.time()) - st > confirm_timeout:
-                        log.debug('checking for confirmed tx timed out')
+                        log.warn('checking for confirmed tx timed out')
                         if self.timeoutfun:
                             self.timeoutfun(True)
                         return
@@ -328,7 +328,7 @@ class BlockrInterface(BlockchainInterface):
                             shared_txid = txs
                         else:
                             shared_txid = shared_txid.intersection(txs)
-                    log.debug('sharedtxid = ' + str(shared_txid))
+                    log.info('sharedtxid = ' + str(shared_txid))
                     if len(shared_txid) == 0:
                         continue
                     blockr_url = 'https://' + self.blockr_domain
@@ -360,7 +360,7 @@ class BlockrInterface(BlockchainInterface):
                 log.debug(data)
                 return False
         except Exception:
-            log.debug('failed blockr.io pushtx')
+            log.error('failed blockr.io pushtx')
             log.debug(traceback.format_exc())
             return False
         return True
@@ -469,7 +469,7 @@ class NotifyRequestHeader(BaseHTTPServer.BaseHTTPRequestHandler):
                     tx_out, unconfirmfun, confirmfun, timeoutfun, uc_called = tnf
                     break
             if unconfirmfun is None:
-                log.debug('txid=' + txid + ' not being listened for')
+                log.info('txid=' + txid + ' not being listened for')
             else:
                 # on rare occasions people spend their output without waiting
                 #  for a confirm
@@ -508,10 +508,10 @@ class NotifyRequestHeader(BaseHTTPServer.BaseHTTPRequestHandler):
         elif self.path.startswith('/alertnotify?'):
             jm_single().core_alert[0] = urllib.unquote(self.path[len(pages[
                 1]):])
-            log.debug('Got an alert!\nMessage=' + jm_single().core_alert[0])
+            log.warn('Got an alert!\nMessage=' + jm_single().core_alert[0])
 
         else:
-            log.debug(
+            log.warn(
                 'ERROR: This is not a handled URL path.  You may want to check your notify URL for typos.')
 
         request = urllib2.Request('http://localhost:' + str(
@@ -548,10 +548,10 @@ class BitcoinCoreNotifyThread(threading.Thread):
             except Exception:
                 continue
             httpd.btcinterface = self.btcinterface
-            log.debug('started bitcoin core notify listening thread, host=' +
+            log.info('started bitcoin core notify listening thread, host=' +
                       str(notify_host) + ' port=' + str(hostport[1]))
             httpd.serve_forever()
-        log.debug('failed to bind for bitcoin core notify listening')
+        log.error('failed to bind for bitcoin core notify listening')
 
 # must run bitcoind with -server
 # -walletnotify="curl -sI --connect-timeout 1 http://localhost:62602/walletnotify?%s"
@@ -588,7 +588,7 @@ class BitcoinCoreInterface(BlockchainInterface):
         return res
 
     def add_watchonly_addresses(self, addr_list, wallet_name):
-        log.debug('importing ' + str(len(addr_list)) +
+        log.info('importing ' + str(len(addr_list)) +
                   ' addresses into account ' + wallet_name)
         for addr in addr_list:
             self.rpc('importaddress', [addr, wallet_name, False])
@@ -641,7 +641,7 @@ class BitcoinCoreInterface(BlockchainInterface):
                 continue
             used_address_dict[addr_info[0]] = (addr_info[1], addr_info[2])
 
-        log.debug("Fast sync in progress. Got this many used addresses: " + str(
+        log.info("Fast sync in progress. Got this many used addresses: " + str(
             len(used_address_dict)))
         #Need to have wallet.index point to the last used address
         #and fill addr_cache.
@@ -671,7 +671,7 @@ class BitcoinCoreInterface(BlockchainInterface):
 
         if isinstance(wallet, BitcoinCoreWallet):
             return
-        log.debug('requesting detailed wallet history')
+        log.info('requesting detailed wallet history from Bitcoin Core client')
         wallet_name = self.get_wallet_name(wallet)
         #TODO It is worth considering making this user configurable:
         addr_req_count = 20
@@ -783,7 +783,7 @@ class BitcoinCoreInterface(BlockchainInterface):
         if len(too_few_addr_mix_change) > 0:
             indices = [wallet.index[mc[0]][mc[1]]
                        for mc in too_few_addr_mix_change]
-            log.debug('too few addresses in ' + str(too_few_addr_mix_change) +
+            log.info('too few addresses in ' + str(too_few_addr_mix_change) +
                       ' at ' + str(indices))
             for mix_depth, forchange in too_few_addr_mix_change:
                 wallet_addr_list += [
@@ -858,10 +858,10 @@ class BitcoinCoreInterface(BlockchainInterface):
         try:
             txid = self.rpc('sendrawtransaction', [txhex])
         except JsonRpcConnectionError as e:
-            log.debug('error pushing = ' + repr(e))
+            log.info('error pushing = ' + repr(e))
             return False
         except JsonRpcError as e:
-            log.debug('error pushing = ' + str(e.code) + " " + str(e.message))
+            log.info('error pushing = ' + str(e.code) + " " + str(e.message))
             return False
         return True
 
@@ -916,7 +916,7 @@ class RegtestBitcoinCoreInterface(BitcoinCoreInterface):
     def pushtx(self, txhex):
         if self.pushtx_failure_prob != 0 and random.random() <\
                 self.pushtx_failure_prob:
-            log.debug('randomly not broadcasting %0.1f%% of the time' %
+            log.info('randomly not broadcasting %0.1f%% of the time' %
                       (self.pushtx_failure_prob * 100))
             return True
 
@@ -949,7 +949,7 @@ class RegtestBitcoinCoreInterface(BitcoinCoreInterface):
             #can happen if the blockchain is shut down
             #automatically at the end of tests; this shouldn't
             #trigger an error
-            log.debug(
+            log.warn(
                 "Failed to generate blocks, looks like the bitcoin daemon \
 	    has been shut down. Ignoring.")
             pass

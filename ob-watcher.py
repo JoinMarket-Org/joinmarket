@@ -370,7 +370,7 @@ def main():
     hostport = (options.host, options.port)
     mcs = [IRCMessageChannel(c) for c in get_irc_mchannels()]
     mcc = MessageChannelCollection(mcs)
-    log.debug("Starting ob-watcher")
+    log.info("Starting ob-watcher")
     # todo: is the call to GUITaker needed, or the return. taker unused
     taker = GUITaker(mcc, hostport)
     print('starting irc')
