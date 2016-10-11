@@ -80,7 +80,8 @@ class CoinJoinTX(object):
         # create DH keypair on the fly for this Tx object
         self.kp = init_keypair()
         self.crypto_boxes = {}
-        self.get_commitment(input_utxos, self.cj_amount)
+        if not self.get_commitment(input_utxos, self.cj_amount):
+            return
         self.msgchan.fill_orders(self.active_orders, self.cj_amount,
                                  self.kp.hex_pk(), self.commitment)
 
@@ -106,15 +107,16 @@ class CoinJoinTX(object):
             if jm_single().config.get(
                 "BLOCKCHAIN", "blockchain_source") == 'regtest':
                 raise btc.PoDLEError("For testing raising podle exception")
+
             #The timeout/recovery code is designed to handle non-responsive
             #counterparties, but this condition means that the current bot
             #is not able to create transactions following its *own* rules,
             #so shutting down is appropriate no matter what style
             #of bot this is.
-            #These two settings shut down the timeout thread and avoid recovery.
-            self.all_responded = True
-            self.end_timeout_thread = True
-            self.msgchan.shutdown()
+            import thread
+            thread.interrupt_main()
+            return False
+        return True
 
     def start_encryption(self, nick, maker_pk):
         if nick not in self.active_orders.keys():
