@@ -378,7 +378,7 @@ class BlockrInterface(BlockchainInterface):
         data = []
         for ids in txids:
             blockr_url = 'https://' + self.blockr_domain + '.blockr.io/api/v1/tx/info/'
-            data = btc.make_request_blockr(blockr_url + ','.join(
+            blockr_data = btc.make_request_blockr(blockr_url + ','.join(
                 ids))['data']
             if not isinstance(blockr_data, list):
                 blockr_data = [blockr_data]
