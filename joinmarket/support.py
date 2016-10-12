@@ -17,8 +17,6 @@ from math import exp
 #                     format='%(asctime)s %(message)s',
 #                     dateformat='[%Y/%m/%d %H:%M:%S] ')
 
-logFormatter = logging.Formatter(
-    "%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s")
 log = logging.getLogger('joinmarket')
 log.setLevel(logging.DEBUG)
 
@@ -30,7 +28,6 @@ core_alert = ['']
 debug_silence = [False]
 
 
-#consoleHandler = logging.StreamHandler(stream=sys.stdout)
 class JoinMarketStreamHandler(logging.StreamHandler):
 
     def __init__(self, stream):
@@ -43,16 +40,6 @@ class JoinMarketStreamHandler(logging.StreamHandler):
             print('Core Alert Message: ' + core_alert[0])
         if not debug_silence[0]:
             super(JoinMarketStreamHandler, self).emit(record)
-
-
-consoleHandler = JoinMarketStreamHandler(stream=sys.stdout)
-consoleHandler.setFormatter(logFormatter)
-log.addHandler(consoleHandler)
-
-# log = logging.getLogger('joinmarket')
-# log.addHandler(logging.NullHandler())
-
-log.info('hello joinmarket')
 
 
 def get_log():
