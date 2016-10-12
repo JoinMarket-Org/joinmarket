@@ -294,7 +294,7 @@ def choose_orders(db, cj_amount, n, chooseOrdersBy, ignored_makers=None):
     else:
         orders_fees = sorted(orders_fees, key=feekey)  #sort by ascending cjfee
 
-    log.info('considered orders = \n' + '\n'.join([str(o) for o in orders_fees
+    log.debug('considered orders = \n' + '\n'.join([str(o) for o in orders_fees
                                                    ]))
     total_cj_fee = 0
     chosen_orders = []

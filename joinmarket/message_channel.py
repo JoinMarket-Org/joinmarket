@@ -255,7 +255,7 @@ class MessageChannelCollection(object):
             self.active_channels[nick].privmsg(nick, cmd, message)
             return
         else:
-            log.warn("Failed to send message to: " + str(nick) + \
+            log.info("Failed to send message to: " + str(nick) + \
                           "; cannot find on any message channel.")
             return
 
