@@ -1,0 +1,6 @@
+todo:
+ - explain how to setup Tor
+ - explain how to setup bitcoind
+ - explain how to setup the config (and figure out how to keep sensitive things out of git)
+ - maybe use click instead of argparse
+ - use --entry-help instead of --help so we can still see joinmarket's help

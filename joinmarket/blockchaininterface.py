@@ -947,7 +947,7 @@ class BitcoinCoreInterface(BlockchainInterface):
             print('restart Bitcoin Core with -rescan if you\'re '
                   'recovering an existing wallet from backup seed')
             print(' otherwise just restart this joinmarket script')
-            sys.exit(0)
+            sys.exit(2)
 
     def sync_wallet(self, wallet, fast=False):
         #trigger fast sync if the index_cache is available
