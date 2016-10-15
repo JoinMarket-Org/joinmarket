@@ -370,7 +370,7 @@ class CoinJoinTX(object):
         tx = btc.serialize(self.latest_tx)
         log.debug('\n' + tx)
         self.txid = btc.txhash(tx)
-        log.debug('txid = ' + self.txid)
+        log.info('txid = ' + self.txid)
         
         tx_broadcast = jm_single().config.get('POLICY', 'tx_broadcast')
         if tx_broadcast == 'self':

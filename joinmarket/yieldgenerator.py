@@ -161,7 +161,7 @@ def ygmain(ygclass, txfee=1000, cjfee_a=200, cjfee_r=0.002, ordertype='reloffer'
         log.info('connecting to message channels')
         mcc.run()
     except:
-        log.warn('CRASHING, DUMPING EVERYTHING')
+        log.warn('Quitting! Dumping object contents to logfile.')
         debug_dump_object(wallet, ['addr_cache', 'keys', 'seed'])
         debug_dump_object(maker)
         debug_dump_object(mcc, ['nick_priv', 'nick_pkh_raw'])

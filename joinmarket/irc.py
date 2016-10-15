@@ -88,7 +88,7 @@ class ThrottleThread(threading.Thread):
                 bytes_recent = sum(len(i[0]) for i in self.msg_buffer)
                 if bytes_recent > B_PER_SEC * B_PER_SEC_INTERVAL:
                     if print_throttle_msg:
-                        log.info("Throttling triggered, with: "+str(
+                        log.debug("Throttling triggered, with: "+str(
                             bytes_recent)+ " bytes in the last "+str(
                                 B_PER_SEC_INTERVAL)+" seconds.")
                     print_throttle_msg = False
@@ -265,7 +265,7 @@ class IRCMessageChannel(MessageChannel):
                 parsed = self.built_privmsg[nick]
                 # wipe the message buffer waiting for the next one
                 del self.built_privmsg[nick]
-                log.info("<<privmsg on %s: " %
+                log.debug("<<privmsg on %s: " %
                 (self.hostid) + "nick=%s message=%s" % (nick, parsed))
                 self.on_privmsg(nick, parsed)
             elif message[-1] != ';':

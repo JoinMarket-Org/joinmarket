@@ -637,7 +637,7 @@ def main():
     # python tumbler.py -N 2 1 -c 3 0.001 -l 0.1 -M 3 -a 0 wallet_file 1xxx 1yyy
     wallet = Wallet(wallet_file,
                     max_mix_depth=options['mixdepthsrc'] + options['mixdepthcount'])
-    sync_wallet(wallet, fast=options.fastsync)
+    sync_wallet(wallet, fast=options['fastsync'])
     jm_single().wait_for_commitments = 1
     mcs = [IRCMessageChannel(c) for c in get_irc_mchannels()]
     mcc = MessageChannelCollection(mcs)
@@ -647,7 +647,7 @@ def main():
         log.info('connecting to message channels')
         mcc.run()
     except:
-        log.warn('CRASHING, DUMPING EVERYTHING')
+        log.warn('Quitting! Dumping object contents to logfile.')
         debug_dump_object(wallet, ['addr_cache', 'keys', 'seed'])
         debug_dump_object(tumbler)
         debug_dump_object(tumbler.cjtx)

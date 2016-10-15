@@ -334,7 +334,7 @@ def main():
         log.info('starting message channels')
         mcc.run()
     except:
-        log.warn('CRASHING, DUMPING EVERYTHING')
+        log.warn('Quitting! Dumping object contents to logfile.')
         debug_dump_object(wallet, ['addr_cache', 'keys', 'wallet_name', 'seed'])
         debug_dump_object(taker)
         import traceback
