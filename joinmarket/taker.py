@@ -45,7 +45,7 @@ class CoinJoinTX(object):
         each order object is a dict of properties {'oid': 0, 'maxsize': 2000000, 'minsize':
             5000, 'cjfee': 10000, 'txfee': 5000}
         """
-        log.debug(
+        log.info(
             'starting cj to ' + str(my_cj_addr) + ' with change at ' + str(
                     my_change_addr))
         # parameters
@@ -94,10 +94,10 @@ class CoinJoinTX(object):
                 self.wallet, utxos, amount)
             if (self.commitment) or (jm_single().wait_for_commitments == 0):
                 break
-            log.debug("Failed to source commitments, waiting 3 minutes")
+            log.info("Failed to source commitments, waiting 3 minutes")
             time.sleep(3 * 60)
         if not self.commitment:
-            log.debug("Cannot construct transaction, failed to generate "
+            log.error("Cannot construct transaction, failed to generate "
                     "commitment, shutting down. Please read commitments_debug.txt "
                       "for some information on why this is, and what can be "
                       "done to remedy it.")
@@ -154,7 +154,7 @@ class CoinJoinTX(object):
         self.utxos[nick] = utxo_list
         utxo_data = jm_single().bc_interface.query_utxo_set(self.utxos[nick])
         if None in utxo_data:
-            log.debug(('ERROR outputs unconfirmed or already spent. '
+            log.error(('ERROR outputs unconfirmed or already spent. '
                        'utxo_data={}').format(pprint.pformat(utxo_data)))
             # when internal reviewing of makers is created, add it here to
             # immediately quit; currently, the timeout thread suffices.
@@ -166,7 +166,7 @@ class CoinJoinTX(object):
         input_addresses = [d['address'] for d in utxo_data]
         auth_address = btc.pubkey_to_address(auth_pub, get_p2pk_vbyte())
         if not auth_address in input_addresses:
-            log.debug("ERROR maker's authorising pubkey is not included "
+            log.error("ERROR maker's authorising pubkey is not included "
                       "in the transaction: " + str(auth_address))
             return
 
@@ -181,9 +181,10 @@ class CoinJoinTX(object):
         # a change output of zero satoshis, so the invalid transaction
         # fails harmlessly; let's fail earlier, with a clear message.
         if change_amount < jm_single().DUST_THRESHOLD:
-            fmt = ('ERROR counterparty requires sub-dust change. nick={}'
+            fmt = ('ERROR counterparty requires sub-dust change. No '
+                   'action required. nick={}'
                    'totalin={:d} cjamount={:d} change={:d}').format
-            log.debug(fmt(nick, total_input, self.cj_amount, change_amount))
+            log.warn(fmt(nick, total_input, self.cj_amount, change_amount))
             return              # timeout marks this maker as nonresponsive
 
         self.outputs.append({'address': change_addr, 'value': change_amount})
@@ -198,7 +199,7 @@ class CoinJoinTX(object):
         if len(self.nonrespondants) > 0:
             log.debug('nonrespondants = ' + str(self.nonrespondants))
             return
-        log.debug('got all parts, enough to build a tx')
+        log.info('got all parts, enough to build a tx')
         self.nonrespondants = list(self.active_orders.keys())
 
         my_total_in = sum([va['value'] for u, va in
@@ -207,8 +208,8 @@ class CoinJoinTX(object):
             #Estimate fee per choice of next/3/6 blocks targetting.
             estimated_fee = estimate_tx_fee(len(sum(
                 self.utxos.values(),[])), len(self.outputs)+2)
-            log.debug("Based on initial guess: "+str(
-                self.total_txfee)+", we estimated a fee of: "+str(estimated_fee))
+            log.info("Based on initial guess: "+str(
+                self.total_txfee)+", we estimated a miner fee of: "+str(estimated_fee))
             #reset total
             self.total_txfee = estimated_fee
         my_txfee = max(self.total_txfee - self.maker_txfee_contributions, 0)
@@ -223,11 +224,11 @@ class CoinJoinTX(object):
             raise ValueError("Calculated transaction fee of: "+str(
                 self.total_txfee)+" is too large for our inputs;Please try again.")
         elif self.my_change_addr and my_change_value <= jm_single().DUST_THRESHOLD:
-            log.debug("Dynamically calculated change lower than dust: "+str(
+            log.info("Dynamically calculated change lower than dust: "+str(
                 my_change_value)+"; dropping.")
             self.my_change_addr = None
             my_change_value = 0
-        log.debug('fee breakdown for me totalin=%d my_txfee=%d makers_txfee=%d cjfee_total=%d => changevalue=%d'
+        log.info('fee breakdown for me totalin=%d my_txfee=%d makers_txfee=%d cjfee_total=%d => changevalue=%d'
                   % (my_total_in, my_txfee, self.maker_txfee_contributions,            
                   self.cjfee_total, my_change_value))
         if self.my_change_addr is None:
@@ -257,7 +258,7 @@ class CoinJoinTX(object):
         #contents of jm_single().maker_timeout_sec (the user configured value)
         self.maker_timeout_sec = (len(tx) * 1.8 * len(
             self.active_orders.keys()))/(B_PER_SEC) + jm_single().maker_timeout_sec
-        log.debug("Based on transaction size: " + str(
+        log.info("Based on transaction size: " + str(
             len(tx)) + ", calculated time to wait for replies: " + str(
             self.maker_timeout_sec))
         self.all_responded = True
@@ -312,7 +313,7 @@ class CoinJoinTX(object):
                 # check if maker has sent everything possible
                 self.utxos[nick].remove(u[1])
                 if len(self.utxos[nick]) == 0:
-                    log.debug(('nick = {} sent all sigs, removing from '
+                    log.info(('nick = {} sent all sigs, removing from '
                                'nonrespondant list').format(nick))
                     self.nonrespondants.remove(nick)
                 break
@@ -332,7 +333,7 @@ class CoinJoinTX(object):
         self.all_responded = True
         with self.timeout_lock:
             self.timeout_lock.notify()
-        log.debug('all makers have sent their signatures')
+        log.info('all makers have sent their signatures')
         for index, ins in enumerate(self.latest_tx['ins']):
             # remove placeholders
             if ins['script'] == 'deadbeef':
@@ -391,12 +392,12 @@ class CoinJoinTX(object):
                 'RANDOM() LIMIT 1;'
             ).fetchone()
             counterparty = crow['counterparty']
-            log.debug('pushing tx to ' + counterparty)
+            log.info('pushing tx to ' + counterparty)
             self.msgchan.push_tx(counterparty, tx)
             pushed = True
 
         if not pushed:
-            log.debug('unable to pushtx')
+            log.error('unable to pushtx')
         return pushed
 
     def self_sign_and_push(self):
@@ -404,7 +405,7 @@ class CoinJoinTX(object):
         return self.push()
 
     def recover_from_nonrespondants(self):
-        log.debug('nonresponding makers = ' + str(self.nonrespondants))
+        log.info('nonresponding makers = ' + str(self.nonrespondants))
         # if there is no choose_orders_recover then end and call finishcallback
         # so the caller can handle it in their own way, notable for sweeping
         # where simply replacing the makers wont work
@@ -449,7 +450,7 @@ class CoinJoinTX(object):
             self.cjtx = cjtx
 
         def run(self):
-            log.debug(('started timeout thread for coinjoin of amount {} to '
+            log.info(('started timeout thread for coinjoin of amount {} to '
                        'addr {}').format(self.cjtx.cj_amount,
                                          self.cjtx.my_cj_addr))
 
@@ -459,17 +460,17 @@ class CoinJoinTX(object):
             # after it returns, check a boolean
             # to see if if the messages have arrived
             while not self.cjtx.end_timeout_thread:
-                log.debug('waiting for all replies.. timeout=' + str(
+                log.info('waiting for all replies.. timeout=' + str(
                         self.cjtx.maker_timeout_sec))
                 with self.cjtx.timeout_lock:
                     self.cjtx.timeout_lock.wait(self.cjtx.maker_timeout_sec)
                 with self.cjtx.timeout_thread_lock:
                     if self.cjtx.all_responded:
-                        log.debug(('timeout thread woken by notify(), '
+                        log.info(('timeout thread woken by notify(), '
                                    'makers responded in time'))
                         self.cjtx.all_responded = False
                     else:
-                        log.debug('timeout thread woken by timeout, '
+                        log.info('timeout thread woken by timeout, '
                                   'makers didnt respond')
                         self.cjtx.recover_from_nonrespondants()
 

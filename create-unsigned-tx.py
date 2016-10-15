@@ -56,9 +56,9 @@ class PaymentThread(threading.Thread):
                 self.taker.options.makercount, self.taker.chooseOrdersFunc,
                 self.ignored_makers)
             if not self.taker.options.answeryes:
-                log.debug('total cj fee = ' + str(total_cj_fee))
+                log.info('total cj fee = ' + str(total_cj_fee))
                 total_fee_pc = 1.0 * total_cj_fee / cjamount
-                log.debug('total coinjoin fee = ' + str(float('%.3g' % (
+                log.info('total coinjoin fee = ' + str(float('%.3g' % (
                     100.0 * total_fee_pc))) + '%')
                 sendpayment.check_high_fee(total_fee_pc)
                 if raw_input('send with these orders? (y/n):')[0] != 'y':
@@ -69,7 +69,7 @@ class PaymentThread(threading.Thread):
             orders, total_cj_fee = self.sendpayment_choose_orders(
                 self.taker.cjamount, self.taker.options.makercount)
             if not orders:
-                log.debug(
+                log.error(
                     'ERROR not enough liquidity in the orderbook, exiting')
                 return
             total_amount = self.taker.cjamount + total_cj_fee + \
@@ -88,11 +88,11 @@ class PaymentThread(threading.Thread):
         if coinjointx.all_responded:
             tx = btc.serialize(coinjointx.latest_tx)
             print 'unsigned tx = \n\n' + tx + '\n'
-            log.debug('created unsigned tx, ending')
+            log.info('created unsigned tx, ending')
             self.taker.msgchan.shutdown()
             return
         self.ignored_makers += coinjointx.nonrespondants
-        log.debug('recreating the tx, ignored_makers=' + str(
+        log.info('recreating the tx, ignored_makers=' + str(
             self.ignored_makers))
         self.create_tx()
 
@@ -119,11 +119,11 @@ class PaymentThread(threading.Thread):
             else:
                 noun = 'additional'
             total_fee_pc = 1.0 * total_cj_fee / cj_amount
-            log.debug(noun + ' coinjoin fee = ' + str(float('%.3g' % (
+            log.info(noun + ' coinjoin fee = ' + str(float('%.3g' % (
                 100.0 * total_fee_pc))) + '%')
             sendpayment.check_high_fee(total_fee_pc)
             if raw_input('send with these orders? (y/n):')[0] != 'y':
-                log.debug('ending')
+                log.info('ending')
                 self.taker.msgchan.shutdown()
                 return None, -1
         return orders, total_cj_fee
@@ -258,10 +258,10 @@ def main():
                              changeaddr, utxo_data, options, chooseOrdersFunc)
     log.debug('starting create-unsigned-tx')
     try:
-        log.debug('starting message channels')
+        log.info('starting message channels')
         mcc.run()
     except:
-        log.debug('CRASHING, DUMPING EVERYTHING')
+        log.warn('CRASHING, DUMPING EVERYTHING')
         debug_dump_object(wallet, ['addr_cache', 'keys', 'wallet_name', 'seed'])
         debug_dump_object(taker)
         import traceback

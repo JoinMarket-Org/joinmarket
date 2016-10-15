@@ -40,7 +40,7 @@ class CoinJoinOrder(object):
             self.crypto_box = as_init_encryption(self.kp,
                                              init_pubkey(taker_pk))
         except NaclError as e:
-            log.debug("Unable to setup crypto box with counterparty: " + repr(e))
+            log.info("Unable to setup crypto box with counterparty: " + repr(e))
             self.maker.msgchan.send_error(nick, "invalid nacl pubkey: " + taker_pk)
             return
 
@@ -53,7 +53,7 @@ class CoinJoinOrder(object):
         self.ordertype = order['ordertype']
         self.txfee = order['txfee']
         self.cjfee = order['cjfee']
-        log.debug('new cjorder nick=%s oid=%d amount=%d' % (nick, oid, amount))
+        log.info('new cjorder nick=%s oid=%d amount=%d' % (nick, oid, amount))
 
         def populate_utxo_data():
             self.utxos, self.cj_addr, self.change_addr = maker.oid_to_order(
@@ -96,7 +96,7 @@ class CoinJoinOrder(object):
         #check the validity of the proof of discrete log equivalence
         tries = jm_single().config.getint("POLICY", "taker_utxo_retries")
         def reject(msg):
-            log.debug("Counterparty commitment not accepted, reason: " + msg)
+            log.info("Counterparty commitment not accepted, reason: " + msg)
             return False
         if not btc.verify_podle(cr_dict['P'], cr_dict['P2'], cr_dict['sig'],
                                 cr_dict['e'], self.maker.commit,
@@ -151,13 +151,13 @@ class CoinJoinOrder(object):
             self.tx = btc.deserialize(txhex)
         except IndexError as e:
             self.maker.msgchan.send_error(nick, 'malformed txhex. ' + repr(e))
-        log.debug('obtained tx\n' + pprint.pformat(self.tx))
+        log.info('obtained tx\n' + pprint.pformat(self.tx))
         goodtx, errmsg = self.verify_unsigned_tx(self.tx)
         if not goodtx:
-            log.debug('not a good tx, reason=' + errmsg)
+            log.info('not a good tx, reason=' + errmsg)
             self.maker.msgchan.send_error(nick, errmsg)
         # TODO: the above 3 errors should be encrypted, but it's a bit messy.
-        log.debug('goodtx')
+        log.info('goodtx')
         sigs = []
         for index, ins in enumerate(self.tx['ins']):
             utxo = ins['outpoint']['hash'] + ':' + str(ins['outpoint']['index'])
@@ -182,7 +182,7 @@ class CoinJoinOrder(object):
             removed_utxos = self.maker.wallet.remove_old_utxos(self.tx)
         finally:
             self.maker.wallet_unspent_lock.release()
-        log.debug('saw tx on network, removed_utxos=\n{}'.format(
+        log.info('saw tx on network, removed_utxos=\n{}'.format(
                 pprint.pformat(removed_utxos)))
         to_cancel, to_announce = self.maker.on_tx_unconfirmed(
                 self, txid, removed_utxos)
@@ -194,8 +194,8 @@ class CoinJoinOrder(object):
             jm_single().bc_interface.sync_unspent(self.maker.wallet)
         finally:
             self.maker.wallet_unspent_lock.release()
-        log.debug('tx in a block')
-        log.debug('earned = ' + str(self.real_cjfee - self.txfee))
+        log.info('tx in a block')
+        log.info('earned = ' + str(self.real_cjfee - self.txfee))
         to_cancel, to_announce = self.maker.on_tx_confirmed(self, confirmations,
                                                             txid)
         self.maker.modify_orders(to_cancel, to_announce)
@@ -213,7 +213,7 @@ class CoinJoinOrder(object):
                 self.ordertype, self.cjfee, self.cj_amount)
         expected_change_value = (
             my_total_in - self.cj_amount - self.txfee + self.real_cjfee)
-        log.debug('potentially earned = {}'.format(
+        log.info('potentially earned = {}'.format(
                 self.real_cjfee - self.txfee))
         log.debug('mycjaddr, mychange = {}, {}'.format(
                 self.cj_addr, self.change_addr))
@@ -321,7 +321,7 @@ class Maker(OrderbookWatch):
     def on_order_fill(self, nick, oid, amount, taker_pubkey, commit):
         if nick in self.active_orders and self.active_orders[nick] is not None:
             self.active_orders[nick] = None
-            log.debug('had a partially filled order but starting over now')
+            log.info('had a partially filled order but starting over now')
         if not commit[0] == "P":
             self.msgchan.send_error(
                 nick, "Unsupported commitment type: " + str(commit[0]))
@@ -329,7 +329,7 @@ class Maker(OrderbookWatch):
         #Strip the type byte before processing
         scommit = commit[1:]
         if not check_utxo_blacklist(scommit):
-            log.debug("Taker utxo commitment is blacklisted, rejecting.")
+            log.info("Taker utxo commitment is blacklisted, rejecting.")
             self.msgchan.send_error(nick,
                                 "Commitment is blacklisted: " + str(scommit))
             #Note that broadcast is happening here to reflect an already
@@ -381,7 +381,7 @@ class Maker(OrderbookWatch):
             del self.active_orders[nick]
 
     def modify_orders(self, to_cancel, to_announce):
-        log.debug('modifying orders. to_cancel={}\nto_announce={}'.format(
+        log.info('modifying orders. to_cancel={}\nto_announce={}'.format(
                 to_cancel, to_announce))
         for oid in to_cancel:
             order = [o for o in self.orderlist if o['oid'] == oid]

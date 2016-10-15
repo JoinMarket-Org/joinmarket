@@ -7,11 +7,11 @@ import os
 import binascii
 import sys
 
-from ConfigParser import SafeConfigParser, NoOptionError
+from ConfigParser import SafeConfigParser, NoOptionError, NoSectionError
 
 import bitcoin as btc
 from joinmarket.jsonrpc import JsonRpc
-from joinmarket.support import get_log, joinmarket_alert, core_alert, debug_silence
+from joinmarket.support import get_log, joinmarket_alert, core_alert, debug_silence, JoinMarketStreamHandler
 
 log = get_log()
 
@@ -69,6 +69,7 @@ global_singleton.debug_silence = debug_silence
 global_singleton.config = SafeConfigParser()
 global_singleton.config_location = 'joinmarket.cfg'
 global_singleton.commit_file_location = 'cmttools/commitments.json'
+global_singleton.console_log_level = 'INFO'
 global_singleton.wait_for_commitments = 0
 
 def jm_single():
@@ -107,6 +108,12 @@ socks5_port = 9050, 9050
 #port = 6698, 6667
 #usessl = true, false
 #socks5 = true, true
+
+[LOGGING]
+# Set the log level for the output to the terminal/console
+# Possible choices: DEBUG / INFO / WARNING / ERROR
+# Log level for the files in the logs-folder will always be DEBUG
+console_log_level = INFO
 
 [TIMEOUT]
 maker_timeout_sec = 30
@@ -250,7 +257,7 @@ def donation_address(reusable_donation_pubkey=None):
     sender_pubkey = btc.add_pubkeys([reusable_donation_pubkey,
                                      btc.privtopub(c+'01', True)], True)
     sender_address = btc.pubtoaddr(sender_pubkey, get_p2pk_vbyte())
-    log.debug('sending coins to ' + sender_address)
+    log.info('sending coins to ' + sender_address)
     return sender_address, sign_k
 
 def check_utxo_blacklist(commitment, persist=False):
@@ -282,11 +289,27 @@ def check_utxo_blacklist(commitment, persist=False):
         #usage).
     return True
 
+def initialize_console_logger(log_level):
+    logFormatter = logging.Formatter(
+        "%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s")
+    consoleHandler = JoinMarketStreamHandler(stream=sys.stdout)
+    consoleHandler.setFormatter(logFormatter)
+    consoleHandler.setLevel(log_level)
+    log.addHandler(consoleHandler)
+    log.info('hello joinmarket')
 
 def load_program_config():
+    # set the console log level and initialize console logger
+    try:
+        global_singleton.console_log_level = global_singleton.config.get(
+            "LOGGING", "console_log_level")
+    except (NoSectionError, NoOptionError):
+        log.info("No log level set, using default level INFO ")
+    initialize_console_logger(global_singleton.console_log_level)
+
     #set the location of joinmarket
     jmkt_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-    log.debug("Joinmarket directory is: " + str(jmkt_dir))
+    log.info("Joinmarket directory is: " + str(jmkt_dir))
     global_singleton.config.readfp(io.BytesIO(defaultconfig))
     jmkt_config_location = os.path.join(jmkt_dir, global_singleton.config_location)
     loadedFiles = global_singleton.config.read([jmkt_config_location])
@@ -312,7 +335,7 @@ def load_program_config():
         global_singleton.maker_timeout_sec = global_singleton.config.getint(
             'TIMEOUT', 'maker_timeout_sec')
     except NoOptionError:
-        log.debug('TIMEOUT/maker_timeout_sec not found in .cfg file, '
+        log.info('TIMEOUT/maker_timeout_sec not found in .cfg file, '
                   'using default value')
 
     # configure the interface to the blockchain on startup
@@ -323,7 +346,7 @@ def load_program_config():
         global_singleton.commit_file_location = global_singleton.config.get(
             "POLICY", "commit_file_location")
     except NoOptionError:
-            log.debug("No commitment file location in config, using default "
+            log.info("No commitment file location in config, using default "
                       "location cmttools/commitments.json")
     btc.set_commitment_file(os.path.join(jmkt_dir,
                                          global_singleton.commit_file_location))

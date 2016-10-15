@@ -154,14 +154,14 @@ def ygmain(ygclass, txfee=1000, cjfee_a=200, cjfee_r=0.002, ordertype='reloffer'
                                  "BLOCKCHAIN", "blockchain_source"),
                         password=nickserv_password) for c in get_irc_mchannels()]
     mcc = MessageChannelCollection(mcs)
-    log.debug('starting yield generator')
+    log.info('starting yield generator')
     maker = ygclass(mcc, wallet, [options.txfee, cjfee_a, cjfee_r,
                                   options.ordertype, options.minsize, mix_levels])
     try:
-        log.debug('connecting to message channels')
+        log.info('connecting to message channels')
         mcc.run()
     except:
-        log.debug('CRASHING, DUMPING EVERYTHING')
+        log.warn('CRASHING, DUMPING EVERYTHING')
         debug_dump_object(wallet, ['addr_cache', 'keys', 'seed'])
         debug_dump_object(maker)
         debug_dump_object(mcc, ['nick_priv', 'nick_pkh_raw'])

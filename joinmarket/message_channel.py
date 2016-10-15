@@ -81,8 +81,8 @@ class MessageChannelCollection(object):
                 #but should not kill the bot. So, we don't raise an
                 #exception, but rather allow sending to continue, which
                 #should usually result in tx completion just timing out.
-                log.debug("Couldn't find a route to send privmsg")
-                log.debug("For counterparty: " + str(cp))
+                log.warn("Couldn't find a route to send privmsg")
+                log.warn("For counterparty: " + str(cp))
         return func_wrapper
 
     def __init__(self, mchannels):
@@ -193,7 +193,7 @@ class MessageChannelCollection(object):
             time.sleep(1)
             i += 1
             if self.give_up:
-                log.debug("Shutting down all connections")
+                log.info("Shutting down all connections")
                 break
             #feature only used for testing:
             #deliberately shutdown a connection at a certain time.
@@ -255,7 +255,7 @@ class MessageChannelCollection(object):
             self.active_channels[nick].privmsg(nick, cmd, message)
             return
         else:
-            log.debug("Failed to send message to: " + str(nick) + \
+            log.info("Failed to send message to: " + str(nick) + \
                           "; cannot find on any message channel.")
             return
 
@@ -272,7 +272,7 @@ class MessageChannelCollection(object):
             orderlines.append(COMMAND_PREFIX + order['ordertype'] + \
                     ' ' + ' '.join([str(order[k]) for k in order_keys]))
         if new_mc is not None and new_mc not in self.available_channels():
-            log.debug(
+            log.info(
                 "Tried to announce orders on an unavailable message channel.")
             return
         if nick is None:
@@ -353,7 +353,7 @@ class MessageChannelCollection(object):
                 #but might not be for the bot (tx recreation etc.)
                 #TODO look for another channel via nicks_seen.
                 #Rare case so not a high priority.
-                log.debug(
+                log.info(
                     "Cannot send transaction to nick, not active: " + nick)
                 return
             if self.active_channels[nick] not in tx_nick_sets:
@@ -441,7 +441,7 @@ class MessageChannelCollection(object):
             #Is the nick available on another channel?
             other_channels = [x for x in self.available_channels() if x != mc]
             if len(other_channels) == 0:
-                log.debug(
+                log.warn(
                     "Cannot reconnect to dropped nick, no connections available.")
                 if self.on_nick_leave:
                     self.on_nick_leave(nick)
@@ -743,7 +743,7 @@ class MessageChannel(object):
                     self.on_order_seen(self, counterparty, oid, ordertype, minsize,
                                        maxsize, txfee, cjfee)
             except IndexError as e:
-                log.warning(e)
+                log.debug(e)
                 log.debug('index error parsing chunks, possibly malformed'
                           'offer by other party. No user action required.')
                 # TODO what now? just ignore iirc
@@ -768,7 +768,7 @@ class MessageChannel(object):
                     if self.on_commitment_seen:
                         self.on_commitment_seen(counterparty, commitment)
             except IndexError as e:
-                log.warning(e)
+                log.debug(e)
                 log.debug('index error parsing chunks, possibly malformed'
                           'offer by other party. No user action required.')
             finally:
@@ -826,7 +826,7 @@ class MessageChannel(object):
             return self.cjpeer.get_crypto_box_from_nick(nick), True
 
     def send_error(self, nick, errormsg):
-        log.debug('error<%s> : %s' % (nick, errormsg))
+        log.info('error<%s> : %s' % (nick, errormsg))
         self.privmsg(nick, 'error', errormsg)
         raise CJPeerError()
 

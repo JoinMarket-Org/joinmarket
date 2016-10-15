@@ -71,8 +71,8 @@ class PaymentThread(threading.Thread):
             est_outs = 2*self.taker.makercount + 1
             log.debug("Estimated outs: "+str(est_outs))
             estimated_fee = estimate_tx_fee(est_ins, est_outs)
-            log.debug("We have a fee estimate: "+str(estimated_fee))
-            log.debug("And a requested fee of: "+str(
+            log.info("We have a fee estimate: "+str(estimated_fee))
+            log.info("And a requested fee of: "+str(
                 self.taker.txfee * self.taker.makercount))
             if estimated_fee > self.taker.makercount * self.taker.txfee:
                 #both values are integers; we can ignore small rounding errors
@@ -85,9 +85,9 @@ class PaymentThread(threading.Thread):
             if not orders:
                 raise Exception("Could not find orders to complete transaction.")
             if not self.taker.answeryes:
-                log.debug('total cj fee = ' + str(total_cj_fee))
+                log.info('total cj fee = ' + str(total_cj_fee))
                 total_fee_pc = 1.0 * total_cj_fee / cjamount
-                log.debug('total coinjoin fee = ' + str(float('%.3g' % (
+                log.info('total coinjoin fee = ' + str(float('%.3g' % (
                     100.0 * total_fee_pc))) + '%')
                 check_high_fee(total_fee_pc)
                 if raw_input('send with these orders? (y/n):')[0] != 'y':
@@ -97,7 +97,7 @@ class PaymentThread(threading.Thread):
             orders, total_cj_fee = self.sendpayment_choose_orders(
                 self.taker.amount, self.taker.makercount)
             if not orders:
-                log.debug(
+                log.error(
                     'ERROR not enough liquidity in the orderbook, exiting')
                 return
             total_amount = self.taker.amount + total_cj_fee + \
@@ -123,15 +123,15 @@ class PaymentThread(threading.Thread):
         if coinjointx.all_responded:
             pushed = coinjointx.self_sign_and_push()
             if pushed:
-                log.debug('created fully signed tx, ending')
+                log.info('created fully signed tx, ending')
             else:
                 #Error should be in log, will not retry.
-                log.debug('failed to push tx, ending.')
+                log.error('failed to push tx, ending.')
             time.sleep(10) # see github issue #516
             self.taker.msgchan.shutdown()
             return
         self.ignored_makers += coinjointx.nonrespondants
-        log.debug('recreating the tx, ignored_makers=' + str(
+        log.info('recreating the tx, ignored_makers=' + str(
             self.ignored_makers))
         self.create_tx()
 
@@ -158,11 +158,11 @@ class PaymentThread(threading.Thread):
             else:
                 noun = 'additional'
             total_fee_pc = 1.0 * total_cj_fee / cj_amount
-            log.debug(noun + ' coinjoin fee = ' + str(float('%.3g' % (
+            log.info(noun + ' coinjoin fee = ' + str(float('%.3g' % (
                 100.0 * total_fee_pc))) + '%')
             check_high_fee(total_fee_pc)
             if raw_input('send with these orders? (y/n):')[0] != 'y':
-                log.debug('ending')
+                log.info('ending')
                 self.taker.msgchan.shutdown()
                 return None, -1
         return orders, total_cj_fee
@@ -313,10 +313,10 @@ def main():
     # we guess conservatively with 2 inputs and 2 outputs each
     if options.txfee == -1:
         options.txfee = max(options.txfee, estimate_tx_fee(2, 2))
-        log.debug("Estimated miner/tx fee for each cj participant: "+str(options.txfee))
+        log.info("Estimated miner/tx fee for each cj participant: "+str(options.txfee))
     assert(options.txfee >= 0)
 
-    log.debug('starting sendpayment')
+    log.info('starting sendpayment')
 
     if not options.userpcwallet:
         wallet = Wallet(wallet_name, options.amtmixdepths, options.gaplimit)
@@ -326,15 +326,15 @@ def main():
 
     mcs = [IRCMessageChannel(c) for c in get_irc_mchannels()]
     mcc = MessageChannelCollection(mcs)
-    log.debug("starting sendpayment")
+    log.info("starting sendpayment")
     taker = SendPayment(mcc, wallet, destaddr, amount, options.makercount,
                         options.txfee, options.waittime, options.mixdepth,
                         options.answeryes, chooseOrdersFunc)
     try:
-        log.debug('starting message channels')
+        log.info('starting message channels')
         mcc.run()
     except:
-        log.debug('CRASHING, DUMPING EVERYTHING')
+        log.warn('CRASHING, DUMPING EVERYTHING')
         debug_dump_object(wallet, ['addr_cache', 'keys', 'wallet_name', 'seed'])
         debug_dump_object(taker)
         import traceback
