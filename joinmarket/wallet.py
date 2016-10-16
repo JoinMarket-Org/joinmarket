@@ -169,6 +169,13 @@ class Wallet(AbstractWallet):
             sys.exit(0)
         if 'index_cache' in walletdata:
             self.index_cache = walletdata['index_cache']
+            if self.max_mix_depth > len(self.index_cache):
+                #This can happen e.g. in tumbler when we need more mixdepths
+                #than currently exist. Since we have no info for those extra
+                #depths, we must default to (0,0) (but sync should find used
+                #adddresses).
+                self.index_cache += [[0,0]] * (
+                    self.max_mix_depth - len(self.index_cache))
         decrypted = False
         while not decrypted:
             if pwd:
