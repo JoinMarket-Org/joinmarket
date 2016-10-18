@@ -1,12 +1,11 @@
-.DS_Store
 *.pyc
 *.swp
 .cache/
 .coverage
+.DS_Store
+blacklist
 blockchain.cache
+cmttools/commitments.json
 env
 htmlcov/
 joinmarket.cfg
-cmttools/commitments.json
-blacklist
-
