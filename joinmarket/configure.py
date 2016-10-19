@@ -116,7 +116,7 @@ socks5_port = 9050, 9050
 console_log_level = INFO
 
 [TIMEOUT]
-maker_timeout_sec = 30
+maker_timeout_sec = 45
 unconfirm_timeout_sec = 90
 confirm_timeout_hours = 6
 
