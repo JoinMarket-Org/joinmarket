@@ -837,8 +837,8 @@ class MessageChannel(object):
         self._pubmsg(message)
 
     def privmsg(self, nick, cmd, message):
-        log.debug('>>privmsg ' + 'nick=' + nick + ' cmd=' + cmd + ' msg=' +
-                  message)
+        log.debug('>>privmsg on %s: ' %
+                  (self.hostid) + 'nick=' + nick + ' cmd=' + cmd + ' msg=' + message)
         # should we encrypt?
         box, encrypt = self.get_encryption_box(cmd, nick)
         if encrypt:
