@@ -299,17 +299,8 @@ def initialize_console_logger(log_level):
     log.info('hello joinmarket')
 
 def load_program_config():
-    # set the console log level and initialize console logger
-    try:
-        global_singleton.console_log_level = global_singleton.config.get(
-            "LOGGING", "console_log_level")
-    except (NoSectionError, NoOptionError):
-        log.info("No log level set, using default level INFO ")
-    initialize_console_logger(global_singleton.console_log_level)
-
     #set the location of joinmarket
     jmkt_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-    log.info("Joinmarket directory is: " + str(jmkt_dir))
     global_singleton.config.readfp(io.BytesIO(defaultconfig))
     jmkt_config_location = os.path.join(jmkt_dir, global_singleton.config_location)
     loadedFiles = global_singleton.config.read([jmkt_config_location])
@@ -330,6 +321,15 @@ def load_program_config():
                 raise Exception(
                         "Config file does not contain the required option: " + o +\
                         " in section: " + k)
+
+    # set the console log level and initialize console logger
+    try:
+        global_singleton.console_log_level = global_singleton.config.get(
+            "LOGGING", "console_log_level")
+    except (NoSectionError, NoOptionError):
+        log.info("No log level set, using default level INFO ")
+    initialize_console_logger(global_singleton.console_log_level)
+    log.info("Joinmarket directory is: " + str(jmkt_dir))
 
     try:
         global_singleton.maker_timeout_sec = global_singleton.config.getint(
