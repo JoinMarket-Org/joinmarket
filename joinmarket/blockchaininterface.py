@@ -526,7 +526,7 @@ class BitcoinCoreNotifyThread(threading.Thread):
         self.btcinterface = btcinterface
 
     def run(self):
-        notify_host = 'localhost'
+        notify_host = '0.0.0.0'
         notify_port = 62602  # defaults
         config = jm_single().config
         if 'notify_host' in config.options("BLOCKCHAIN"):
