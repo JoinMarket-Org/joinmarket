@@ -26,6 +26,49 @@ yg_cmd = 'yield-generator-basic.py'
 #yg_cmd = 'yg-pe.py'
 
 @pytest.mark.parametrize(
+    "wallet_structures, mean_amt, mixdepth, amount, valid",
+    [
+        # Normal send
+        ([[0, 3, 0, 0, 0]], 1, 1, 222000000, True),
+        # Sweep
+        ([[4, 1, 0, 0, 0]], 1, 0, 0, True),
+        # Too large amount
+        ([[4, 1, 0, 0, 0]], 1, 0, 40000000000, False),
+        # Invalid amount
+        ([[4, 1, 0, 0, 0]], 1, 0, -5000000, False),
+        # Invalid mixdepth
+        ([[4, 1, 0, 0, 0]], 1, -3, 5000000, False),
+        # Invalid amount type
+        ([[4, 1, 0, 0, 0]], 1, 0, "5000000", False),
+        # Invalid mixdepth type
+        ([[4, 1, 0, 0, 0]], 1, "p", 5000000, False),
+        # Spend from high mixdepth
+        ([[0,0,0,0,2]], 2, 4, 312000000, True),
+    ])
+def test_direct_send(setup_regtest, wallet_structures, mean_amt, mixdepth,
+                     amount, valid):
+    log = get_log()
+    wallets = make_wallets(1,
+                           wallet_structures=wallet_structures,
+                           mean_amt=mean_amt)
+    wallet = wallets[0]['wallet']
+    sync_wallet(wallet)
+    destaddr = btc.privkey_to_address(
+                os.urandom(32), #TODO deterministic-ise
+                from_hex=False,
+                magicbyte=get_p2pk_vbyte())
+    addr_valid, errormsg = validate_address(destaddr)
+    assert addr_valid, "Invalid destination address: " + destaddr + \
+               ", error message: " + errormsg
+    if not valid:
+        with pytest.raises(Exception) as e_info:
+            sendpayment.direct_send(wallet,
+                                    amount, mixdepth, destaddr, answeryes=True)
+    else:
+        sendpayment.direct_send(wallet,
+                                amount, mixdepth, destaddr, answeryes=True)
+
+@pytest.mark.parametrize(
     "num_ygs, wallet_structures, mean_amt, mixdepth, sending_amt, ygcfs, fails, donate, rpcwallet",
     [
         #Some tests are commented out to keep build test time reasonable.
