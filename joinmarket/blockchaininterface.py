@@ -658,7 +658,7 @@ class BitcoinCoreInterface(BlockchainInterface):
                         used_indices[md][fc].append(i)
                         wallet.addr_cache[wallet.get_addr(md, fc, i)] = (md, fc, i)
                 if len(used_indices[md][fc]):
-                    wallet.index[md][fc] = used_indices[md][fc][-1]
+                    wallet.index[md][fc] = used_indices[md][fc][-1] + 1
                 else:
                     wallet.index[md][fc] = 0
                 if not is_index_ahead_of_cache(wallet, md, fc):
