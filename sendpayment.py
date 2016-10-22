@@ -282,7 +282,9 @@ def main():
                       action='store',
                       type='int',
                       dest='makercount',
-                      help='how many makers to coinjoin with, default random from 4 to 6',
+                      help='how many makers to coinjoin with, default random '
+                           'from 4 to 6; use 0 to send *direct* to a destination '
+                           'address, not using Joinmarket',
                       default=random.randint(4, 6))
     parser.add_option(
         '-C',
