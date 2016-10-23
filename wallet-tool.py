@@ -26,9 +26,10 @@ description = (
     'option -u is chosen (so be careful about private keys). '
     '(showseed) Shows the wallet recovery seed '
     'and hex seed. (importprivkey) Adds privkeys to this wallet, '
-    'privkeys are spaces or commas separated. (listwallets) Lists '
-    'all wallets with creator and timestamp. (history) Show all '
-	'historical transaction details. Requires Bitcoin Core.')
+    'privkeys are spaces or commas separated. (dumpprivkey) Export '
+    'a single private key, specify an hd wallet path (listwallets) '
+    'Lists all wallets with creator and timestamp. (history) Show '
+    'all historical transaction details. Requires Bitcoin Core.')
 
 parser = OptionParser(usage='usage: %prog [options] [wallet file] [method]',
                       description=description)
@@ -69,6 +70,12 @@ parser.add_option('--fast',
                   default=False,
                   help=('choose to do fast wallet sync, only for Core and '
                   'only for previously synced wallet'))
+parser.add_option('-H',
+                  '--hd',
+                  action='store',
+                  type='str',
+                  dest='hd_path',
+                  help='hd wallet path (e.g. m/0/0/0/000)')
 (options, args) = parser.parse_args()
 
 # if the index_cache stored in wallet.json is longer than the default
@@ -82,7 +89,7 @@ noseed_methods = ['generate', 'recover', 'listwallets']
 methods = ['display', 'displayall', 'summary', 'showseed', 'importprivkey',
     'history', 'showutxos']
 methods.extend(noseed_methods)
-noscan_methods = ['showseed', 'importprivkey']
+noscan_methods = ['showseed', 'importprivkey', 'dumpprivkey']
 
 if len(args) < 1:
     parser.error('Needs a wallet file or method')
@@ -252,6 +259,14 @@ elif method == 'importprivkey':
         fd.write(json.dumps(wallet.walletdata))
         fd.close()
         print('Private key(s) successfully imported')
+elif method == 'dumpprivkey':
+    if options.hd_path.startswith('m/0/'):
+        m, forchange, k = [int(y) for y in options.hd_path[4:].split('/')]
+        key = wallet.get_key(m, forchange, k)
+        wifkey = btc.wif_compressed_privkey(key, vbyte=get_p2pk_vbyte())
+        print(wifkey)
+    else:
+        print('%s is not a valid hd wallet path' % options.hd_path)
 elif method == 'listwallets':
     # Fetch list of wallets
     possible_wallets = []
