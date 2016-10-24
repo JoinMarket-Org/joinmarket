@@ -8,7 +8,6 @@ import time
 
 from joinmarket import OrderbookWatch, load_program_config, IRCMessageChannel
 from joinmarket import jm_single, MessageChannelCollection
-from joinmarket import random_nick
 from joinmarket import get_log, debug_dump_object, get_irc_mchannels
 
 log = get_log()
@@ -27,7 +26,7 @@ class BroadcastThread(threading.Thread):
             'SELECT DISTINCT counterparty FROM orderbook ORDER BY RANDOM() LIMIT 1;'
         ).fetchone()
         counterparty = crow['counterparty']
-        log.debug('sending tx to ' + counterparty)
+        log.info('sending tx to ' + counterparty)
         self.taker.msgchan.push_tx(counterparty, self.taker.txhex)
         time.sleep(30) #wait for the irc throttle thread to send everything
         #when the tx notify callback is written, use that instead of a hardcoded wait
@@ -69,16 +68,15 @@ def main():
     txhex = args[0]
 
     load_program_config()
-    jm_single().nickname = random_nick()
-    log.debug('starting broadcast-tx')
-    mcs = [IRCMessageChannel(c, jm_single().nickname) for c in get_irc_mchannels()]
+    mcs = [IRCMessageChannel(c) for c in get_irc_mchannels()]
     mcc = MessageChannelCollection(mcs)
     taker = Broadcaster(mcc, options.waittime, txhex)
+    log.info('starting broadcast-tx')
     try:
-        log.debug('starting message channels')
+        log.info('starting message channels')
         mcc.run()
     except:
-        log.debug('CRASHING, DUMPING EVERYTHING')
+        log.warn('CRASHING, DUMPING EVERYTHING')
         debug_dump_object(taker)
         import traceback
         log.debug(traceback.format_exc())

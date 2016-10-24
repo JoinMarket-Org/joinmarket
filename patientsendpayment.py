@@ -9,9 +9,8 @@ from optparse import OptionParser
 # sys.path.insert(0, os.path.join(data_dir, 'joinmarket'))
 from joinmarket import Maker, Taker, load_program_config, IRCMessageChannel
 from joinmarket import validate_address, jm_single
-from joinmarket import random_nick
 from joinmarket import get_log, choose_orders, weighted_order_choose, \
-    debug_dump_object
+    debug_dump_object, sync_wallet
 from joinmarket import Wallet
 
 log = get_log()
@@ -117,7 +116,7 @@ class PatientSendPayment(Maker, Taker):
                      'cjfee': self.cjfee}
             return [], [order]
         else:
-            log.debug('not enough money left, have to wait until tx confirms')
+            log.warn('not enough money left, have to wait until tx confirms')
             return [0], []
 
     def on_tx_confirmed(self, cjorder, confirmations, txid, balance):
@@ -195,6 +194,12 @@ def main():
             help=
             'Use the Bitcoin Core wallet through json rpc, instead of the internal joinmarket '
             + 'wallet. Requires blockchain_source=json-rpc')
+    parser.add_option('--fast',
+                      action='store_true',
+                      dest='fastsync',
+                      default=False,
+                      help=('choose to do fast wallet sync, only for Core and '
+                      'only for previously synced wallet'))
     (options, args) = parser.parse_args()
 
     if len(args) < 3:
@@ -222,25 +227,23 @@ def main():
         print 'not implemented yet'
         sys.exit(0)
     # wallet = BitcoinCoreWallet(fromaccount=wallet_name)
-    jm_single().bc_interface.sync_wallet(wallet)
+    sync_wallet(wallet, fast=options.fastsync)
 
     available_balance = wallet.get_balance_by_mixdepth()[options.mixdepth]
     if available_balance < amount:
         print 'not enough money at mixdepth=%d, exiting' % options.mixdepth
         return
 
-    jm_single().nickname = random_nick()
-
-    log.debug('Running patient sender of a payment')
-
-    irc = IRCMessageChannel(jm_single().nickname)
-    PatientSendPayment(irc, wallet, destaddr, amount, options.makercount,
+    log.info('Running patient sender of a payment')
+    mcs = [IRCMessageChannel(c) for c in get_irc_mchannels()]
+    mcc = MessageChannelCollection(mcs)
+    PatientSendPayment(mcc, wallet, destaddr, amount, options.makercount,
                              options.txfee, options.cjfee, waittime,
                              options.mixdepth)
     try:
-        irc.run()
+        mcc.run()
     except:
-        log.debug('CRASHING, DUMPING EVERYTHING')
+        log.warn('CRASHING, DUMPING EVERYTHING')
         debug_dump_object(wallet, ['addr_cache', 'keys', 'seed'])
         # todo: looks wrong.  dump on the class object?
         # debug_dump_object(taker)

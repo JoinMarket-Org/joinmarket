@@ -51,20 +51,37 @@ The installation is slightly changed, with the secp256k1 python binding no longe
     Try running the below without following those instructions, most likely it will fail and you will then have to follow them.
 
     ```
-    pip install -r requirements.txt
+    sudo pip install -r requirements.txt
     ```
-
+    (if you did setup 'virtualenv' mentioned above, you can omit the 'sudo')
+    
 + Matplotlib for displaying the graphs in orderbook-watcher (optional)
 
 ###DEBIAN / UBUNTU QUICK INSTALL FOR USERS:
 
-1. `sudo apt-get update -y && sudo apt-get upgrade -y && sudo apt-get install python libsodium-dev -y`
-2. `pip install -r requirements.txt`
-2. `sudo apt-get install python-matplotlib -y` (optional)
-3. Download JoinMarket 0.2.1 source from [here](https://github.com/joinmarket-org/joinmarket/releases/tag/v0.2.1)
-4. Extract or unzip and `cd joinmarket-0.2.1`
-4. Generating your first wallet will populate the configuration file: `joinmarket.cfg`.
+1. `sudo apt-get update -y && sudo apt-get upgrade -y && sudo apt-get install python libsodium-dev python-pip -y`
+2. Download JoinMarket 0.2.1 source from the [releases page](https://github.com/joinmarket-org/joinmarket/releases/tag/v0.2.1) or [this direct link to v0.2.1](https://github.com/JoinMarket-Org/joinmarket/archive/v0.2.1.tar.gz)
+3. Extract with `tar xzf joinmarket-0.2.1.tar.gz` and then `cd joinmarket-0.2.1`
+4. `sudo pip install -r requirements.txt`
+5. Generating your first wallet (`python wallet-tool.py generate`) will populate the configuration file: `joinmarket.cfg`.
    Check if the default settings suit your needs.
+   
+###TAILS QUICK INSTALL FOR USERS:
+Tested up to TAILS version 2.6, but future versions likely will work as well.
+
+1. Make sure that you choose 'more options' when booting up tails and set an administrator password.
+2. `sudo apt-get update -y`
+3. `sudo apt-get install build-essential automake libtool pkg-config libffi-dev python-dev python libsodium-dev python-pip -y`
+4. Download JoinMarket 0.2.1 source from the [releases page](https://github.com/joinmarket-org/joinmarket/releases/tag/v0.2.1) or [this direct link to v0.2.1](https://github.com/JoinMarket-Org/joinmarket/archive/v0.2.1.tar.gz):
+   `wget https://github.com/JoinMarket-Org/joinmarket/archive/v0.2.1.tar.gz`
+5. Extract with `tar xzf joinmarket-0.2.1.tar.gz` and then `cd joinmarket-0.2.1`
+6. `sudo torsocks pip install -r requirements.txt`
+7. `sudo chmod -R ugo+rX /usr/local/lib/python2.7/dist-packages/`
+8. `sudo cp -r /usr/local/lib/python2.7/dist-packages/libnacl .`
+9. `sudo chown -R amnesia:amnesia libnacl`
+10. Generating your first wallet (`torify python wallet-tool.py generate`) will populate the configuration file: `joinmarket.cfg`.
+   Check if the default settings suit your needs.
+11. Prepend commands with `torify`, i.e. `torify python sendpayment.py ...`
 
 ###[INSTALL FOR WINDOWS USERS](https://github.com/JoinMarket-Org/joinmarket/wiki/Installing-JoinMarket-on-Windows)
 

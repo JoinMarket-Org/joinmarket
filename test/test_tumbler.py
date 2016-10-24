@@ -10,8 +10,8 @@ import pytest
 import time
 from joinmarket import Taker, load_program_config, IRCMessageChannel
 from joinmarket import validate_address, jm_single, MessageChannelCollection
-from joinmarket import random_nick, get_p2pk_vbyte, get_irc_mchannels
-from joinmarket import get_log, choose_sweep_orders, choose_orders, \
+from joinmarket import get_p2pk_vbyte, get_irc_mchannels
+from joinmarket import get_log, choose_sweep_orders, choose_orders, sync_wallet, \
     pick_order, cheapest_order_choose, weighted_order_choose, debug_dump_object
 import json
 import tumbler
@@ -145,13 +145,11 @@ def test_tumbler(setup_tumbler, num_ygs, wallet_structures, mean_amt, sdev_amt,
     print('estimated time taken ' + str(total_block_and_wait) + ' minutes or ' +
           str(round(total_block_and_wait / 60.0, 2)) + ' hours')
 
-    jm_single().nickname = random_nick()
-
     log.debug('starting tumbler')
 
-    jm_single().bc_interface.sync_wallet(wallet)
+    sync_wallet(wallet)
     jm_single().bc_interface.pushtx_failure_prob = 0.4
-    mcs = [IRCMessageChannel(c, jm_single().nickname) for c in get_irc_mchannels()]
+    mcs = [IRCMessageChannel(c) for c in get_irc_mchannels()]
     mcc = MessageChannelCollection(mcs)
     tumbler_bot = tumbler.Tumbler(mcc, wallet, tx_list, options)
     try:

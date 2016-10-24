@@ -15,7 +15,7 @@ from joinmarket import Taker, load_program_config, IRCMessageChannel, \
 from joinmarket import validate_address, jm_single
 from joinmarket import get_log, choose_sweep_orders, choose_orders, \
     pick_order, cheapest_order_choose, weighted_order_choose, debug_dump_object
-from joinmarket import Wallet, BitcoinCoreWallet
+from joinmarket import Wallet, BitcoinCoreWallet, sync_wallet
 from joinmarket.wallet import estimate_tx_fee
 
 log = get_log()
@@ -32,6 +32,63 @@ def check_high_fee(total_fee_pc):
         print('WARNING   ' * 6)
         print('\n'.join(['=' * 60] * 3))
 
+def direct_send(wallet, amount, mixdepth, destaddr, answeryes=False):
+    """Send coins directly from one mixdepth to one destination address;
+    does not need IRC. Sweep as for normal sendpayment (set amount=0).
+    """
+    #Sanity checks; note destaddr format is carefully checked in startup
+    assert isinstance(mixdepth, int)
+    assert mixdepth >= 0
+    assert isinstance(amount, int)
+    assert amount >=0 and amount < 10000000000
+    assert isinstance(wallet, Wallet)
+
+    import bitcoin as btc
+    from pprint import pformat
+    if amount == 0:
+        utxos = wallet.get_utxos_by_mixdepth()[mixdepth]
+        if utxos == {}:
+            log.error(
+                "There are no utxos in mixdepth: " + str(mixdepth) + ", quitting.")
+            return
+        total_inputs_val = sum([va['value'] for u, va in utxos.iteritems()])
+        fee_est = estimate_tx_fee(len(utxos), 1)
+        outs = [{"address": destaddr, "value": total_inputs_val - fee_est}]
+    else:
+        initial_fee_est = estimate_tx_fee(8,2) #8 inputs to be conservative
+        utxos = wallet.select_utxos(mixdepth, amount + initial_fee_est)
+        if len(utxos) < 8:
+            fee_est = estimate_tx_fee(len(utxos), 2)
+        else:
+            fee_est = initial_fee_est
+        total_inputs_val = sum([va['value'] for u, va in utxos.iteritems()])
+        changeval = total_inputs_val - fee_est - amount
+        outs = [{"value": amount, "address": destaddr}]
+        change_addr = wallet.get_internal_addr(mixdepth)
+        outs.append({"value": changeval, "address": change_addr})
+
+    #Now ready to construct transaction
+    log.info("Using a fee of : " + str(fee_est) + " satoshis.")
+    if amount != 0:
+        log.info("Using a change value of: " + str(changeval) + " satoshis.")
+    tx = btc.mktx(utxos.keys(), outs)
+    stx = btc.deserialize(tx)
+    for index, ins in enumerate(stx['ins']):
+        utxo = ins['outpoint']['hash'] + ':' + str(
+                ins['outpoint']['index'])
+        addr = utxos[utxo]['address']
+        tx = btc.sign(tx, index, wallet.get_key_from_addr(addr))
+    txsigned = btc.deserialize(tx)
+    log.info("Got signed transaction:\n")
+    log.info(tx + "\n")
+    log.info(pformat(txsigned))
+    if not answeryes:
+        if raw_input('Would you like to push to the network? (y/n):')[0] != 'y':
+            log.info("You chose not to broadcast the transaction, quitting.")
+            return
+    jm_single().bc_interface.pushtx(tx)
+    txid = btc.txhash(tx)
+    log.info("Transaction sent: " + txid + ", shutting down")
 
 # thread which does the buy-side algorithm
 # chooses which coinjoins to initiate and when
@@ -71,8 +128,8 @@ class PaymentThread(threading.Thread):
             est_outs = 2*self.taker.makercount + 1
             log.debug("Estimated outs: "+str(est_outs))
             estimated_fee = estimate_tx_fee(est_ins, est_outs)
-            log.debug("We have a fee estimate: "+str(estimated_fee))
-            log.debug("And a requested fee of: "+str(
+            log.info("We have a fee estimate: "+str(estimated_fee))
+            log.info("And a requested fee of: "+str(
                 self.taker.txfee * self.taker.makercount))
             if estimated_fee > self.taker.makercount * self.taker.txfee:
                 #both values are integers; we can ignore small rounding errors
@@ -85,9 +142,9 @@ class PaymentThread(threading.Thread):
             if not orders:
                 raise Exception("Could not find orders to complete transaction.")
             if not self.taker.answeryes:
-                log.debug('total cj fee = ' + str(total_cj_fee))
+                log.info('total cj fee = ' + str(total_cj_fee))
                 total_fee_pc = 1.0 * total_cj_fee / cjamount
-                log.debug('total coinjoin fee = ' + str(float('%.3g' % (
+                log.info('total coinjoin fee = ' + str(float('%.3g' % (
                     100.0 * total_fee_pc))) + '%')
                 check_high_fee(total_fee_pc)
                 if raw_input('send with these orders? (y/n):')[0] != 'y':
@@ -97,7 +154,7 @@ class PaymentThread(threading.Thread):
             orders, total_cj_fee = self.sendpayment_choose_orders(
                 self.taker.amount, self.taker.makercount)
             if not orders:
-                log.debug(
+                log.error(
                     'ERROR not enough liquidity in the orderbook, exiting')
                 return
             total_amount = self.taker.amount + total_cj_fee + \
@@ -123,15 +180,15 @@ class PaymentThread(threading.Thread):
         if coinjointx.all_responded:
             pushed = coinjointx.self_sign_and_push()
             if pushed:
-                log.debug('created fully signed tx, ending')
+                log.info('created fully signed tx, ending')
             else:
                 #Error should be in log, will not retry.
-                log.debug('failed to push tx, ending.')
+                log.error('failed to push tx, ending.')
             time.sleep(10) # see github issue #516
             self.taker.msgchan.shutdown()
             return
         self.ignored_makers += coinjointx.nonrespondants
-        log.debug('recreating the tx, ignored_makers=' + str(
+        log.info('recreating the tx, ignored_makers=' + str(
             self.ignored_makers))
         self.create_tx()
 
@@ -158,11 +215,11 @@ class PaymentThread(threading.Thread):
             else:
                 noun = 'additional'
             total_fee_pc = 1.0 * total_cj_fee / cj_amount
-            log.debug(noun + ' coinjoin fee = ' + str(float('%.3g' % (
+            log.info(noun + ' coinjoin fee = ' + str(float('%.3g' % (
                 100.0 * total_fee_pc))) + '%')
             check_high_fee(total_fee_pc)
             if raw_input('send with these orders? (y/n):')[0] != 'y':
-                log.debug('ending')
+                log.info('ending')
                 self.taker.msgchan.shutdown()
                 return None, -1
         return orders, total_cj_fee
@@ -225,7 +282,9 @@ def main():
                       action='store',
                       type='int',
                       dest='makercount',
-                      help='how many makers to coinjoin with, default random from 4 to 6',
+                      help='how many makers to coinjoin with, default random '
+                           'from 4 to 6; use 0 to send *direct* to a destination '
+                           'address, not using Joinmarket',
                       default=random.randint(4, 6))
     parser.add_option(
         '-C',
@@ -276,6 +335,12 @@ def main():
         help=('Use the Bitcoin Core wallet through json rpc, instead '
               'of the internal joinmarket wallet. Requires '
               'blockchain_source=json-rpc'))
+    parser.add_option('--fast',
+                      action='store_true',
+                      dest='fastsync',
+                      default=False,
+                      help=('choose to do fast wallet sync, only for Core and '
+                      'only for previously synced wallet'))
     (options, args) = parser.parse_args()
 
     if len(args) < 3:
@@ -307,28 +372,32 @@ def main():
     # we guess conservatively with 2 inputs and 2 outputs each
     if options.txfee == -1:
         options.txfee = max(options.txfee, estimate_tx_fee(2, 2))
-        log.debug("Estimated miner/tx fee for each cj participant: "+str(options.txfee))
+        log.info("Estimated miner/tx fee for each cj participant: "+str(options.txfee))
     assert(options.txfee >= 0)
 
-    log.debug('starting sendpayment')
+    log.info('starting sendpayment')
 
     if not options.userpcwallet:
         wallet = Wallet(wallet_name, options.amtmixdepths, options.gaplimit)
     else:
         wallet = BitcoinCoreWallet(fromaccount=wallet_name)
-    jm_single().bc_interface.sync_wallet(wallet)
+    sync_wallet(wallet, fast=options.fastsync)
+
+    if options.makercount == 0:
+        direct_send(wallet, amount, options.mixdepth, destaddr)
+        return
 
     mcs = [IRCMessageChannel(c) for c in get_irc_mchannels()]
     mcc = MessageChannelCollection(mcs)
-    log.debug("starting sendpayment")
+    log.info("starting sendpayment")
     taker = SendPayment(mcc, wallet, destaddr, amount, options.makercount,
                         options.txfee, options.waittime, options.mixdepth,
                         options.answeryes, chooseOrdersFunc)
     try:
-        log.debug('starting message channels')
+        log.info('starting message channels')
         mcc.run()
     except:
-        log.debug('CRASHING, DUMPING EVERYTHING')
+        log.warn('Quitting! Dumping object contents to logfile.')
         debug_dump_object(wallet, ['addr_cache', 'keys', 'wallet_name', 'seed'])
         debug_dump_object(taker)
         import traceback

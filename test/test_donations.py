@@ -10,7 +10,7 @@ import pytest
 
 from commontest import make_wallets
 from joinmarket import load_program_config, get_p2pk_vbyte, get_log, jm_single
-from joinmarket import get_irc_mchannels, Taker
+from joinmarket import get_irc_mchannels, Taker, sync_wallet
 from joinmarket.configure import donation_address
 
 log = get_log()
@@ -24,7 +24,7 @@ def test_donation_address(setup_donations, amount):
     wallets = make_wallets(1, wallet_structures=[[1,1,1,0,0]],
                                mean_amt=0.5)
     wallet = wallets[0]['wallet']
-    jm_single().bc_interface.sync_wallet(wallet)
+    sync_wallet(wallet)
     #make a rdp from a simple privkey
     rdp_priv = "\x01"*32
     reusable_donation_pubkey = binascii.hexlify(secp256k1.PrivateKey(

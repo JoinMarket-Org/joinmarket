@@ -4,5 +4,6 @@ pexpect
 pytest==2.8.2
 pytest-cov==2.2.1
 python-coveralls
+mock
 
 -r requirements.txt

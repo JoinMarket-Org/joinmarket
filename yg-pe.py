@@ -2,13 +2,10 @@
 from __future__ import print_function
 
 import datetime
-import os
 import time
 
-from joinmarket import jm_single, get_network, load_program_config
-from joinmarket import get_log, calc_cj_fee, debug_dump_object
-from joinmarket import Wallet
-from joinmarket import get_irc_mchannels
+from joinmarket import jm_single
+from joinmarket import get_log, calc_cj_fee
 from joinmarket import YieldGenerator, ygmain
 
 txfee = 1000
@@ -18,6 +15,7 @@ ordertype = 'reloffer'
 nickserv_password = ''
 minsize = 100000
 mix_levels = 5
+gaplimit = 6
 
 
 log = get_log()
@@ -26,30 +24,33 @@ log = get_log()
 # bitcoins while maximising the difficulty of spying on activity;
 # this is primarily attempted by avoiding reannouncemnt of orders
 # after transactions whereever that is possible.
-class YieldGeneratorPrivEnhance(YieldGenerator):
 
+
+class YieldGeneratorPrivEnhance(YieldGenerator):
 
     def __init__(self, msgchan, wallet, offerconfig):
         self.txfee, self.cjfee_a, self.cjfee_r, self.ordertype, self.minsize, \
             self.mix_levels = offerconfig
-        super(YieldGeneratorPrivEnhance,self).__init__(msgchan, wallet)
+        super(YieldGeneratorPrivEnhance, self).__init__(msgchan, wallet)
 
     def create_my_orders(self):
         mix_balance = self.wallet.get_balance_by_mixdepth()
-        #We publish ONLY the maximum amount and use minsize for lower bound;
-        #leave it to oid_to_order to figure out the right depth to use.
+        # We publish ONLY the maximum amount and use minsize for lower bound;
+        # leave it to oid_to_order to figure out the right depth to use.
         f = '0'
         if ordertype == 'reloffer':
             f = self.cjfee_r
-            #minimum size bumped if necessary such that you always profit 
-            #least 50% of the miner fee
-            self.minsize = int(1.5 * self.txfee / float(self.cjfee_r))            
+            # minimum size bumped if necessary such that you always profit
+            # least 50% of the miner fee
+            self.minsize = max(
+                int(1.5 * self.txfee / float(self.cjfee_r)), self.minsize)
         elif ordertype == 'absoffer':
             f = str(self.txfee + self.cjfee_a)
         mix_balance = dict([(m, b) for m, b in mix_balance.iteritems()
                             if b > self.minsize])
         if len(mix_balance) == 0:
-            log.debug('do not have any coins left')
+            log.error('You do not have any coins left. Cannot be an active '
+                      'maker with no funds.')
             return []
         max_mix = max(mix_balance, key=mix_balance.get)
         order = {'oid': 0,
@@ -86,34 +87,36 @@ class YieldGeneratorPrivEnhance(YieldGenerator):
 
         log.debug('mix depths that have enough = ' + str(filtered_mix_balance))
 
-        #Avoid the max mixdepth wherever possible, to avoid changing the
-        #offer. Algo: 
+        # Avoid the max mixdepth wherever possible, to avoid changing the
+        # offer. Algo:
         #"mixdepth" is the mixdepth we are spending FROM, so it is also
-        #the destination of change.
+        # the destination of change.
         #"cjoutdepth" is the mixdepth we are sending coinjoin out to.
         #
-        #Find a mixdepth, in the set that have enough, which is
-        #not the maximum, and choose any from that set as "mixdepth".
-        #If not possible, it means only the max_mix depth has enough,
-        #so must choose "mixdepth" to be that.
-        #To find the cjoutdepth: ensure that max != min, if so it means
-        #we had only one depth; in that case, just set "cjoutdepth"
-        #to the next mixdepth. Otherwise, we set "cjoutdepth" to the minimum.
+        # Find a mixdepth, in the set that have enough, which is
+        # not the maximum, and choose any from that set as "mixdepth".
+        # If not possible, it means only the max_mix depth has enough,
+        # so must choose "mixdepth" to be that.
+        # To find the cjoutdepth: ensure that max != min, if so it means
+        # we had only one depth; in that case, just set "cjoutdepth"
+        # to the next mixdepth. Otherwise, we set "cjoutdepth" to the minimum.
 
-        nonmax_mix_balance = [m for m in filtered_mix_balance if m[0] != max_mix]
+        nonmax_mix_balance = [
+            m for m in filtered_mix_balance if m[0] != max_mix]
         if not nonmax_mix_balance:
             log.debug("Could not spend from a mixdepth which is not max")
             mixdepth = max_mix
         else:
             mixdepth = nonmax_mix_balance[0][0]
-        log.debug('filling offer, mixdepth=' + str(mixdepth))
+        log.info('filling offer, mixdepth=' + str(mixdepth))
 
         # mixdepth is the chosen depth we'll be spending from
         # min_mixdepth is the one we want to send our cjout TO,
-        # to minimize chance of it becoming the largest, and reannouncing offer.
+        # to minimize chance of it becoming the largest, and reannouncing
+        # offer.
         if mixdepth == min_mix:
             cjoutmix = (mixdepth + 1) % self.wallet.max_mix_depth
-            #don't send cjout to max
+            # don't send cjout to max
             if cjoutmix == max_mix:
                 cjoutmix = (cjoutmix + 1) % self.wallet.max_mix_depth
         else:
@@ -132,8 +135,9 @@ class YieldGeneratorPrivEnhance(YieldGenerator):
                 utxos = self.wallet.select_utxos(
                     mixdepth, total_amount + jm_single().DUST_THRESHOLD)
             except Exception:
-                log.debug('dont have the required UTXOs to make a '
-                          'output above the dust threshold, quitting')
+                log.info('dont have the required UTXOs to make a '
+                          'output above the dust threshold, quitting. '
+                          'This can sometimes happen and does not require user action.')
                 return None, None, None
 
         return utxos, cj_addr, change_addr
@@ -173,5 +177,5 @@ if __name__ == "__main__":
     ygmain(YieldGeneratorPrivEnhance, txfee=txfee,
            cjfee_a=cjfee_a, cjfee_r=cjfee_r,
            ordertype=ordertype, nickserv_password=nickserv_password,
-           minsize=minsize, mix_levels=mix_levels)
+           minsize=minsize, mix_levels=mix_levels, gaplimit=gaplimit)
     print('done')

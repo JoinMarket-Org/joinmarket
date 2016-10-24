@@ -11,7 +11,7 @@ from joinmarket import Maker, IRCMessageChannel, MessageChannelCollection
 from joinmarket import BlockrInterface
 from joinmarket import jm_single, get_network, load_program_config
 from joinmarket import get_log, calc_cj_fee, debug_dump_object
-from joinmarket import Wallet
+from joinmarket import Wallet, sync_wallet
 from joinmarket import get_irc_mchannels
 
 log = get_log()
@@ -77,7 +77,7 @@ class YieldGenerator(Maker):
 
 
 def ygmain(ygclass, txfee=1000, cjfee_a=200, cjfee_r=0.002, ordertype='reloffer',
-           nickserv_password='', minsize=100000, mix_levels=5):
+           nickserv_password='', minsize=100000, mix_levels=5, gaplimit=6):
     import sys
 
     parser = OptionParser(usage='usage: %prog [options] [wallet file]')
@@ -99,6 +99,15 @@ def ygmain(ygclass, txfee=1000, cjfee_a=200, cjfee_r=0.002, ordertype='reloffer'
     parser.add_option('-m', '--mixlevels', action='store', type='int',
                       dest='mixlevels', default=mix_levels,
                       help='number of mixdepths to use')
+    parser.add_option('-g', '--gap-limit', action='store', type="int",
+                      dest='gaplimit', default=6,
+                      help='gap limit for wallet, default=6')
+    parser.add_option('--fast',
+                      action='store_true',
+                      dest='fastsync',
+                      default=False,
+                      help=('choose to do fast wallet sync, only for Core and '
+                      'only for previously synced wallet'))
     (options, args) = parser.parse_args()
     if len(args) < 1:
         parser.error('Needs a wallet')
@@ -138,21 +147,21 @@ def ygmain(ygclass, txfee=1000, cjfee_a=200, cjfee_r=0.002, ordertype='reloffer'
         if ret[0] != 'y':
             return
 
-    wallet = Wallet(seed, max_mix_depth=mix_levels)
-    jm_single().bc_interface.sync_wallet(wallet)
+    wallet = Wallet(seed, max_mix_depth=mix_levels, gaplimit=gaplimit)
+    sync_wallet(wallet, fast=options.fastsync)
 
     mcs = [IRCMessageChannel(c, realname='btcint=' + jm_single().config.get(
                                  "BLOCKCHAIN", "blockchain_source"),
                         password=nickserv_password) for c in get_irc_mchannels()]
     mcc = MessageChannelCollection(mcs)
-    log.debug('starting yield generator')
+    log.info('starting yield generator')
     maker = ygclass(mcc, wallet, [options.txfee, cjfee_a, cjfee_r,
                                   options.ordertype, options.minsize, mix_levels])
     try:
-        log.debug('connecting to message channels')
+        log.info('connecting to message channels')
         mcc.run()
     except:
-        log.debug('CRASHING, DUMPING EVERYTHING')
+        log.warn('Quitting! Dumping object contents to logfile.')
         debug_dump_object(wallet, ['addr_cache', 'keys', 'seed'])
         debug_dump_object(maker)
         debug_dump_object(mcc, ['nick_priv', 'nick_pkh_raw'])

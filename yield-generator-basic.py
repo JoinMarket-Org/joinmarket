@@ -18,6 +18,7 @@ ordertype = 'reloffer'
 nickserv_password = ''
 minsize = 100000
 mix_levels = 5
+gaplimit = 6
 
 log = get_log()
 
@@ -36,7 +37,7 @@ class YieldGeneratorBasic(YieldGenerator):
     def create_my_orders(self):
         mix_balance = self.wallet.get_balance_by_mixdepth()
         if len([b for m, b in mix_balance.iteritems() if b > 0]) == 0:
-            log.debug('do not have any coins left')
+            log.error('do not have any coins left')
             return []
 
         # print mix_balance
@@ -46,7 +47,7 @@ class YieldGeneratorBasic(YieldGenerator):
             f = self.cjfee_r
             #minimum size bumped if necessary such that you always profit
             #least 50% of the miner fee
-            self.minsize = int(1.5 * self.txfee / float(self.cjfee_r))
+            self.minsize = max(int(1.5 * self.txfee / float(self.cjfee_r)), self.minsize)
         elif ordertype == 'absoffer':
             f = str(self.txfee + self.cjfee_a)
         order = {'oid': 0,
@@ -77,7 +78,7 @@ class YieldGeneratorBasic(YieldGenerator):
         log.debug('mix depths that have enough = ' + str(filtered_mix_balance))
         filtered_mix_balance = sorted(filtered_mix_balance, key=lambda x: x[0])
         mixdepth = filtered_mix_balance[0][0]
-        log.debug('filling offer, mixdepth=' + str(mixdepth))
+        log.info('filling offer, mixdepth=' + str(mixdepth))
 
         # mixdepth is the chosen depth we'll be spending from
         cj_addr = self.wallet.get_internal_addr((mixdepth + 1) %
@@ -95,7 +96,7 @@ class YieldGeneratorBasic(YieldGenerator):
                 utxos = self.wallet.select_utxos(
                     mixdepth, total_amount + jm_single().DUST_THRESHOLD)
             except Exception:
-                log.debug('dont have the required UTXOs to make a '
+                log.info('dont have the required UTXOs to make a '
                           'output above the dust threshold, quitting')
                 return None, None, None
 
@@ -133,5 +134,5 @@ if __name__ == "__main__":
     ygmain(YieldGeneratorBasic, txfee=txfee, cjfee_a=cjfee_a,
            cjfee_r=cjfee_r, ordertype=ordertype,
            nickserv_password=nickserv_password,
-           minsize=minsize, mix_levels=mix_levels)
+           minsize=minsize, mix_levels=mix_levels, gaplimit=gaplimit)
     print('done')

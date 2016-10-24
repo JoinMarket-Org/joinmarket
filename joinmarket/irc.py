@@ -38,33 +38,6 @@ B_PER_SEC_INTERVAL = 4.0
 
 log = get_log()
 
-
-def random_nick(nick_len=9):
-    vowels = "aeiou"
-    consonants = ''.join([chr(
-        c) for c in range(
-            ord('a'), ord('z') + 1) if vowels.find(chr(c)) == -1])
-    assert nick_len % 2 == 1
-    N = (nick_len - 1) / 2
-    rnd_consonants = [consonants[random.randrange(len(consonants))]
-                      for _ in range(N + 1)]
-    rnd_vowels = [vowels[random.randrange(len(vowels))]
-                  for _ in range(N)] + ['']
-    ircnick = ''.join([i for sl in zip(rnd_consonants, rnd_vowels) for i in sl])
-    ircnick = ircnick.capitalize()
-    # not using debug because it might not know the logfile name at this point
-    print('Generated random nickname: ' + ircnick)
-    return ircnick
-    # Other ideas for random nickname generation:
-    # - weight randomness by frequency of letter appearance
-    # - u always follows q
-    # - generate different length nicks
-    # - append two or more of these words together
-    # - randomly combine phonetic sounds instead consonants, which may be two consecutive consonants
-    #  - e.g. th, dj, g, p, gr, ch, sh, kr,
-    # - neutral network that generates nicks
-
-
 def get_irc_text(line):
     return line[line[1:].find(':') + 2:]
 
@@ -100,7 +73,7 @@ class ThrottleThread(threading.Thread):
                 except Queue.Empty:
                     pass
                 except:
-                    log.debug("failed to send ping message on socket")
+                    log.warn("failed to send ping message on socket")
                     break
                 #First throttling mechanism: no more than 1 line
                 #per MSG_INTERVAL seconds.
@@ -134,7 +107,7 @@ class ThrottleThread(threading.Thread):
                     last_msg_time = time.time()
                     self.msg_buffer.append((throttled_msg, last_msg_time))
                 except:
-                    log.debug("failed to send on socket")
+                    log.error("failed to send on socket")
                     try:
                         self.irc.fd.close()
                     except: pass
@@ -163,7 +136,7 @@ class PingThread(threading.Thread):
                 self.irc.lockcond.wait(PING_TIMEOUT)
                 self.irc.lockcond.release()
                 if not self.irc.ping_reply:
-                    log.debug('irc ping timed out')
+                    log.warn('irc ping timed out')
                     try:
                         self.irc.close()
                     except:
@@ -189,7 +162,7 @@ class IRCMessageChannel(MessageChannel):
         try:
             self.sock.sendall("QUIT\r\n")
         except IOError as e:
-            log.debug('errored while trying to quit: ' + repr(e))
+            log.info('errored while trying to quit: ' + repr(e))
 
     def shutdown(self):
         self.close()
@@ -292,16 +265,20 @@ class IRCMessageChannel(MessageChannel):
                 parsed = self.built_privmsg[nick]
                 # wipe the message buffer waiting for the next one
                 del self.built_privmsg[nick]
-                log.debug("<<privmsg nick=%s message=%s" % (nick, parsed))
+                log.debug("<<privmsg on %s: " %
+                (self.hostid) + "nick=%s message=%s" % (nick, parsed))
                 self.on_privmsg(nick, parsed)
             elif message[-1] != ';':
                 # drop the bad nick
                 del self.built_privmsg[nick]
         elif target == self.channel:
-            log.debug("<<pubmsg nick=%s message=%s" % (nick, message))
+            log.info("<<pubmsg on %s: " %
+            (self.hostid) + "nick=%s message=%s" %
+            (nick, message))
             self.on_pubmsg(nick, message)
         else:
-            log.debug('what is this? privmsg src=%s target=%s message=%s;' %
+            log.debug("what is this? privmsg on %s: " %
+            (self.hostid) + "src=%s target=%s message=%s;" %
                       (source, target, message))
 
     def __handle_line(self, line):
@@ -327,18 +304,21 @@ class IRCMessageChannel(MessageChannel):
         if self.password:
             if _chunks[1] == 'CAP':
                 if _chunks[3] != 'ACK':
-                    log.debug('server does not support SASL, quitting')
+                    log.warn("server %s " %
+                    (self.hostid) + "does not support SASL, quitting")
                     self.shutdown()
                 self.send_raw('AUTHENTICATE PLAIN')
             elif _chunks[0] == 'AUTHENTICATE':
                 self.send_raw('AUTHENTICATE ' + base64.b64encode(
                     self.nick + '\x00' + self.nick + '\x00' + self.password))
             elif _chunks[1] == '903':
-                log.debug('Successfully authenticated')
+                log.info("Successfully authenticated on %s" %
+                (self.hostid))
                 self.password = None
                 self.send_raw('CAP END')
             elif _chunks[1] == '904':
-                log.debug('Failed authentication, wrong password')
+                log.warn("Failed authentication %s " %
+                (self.hostid) + ", wrong password")
                 self.shutdown()
             return
 
@@ -353,13 +333,16 @@ class IRCMessageChannel(MessageChannel):
             self.built_privmsg = {}
             if self.on_connect:
                 self.on_connect(self)
+            if self.hostid == 'agora-irc':
+                self.send_raw('PART #AGORA')
             self.send_raw('JOIN ' + self.channel)
             self.send_raw(
                 'MODE ' + self.nick + ' +B')  # marks as bots on unreal
             self.send_raw(
                 'MODE ' + self.nick + ' -R')  # allows unreg'd private messages
         elif _chunks[1] == '366':  # end of names list
-            log.debug('Connected to IRC and joined channel')
+            log.info("Connected to IRC and joined channel on %s " %
+                (self.hostid))
             if self.on_welcome:
                 self.on_welcome(self) #informs mc-collection that we are ready for use
         elif _chunks[1] == '332' or _chunks[1] == 'TOPIC':  # channel topic
@@ -426,7 +409,8 @@ class IRCMessageChannel(MessageChannel):
 
         while not self.give_up:
             try:
-                log.debug('connecting')
+                log.info("connecting to host %s" %
+                              (self.hostid))
                 if self.socks5.lower() == 'true':
                     log.debug("Using socks5 proxy %s:%d" %
                               (self.socks5_host, self.socks5_port))
@@ -454,15 +438,18 @@ class IRCMessageChannel(MessageChannel):
                     except AttributeError as e:
                         raise IOError(repr(e))
                     if line is None:
-                        log.debug('line returned null')
+                        log.debug("line returned null from %s" %
+                            (self.hostid))
                         break
                     if len(line) == 0:
-                        log.debug('line was zero length')
+                        log.debug("line was zero length from %s" %
+                            (self.hostid))
                         break
                     self.__handle_line(line)
             except IOError as e:
                 import traceback
-                log.debug(traceback.format_exc())
+                log.debug("logging traceback from %s: \n" %
+                    (self.hostid) + traceback.format_exc())
             finally:
                 try:
                     self.fd.close()
@@ -471,8 +458,9 @@ class IRCMessageChannel(MessageChannel):
                     pass
             if self.on_disconnect:
                 self.on_disconnect(self)
-            log.debug('disconnected irc')
+            log.info("disconnected from irc host %s" %
+                (self.hostid))
             if not self.give_up:
                 time.sleep(30)
-        log.debug('ending irc')
+        log.info('ending irc')
         self.give_up = True

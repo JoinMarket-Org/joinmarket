@@ -15,7 +15,7 @@ from commontest import local_command, interact, make_wallets, make_sign_and_push
 
 import bitcoin as btc
 import pytest
-from joinmarket import load_program_config, jm_single
+from joinmarket import load_program_config, jm_single, sync_wallet
 from joinmarket import get_p2pk_vbyte, get_log, Wallet
 from joinmarket.support import chunks, select_gradual, \
      select_greedy, select_greediest
@@ -41,7 +41,7 @@ def test_create_p2sh_output_tx(setup_tx_creation, nw, wallet_structures,
                                mean_amt, sdev_amt, amount, pubs, k):
     wallets = make_wallets(nw, wallet_structures, mean_amt, sdev_amt)
     for w in wallets.values():
-        jm_single().bc_interface.sync_wallet(w['wallet'])
+        sync_wallet(w['wallet'])
     for k, w in enumerate(wallets.values()):
         wallet = w['wallet']
         ins_full = wallet.select_utxos(0, amount)
@@ -65,7 +65,7 @@ def test_absurd_fees(setup_tx_creation):
     jm_single().bc_interface.absurd_fees = True
     #pay into it
     wallet = make_wallets(1, [[2, 0, 0, 0, 1]], 3)[0]['wallet']
-    jm_single().bc_interface.sync_wallet(wallet)
+    sync_wallet(wallet)
     amount = 350000000
     ins_full = wallet.select_utxos(0, amount)
     with pytest.raises(ValueError) as e_info:
@@ -76,7 +76,7 @@ def test_create_sighash_txs(setup_tx_creation):
     for sighash in [btc.SIGHASH_ANYONECANPAY + btc.SIGHASH_SINGLE,
                     btc.SIGHASH_NONE, btc.SIGHASH_SINGLE]:
         wallet = make_wallets(1, [[2, 0, 0, 0, 1]], 3)[0]['wallet']
-        jm_single().bc_interface.sync_wallet(wallet)
+        sync_wallet(wallet)
         amount = 350000000
         ins_full = wallet.select_utxos(0, amount)
         print "using hashcode: " + str(sighash)
@@ -105,7 +105,7 @@ def test_spend_p2sh_utxos(setup_tx_creation):
     msig_addr = btc.scriptaddr(script, magicbyte=196)
     #pay into it
     wallet = make_wallets(1, [[2, 0, 0, 0, 1]], 3)[0]['wallet']
-    jm_single().bc_interface.sync_wallet(wallet)
+    sync_wallet(wallet)
     amount = 350000000
     ins_full = wallet.select_utxos(0, amount)
     txid = make_sign_and_push(ins_full, wallet, amount, output_addr=msig_addr)

@@ -13,8 +13,7 @@ from pprint import pprint
 
 from joinmarket import jm_single, Taker, load_program_config, \
     IRCMessageChannel, MessageChannelCollection
-from joinmarket import validate_address
-from joinmarket import random_nick
+from joinmarket import validate_address, sync_wallet
 from joinmarket import get_log, rand_norm_array, rand_pow_array, \
     rand_exp_array, choose_orders, weighted_order_choose, choose_sweep_orders, \
     debug_dump_object, get_irc_mchannels
@@ -110,7 +109,7 @@ class TumblerThread(threading.Thread):
         self.create_tx_attempts = 0
 
     def unconfirm_callback(self, txd, txid):
-        log.debug('that was %d tx out of %d, waiting for confirmation' %
+        log.info('that was %d tx out of %d, waiting for confirmation' %
                   (self.current_tx + 1, len(self.taker.tx_list)))
 
     def confirm_callback(self, txd, txid, confirmations):
@@ -123,19 +122,19 @@ class TumblerThread(threading.Thread):
         if not confirmed:
             #try rebroadcasting a few times, then create again
             if self.broadcast_attempts == 0:
-                log.debug('timed out for unconfirmed tx, recreating')
+                log.info('timed out for unconfirmed tx, recreating')
                 self.create_tx()
                 #need a countdown here and other places, maybe inside
                 #create_tx in case theres some long-running problem
                 return
             self.broadcast_attempts -= 1
-            log.debug('timed out for unconfirmed tx, rebroadcasting')
+            log.info('timed out for unconfirmed tx, rebroadcasting')
             pushed = self.pushtx()
             if not pushed:
-                log.debug("Failed to push transaction, recreating")
+                log.info("Failed to push transaction, recreating")
                 self.create_tx()
         else:
-            log.debug('timed out waiting for confirmation')
+            log.info('timed out waiting for confirmation')
 
     def pushtx(self):
         push_attempts = 3
@@ -160,11 +159,11 @@ class TumblerThread(threading.Thread):
             coinjointx.self_sign()
             pushed = self.pushtx()
             if not pushed:
-                log.debug("Failed to push transaction, recreating")
+                log.info("Failed to push transaction, recreating")
                 self.create_tx()
         else:
             self.ignored_makers += coinjointx.nonrespondants
-            log.debug('recreating the tx, ignored_makers=' + str(
+            log.info('recreating the tx, ignored_makers=' + str(
                     self.ignored_makers))
             self.create_tx_attempts += 1 #nonrespondants dont count for timeout
             self.create_tx()
@@ -185,29 +184,29 @@ class TumblerThread(threading.Thread):
                     self.ignored_makers + active_nicks)
             abs_cj_fee = 1.0 * total_cj_fee / makercount
             rel_cj_fee = abs_cj_fee / cj_amount
-            log.debug('rel/abs average fee = ' + str(rel_cj_fee) + ' / ' + str(
+            log.info('rel/abs average fee = ' + str(rel_cj_fee) + ' / ' + str(
                     abs_cj_fee))
 
             if rel_cj_fee > self.taker.options['maxcjfee'][
                 0] and abs_cj_fee > self.taker.options['maxcjfee'][1]:
-                log.debug('cj fee higher than maxcjfee, waiting ' + str(
+                log.warn('cj fee higher than maxcjfee, waiting ' + str(
                         self.taker.options['liquiditywait']) + ' seconds')
                 time.sleep(self.taker.options['liquiditywait'])
                 continue
             if orders is None:
-                log.debug('waiting for liquidity ' + str(
+                log.warn('waiting for liquidity ' + str(
                         self.taker.options['liquiditywait']) +
                           'secs, hopefully more orders should come in')
                 time.sleep(self.taker.options['liquiditywait'])
                 continue
             break
-        log.debug('chosen orders to fill ' + str(orders) + ' totalcjfee=' + str(
+        log.info('chosen orders to fill ' + str(orders) + ' totalcjfee=' + str(
                 total_cj_fee))
         return orders, total_cj_fee
 
     def create_tx(self):
         if self.create_tx_attempts == 0:
-             log.debug('reached limit of number of attempts to create tx, quitting')
+             log.error('reached limit of number of attempts to create tx, quitting')
              self.taker.msgchan.shutdown()
              return
         jm_single().bc_interface.sync_unspent(self.taker.wallet)
@@ -217,7 +216,7 @@ class TumblerThread(threading.Thread):
         change_addr = None
         choose_orders_recover = None
         if self.sweep:
-            log.debug('sweeping')
+            log.info('sweeping')
             utxos = self.taker.wallet.get_utxos_by_mixdepth()[self.tx[
                 'srcmixdepth']]
             #do our best to estimate the fee based on the number of
@@ -230,8 +229,8 @@ class TumblerThread(threading.Thread):
             est_outs = 2*self.tx['makercount'] + 1
             log.debug("Estimated outs: "+str(est_outs))
             estimated_fee = estimate_tx_fee(est_ins, est_outs)
-            log.debug("We have a fee estimate: "+str(estimated_fee))
-            log.debug("And a requested fee of: "+str(
+            log.info("We have a fee estimate: "+str(estimated_fee))
+            log.info("And a requested fee of: "+str(
                 self.taker.options['txfee'] * self.tx['makercount']))
             fee_for_tx = max([estimated_fee,
                               self.tx['makercount'] * self.taker.options['txfee']])
@@ -243,19 +242,19 @@ class TumblerThread(threading.Thread):
                         self.tx['makercount'], weighted_order_choose,
                         self.ignored_makers)
                 if orders is None:
-                    log.debug('waiting for liquidity ' + str(
+                    log.warn('waiting for liquidity ' + str(
                             self.taker.options['liquiditywait']) +
                               'secs, hopefully more orders should come in')
                     time.sleep(self.taker.options['liquiditywait'])
                     continue
                 abs_cj_fee = 1.0 * total_cj_fee / self.tx['makercount']
                 rel_cj_fee = abs_cj_fee / cj_amount
-                log.debug(
+                log.info(
                     'rel/abs average fee = ' + str(rel_cj_fee) + ' / ' + str(
                             abs_cj_fee))
                 if rel_cj_fee > self.taker.options['maxcjfee'][0] \
                         and abs_cj_fee > self.taker.options['maxcjfee'][1]:
-                    log.debug('cj fee higher than maxcjfee, waiting ' + str(
+                    log.warn('cj fee higher than maxcjfee, waiting ' + str(
                             self.taker.options['liquiditywait']) + ' seconds')
                     time.sleep(self.taker.options['liquiditywait'])
                     continue
@@ -268,16 +267,16 @@ class TumblerThread(threading.Thread):
             else:
                 cj_amount = int(self.tx['amount_fraction'] * self.balance)
             if cj_amount < self.taker.options['mincjamount']:
-                log.debug('cj amount too low, bringing up')
+                log.info('cj amount too low, bringing up')
                 cj_amount = self.taker.options['mincjamount']
             change_addr = self.taker.wallet.get_internal_addr(
                 self.tx['srcmixdepth'])
-            log.debug('coinjoining ' + str(cj_amount) + ' satoshi')
+            log.info('coinjoining ' + str(cj_amount) + ' satoshi')
             orders, total_cj_fee = self.tumbler_choose_orders(
                     cj_amount, self.tx['makercount'])
             total_amount = cj_amount + total_cj_fee + \
                 self.taker.options['txfee']*self.tx['makercount']
-            log.debug('total estimated amount spent = ' + str(total_amount))
+            log.info('total estimated amount spent = ' + str(total_amount))
             #adjust the required amount upwards to anticipate an increase of the
             #transaction fee after re-estimation; this is sufficiently conservative
             #to make failures unlikely while keeping the occurence of failure to
@@ -291,7 +290,7 @@ class TumblerThread(threading.Thread):
                 #try with a smaller request; it could still fail within
                 #CoinJoinTX.recv_txio, but make every effort to avoid stopping.
                 if str(e) == "Not enough funds":
-                    log.debug("Failed to select total amount + twice txfee from" +
+                    log.warn("Failed to select total amount + twice txfee from" +
                           "wallet; trying to select just total amount.")
                     utxos = self.taker.wallet.select_utxos(self.tx['srcmixdepth'],
                             total_amount)
@@ -335,12 +334,12 @@ class TumblerThread(threading.Thread):
         self.create_tx()
         with self.lockcond:
             self.lockcond.wait()
-        log.debug('tx confirmed, waiting for ' + str(tx['wait']) + ' minutes')
+        log.info('tx confirmed, waiting for ' + str(tx['wait']) + ' minutes')
         time.sleep(tx['wait'] * 60)
-        log.debug('woken')
+        log.info('woken')
 
     def run(self):
-        log.debug('waiting for all orders to certainly arrive')
+        log.info('waiting for all orders to certainly arrive')
         time.sleep(self.taker.options['waittime'])
 
         sqlorders = self.taker.db.execute(
@@ -348,16 +347,16 @@ class TumblerThread(threading.Thread):
         orders = [o['cjfee'] for o in sqlorders if o['ordertype'] == 'reloffer']
         orders = sorted(orders)
         if len(orders) == 0:
-            log.debug('There are no orders at all in the orderbook! '
+            log.error('There are no orders at all in the orderbook! '
                       'Is the bot connecting to the right server?')
             return
         relorder_fee = float(orders[0])
-        log.debug('reloffer fee = ' + str(relorder_fee))
+        log.info('reloffer fee = ' + str(relorder_fee))
         maker_count = sum([tx['makercount'] for tx in self.taker.tx_list])
-        log.debug('uses ' + str(maker_count) + ' makers, at ' + str(
+        log.info('uses ' + str(maker_count) + ' makers, at ' + str(
                 relorder_fee * 100) + '% per maker, estimated total cost ' + str(
                 round((1 - (1 - relorder_fee) ** maker_count) * 100, 3)) + '%')
-        log.debug('starting')
+        log.info('starting')
         self.lockcond = threading.Condition()
 
         self.balance_by_mixdepth = {}
@@ -373,7 +372,7 @@ class TumblerThread(threading.Thread):
             self.current_tx = i
             self.init_tx(tx, self.balance_by_mixdepth[tx['srcmixdepth']], sweep)
 
-        log.debug('total finished')
+        log.info('total finished')
         self.taker.msgchan.shutdown()
 
 class Tumbler(Taker):
@@ -546,6 +545,12 @@ def main():
             default=9,
             help=
             'maximum amount of times to re-create a transaction before giving up, default 9')
+    parser.add_option('--fast',
+                      action='store_true',
+                      dest='fastsync',
+                      default=False,
+                      help=('choose to do fast wallet sync, only for Core and '
+                      'only for previously synced wallet'))
     (options, args) = parser.parse_args()
     options = vars(options)
 
@@ -568,7 +573,7 @@ def main():
     # we guess conservatively with 2 inputs and 2 outputs each
     if options['txfee'] == -1:
         options['txfee'] = max(options['txfee'], estimate_tx_fee(2, 2))
-        log.debug("Estimated miner/tx fee for each cj participant: "+str(options['txfee']))
+        log.info("Estimated miner/tx fee for each cj participant: "+str(options['txfee']))
     assert(options['txfee'] >= 0)
 
     if len(destaddrs) > options['addrcount']:
@@ -597,7 +602,7 @@ def main():
     dbg_tx_list = []
     for srcmixdepth, txlist in tx_dict.iteritems():
         dbg_tx_list.append({'srcmixdepth': srcmixdepth, 'tx': txlist})
-    log.debug('tumbler transaction list')
+    log.info('tumbler transaction list')
     pprint(dbg_tx_list)
 
     total_wait = sum([tx['wait'] for tx in tx_list])
@@ -632,17 +637,17 @@ def main():
     # python tumbler.py -N 2 1 -c 3 0.001 -l 0.1 -M 3 -a 0 wallet_file 1xxx 1yyy
     wallet = Wallet(wallet_file,
                     max_mix_depth=options['mixdepthsrc'] + options['mixdepthcount'])
-    jm_single().bc_interface.sync_wallet(wallet)
+    sync_wallet(wallet, fast=options['fastsync'])
     jm_single().wait_for_commitments = 1
     mcs = [IRCMessageChannel(c) for c in get_irc_mchannels()]
     mcc = MessageChannelCollection(mcs)
-    log.debug('starting tumbler')
+    log.info('starting tumbler')
     tumbler = Tumbler(mcc, wallet, tx_list, options)
     try:
-        log.debug('connecting to message channels')
+        log.info('connecting to message channels')
         mcc.run()
     except:
-        log.debug('CRASHING, DUMPING EVERYTHING')
+        log.warn('Quitting! Dumping object contents to logfile.')
         debug_dump_object(wallet, ['addr_cache', 'keys', 'seed'])
         debug_dump_object(tumbler)
         debug_dump_object(tumbler.cjtx)

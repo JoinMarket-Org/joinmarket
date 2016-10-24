@@ -20,7 +20,7 @@ import os
 import pytest
 import sys
 import time
-from joinmarket import load_program_config, jm_single
+from joinmarket import load_program_config, jm_single, sync_wallet
 
 #for running bots as subprocesses
 python_cmd = 'python2'
@@ -46,7 +46,7 @@ def test_start_ygs(setup_ygrunner, num_ygs, wallet_structures, mean_amt):
     wallet = wallets[num_ygs]['wallet']
     print "Seed : " + wallets[num_ygs]['seed']
     #useful to see the utxos on screen sometimes
-    jm_single().bc_interface.sync_wallet(wallet)
+    sync_wallet(wallet)
     print wallet.unspent
 
     yigen_procs = []

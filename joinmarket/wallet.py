@@ -43,6 +43,9 @@ class AbstractWallet(object):
 
     def __init__(self):
         self.max_mix_depth = 0
+        #some consumer scripts don't use an unspent, this marks it
+        #as specifically absent (rather than just empty).
+        self.unspent = None
         self.utxo_selector = btc.select  # default fallback: upstream
         try:
             config = jm_single().config
@@ -166,6 +169,13 @@ class Wallet(AbstractWallet):
             sys.exit(0)
         if 'index_cache' in walletdata:
             self.index_cache = walletdata['index_cache']
+            if self.max_mix_depth > len(self.index_cache):
+                #This can happen e.g. in tumbler when we need more mixdepths
+                #than currently exist. Since we have no info for those extra
+                #depths, we must default to (0,0) (but sync should find used
+                #adddresses).
+                self.index_cache += [[0,0]] * (
+                    self.max_mix_depth - len(self.index_cache))
         decrypted = False
         while not decrypted:
             if pwd:
@@ -247,7 +257,7 @@ class Wallet(AbstractWallet):
             # do not import in the middle of sync_wallet()
             if bc_interface.wallet_synced:
                 if bc_interface.rpc('getaccount', [addr]) == '':
-                    log.debug('importing address ' + addr + ' to bitcoin core')
+                    log.info('importing address ' + addr + ' to bitcoin core')
                     bc_interface.rpc(
                             'importaddress',
                             [addr, bc_interface.get_wallet_name(self), False])
