@@ -72,6 +72,8 @@ class CoinJoinTX(object):
         self.cjfee_total = 0
         self.maker_txfee_contributions = 0
         self.nonrespondants = list(self.active_orders.keys())
+        #The subset who actually take part in the transaction:
+        self.actual_respondants = []
         self.all_responded = False
         self.latest_tx = None
         # None means they belong to me
@@ -147,60 +149,67 @@ class CoinJoinTX(object):
         return True
 
     def recv_txio(self, nick, utxo_list, auth_pub, cj_addr, change_addr):
-        if nick not in self.nonrespondants:
-            log.debug(('recv_txio => nick={} not in '
-                       'nonrespondants {}').format(nick, self.nonrespondants))
-            return
-        self.utxos[nick] = utxo_list
-        utxo_data = jm_single().bc_interface.query_utxo_set(self.utxos[nick])
-        if None in utxo_data:
-            log.error(('ERROR outputs unconfirmed or already spent. '
-                       'utxo_data={}').format(pprint.pformat(utxo_data)))
-            # when internal reviewing of makers is created, add it here to
-            # immediately quit; currently, the timeout thread suffices.
-            return
-        #Complete maker authorization:
-        #Extract the address fields from the utxos
-        #Construct the Bitcoin address for the auth_pub field
-        #Ensure that at least one address from utxos corresponds.
-        input_addresses = [d['address'] for d in utxo_data]
-        auth_address = btc.pubkey_to_address(auth_pub, get_p2pk_vbyte())
-        if not auth_address in input_addresses:
-            log.error("ERROR maker's authorising pubkey is not included "
-                      "in the transaction: " + str(auth_address))
-            return
+        if nick:
+            if nick not in self.nonrespondants:
+                log.debug(('recv_txio => nick={} not in '
+                           'nonrespondants {}').format(nick, self.nonrespondants))
+                return
+            self.utxos[nick] = utxo_list
+            utxo_data = jm_single().bc_interface.query_utxo_set(self.utxos[nick])
+            if None in utxo_data:
+                log.error(('ERROR outputs unconfirmed or already spent. '
+                           'utxo_data={}').format(pprint.pformat(utxo_data)))
+                # when internal reviewing of makers is created, add it here to
+                # immediately quit; currently, the timeout thread suffices.
+                return
+            #Complete maker authorization:
+            #Extract the address fields from the utxos
+            #Construct the Bitcoin address for the auth_pub field
+            #Ensure that at least one address from utxos corresponds.
+            input_addresses = [d['address'] for d in utxo_data]
+            auth_address = btc.pubkey_to_address(auth_pub, get_p2pk_vbyte())
+            if not auth_address in input_addresses:
+                log.error("ERROR maker's authorising pubkey is not included "
+                          "in the transaction: " + str(auth_address))
+                return
 
-        total_input = sum([d['value'] for d in utxo_data])
-        real_cjfee = calc_cj_fee(self.active_orders[nick]['ordertype'],
-                       self.active_orders[nick]['cjfee'], self.cj_amount)
-        change_amount = (total_input - self.cj_amount -
-            self.active_orders[nick]['txfee'] + real_cjfee)
+            total_input = sum([d['value'] for d in utxo_data])
+            real_cjfee = calc_cj_fee(self.active_orders[nick]['ordertype'],
+                           self.active_orders[nick]['cjfee'], self.cj_amount)
+            change_amount = (total_input - self.cj_amount -
+                self.active_orders[nick]['txfee'] + real_cjfee)
 
-        # certain malicious and/or incompetent liquidity providers send
-        # inputs totalling less than the coinjoin amount! this leads to
-        # a change output of zero satoshis, so the invalid transaction
-        # fails harmlessly; let's fail earlier, with a clear message.
-        if change_amount < jm_single().DUST_THRESHOLD:
-            fmt = ('ERROR counterparty requires sub-dust change. No '
-                   'action required. nick={}'
-                   'totalin={:d} cjamount={:d} change={:d}').format
-            log.warn(fmt(nick, total_input, self.cj_amount, change_amount))
-            return              # timeout marks this maker as nonresponsive
+            # certain malicious and/or incompetent liquidity providers send
+            # inputs totalling less than the coinjoin amount! this leads to
+            # a change output of zero satoshis, so the invalid transaction
+            # fails harmlessly; let's fail earlier, with a clear message.
+            if change_amount < jm_single().DUST_THRESHOLD:
+                fmt = ('ERROR counterparty requires sub-dust change. No '
+                       'action required. nick={}'
+                       'totalin={:d} cjamount={:d} change={:d}').format
+                log.warn(fmt(nick, total_input, self.cj_amount, change_amount))
+                return              # timeout marks this maker as nonresponsive
 
-        self.outputs.append({'address': change_addr, 'value': change_amount})
-        fmt = ('fee breakdown for {} totalin={:d} '
-               'cjamount={:d} txfee={:d} realcjfee={:d}').format
-        log.debug(fmt(nick, total_input, self.cj_amount,
-            self.active_orders[nick]['txfee'], real_cjfee))
-        self.outputs.append({'address': cj_addr, 'value': self.cj_amount})
-        self.cjfee_total += real_cjfee
-        self.maker_txfee_contributions += self.active_orders[nick]['txfee']
-        self.nonrespondants.remove(nick)
-        if len(self.nonrespondants) > 0:
-            log.debug('nonrespondants = ' + str(self.nonrespondants))
-            return
+            self.outputs.append({'address': change_addr, 'value': change_amount})
+            fmt = ('fee breakdown for {} totalin={:d} '
+                   'cjamount={:d} txfee={:d} realcjfee={:d}').format
+            log.debug(fmt(nick, total_input, self.cj_amount,
+                self.active_orders[nick]['txfee'], real_cjfee))
+            self.outputs.append({'address': cj_addr, 'value': self.cj_amount})
+            self.cjfee_total += real_cjfee
+            self.maker_txfee_contributions += self.active_orders[nick]['txfee']
+            self.nonrespondants.remove(nick)
+            self.actual_respondants.append(nick)
+            if len(self.nonrespondants) > 0:
+                log.debug('nonrespondants = ' + str(self.nonrespondants))
+                return
+        #Note we fall through here immediately if nick is None;
+        #this is the case for recovery where we are going to do a join with
+        #less participants than originally intended.
+        assert len(self.actual_respondants) >= jm_single().config.getint("POLICY",
+                                                        "minimum_makers")
         log.info('got all parts, enough to build a tx')
-        self.nonrespondants = list(self.active_orders.keys())
+        self.nonrespondants = self.actual_respondants
 
         my_total_in = sum([va['value'] for u, va in
                            self.input_utxos.iteritems()])
@@ -405,43 +414,41 @@ class CoinJoinTX(object):
         return self.push()
 
     def recover_from_nonrespondants(self):
+
+        def restart():
+            self.end_timeout_thread = True
+            if self.finishcallback is not None:
+                self.finishcallback(self)
+                # finishcallback will check if self.all_responded is True
+                # and will know it came from here
+
         log.info('nonresponding makers = ' + str(self.nonrespondants))
         # if there is no choose_orders_recover then end and call finishcallback
         # so the caller can handle it in their own way, notable for sweeping
         # where simply replacing the makers wont work
         if not self.choose_orders_recover:
-            self.end_timeout_thread = True
-            if self.finishcallback is not None:
-                self.finishcallback(self)
+            restart()
             return
 
         if self.latest_tx is None:
-            # nonresponding to !fill, recover by finding another maker
+            # nonresponding to !fill-!auth, proceed with transaction anyway as long
+            # as number of makers is at least POLICY.minimum_makers (and not zero,
+            # i.e. disallow this kind of continuation).
             log.debug('nonresponse to !fill')
             for nr in self.nonrespondants:
                 del self.active_orders[nr]
-            new_orders, new_makers_fee = self.choose_orders_recover(
-                    self.cj_amount, len(self.nonrespondants),
-                    self.nonrespondants,
-                    self.active_orders.keys())
-            for nick, order in new_orders.iteritems():
-                self.active_orders[nick] = order
-            self.nonrespondants = list(new_orders.keys())
-            log.debug(('new active_orders = {} \nnew nonrespondants = '
-                       '{}').format(
-                    pprint.pformat(self.active_orders),
-                    pprint.pformat(self.nonrespondants)))
-            #Re-source commitment; previous attempt will have been blacklisted
-            self.get_commitment(self.input_utxos, self.cj_amount)
-            self.msgchan.fill_orders(new_orders, self.cj_amount,
-                                     self.kp.hex_pk(), self.commitment)
+            minmakers = jm_single().config.getint("POLICY", "minimum_makers")
+            if len(self.actual_respondants) >= minmakers and minmakers != 0:
+                log.info("Completing the transaction with: " + str(
+                    len(self.actual_respondants)) + " makers.")
+                self.recv_txio(None, None, None, None, None)
+            else:
+                log.info("Two few makers responded to complete, trying again.")
+                restart()
         else:
             log.debug('nonresponse to !tx')
-            # nonresponding to !tx, have to restart tx from the beginning
-            self.end_timeout_thread = True
-            if self.finishcallback is not None:
-                self.finishcallback(self)
-                # finishcallback will check if self.all_responded is True and will know it came from here
+            # have to restart tx from the beginning
+            restart()
 
     class TimeoutThread(threading.Thread):
 
