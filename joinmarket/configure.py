@@ -126,6 +126,11 @@ confirm_timeout_hours = 6
 # for most rapid dust sweeping, try merge_algorithm = greediest
 # but don't forget to bump your miner fees!
 merge_algorithm = default
+# For takers: the minimum number of makers you allow in a transaction
+# to complete, accounting for the fact that some makers might not be
+# responsive. Should be an integer >=2 for privacy, or set to 0 if you
+# want to disallow any reduction from your chosen number of makers.
+minimum_makers = 2
 # the fee estimate is based on a projection of how many satoshis
 # per kB are needed to get in one of the next N blocks, N set here
 # as the value of 'tx_fees'. This estimate is high if you set N=1, 
