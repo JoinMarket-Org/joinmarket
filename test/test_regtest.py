@@ -83,11 +83,11 @@ def test_direct_send(setup_regtest, wallet_structures, mean_amt, mixdepth,
         #                                              "j4.cfg", "j5.cfg"], None),
         # 1sp 3yg, 2 mixdepths - testing different failure times to
         #see if recovery works.
-        #(5, [[1, 2, 0, 0, 0]] * 6, 4, 1, 1234500, None, None),
-        (4, [[1, 2, 0, 0, 0]] * 5, 4, 1, 1234500, None, ('break',0,6), None, False),
-        #(4, [[1, 2, 0, 0, 0]] * 5, 4, 0, 1234500, None, ('break',0,6), None, True),
-        #(5, [[1, 2, 0, 0, 0]] * 6, 4, 1, 1234500, None, ('shutdown',0,12)),
-        #(5, [[1, 2, 0, 0, 0]] * 6, 4, 1, 1234500, None, ('break',1, 6)),
+        #(5, [[1, 2, 0, 0, 0]] * 6, 4, 1, 8234500, None, None),
+        (4, [[1, 2, 0, 0, 0]] * 5, 4, 1, 8234500, None, ('break',0,6), None, False),
+        #(4, [[1, 2, 0, 0, 0]] * 5, 4, 0, 8234500, None, ('break',0,6), None, True),
+        #(5, [[1, 2, 0, 0, 0]] * 6, 4, 1, 8234500, None, ('shutdown',0,12)),
+        #(5, [[1, 2, 0, 0, 0]] * 6, 4, 1, 8234500, None, ('break',1, 6)),
         # 1sp 6yg, 4 mixdepths, sweep from depth 0 (test large number of makers)
         (8, [[1, 3, 0, 0, 0]] * 9, 4, 0, 0, None, None, None, False),
     ])

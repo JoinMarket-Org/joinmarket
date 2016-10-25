@@ -13,7 +13,7 @@ from joinmarket import get_irc_mchannels
 
 txfee = 1000
 cjfee_a = 200
-cjfee_r = '0.002'
+cjfee_r = '0.0002'
 ordertype = 'reloffer'
 nickserv_password = ''
 minsize = 100000
