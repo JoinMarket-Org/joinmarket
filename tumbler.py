@@ -450,16 +450,16 @@ def main():
             action='store',
             dest='makercountrange',
             help=
-            'Input the mean and spread of number of makers to use. e.g. 5 1.5 will be a normal distribution '
-            'with mean 5 and standard deveation 1.5 inclusive, default=5 1.5',
-            default=(5, 1.5))
+            'Input the mean and spread of number of makers to use. e.g. 6 1 will be a normal distribution '
+            'with mean 6 and standard deviation 1 inclusive, default=6 1 (floats are also OK)',
+            default=(6, 1))
     parser.add_option(
             '--minmakercount',
             type='int',
             dest='minmakercount',
-            default=3,
+            default=4,
             help=
-            'The minimum maker count in a transaction, random values below this are clamped at this number. default=3')
+            'The minimum maker count in a transaction, random values below this are clamped at this number. default=4')
     parser.add_option(
             '-M',
             '--mixdepthcount',
@@ -477,7 +477,7 @@ def main():
             help=
             'The number of transactions to take coins from one mixing depth to the next, it is'
             ' randomly chosen following a normal distribution. Should be similar to --addrask. '
-            'This option controls the parameters of the normal distribution curve. (mean, standard deviation). default=(4, 1)')
+            'This option controls the parameters of the normal distribution curve. (mean, standard deviation). default=4 1')
     parser.add_option(
             '--mintxcount',
             type='int',

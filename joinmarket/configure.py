@@ -130,13 +130,16 @@ merge_algorithm = default
 # to complete, accounting for the fact that some makers might not be
 # responsive. Should be an integer >=2 for privacy, or set to 0 if you
 # want to disallow any reduction from your chosen number of makers.
-minimum_makers = 2
+minimum_makers = 3
 # the fee estimate is based on a projection of how many satoshis
 # per kB are needed to get in one of the next N blocks, N set here
-# as the value of 'tx_fees'. This estimate is high if you set N=1, 
+# as the value of 'tx_fees'. This estimate is high if you set N=2,
 # so we choose N=3 for a more reasonable figure,
 # as our default. Note that for clients not using a local blockchain
 # instance, we retrieve an estimate from the API at blockcypher.com, currently.
+# WARNING: Configuring N=1 can have unexpected effects, as bitcoin core
+# sometimes responds with -1 when it can't make a precise fee estimate!
+# Thus, N should almost always be >= 2, unless you know what you're doing.
 tx_fees = 3
 # For users getting transaction fee estimates over an API
 # (currently blockcypher, could be others), place a sanity

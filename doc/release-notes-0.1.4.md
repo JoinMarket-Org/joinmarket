@@ -31,7 +31,7 @@ case it cannot be installed, joinmarket should continue to run exactly as before
 
 On Linux it can be installed with
 
-	pip install secp256k1
+        pip install secp256k1
 
 For past discussion on this feature which may be helpful, see this reddit thread
 
@@ -69,11 +69,11 @@ work out the effective annual interest rate, as though yield-generator was a sav
 To use, configure JoinMarket to use a Bitcoin node as a method of accessing the blockchain
 and run:
 
-	python wallet-tool.py wallet.json history
+        python wallet-tool.py wallet.json history
 
 A csv file can be created for opening with spreadsheet software too:
 
-	python wallet-tool.py --csv wallet.json history > history.csv
+        python wallet-tool.py --csv wallet.json history > history.csv
 
 
 0.1.4 Change log
@@ -83,13 +83,13 @@ Tumbler Stability:
 - `671edcc` Restored debug_silence, so tumbler Insert New Address prompt can be seen
 - `76d9071` Increased scope of timeout_thread_lock to stop a rare race condition
 - `440357a` Fee calculation for sweep orders excludes miner fees, fixing #441
-- `e47f47d` Fix not enough funds exception catch in tumbler 
+- `e47f47d` Fix not enough funds exception catch in tumbler
 - `8af1376` Caught exception around getrawtransaction in the case of wallet conflicts
 - `2dc3437` Create the confirm timeout feature of blockchaininterface, modified tumbler.py to use it
 - `04c277e` Added sync_unspent() to tumbler create_tx() to reduce likelyhood of wallet being out of sync
 - `fc3b6a3` Made tumbler update wallet file index cache, so wallet-tool display will reach the right mixdepths
 - `00ac1a1` Clear irc.built_privmsg on reconnect, which prevents crashes from junk being passed to base64 decode
-- `e4ff93d` Added check to make sure tumbler coins reach every destination address 
+- `e4ff93d` Added check to make sure tumbler coins reach every destination address
 
 Features:
 - `42917f5` Always load default config with initial values first, then load potential config file afterwards
@@ -97,7 +97,7 @@ Features:
 - `22adabc` Gave names to all the threads so they appear in debug logs
 - `4c08910` Adjuste IRC throttle parameters, experimentally derived
 - `d82668d` maker_timeout_sec is readjusted for the second stage (!tx sending) based on transaction size, and IRC throttling variables are module vars
-- `98db29f` Add yield-generator-oscillator 
+- `98db29f` Add yield-generator-oscillator
 - `bf140fa` Bump default makercount to randint(2,4)
 - `99ea24f` New re-integration of secp256k1 via ludbb binding
 - `c70214d` Wallet history
@@ -105,13 +105,13 @@ Features:
 - `e7c1bf1` Show xpub keys in wallet-tool display, issue #493
 
 Bugfixes:
-- `d2be6c2` Recover from selection of spent utxos 
+- `d2be6c2` Recover from selection of spent utxos
 - `184f2fe` Stop yield-generator-mixdepth announcing absorders if they havent been modified
 - `96cff63` Fix crash in yield generator mixdepth when no unconfirm notify arrives
 - `b814d3f` BitcoinCoreInterface now guarentees that unconfirmfun() will always be invoked, issue #436
 - `388d833` Wrapped close() in try: except to stop it crashing the throttle thread
 - `e7cb86d` Prevent offer minsize from going below DUST_THRESHOLD, issue #382
-- `b9a673b` Added explaination to patientsendpayment in case anyone uses it 
+- `b9a673b` Added explaination to patientsendpayment in case anyone uses it
 - `d650be6` Add length check to address validation; should be 20 bytes for both p2pkh and p2sh after stripping checksum and version
 
 
@@ -123,8 +123,8 @@ Thanks to everyone who directly contributed to this release
 - @AdamISZ
 - @adlai
 - @chris-belcher
-- @OverlordQ 
-- @raedah 
+- @OverlordQ
+- @raedah
 - @veqtrus
 
 And those who contributed additional code review, ideas, debug logs and comments.

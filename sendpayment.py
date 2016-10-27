@@ -290,9 +290,9 @@ def main():
                       type='int',
                       dest='makercount',
                       help='how many makers to coinjoin with, default random '
-                           'from 4 to 6; use 0 to send *direct* to a destination '
+                           'from 5 to 7; use 0 to send *direct* to a destination '
                            'address, not using Joinmarket',
-                      default=random.randint(4, 6))
+                      default=random.randint(5, 7))
     parser.add_option(
         '-C',
         '--choose-cheapest',

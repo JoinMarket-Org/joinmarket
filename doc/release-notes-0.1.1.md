@@ -28,8 +28,8 @@ Preventing failure on receipt of invalid orders
 
 See [391](https://github.com/joinmarket-org/joinmarket/issues/391) and
 [390](https://github.com/joinmarket-org/joinmarket/issues/390).
-Makers publishing orders with non-integer amounts for an `absorder` were causing 
-a ValueError exception to be raised, preventing Takers from running successfully. 
+Makers publishing orders with non-integer amounts for an `absorder` were causing
+a ValueError exception to be raised, preventing Takers from running successfully.
 This fix prevents that.
 
 
@@ -38,5 +38,3 @@ This fix prevents that.
 
 
 - #391 `7f5e06e` Disallow non-integer absorder in on_order_seen.
-
-

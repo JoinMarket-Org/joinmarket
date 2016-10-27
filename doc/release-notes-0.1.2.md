@@ -30,7 +30,7 @@ Returning the alert system to JoinMarket after it was mistakenly removed in a re
 ------------------------------------
 
 See [400](https://github.com/joinmarket-org/joinmarket/issues/400)
-Anybody announcing a command to cancel an order without an order id would cause 
+Anybody announcing a command to cancel an order without an order id would cause
 all bots to crash
 This fix prevents that.
 
@@ -43,4 +43,3 @@ This fix prevents that.
 - #387 `77ef4b4` clump coins differently in yieldgenerator to increase privacy
 - #397 `6ced862` fix issue 395 about accidental negative fees in yieldgenerator deluxe
 - #392 `00ef236` fix issue #392
-
