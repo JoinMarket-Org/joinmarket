@@ -181,7 +181,7 @@ class CoinJoinTX(object):
             # inputs totalling less than the coinjoin amount! this leads to
             # a change output of zero satoshis, so the invalid transaction
             # fails harmlessly; let's fail earlier, with a clear message.
-            if change_amount < jm_single().DUST_THRESHOLD:
+            if change_amount < jm_single().BITCOIN_DUST_THRESHOLD:
                 fmt = ('ERROR counterparty requires sub-dust change. No '
                        'action required. nick={}'
                        'totalin={:d} cjamount={:d} change={:d}').format
@@ -223,20 +223,20 @@ class CoinJoinTX(object):
         my_change_value = (
             my_total_in - self.cj_amount - self.cjfee_total - my_txfee)
         #Since we could not predict the maker's inputs, we may end up needing
-        #too much such that the change value is negative or small. Note that 
+        #too much such that the change value is negative or small. Note that
         #we have tried to avoid this based on over-estimating the needed amount
         #in SendPayment.create_tx(), but it is still a possibility if one maker
         #uses a *lot* of inputs.
         if self.my_change_addr and my_change_value <= 0:
             raise ValueError("Calculated transaction fee of: "+str(
                 self.total_txfee)+" is too large for our inputs;Please try again.")
-        elif self.my_change_addr and my_change_value <= jm_single().DUST_THRESHOLD:
+        elif self.my_change_addr and my_change_value <= jm_single().BITCOIN_DUST_THRESHOLD:
             log.info("Dynamically calculated change lower than dust: "+str(
                 my_change_value)+"; dropping.")
             self.my_change_addr = None
             my_change_value = 0
         log.info('fee breakdown for me totalin=%d my_txfee=%d makers_txfee=%d cjfee_total=%d => changevalue=%d'
-                  % (my_total_in, my_txfee, self.maker_txfee_contributions,            
+                  % (my_total_in, my_txfee, self.maker_txfee_contributions,
                   self.cjfee_total, my_change_value))
         if self.my_change_addr is None:
             if my_change_value != 0 and abs(my_change_value) != 1:
@@ -378,7 +378,7 @@ class CoinJoinTX(object):
         log.debug('\n' + tx)
         self.txid = btc.txhash(tx)
         log.info('txid = ' + self.txid)
-        
+
         tx_broadcast = jm_single().config.get('POLICY', 'tx_broadcast')
         if tx_broadcast == 'self':
             pushed = jm_single().bc_interface.pushtx(tx)

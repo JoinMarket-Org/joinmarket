@@ -28,7 +28,7 @@ class CoinJoinOrder(object):
         self.maker = maker
         self.oid = oid
         self.cj_amount = amount
-        if self.cj_amount <= jm_single().DUST_THRESHOLD:
+        if self.cj_amount <= jm_single().BITCOIN_DUST_THRESHOLD:
             self.maker.msgchan.send_error(nick, 'amount below dust threshold')
         # the btc pubkey of the utxo that the taker plans to use as input
         self.taker_pk = taker_pk
