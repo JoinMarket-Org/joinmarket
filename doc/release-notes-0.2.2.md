@@ -40,6 +40,7 @@ The bugfixes are for these specific issues:
 - `baefc05` Modify default fee to 0.02% (yg-pe.py) and modify default maker_timeout_sec to 45 from 30 (bigger messages)
 - `c89347a` Allow fewer maker responses to complete a coinjoin, if some makers do not answer
 - `7b3b36a` Tolerate counterparties using the old DUST_THRESHOLD value
+- `7a41623` Amend default number of counterparties to improve privacy
 
 Credits
 =======
