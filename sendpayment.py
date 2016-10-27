@@ -218,6 +218,13 @@ class PaymentThread(threading.Thread):
             log.info(noun + ' coinjoin fee = ' + str(float('%.3g' % (
                 100.0 * total_fee_pc))) + '%')
             check_high_fee(total_fee_pc)
+            if jm_single().config.getint("POLICY", "minimum_makers") != 0:
+                    log.info("If some makers don't respond, we will still "
+                             "create a coinjoin with at least " + str(
+                                 jm_single().config.getint(
+                                     "POLICY", "minimum_makers")) + ". "
+                             "If you don't want this feature, set minimum_makers="
+                             "0 in joinmarket.cfg")
             if raw_input('send with these orders? (y/n):')[0] != 'y':
                 log.info('ending')
                 self.taker.msgchan.shutdown()
@@ -376,6 +383,20 @@ def main():
     assert(options.txfee >= 0)
 
     log.info('starting sendpayment')
+
+    #If we are not direct sending, then minimum_maker setting should
+    #not be larger than the requested number of counterparties
+    if options.makercount !=0 and options.makercount < jm_single().config.getint(
+        "POLICY", "minimum_makers"):
+        log.error("You selected a number of counterparties (" + \
+                  str(options.makercount) + \
+                  ") less than the "
+                  "minimum requirement (" + \
+                  str(jm_single().config.getint("POLICY","minimum_makers")) + \
+                  "); you can edit the value 'minimum_makers'"
+                  " in the POLICY section in joinmarket.cfg to correct this. "
+                  "Quitting.")
+        exit(0)
 
     if not options.userpcwallet:
         wallet = Wallet(wallet_name, options.amtmixdepths, options.gaplimit)
