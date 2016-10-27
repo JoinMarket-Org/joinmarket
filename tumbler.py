@@ -562,6 +562,21 @@ def main():
     print(destaddrs)
 
     load_program_config()
+
+    #The minmakercount setting should not be lower than the
+    #minimum allowed makers according to the config
+    if options['minmakercount'] < jm_single().config.getint(
+        "POLICY", "minimum_makers"):
+        log.error("You selected a minimum number of counterparties (" + \
+                  str(options['minmakercount']) + \
+                  ") less than the "
+                  "minimum requirement (" + \
+                  str(jm_single().config.getint("POLICY","minimum_makers")) + \
+                  "); you can edit the value 'minimum_makers'"
+                  " in the POLICY section in joinmarket.cfg to correct this. "
+                  "Quitting.")
+        exit(0)
+
     for addr in destaddrs:
         addr_valid, errormsg = validate_address(addr)
         if not addr_valid:
