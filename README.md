@@ -15,7 +15,7 @@ Widespread use of JoinMarket could improve bitcoin's fungibility as a commodity.
 ##Installation
 
 #####A NOTE ON UPDATING FROM PRE-0.2 VERSIONS
-The installation is slightly changed, with the secp256k1 python binding no longer being optional, and libnacl now being installed via pip, not locally. The short version is: do follow the below process, for example the secp256k1 binding must be the latest version else you'll get errors. Of course if you already have libsodium you don't need to re-install it. Be sure to read the [release notes](https://github.com/JoinMarket-Org/joinmarket/blob/develop/doc/release-notes-0.2.1.md).
+The installation is slightly changed, with the secp256k1 python binding no longer being optional, and libnacl now being installed via pip, not locally. The short version is: do follow the below process, for example the secp256k1 binding must be the latest version else you'll get errors. Of course if you already have libsodium you don't need to re-install it. Be sure to read the [release notes](https://github.com/JoinMarket-Org/joinmarket/blob/develop/doc/release-notes-0.2.2.md).
 
 #####REQUIRED INSTALLATION DEPENDENCIES (for Linux)
 
@@ -60,8 +60,8 @@ The installation is slightly changed, with the secp256k1 python binding no longe
 ###DEBIAN / UBUNTU QUICK INSTALL FOR USERS:
 
 1. `sudo apt-get update -y && sudo apt-get upgrade -y && sudo apt-get install python libsodium-dev python-pip -y`
-2. Download JoinMarket 0.2.1 source from the [releases page](https://github.com/joinmarket-org/joinmarket/releases/tag/v0.2.1) or [this direct link to v0.2.1](https://github.com/JoinMarket-Org/joinmarket/archive/v0.2.1.tar.gz)
-3. Extract with `tar xzf joinmarket-0.2.1.tar.gz` and then `cd joinmarket-0.2.1`
+2. Download JoinMarket 0.2.2 source from the [releases page](https://github.com/joinmarket-org/joinmarket/releases/tag/v0.2.2) or [this direct link to v0.2.2](https://github.com/JoinMarket-Org/joinmarket/archive/v0.2.2.tar.gz)
+3. Extract with `tar xzf joinmarket-0.2.2.tar.gz` and then `cd joinmarket-0.2.2`
 4. `sudo pip install -r requirements.txt`
 5. Generating your first wallet (`python wallet-tool.py generate`) will populate the configuration file: `joinmarket.cfg`.
    Check if the default settings suit your needs.
@@ -72,9 +72,9 @@ Tested up to TAILS version 2.6, but future versions likely will work as well.
 1. Make sure that you choose 'more options' when booting up tails and set an administrator password.
 2. `sudo apt-get update -y`
 3. `sudo apt-get install build-essential automake libtool pkg-config libffi-dev python-dev python libsodium-dev python-pip -y`
-4. Download JoinMarket 0.2.1 source from the [releases page](https://github.com/joinmarket-org/joinmarket/releases/tag/v0.2.1) or [this direct link to v0.2.1](https://github.com/JoinMarket-Org/joinmarket/archive/v0.2.1.tar.gz):
-   `wget https://github.com/JoinMarket-Org/joinmarket/archive/v0.2.1.tar.gz`
-5. Extract with `tar xzf joinmarket-0.2.1.tar.gz` and then `cd joinmarket-0.2.1`
+4. Download JoinMarket 0.2.2 source from the [releases page](https://github.com/joinmarket-org/joinmarket/releases/tag/v0.2.2) or [this direct link to v0.2.2](https://github.com/JoinMarket-Org/joinmarket/archive/v0.2.2.tar.gz):
+   `wget https://github.com/JoinMarket-Org/joinmarket/archive/v0.2.2.tar.gz`
+5. Extract with `tar xzf joinmarket-0.2.2.tar.gz` and then `cd joinmarket-0.2.2`
 6. `sudo torsocks pip install -r requirements.txt`
 7. `sudo chmod -R ugo+rX /usr/local/lib/python2.7/dist-packages/`
 8. `sudo cp -r /usr/local/lib/python2.7/dist-packages/libnacl .`
