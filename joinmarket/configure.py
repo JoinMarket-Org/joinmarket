@@ -130,7 +130,7 @@ merge_algorithm = default
 # to complete, accounting for the fact that some makers might not be
 # responsive. Should be an integer >=2 for privacy, or set to 0 if you
 # want to disallow any reduction from your chosen number of makers.
-minimum_makers = 3
+minimum_makers = 2
 # the fee estimate is based on a projection of how many satoshis
 # per kB are needed to get in one of the next N blocks, N set here
 # as the value of 'tx_fees'. This estimate is high if you set N=2,
