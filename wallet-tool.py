@@ -482,7 +482,7 @@ elif method == 'history':
         def f(r, deposits, deposit_times, now, final_balance):
             return np.sum(np.exp((now - deposit_times) / 60.0 / 60 / 24 /
                 365)**r * deposits) - final_balance
-        r = brentq(f, a=0.1, b=-0.1, args=(deposits, deposit_times, now,
+        r = brentq(f, a=1, b=-1, args=(deposits, deposit_times, now,
             balance))
         print('continuously compounded equivalent annual interest rate = ' +
             str(r * 100) + ' %')
