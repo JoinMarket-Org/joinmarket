@@ -214,6 +214,37 @@ def test_import_privkey(setup_wallets, pwd, in_privs):
     #p.close()
     testlog.close()
 
+
+@pytest.mark.parametrize(
+    "pwd, new_pwd, expected_output", [
+        ("import-pwd","new-pwd", [
+        "Enter wallet decryption passphrase:",
+        "Enter new wallet encryption passphrase: ",
+        "Reenter new wallet encryption passphrase: ",
+        ]),
+    ])
+def test_change_passphrase(setup_wallets, pwd, new_pwd, expected_output):
+    """This tests successfully changing the passphrase for wallets
+    using wallet-tool.py, to ensure it works it also changes the password
+    back to what it was originally
+    """
+    setup_import()
+
+    test_in = [pwd, new_pwd, new_pwd]
+    testlog = open('test/testlog-' + new_pwd, 'wb')
+    p = pexpect.spawn('python wallet-tool.py test_import_wallet.json changepassphrase', logfile=testlog)
+    interact(p, test_in, expected_output)
+    p.expect(': passphrase has been updated')
+
+    test_in = [new_pwd, pwd, pwd]
+    p = pexpect.spawn('python wallet-tool.py test_import_wallet.json changepassphrase', logfile=testlog)
+    interact(p, test_in, expected_output)
+    p.expect(': passphrase has been updated')
+    time.sleep(1)
+    p.close()
+    testlog.close()
+
+
 def setup_import(mainnet=True):
     try:
         os.remove("wallets/test_import_wallet.json")
@@ -239,6 +270,7 @@ def setup_import(mainnet=True):
     if p.exitstatus != 0:
         raise Exception('failed due to exit status: ' + str(p.exitstatus))
     jm_single().config.set("BLOCKCHAIN", "network", "testnet")
+
 
 @pytest.mark.parametrize(
     "nw, wallet_structures, mean_amt, sdev_amt, amount",

@@ -20,7 +20,8 @@ description = (
     'balances. (displayall) Shows ALL addresses and balances. '
     '(summary) Shows a summary of mixing depth balances. (generate) '
     'Generates a new wallet. (recover) Recovers a wallet from the 12 '
-    'word recovery seed. (showutxos) Shows all utxos in the wallet, '
+    'word recovery seed. (changepassphrase) Change encyption password '
+    'for specified wallet (showutxos) Shows all utxos in the wallet, '
     'including the corresponding private keys if -p is chosen; the '
     'data is also written to a file "walletname.json.utxos" if the '
     'option -u is chosen (so be careful about private keys). '
@@ -89,7 +90,7 @@ noseed_methods = ['generate', 'recover', 'listwallets']
 methods = ['display', 'displayall', 'summary', 'showseed', 'importprivkey',
     'history', 'showutxos']
 methods.extend(noseed_methods)
-noscan_methods = ['showseed', 'importprivkey', 'dumpprivkey']
+noscan_methods = ['changepassphrase', 'showseed', 'importprivkey', 'dumpprivkey']
 
 if len(args) < 1:
     parser.error('Needs a wallet file or method')
@@ -229,6 +230,34 @@ elif method == 'generate' or method == 'recover':
         fd.write(walletfile)
         fd.close()
         print('saved to ' + walletname)
+elif method == 'changepassphrase':
+    """ Changes encryption password directly..
+    Replaces old encrypted seed with new seed. Users should have their seed
+    backed up
+    """
+    seed = wallet.seed # old seed
+    words = mn_encode(seed)
+    print("WARNING: Please remember to have a backup of the seed or old" +
+    " wallet.json before attempting to change the passphrase.")
+    password = getpass.getpass('Enter new wallet encryption passphrase: ')
+    password2 = getpass.getpass('Reenter new wallet encryption passphrase: ')
+    if password != password2:
+        print('ERROR. Passwords did not match')
+        sys.exit(0)
+    password_key = btc.bin_dbl_sha256(password)
+    encrypted_seed = encryptData(password_key, seed.decode('hex'))
+    walletname = args[0] # wallet name
+    walletpath = os.path.join('wallets', walletname)
+    fd = open(walletpath, 'r')
+    walletfile = fd.read()
+    fd.close()
+    walletdata = json.loads(walletfile)
+    walletdata['encrypted_seed'] = encrypted_seed.encode('hex')
+    walletfile = json.dumps(walletdata)
+    fd = open(walletpath, 'w')
+    fd.write(walletfile)
+    fd.close()
+    print(walletname + ": passphrase has been updated")
 elif method == 'showseed':
     hexseed = wallet.seed
     print('hexseed = ' + hexseed)
