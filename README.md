@@ -38,7 +38,7 @@ The installation is slightly changed, with the secp256k1 python binding no longe
     ```
 
 + Install Python dependencies:
-    You need `pip` (e.g. `sudo apt-get python-pip`, recent Python usually ships with pip).
+    You need `pip` (e.g. `sudo apt-get install python-pip`, recent Python usually ships with pip).
 
     (Setuptools version must be >= 3.3).
 
