@@ -38,7 +38,7 @@ The installation is slightly changed, with the secp256k1 python binding no longe
     ```
 
 + Install Python dependencies:
-    You need `pip` (e.g. `sudo apt-get install python-pip`, recent Python usually ships with pip).
+    You need `pip` >= 1.5.6 (e.g. `sudo apt-get install python-pip`, recent Python usually ships with pip).
 
     (Setuptools version must be >= 3.3).
 
@@ -59,7 +59,7 @@ The installation is slightly changed, with the secp256k1 python binding no longe
 
 ###DEBIAN / UBUNTU QUICK INSTALL FOR USERS:
 
-1. `sudo apt-get update -y && sudo apt-get upgrade -y && sudo apt-get install python libsodium-dev python-pip -y`
+1. `sudo apt-get update -y && sudo apt-get upgrade -y && sudo apt-get install python-dev libsodium-dev python-pip -y`
 2. Download JoinMarket 0.2.2 source from the [releases page](https://github.com/joinmarket-org/joinmarket/releases/tag/v0.2.2) or [this direct link to v0.2.2](https://github.com/JoinMarket-Org/joinmarket/archive/v0.2.2.tar.gz)
 3. Extract with `tar xzf joinmarket-0.2.2.tar.gz` and then `cd joinmarket-0.2.2`
 4. `sudo pip install -r requirements.txt`
