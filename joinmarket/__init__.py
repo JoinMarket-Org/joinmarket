@@ -22,6 +22,7 @@ from .configure import load_program_config, jm_single, get_p2pk_vbyte, \
     check_utxo_blacklist
 from .blockchaininterface import BlockrInterface, BlockchainInterface, sync_wallet
 from .yieldgenerator import YieldGenerator, ygmain
+from .peertopeer import P2PProtocol, P2PMessageHandler, tor_broadcast_tx
 # Set default logging handler to avoid "No handler found" warnings.
 
 try:

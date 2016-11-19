@@ -6,7 +6,6 @@ import sys
 import os
 import time
 import binascii
-import pexpect
 import random
 import subprocess
 import platform

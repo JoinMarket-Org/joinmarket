@@ -168,6 +168,7 @@ absurd_fee_per_kb = 150000
 # random-peer = everyone who took part in the coinjoin has a chance of broadcasting
 # not-self = never broadcast with your own ip
 # random-maker = every peer on joinmarket has a chance of broadcasting, including yourself
+# tor = broadcast through tor, using socks5_host socks5_port configuration
 tx_broadcast = self
 
 #THE FOLLOWING SETTINGS ARE REQUIRED TO DEFEND AGAINST SNOOPERS.
