@@ -399,7 +399,8 @@ def main():
         exit(0)
 
     if not options.userpcwallet:
-        wallet = Wallet(wallet_name, options.amtmixdepths, options.gaplimit)
+        max_mix_depth = max([options.mixdepth, options.amtmixdepths])
+        wallet = Wallet(wallet_name, max_mix_depth, options.gaplimit)
     else:
         wallet = BitcoinCoreWallet(fromaccount=wallet_name)
     sync_wallet(wallet, fast=options.fastsync)
