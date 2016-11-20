@@ -137,9 +137,10 @@ minimum_makers = 2
 # so we choose N=3 for a more reasonable figure,
 # as our default. Note that for clients not using a local blockchain
 # instance, we retrieve an estimate from the API at blockcypher.com, currently.
-# WARNING: Configuring N=1 can have unexpected effects, as bitcoin core
-# sometimes responds with -1 when it can't make a precise fee estimate!
-# Thus, N should almost always be >= 2, unless you know what you're doing.
+# You can also set your own fee/kb: any number higher than 144 will
+# be interpreted as the fee in satoshi per kB that you wish to use
+# example: N=30000 will use 30000 sat/kB as a fee, while N=5
+# will use the estimate from your selected blockchain source
 tx_fees = 3
 # For users getting transaction fee estimates over an API
 # (currently blockcypher, could be others), place a sanity

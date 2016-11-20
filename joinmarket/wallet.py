@@ -25,7 +25,7 @@ def estimate_tx_fee(ins, outs, txtype='p2pkh'):
     '''
     tx_estimated_bytes = btc.estimate_tx_size(ins, outs, txtype)
     log.debug("Estimated transaction size: "+str(tx_estimated_bytes))
-    fee_per_kb = jm_single().bc_interface.estimate_fee_per_kb(
+    fee_per_kb = jm_single().bc_interface.get_fee(
         jm_single().config.getint("POLICY", "tx_fees"))
     absurd_fee = jm_single().config.getint("POLICY", "absurd_fee_per_kb")
     if fee_per_kb > absurd_fee:
