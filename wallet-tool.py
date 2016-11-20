@@ -471,6 +471,7 @@ elif method == 'history':
         now = jm_single().bc_interface.rpc('getblock', [bestblockhash])['time']
     print('     %s best block is %s' % (datetime.datetime.fromtimestamp(now)
         .strftime("%Y-%m-%d %H:%M"), bestblockhash))
+    print('total profit = ' + str(float(balance - sum(deposits)) / float(100000000)) + ' BTC')
     try:
         #https://gist.github.com/chris-belcher/647da261ce718fc8ca10
         import numpy as np
