@@ -273,7 +273,7 @@ def test_utxo_selection(setup_wallets, nw, wallet_structures, mean_amt,
                 #basic check:
                 #does this algo actually generate sufficient coins?
                 total_selected = sum([x['value'] for x in selected.values()])
-                assert total_selected > amount, "Selection algo: " + algo + \
+                assert total_selected > amount, "Selection algo: " + str(algo) + \
                        "failed to select sufficient coins, total: " + \
                        str(total_selected) + ", should be: " + str(amount)
 
