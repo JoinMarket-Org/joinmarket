@@ -270,14 +270,16 @@ elif method == 'dumpprivkey':
 elif method == 'listwallets':
     # Fetch list of wallets
     possible_wallets = []
-    for (dirpath, dirnames, filenames) in os.walk('wallets'):
+    dirname = os.path.split(os.path.abspath(__file__))
+    for (dirpath, dirnames, filenames) in os.walk(os.path.join(dirname[0], 'wallets')):
         possible_wallets.extend(filenames)
         # Breaking as we only want the top dir, not subdirs
         break
     # For each possible wallet file, read json to list
     walletjsons = []
     for possible_wallet in possible_wallets:
-        fd = open(os.path.join('wallets', possible_wallet), 'r')
+        dirname = os.path.split(os.path.abspath(__file__))
+        fd = open(os.path.join(dirname[0], 'wallets', possible_wallet), 'r')
         try:
             walletfile = fd.read()
             walletjson = json.loads(walletfile)

@@ -147,9 +147,10 @@ class Wallet(AbstractWallet):
             self.index.append([0, 0])
 
     def read_wallet_file_data(self, filename, pwd=None):
+        dirname = os.path.split(os.path.abspath(__file__))
         self.path = None
         self.index_cache = [[0, 0]] * self.max_mix_depth
-        path = os.path.join('wallets', filename)
+        path = os.path.join(dirname[0][:-11], 'wallets', filename)
         if not os.path.isfile(path):
             if get_network() == 'testnet':
                 log.debug('filename interpreted as seed, only available in '
