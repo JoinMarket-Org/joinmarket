@@ -141,7 +141,7 @@ def select_greedy(unspent, value):
             picked += [utxo]  # definitely need this utxo
             break  # proceed to dilution
         cursor += 1
-    for utxo in utxos[cursor - 1:-1:-1]:  # dilution loop
+    for utxo in utxos[max(cursor - 1,0)::-1]:  # dilution loop
         value += key(utxo)  # see if we can skip this one
         if value > 0:  # no, that drops us below the target
             picked += [utxo]  # so we need this one too
