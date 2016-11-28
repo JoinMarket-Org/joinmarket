@@ -122,15 +122,25 @@ else:
 
 if method == 'showutxos':
     unsp = {}
-    if options.showprivkey:
-        for u, av in wallet.unspent.iteritems():
-            addr = av['address']
-            key = wallet.get_key_from_addr(addr)
-            wifkey = btc.wif_compressed_privkey(key, vbyte=get_p2pk_vbyte())
-            unsp[u] = {'address': av['address'],
-                       'value': av['value'], 'privkey': wifkey}
-    else:
-        unsp = wallet.unspent
+    max_tries = jm_single().config.getint("POLICY", "taker_utxo_retries")
+    for mixdepth, utxos in wallet.get_utxos_by_mixdepth().iteritems():
+        for u, av in utxos.iteritems():
+            key = wallet.get_key_from_addr(av['address'])
+            tries = btc.podle.get_podle_tries(u, key, max_tries)
+            tries_remaining = max(0, max_tries - tries);
+
+            unsp[u] = {'mixdepth': mixdepth, 'address': av['address'], 'value': av['value'], 'tries': tries, 'tries_remaining': tries_remaining, 'external': False}
+
+            if options.showprivkey:
+                wifkey = btc.wif_compressed_privkey(key, vbyte=get_p2pk_vbyte())
+                unsp[u]['privkey'] = wifkey
+
+    used_commitments, external_commitments = btc.podle.get_podle_commitments()
+    for u, ec in external_commitments.iteritems():
+        tries = btc.podle.get_podle_tries(utxo=u, max_tries=max_tries, external=True)
+        tries_remaining = max(0, max_tries - tries);
+        unsp[u] = {'tries': tries, 'tries_remaining': tries_remaining, 'external': True}
+
     print(json.dumps(unsp, indent=4))
     sys.exit(0)
 
