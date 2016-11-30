@@ -6,6 +6,7 @@ import json
 import os
 import sys
 import sqlite3
+import json
 from optparse import OptionParser
 
 from joinmarket import load_program_config, get_network, Wallet, encryptData, \
@@ -140,6 +141,15 @@ if method == 'display' or method == 'displayall' or method == 'summary':
         if method != 'summary':
             print(s)
 
+    def json_obj_by_value(haystack, needle, value):
+        for item in haystack:
+            if item[needle] == value:
+                my_item = item
+                break
+        else:
+            my_item = None
+        return my_item
+
     total_balance = 0
     for m in range(wallet.max_mix_depth):
         cus_print('mixing depth %d m/0/%d/' % (m, m))
@@ -152,6 +162,7 @@ if method == 'display' or method == 'displayall' or method == 'summary':
             cus_print(' ' + ('external' if forchange == 0 else 'internal') +
                       ' addresses m/0/%d/%d' % (m, forchange) + ' ' + xpub_key)
 
+            addressinfo = jm_single().bc_interface.rpc('listreceivedbyaddress', [0, False, True])
             for k in range(wallet.index[m][forchange] + options.gaplimit):
                 addr = wallet.get_addr(m, forchange, k)
                 balance = 0.0
@@ -160,6 +171,11 @@ if method == 'display' or method == 'displayall' or method == 'summary':
                         balance += addrvalue['value']
                 balance_depth += balance
                 used = ('used' if k < wallet.index[m][forchange] else ' new')
+                addr_data = json_obj_by_value(addressinfo, 'address', addr)
+                if addr_data:
+                    confs = '{0} confs'.format(addr_data['confirmations'])
+                else:
+                    confs = '' #Leave empty since we don't want this showing for unused addresses
                 if options.showprivkey:
                     privkey = btc.wif_compressed_privkey(
                     wallet.get_key(m, forchange, k), get_p2pk_vbyte())
@@ -167,9 +183,9 @@ if method == 'display' or method == 'displayall' or method == 'summary':
                     privkey = ''
                 if (method == 'displayall' or balance > 0 or
                     (used == ' new' and forchange == 0)):
-                    cus_print('  m/0/%d/%d/%03d %-35s%s %.8f btc %s' %
+                    cus_print('  m/0/%d/%d/%03d %-35s%s %.8f btc %s %s' %
                               (m, forchange, k, addr, used, balance / 1e8,
-                               privkey))
+                               confs, privkey))
         if m in wallet.imported_privkeys:
             cus_print(' import addresses')
             for privkey in wallet.imported_privkeys[m]:
@@ -469,8 +485,8 @@ elif method == 'history':
             )['time']
     except JsonRpcError:
         now = jm_single().bc_interface.rpc('getblock', [bestblockhash])['time']
-    print('     %s best block is %s' % (datetime.datetime.fromtimestamp(now)
-        .strftime("%Y-%m-%d %H:%M"), bestblockhash))
+    print('     %s best block is %s' % (datetime.datetime.fromtimestamp(now).strftime("%Y-%m-%d %H:%M"), bestblockhash))
+    print('total profit = ' + str(float(balance - sum(deposits)) / float(100000000)) + ' BTC')
     try:
         #https://gist.github.com/chris-belcher/647da261ce718fc8ca10
         import numpy as np
