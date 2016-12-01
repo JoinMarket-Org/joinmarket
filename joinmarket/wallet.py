@@ -177,11 +177,16 @@ class Wallet(AbstractWallet):
                 self.index_cache += [[0,0]] * (
                     self.max_mix_depth - len(self.index_cache))
         decrypted = False
+        trieddefault = False
         while not decrypted:
-            if pwd:
-                password = pwd
+            if trieddefault:
+                password = ''
+                trieddefault = True
             else:
-                password = getpass('Enter wallet decryption passphrase: ')
+                if pwd:
+                    password = pwd
+                else:
+                    password = getpass('Enter wallet decryption passphrase: ')
             password_key = btc.bin_dbl_sha256(password)
             encrypted_seed = walletdata['encrypted_seed']
             try:
@@ -196,7 +201,8 @@ class Wallet(AbstractWallet):
                 else:
                     raise ValueError
             except ValueError:
-                print('Incorrect password')
+                if not trieddefault:
+                    print('Incorrect password')
                 if pwd:
                     raise
                 decrypted = False
