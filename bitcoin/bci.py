@@ -11,8 +11,10 @@ if platform.system() == "Windows":
 else:
     try:
         from urllib.request import build_opener
+        from urllib.error import URLError, HTTPError
     except:
         from urllib2 import build_opener
+        from urllib2 import URLError, HTTPError
 
 log = get_log()
 
@@ -26,14 +28,24 @@ def make_request(*args):
         opener = build_opener()
     opener.addheaders = [('User-agent',
                           'Mozilla/5.0 (Windows NT 6.1; rv:45.0) Gecko/20100101 Firefox/45.0')]
-    try:
-        return opener.open(*args).read().strip()
-    except Exception as e:
+    counter = 0
+    while True:
         try:
-            p = e.read().strip()
-        except:
-            p = e
-        raise Exception(p)
+            return opener.open(*args).read().strip()
+        except HTTPError as e:
+            raise Exception(e)
+        except URLError as e:
+            retry_secs = min(600, 2**counter / 2.)
+            log.error('error making request: ' + str(e) + ' (retry in ' + str(retry_secs) + ' seconds)')
+            time.sleep(retry_secs)
+            counter += 1
+            continue
+        except Exception as e:
+            try:
+                p = e.read().strip()
+            except:
+                p = e
+            raise Exception(p)
 
 def make_request_blockr(*args):
     counter = 0
