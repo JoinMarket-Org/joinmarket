@@ -146,7 +146,7 @@ def select_greedy(unspent, value):
         if value > 0:  # no, that drops us below the target
             picked += [utxo]  # so we need this one too
             value -= key(utxo)  # 'backtrack' the counter
-    if len(picked) > 0:
+    if len(picked) > 0 and sum(map(key,picked)) >= value:
         return picked
     raise Exception('Not enough funds')  # if all else fails, we do too
 
