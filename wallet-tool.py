@@ -195,7 +195,7 @@ elif method == 'display' or method == 'displayall' or method == 'summary':
         print('for mixdepth=%d balance=%.8fbtc' % (m, balance_depth / 1e8))
     print('total balance = %.8fbtc' % (total_balance / 1e8))
 
-if method == 'displayold':
+elif method == 'displayold':
 
     def cus_print(s):
         if method != 'summary':
