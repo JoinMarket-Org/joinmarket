@@ -162,7 +162,7 @@ elif method == 'display' or method == 'displayall' or method == 'summary':
                     if addr == addrvalue['address']:
                         balance += addrvalue['value']
                         addr = utxo
-                        confs = '{0} confs'.format(jm_single().bc_interface.get_block_height() - addrvalue['blockheight'])
+                        confs = '{0} confs'.format(jm_single().bc_interface.get_block_count() - addrvalue['blockheight'])
                 balance_depth += balance
                 used = (' used' if k < wallet.index[m][forchange] else 'new')
                 if options.showprivkey:

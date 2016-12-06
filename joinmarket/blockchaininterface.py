@@ -136,7 +136,7 @@ class BlockchainInterface(object):
 	'''
 
     @abc.abstractmethod
-    def get_block_height(self):
+    def get_block_count(self):
         """Returns the amount of blocks"""
 
 
@@ -221,7 +221,7 @@ class BlockrInterface(BlockchainInterface):
                     wallet.unspent[u['tx'] + ':' + str(u['n'])] = {
                         'address': dat['address'],
                         'value': int(u['amount'].replace('.', '')),
-                        'blockheight': self.get_block_height() - dat['confirmations']
+                        'blockheight': self.get_block_count() - dat['confirmations']
                     }
         for u in wallet.spent_utxos:
             wallet.unspent.pop(u, None)
@@ -419,7 +419,7 @@ class BlockrInterface(BlockchainInterface):
 
         return fee_per_kb
 
-    def get_block_height(self):
+    def get_block_count(self):
         blockr_base = 'https://' + self.blockr_domain + '.blockr.io/api/v1/'
         blockr_url = blockr_base + "block/info/last"
         return btc.make_request_blockr(blockr_url)['data']['nb']
@@ -833,7 +833,7 @@ class BitcoinCoreInterface(BlockchainInterface):
             wallet.unspent[u['txid'] + ':' + str(u['vout'])] = {
                 'address': u['address'],
                 'value': int(Decimal(str(u['amount'])) * Decimal('1e8')),
-                'blockheight': self.get_block_height() - u['confirmations']
+                'blockheight': self.get_block_count() - u['confirmations']
             }
         et = time.time()
         log.debug('bitcoind sync_unspent took ' + str((et - st)) + 'sec')
@@ -905,7 +905,7 @@ class BitcoinCoreInterface(BlockchainInterface):
         else:
             return estimate
 
-    def get_block_height(self):
+    def get_block_count(self):
         return self.rpc('getblockcount', [])
 
 
