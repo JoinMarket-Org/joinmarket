@@ -167,7 +167,7 @@ class PoDLE(object):
         one NUMS point as defined by the range in index_range
         """
         if not all([self.P, self.P2, self.s, self.e]):
-            raise PoDLE("Verify called without sufficient data")
+            raise PoDLEError("Verify called without sufficient data")
         if not self.get_commitment() == commitment:
             return False
         for J in [getNUMS(i) for i in index_range]:
