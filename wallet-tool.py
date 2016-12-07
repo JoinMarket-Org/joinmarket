@@ -6,6 +6,7 @@ import json
 import os
 import sys
 import sqlite3
+import json
 from optparse import OptionParser
 
 from joinmarket import load_program_config, get_network, Wallet, encryptData, \
@@ -18,6 +19,7 @@ description = (
     'Does useful little tasks involving your bip32 wallet. The '
     'method is one of the following: (display) Shows addresses and '
     'balances. (displayall) Shows ALL addresses and balances. '
+    '(displayold) Shows the wallet with addresses instead of UTXOs'
     '(summary) Shows a summary of mixing depth balances. (generate) '
     'Generates a new wallet. (recover) Recovers a wallet from the 12 '
     'word recovery seed. (showutxos) Shows all utxos in the wallet, '
@@ -86,7 +88,7 @@ if not options.maxmixdepth:
     options.maxmixdepth = 5
 
 noseed_methods = ['generate', 'recover', 'listwallets']
-methods = ['display', 'displayall', 'summary', 'showseed', 'importprivkey',
+methods = ['display', 'displayall', 'summary', 'displayold', 'showseed', 'importprivkey',
     'history', 'showutxos']
 methods.extend(noseed_methods)
 noscan_methods = ['showseed', 'importprivkey', 'dumpprivkey']
@@ -134,7 +136,66 @@ if method == 'showutxos':
     print(json.dumps(unsp, indent=4))
     sys.exit(0)
 
-if method == 'display' or method == 'displayall' or method == 'summary':
+elif method == 'display' or method == 'displayall' or method == 'summary':
+
+    def cus_print(s):
+        if method != 'summary':
+            print(s)
+
+    total_balance = 0
+    for m in range(wallet.max_mix_depth):
+        cus_print('mixing depth %d m/0/%d/' % (m, m))
+        balance_depth = 0
+        for forchange in [0, 1]:
+            if forchange == 0:
+                xpub_key = btc.bip32_privtopub(wallet.keys[m][forchange])
+            else:
+                xpub_key = ''
+            cus_print(' ' + ('external' if forchange == 0 else 'internal') +
+                      ' addresses m/0/%d/%d' % (m, forchange) + ' ' + xpub_key)
+
+            for k in range(wallet.index[m][forchange] + options.gaplimit):
+                addr = wallet.get_addr(m, forchange, k)
+                confs = ''
+                balance = 0.0
+                for utxo, addrvalue in wallet.unspent.iteritems():
+                    if addr == addrvalue['address']:
+                        balance += addrvalue['value']
+                        addr = utxo
+                        confs = '{0} confs'.format(jm_single().bc_interface.get_block_height() - addrvalue['blockheight'])
+                balance_depth += balance
+                used = (' used' if k < wallet.index[m][forchange] else 'new')
+                if options.showprivkey:
+                    privkey = btc.wif_compressed_privkey(
+                    wallet.get_key(m, forchange, k), get_p2pk_vbyte())
+                else:
+                    privkey = ''
+                if (method == 'displayall' or balance > 0 or
+                    (used == 'new' and forchange == 0)):
+                    cus_print('  m/0/%d/%d/%03d %-35s%s %.8f btc %s %s' %
+                              (m, forchange, k, addr, used, balance / 1e8, confs, privkey))
+        if m in wallet.imported_privkeys:
+            cus_print(' import addresses')
+            for privkey in wallet.imported_privkeys[m]:
+                addr = btc.privtoaddr(privkey, magicbyte=get_p2pk_vbyte())
+                balance = 0.0
+                for addrvalue in wallet.unspent.values():
+                    if addr == addrvalue['address']:
+                        balance += addrvalue['value']
+                used = (' used' if balance > 0.0 else 'empty')
+                balance_depth += balance
+                if options.showprivkey:
+                    wip_privkey = btc.wif_compressed_privkey(
+                    privkey, get_p2pk_vbyte())
+                else:
+                    wip_privkey = ''
+                cus_print(' ' * 13 + '%-35s%s %.8f btc %s' % (
+                    addr, used, balance / 1e8, wip_privkey))
+        total_balance += balance_depth
+        print('for mixdepth=%d balance=%.8fbtc' % (m, balance_depth / 1e8))
+    print('total balance = %.8fbtc' % (total_balance / 1e8))
+
+if method == 'displayold':
 
     def cus_print(s):
         if method != 'summary':
@@ -168,8 +229,7 @@ if method == 'display' or method == 'displayall' or method == 'summary':
                 if (method == 'displayall' or balance > 0 or
                     (used == ' new' and forchange == 0)):
                     cus_print('  m/0/%d/%d/%03d %-35s%s %.8f btc %s' %
-                              (m, forchange, k, addr, used, balance / 1e8,
-                               privkey))
+                              (m, forchange, k, addr, used, balance / 1e8, privkey))
         if m in wallet.imported_privkeys:
             cus_print(' import addresses')
             for privkey in wallet.imported_privkeys[m]:
@@ -469,8 +529,8 @@ elif method == 'history':
             )['time']
     except JsonRpcError:
         now = jm_single().bc_interface.rpc('getblock', [bestblockhash])['time']
-    print('     %s best block is %s' % (datetime.datetime.fromtimestamp(now)
-        .strftime("%Y-%m-%d %H:%M"), bestblockhash))
+    print('     %s best block is %s' % (datetime.datetime.fromtimestamp(now).strftime("%Y-%m-%d %H:%M"), bestblockhash))
+    print('total profit = ' + str(float(balance - sum(deposits)) / float(100000000)) + ' BTC')
     try:
         #https://gist.github.com/chris-belcher/647da261ce718fc8ca10
         import numpy as np

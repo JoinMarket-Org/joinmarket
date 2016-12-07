@@ -135,6 +135,10 @@ class BlockchainInterface(object):
         required for inclusion in the next N blocks.
 	'''
 
+    @abc.abstractmethod
+    def get_block_height(self):
+        """Returns the amount of blocks"""
+
 
 class BlockrInterface(BlockchainInterface):
     BLOCKR_MAX_ADDR_REQ_COUNT = 20
@@ -196,6 +200,9 @@ class BlockrInterface(BlockchainInterface):
             log.info('no tx used')
             return
         i = 0
+
+        blockr_base = 'https://' + self.blockr_domain + '.blockr.io/api/v1/'
+
         while i < len(addrs):
             inc = min(len(addrs) - i, self.BLOCKR_MAX_ADDR_REQ_COUNT)
             req = addrs[i:i + inc]
@@ -205,8 +212,7 @@ class BlockrInterface(BlockchainInterface):
             # unspent() doesnt tell you which address, you get a bunch of utxos
             # but dont know which privkey to sign with
 
-            blockr_url = 'https://' + self.blockr_domain + \
-                         '.blockr.io/api/v1/address/unspent/'
+            blockr_url = blockr_base + 'address/unspent/'
             data = btc.make_request_blockr(blockr_url + ','.join(req))['data']
             if 'unspent' in data:
                 data = [data]
@@ -214,7 +220,8 @@ class BlockrInterface(BlockchainInterface):
                 for u in dat['unspent']:
                     wallet.unspent[u['tx'] + ':' + str(u['n'])] = {
                         'address': dat['address'],
-                        'value': int(u['amount'].replace('.', ''))
+                        'value': int(u['amount'].replace('.', '')),
+                        'blockheight': self.get_block_height() - dat['confirmations']
                     }
         for u in wallet.spent_utxos:
             wallet.unspent.pop(u, None)
@@ -411,6 +418,11 @@ class BlockrInterface(BlockchainInterface):
             fee_per_kb = bcypher_data["low_fee_per_kb"]
 
         return fee_per_kb
+
+    def get_block_height(self):
+        blockr_base = 'https://' + self.blockr_domain + '.blockr.io/api/v1/'
+        blockr_url = blockr_base + "block/info/last"
+        return btc.make_request_blockr(blockr_url)['data']['nb']
 
 
 def bitcoincore_timeout_callback(uc_called, txout_set, txnotify_fun_list,
@@ -820,7 +832,8 @@ class BitcoinCoreInterface(BlockchainInterface):
                 continue
             wallet.unspent[u['txid'] + ':' + str(u['vout'])] = {
                 'address': u['address'],
-                'value': int(Decimal(str(u['amount'])) * Decimal('1e8'))
+                'value': int(Decimal(str(u['amount'])) * Decimal('1e8')),
+                'blockheight': self.get_block_height() - u['confirmations']
             }
         et = time.time()
         log.debug('bitcoind sync_unspent took ' + str((et - st)) + 'sec')
@@ -891,6 +904,9 @@ class BitcoinCoreInterface(BlockchainInterface):
             return 30000
         else:
             return estimate
+
+    def get_block_height(self):
+        return self.rpc('getblockcount', [])
 
 
 # class for regtest chain access
