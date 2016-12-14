@@ -231,9 +231,21 @@ elif method == 'generate' or method == 'recover':
                              'creation_time': timestamp,
                              'encrypted_seed': encrypted_seed.encode('hex'),
                              'network': get_network()})
-    walletname = raw_input('Input wallet file name (default: wallet.json): ')
+
+    default_walletname = 'wallet.json'
+    walletpath = os.path.join('wallets', default_walletname)
+    input_greeting = 'Input wallet file name (default: wallet.json): '
+    i = 1
+    while os.path.isfile(walletpath):
+        temp_walletname = default_walletname
+        default_walletname = 'wallet{0}.json'.format(i)
+        walletpath = os.path.join('wallets', default_walletname)
+        input_greeting = input_greeting.replace(temp_walletname, default_walletname)
+        i += 1
+
+    walletname = raw_input(input_greeting)
     if len(walletname) == 0:
-        walletname = 'wallet.json'
+        walletname = default_walletname
     walletpath = os.path.join('wallets', walletname)
     # Does a wallet with the same name exist?
     if os.path.isfile(walletpath):

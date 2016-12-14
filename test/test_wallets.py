@@ -244,6 +244,47 @@ def test_change_passphrase(setup_wallets, pwd, new_pwd, expected_output):
     p.close()
     testlog.close()
 
+def test_multiple_default_wallets(mainnet=True):
+    """ This creates three wallets in succession without naming them. creates
+    wallet.json, wallet1.json, wallet2.json etc.
+    """
+# Wasn't sure if it was a good idea to check and remove before starting,
+# probably not
+# I wouldn't want someone to run tests and then delete their wallets
+# unknowingly
+#   try:
+#       os.remove("wallets/wallet.json")
+#       os.remove("wallets/wallet.json")
+#       os.remove("wallets/wallet.json")
+#   except:
+#       pass
+
+    pwd = 'import-pwd'
+    test_in = [pwd, pwd, '']
+    expected = ['Enter wallet encryption passphrase:',
+                'Reenter wallet encryption passphrase:',
+                'Input wallet file name']
+    testlog = open('test/testlog-generate-multiple-default-wallets', 'wb')
+
+    test_in = [pwd, pwd, '']
+    p = pexpect.spawn('python wallet-tool.py generate', logfile=testlog)
+    interact(p, test_in, expected)
+    p.expect('saved to')
+    time.sleep(1)
+
+    p = pexpect.spawn('python wallet-tool.py generate', logfile=testlog)
+    interact(p, test_in, expected)
+    p.expect('saved to')
+    time.sleep(1)
+
+    p = pexpect.spawn('python wallet-tool.py generate', logfile=testlog)
+    interact(p, test_in, expected)
+    p.expect('saved to')
+    time.sleep(1)
+
+    p.close()
+    testlog.close()
+
 
 def setup_import(mainnet=True):
     try:
