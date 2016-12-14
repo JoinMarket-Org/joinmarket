@@ -15,25 +15,29 @@ from joinmarket import load_program_config, get_network, Wallet, encryptData, \
 import bitcoin as btc
 
 description = (
-    'Does useful little tasks involving your bip32 wallet. The '
-    'method is one of the following: (display) Shows addresses and '
-    'balances. (displayall) Shows ALL addresses and balances. '
-    '(summary) Shows a summary of mixing depth balances. (generate) '
-    'Generates a new wallet. (recover) Recovers a wallet from the 12 '
-    'word recovery seed. (changepassphrase) Change encyption password '
-    'for specified wallet (showutxos) Shows all utxos in the wallet, '
-    'including the corresponding private keys if -p is chosen; the '
-    'data is also written to a file "walletname.json.utxos" if the '
-    'option -u is chosen (so be careful about private keys). '
-    '(showseed) Shows the wallet recovery seed '
-    'and hex seed. (importprivkey) Adds privkeys to this wallet, '
-    'privkeys are spaces or commas separated. (dumpprivkey) Export '
-    'a single private key, specify an hd wallet path (listwallets) '
-    'Lists all wallets with creator and timestamp. (history) Show '
-    'all historical transaction details. Requires Bitcoin Core.')
+    'Does useful little tasks involving your bip32 wallet. The method is one of\n'
+    'the following:\n\n'
+    'display\t\t\tShows addresses and balances.\n'
+    'displayall\t\tShows ALL addresses and balances.\n'
+    'summary\t\t\tShows a summary of mixing depth balances.\n'
+    'generate\t\tGenerates a new wallet.\n'
+    'recover\t\t\tRecovers a wallet from the 12 word recovery seed.\n'
+    'changepassphrase\tChange encyption password for specified wallet.\n'
+    'showutxos\t\tShows all utxos in the wallet, including the\n'
+        '\t\t\tcorresponding private keys if -p is chosen; the data\n'
+        '\t\t\tis also written to a file "walletname.json.utxos" if\n'
+        '\t\t\tthe option -u is chosen (so be careful about private\n'
+        '\t\t\tkeys).\n'
+    'showseed\t\tShows the wallet recovery seed and hex seed.\n'
+    'importprivkey\t\tAdds privkeys to this wallet. Privkeys are spaces\n'
+        '\t\t\tor commas separated.\n'
+    'dumpprivkey\t\tExport a single private key, specify an hd wallet\n'
+        '\t\t\tpath.\n'
+    'listwallets\t\tLists all wallets with creator and timestamp.\n'
+    'history\t\t\tShow all historical transaction details. Requires\n'
+        '\t\t\tBitcoin Core.')
 
-parser = OptionParser(usage='usage: %prog [options] [wallet file] [method]',
-                      description=description)
+parser = OptionParser(usage='usage: %prog [options] [wallet file] [method]\n\n' + description)
 
 parser.add_option('-p',
                   '--privkey',
