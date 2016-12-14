@@ -25,7 +25,7 @@ def make_request(*args):
     else:
         opener = build_opener()
     opener.addheaders = [('User-agent',
-                          'Mozilla/5.0' + str(random.randrange(1000000)))]
+                          'Mozilla/5.0 (Windows NT 6.1; rv:45.0) Gecko/20100101 Firefox/45.0')]
     try:
         return opener.open(*args).read().strip()
     except Exception as e:
