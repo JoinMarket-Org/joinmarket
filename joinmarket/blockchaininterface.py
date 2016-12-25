@@ -135,6 +135,26 @@ class BlockchainInterface(object):
         required for inclusion in the next N blocks.
 	'''
 
+    def get_fee(self, N):
+        '''Get the fee the user wishes to use. This can either be a manually set
+        fee if the 'block' target is higher than 144 or an estimation by the
+        selected blockchaininterface, if available
+    '''
+        selected_fee = -1 # just to be safe
+
+        if N > 144:
+            selected_fee = N
+        else:
+            selected_fee = self.estimate_fee_per_kb(N)
+
+        # this can happen if e.g. Bitcoin Core has not enough data to estimate
+        if selected_fee < 0:
+            # TODO anything better than a hardcoded default?
+            log.warn('Got no good fee estimation from the blockchain source. Using 30sat/Kb as fallback.')
+            return 30000
+
+        return selected_fee
+
 
 class BlockrInterface(BlockchainInterface):
     BLOCKR_MAX_ADDR_REQ_COUNT = 20
@@ -885,12 +905,12 @@ class BitcoinCoreInterface(BlockchainInterface):
 
     def estimate_fee_per_kb(self, N):
         estimate = Decimal(1e8) * Decimal(self.rpc('estimatefee', [N]))
-        if estimate < 0:
-            #This occurs when Core has insufficient data to estimate.
-            #TODO anything better than a hardcoded default?
-            return 30000
-        else:
-            return estimate
+        if N==1 and estimate < 0:
+            #Special bitcoin core case: sometimes the highest priority
+            #cannot be estimated in that case the 2nd highest priority
+            #should be used instead of falling back to hardcoded values
+            estimate = Decimal(1e8) * Decimal(self.rpc('estimatefee', [N+1]))
+        return estimate
 
 
 # class for regtest chain access
