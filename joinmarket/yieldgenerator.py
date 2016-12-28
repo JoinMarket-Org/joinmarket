@@ -100,8 +100,8 @@ def ygmain(ygclass, txfee=1000, cjfee_a=200, cjfee_r=0.002, ordertype='reloffer'
                       dest='mixlevels', default=mix_levels,
                       help='number of mixdepths to use')
     parser.add_option('-g', '--gap-limit', action='store', type="int",
-                      dest='gaplimit', default=6,
-                      help='gap limit for wallet, default=6')
+                      dest='gaplimit', default=gaplimit,
+                      help='gap limit for wallet, default='+str(gaplimit))
     parser.add_option('--fast',
                       action='store_true',
                       dest='fastsync',
