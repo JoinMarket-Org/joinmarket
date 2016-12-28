@@ -38,13 +38,13 @@ class YieldGeneratorPrivEnhance(YieldGenerator):
         # We publish ONLY the maximum amount and use minsize for lower bound;
         # leave it to oid_to_order to figure out the right depth to use.
         f = '0'
-        if ordertype == 'reloffer':
+        if self.ordertype == 'reloffer':
             f = self.cjfee_r
             # minimum size bumped if necessary such that you always profit
             # least 50% of the miner fee
             self.minsize = max(
                 int(1.5 * self.txfee / float(self.cjfee_r)), self.minsize)
-        elif ordertype == 'absoffer':
+        elif self.ordertype == 'absoffer':
             f = str(self.txfee + self.cjfee_a)
         mix_balance = dict([(m, b) for m, b in mix_balance.iteritems()
                             if b > self.minsize])
