@@ -12,7 +12,7 @@ One group of participants (called market makers) will always be available to tak
 
 Widespread use of JoinMarket could improve bitcoin's fungibility as a commodity. The privacy aspect has many applications. For example, some users of bitcoin exchanges have a problem of being front-run. As all bitcoin transactions are public, when a seller sends a large amount of coins to an exchange it will be public knowledge and the price will move downwards accordingly.
 
-For a more in-depth view, head to [high level design notes](https://github.com/JoinMarket-Org/JoinMarket-Docs/blob/master/High-level-design.md).
+Go to [wiki](https://github.com/JoinMarket-Org/joinmarket/wiki) to get started, or for more in depth technical information, see [design doc](https://github.com/JoinMarket-Org/JoinMarket-Docs/blob/master/High-level-design.md).
 
 ##Installation
 
