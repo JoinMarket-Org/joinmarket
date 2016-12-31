@@ -62,7 +62,8 @@ The installation is slightly changed, with the secp256k1 python binding no longe
 ###DEBIAN / UBUNTU QUICK INSTALL FOR USERS:
 
 1. `sudo apt-get update -y && sudo apt-get upgrade -y && sudo apt-get install python-dev libsodium-dev python-pip -y`
-2. Download JoinMarket 0.2.2 source from the [releases page](https://github.com/joinmarket-org/joinmarket/releases/tag/v0.2.2) or [this direct link to v0.2.2](https://github.com/JoinMarket-Org/joinmarket/archive/v0.2.2.tar.gz)
+2. Download JoinMarket 0.2.2 source from the [releases page](https://github.com/joinmarket-org/joinmarket/releases/tag/v0.2.2) or [this direct link to v0.2.2](https://github.com/JoinMarket-Org/joinmarket/archive/v0.2.2.tar.gz):
+   `wget https://github.com/JoinMarket-Org/joinmarket/archive/v0.2.2.tar.gz -O joinmarket-0.2.2.tar.gz`
 3. Extract with `tar xzf joinmarket-0.2.2.tar.gz` and then `cd joinmarket-0.2.2`
 4. `sudo pip install -r requirements.txt`
 5. Generating your first wallet (`python wallet-tool.py generate`) will populate the configuration file: `joinmarket.cfg`.
@@ -75,7 +76,7 @@ Tested up to TAILS version 2.6, but future versions likely will work as well.
 2. `sudo apt-get update -y`
 3. `sudo apt-get install build-essential automake libtool pkg-config libffi-dev python-dev python libsodium-dev python-pip -y`
 4. Download JoinMarket 0.2.2 source from the [releases page](https://github.com/joinmarket-org/joinmarket/releases/tag/v0.2.2) or [this direct link to v0.2.2](https://github.com/JoinMarket-Org/joinmarket/archive/v0.2.2.tar.gz):
-   `wget https://github.com/JoinMarket-Org/joinmarket/archive/v0.2.2.tar.gz`
+   `wget https://github.com/JoinMarket-Org/joinmarket/archive/v0.2.2.tar.gz -O joinmarket-0.2.2.tar.gz`
 5. Extract with `tar xzf joinmarket-0.2.2.tar.gz` and then `cd joinmarket-0.2.2`
 6. `sudo torsocks pip install -r requirements.txt`
 7. `sudo chmod -R ugo+rX /usr/local/lib/python2.7/dist-packages/`
