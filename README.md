@@ -44,6 +44,11 @@ The installation is slightly changed, with the secp256k1 python binding no longe
 
     (Recommended but not needed) : use `virtualenv` to keep dependencies isolated.
 
+    Set `virtualenv` to use python 2.7:
+    
+    ```
+    virtualenv -p /usr/bin/python2.7 venv
+    ```
     If on Linux/OSX:
 
     The Python binding to libsecp256k1 will most likely have some dependencies; read the [Wiki article](https://github.com/JoinMarket-Org/joinmarket/wiki/Installing-the-libsecp256k1-binding).
