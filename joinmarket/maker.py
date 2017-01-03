@@ -68,16 +68,18 @@ class CoinJoinOrder(object):
             log.debug('maker utxos = ' + pprint.pformat(self.utxos))
             utxos = self.utxos.keys()
             return (utxos, jm_single().bc_interface.query_utxo_set(utxos))
-        utxo_list, utxo_data = populate_utxo_data()
-        while None in utxo_data:
+
+        for i in xrange(10): ##only loop 10 times, not an infinite amount
+            utxo_list, utxo_data = populate_utxo_data()
+            if None not in utxo_data:
+                break
             log.debug('wrongly selected stale utxos! utxo_data = ' +
                       pprint.pformat(utxo_data))
-            self.maker.wallet_unspent_lock.acquire()
-            try:
+            with self.maker.wallet_unspent_lock:
                 jm_single().bc_interface.sync_unspent(self.maker.wallet)
-            finally:
-                self.maker.wallet_unspent_lock.release()
-            utxo_list, utxo_data = populate_utxo_data()
+        if None in utxo_data:
+            log.error('unable to select non-stale utxo, weird error! quitting')
+            sys.exit(0)
 
         for utxo, data in zip(utxo_list, utxo_data):
             if self.utxos[utxo]['value'] != data['value']:
