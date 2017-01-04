@@ -16,6 +16,8 @@ from joinmarket import get_irc_mchannels
 
 log = get_log()
 
+MAX_MIX_DEPTH = 5
+
 # is a maker for the purposes of generating a yield from held
 # bitcoins
 class YieldGenerator(Maker):
@@ -77,7 +79,7 @@ class YieldGenerator(Maker):
 
 
 def ygmain(ygclass, txfee=1000, cjfee_a=200, cjfee_r=0.002, ordertype='reloffer',
-           nickserv_password='', minsize=100000, mix_levels=5, gaplimit=6):
+           nickserv_password='', minsize=100000, gaplimit=6):
     import sys
 
     parser = OptionParser(usage='usage: %prog [options] [wallet file]')
@@ -96,9 +98,6 @@ def ygmain(ygclass, txfee=1000, cjfee_a=200, cjfee_r=0.002, ordertype='reloffer'
     parser.add_option('-s', '--minsize', action='store', type='int',
                       dest='minsize', default=minsize,
                       help='minimum coinjoin size in satoshis')
-    parser.add_option('-m', '--mixlevels', action='store', type='int',
-                      dest='mixlevels', default=mix_levels,
-                      help='number of mixdepths to use')
     parser.add_option('-g', '--gap-limit', action='store', type="int",
                       dest='gaplimit', default=gaplimit,
                       help='gap limit for wallet, default='+str(gaplimit))
@@ -130,7 +129,6 @@ def ygmain(ygclass, txfee=1000, cjfee_a=200, cjfee_r=0.002, ordertype='reloffer'
                      'can be either reloffer or absoffer')
         sys.exit(0)
     nickserv_password = options.password
-    mix_levels = options.mixlevels
 
     load_program_config()
     if isinstance(jm_single().bc_interface, BlockrInterface):
@@ -147,7 +145,7 @@ def ygmain(ygclass, txfee=1000, cjfee_a=200, cjfee_r=0.002, ordertype='reloffer'
         if ret[0] != 'y':
             return
 
-    wallet = Wallet(seed, max_mix_depth=mix_levels, gaplimit=gaplimit)
+    wallet = Wallet(seed, max_mix_depth=MAX_MIX_DEPTH, gaplimit=gaplimit)
     sync_wallet(wallet, fast=options.fastsync)
 
     mcs = [IRCMessageChannel(c, realname='btcint=' + jm_single().config.get(
@@ -156,7 +154,7 @@ def ygmain(ygclass, txfee=1000, cjfee_a=200, cjfee_r=0.002, ordertype='reloffer'
     mcc = MessageChannelCollection(mcs)
     log.info('starting yield generator')
     maker = ygclass(mcc, wallet, [options.txfee, cjfee_a, cjfee_r,
-                                  options.ordertype, options.minsize, mix_levels])
+                                  options.ordertype, options.minsize])
     try:
         log.info('connecting to message channels')
         mcc.run()

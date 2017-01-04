@@ -11,10 +11,9 @@ from joinmarket import YieldGenerator, ygmain
 txfee = 1000
 cjfee_a = 200
 cjfee_r = '0.0002'
-ordertype = 'reloffer'
+ordertype = 'reloffer' #'reloffer' or 'absoffer'
 nickserv_password = ''
-minsize = 100000
-mix_levels = 5
+max_minsize = 100000
 gaplimit = 6
 
 
@@ -30,7 +29,7 @@ class YieldGeneratorPrivEnhance(YieldGenerator):
 
     def __init__(self, msgchan, wallet, offerconfig):
         self.txfee, self.cjfee_a, self.cjfee_r, self.ordertype, self.minsize, \
-            self.mix_levels = offerconfig
+             = offerconfig
         super(YieldGeneratorPrivEnhance, self).__init__(msgchan, wallet)
 
     def create_my_orders(self):
@@ -43,14 +42,15 @@ class YieldGeneratorPrivEnhance(YieldGenerator):
             # minimum size bumped if necessary such that you always profit
             # least 50% of the miner fee
             self.minsize = max(
-                int(1.5 * self.txfee / float(self.cjfee_r)), self.minsize)
+                int(1.5 * self.txfee / float(self.cjfee_r)), max_minsize)
         elif self.ordertype == 'absoffer':
             f = str(self.txfee + self.cjfee_a)
         mix_balance = dict([(m, b) for m, b in mix_balance.iteritems()
                             if b > self.minsize])
         if len(mix_balance) == 0:
-            log.error('You do not have any coins left. Cannot be an active '
-                      'maker with no funds.')
+            log.error('You do not have a balance above minsize of '
+                + str(self.minsize) + ' satoshi. Cannot be an active maker with'
+                + ' no funds.')
             return []
         max_mix = max(mix_balance, key=mix_balance.get)
         order = {'oid': 0,
@@ -177,5 +177,5 @@ if __name__ == "__main__":
     ygmain(YieldGeneratorPrivEnhance, txfee=txfee,
            cjfee_a=cjfee_a, cjfee_r=cjfee_r,
            ordertype=ordertype, nickserv_password=nickserv_password,
-           minsize=minsize, mix_levels=mix_levels, gaplimit=gaplimit)
+           minsize=max_minsize, gaplimit=gaplimit)
     print('done')
