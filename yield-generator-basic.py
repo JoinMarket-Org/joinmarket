@@ -14,10 +14,9 @@ from joinmarket import get_irc_mchannels
 txfee = 1000
 cjfee_a = 200
 cjfee_r = '0.0002'
-ordertype = 'reloffer'
+ordertype = 'reloffer' #'reloffer' or 'absoffer'
 nickserv_password = ''
-minsize = 100000
-mix_levels = 5
+max_minsize = 100000
 gaplimit = 6
 
 log = get_log()
@@ -31,7 +30,7 @@ class YieldGeneratorBasic(YieldGenerator):
 
     def __init__(self, msgchan, wallet, offerconfig):
         self.txfee, self.cjfee_a, self.cjfee_r, self.ordertype, self.minsize, \
-                    self.mix_levels = offerconfig
+             = offerconfig
         super(YieldGeneratorBasic,self).__init__(msgchan, wallet)
 
     def create_my_orders(self):
@@ -47,7 +46,8 @@ class YieldGeneratorBasic(YieldGenerator):
             f = self.cjfee_r
             #minimum size bumped if necessary such that you always profit
             #least 50% of the miner fee
-            self.minsize = max(int(1.5 * self.txfee / float(self.cjfee_r)), self.minsize)
+            self.minsize = max(int(1.5 * self.txfee / float(self.cjfee_r)),
+                max_minsize)
         elif self.ordertype == 'absoffer':
             f = str(self.txfee + self.cjfee_a)
         order = {'oid': 0,
@@ -134,5 +134,5 @@ if __name__ == "__main__":
     ygmain(YieldGeneratorBasic, txfee=txfee, cjfee_a=cjfee_a,
            cjfee_r=cjfee_r, ordertype=ordertype,
            nickserv_password=nickserv_password,
-           minsize=minsize, mix_levels=mix_levels, gaplimit=gaplimit)
+           minsize=max_minsize, gaplimit=gaplimit)
     print('done')
