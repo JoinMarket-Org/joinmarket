@@ -179,7 +179,7 @@ class Wallet(AbstractWallet):
         decrypted = False
         trieddefault = False
         while not decrypted:
-            if trieddefault:
+            if not trieddefault:
                 password = ''
                 trieddefault = True
             else:
