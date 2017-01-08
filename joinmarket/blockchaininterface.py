@@ -135,6 +135,10 @@ class BlockchainInterface(object):
         required for inclusion in the next N blocks.
 	'''
 
+    @abc.abstractmethod
+    def get_lasts_txs_info(self, wallet):
+        """returns information about the addresses"""
+
     def get_fee(self, N):
         '''Get the fee the user wishes to use. This can either be a manually set
         fee if the 'block' target is higher than 144 or an estimation by the
@@ -432,6 +436,9 @@ class BlockrInterface(BlockchainInterface):
 
         return fee_per_kb
 
+    def get_lasts_txs_info(self, wallet):
+        """Not implemented"""
+        raise NotImplementedError
 
 def bitcoincore_timeout_callback(uc_called, txout_set, txnotify_fun_list,
                                  timeoutfun):
@@ -912,6 +919,26 @@ class BitcoinCoreInterface(BlockchainInterface):
             estimate = Decimal(1e8) * Decimal(self.rpc('estimatefee', [N+1]))
         return estimate
 
+    def get_lasts_txs_info(self, wallet):
+        """
+        returns timestamps for the last tx of every not empty address.
+        """
+
+        info = {}
+        for utxo, addrvalue in wallet.unspent.iteritems():
+            # txid:nvalue, {'address', 'value'}
+            txid = utxo.split(':')[0]
+            addr = addrvalue['address']
+
+            tx = self.rpc('gettransaction', [txid])
+            if 'time' in tx:
+                info[addr] = dict(time=tx['time'], used=True)
+
+        agd = self.rpc('listaddressgroupings', [])
+        for used in agd:
+            info[used[0][0]] = info.get(used[0][0], dict(used=True))
+
+        return info
 
 # class for regtest chain access
 # running on local daemon. Only

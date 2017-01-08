@@ -5,6 +5,7 @@ import getpass
 import json
 import os
 import sys
+import time
 import sqlite3
 from optparse import OptionParser
 
@@ -151,6 +152,13 @@ if method == 'showutxos':
 
 if method == 'display' or method == 'displayall' or method == 'summary':
 
+    try:
+        addrs_info = jm_single().bc_interface.get_lasts_txs_info(wallet)
+        used_addrs = set(addrs_info.keys())
+    except NotImplementedError:
+        addrs_info = {}
+        used_addrs = []
+
     def cus_print(s):
         if method != 'summary':
             print(s)
@@ -174,17 +182,31 @@ if method == 'display' or method == 'displayall' or method == 'summary':
                     if addr == addrvalue['address']:
                         balance += addrvalue['value']
                 balance_depth += balance
-                used = ('used' if k < wallet.index[m][forchange] else ' new')
+
+                if k < wallet.index[m][forchange]:
+                    if used_addrs and addr not in used_addrs:
+                        used = 'exposed'
+                    else:
+                        used = 'used'
+                else:
+                    used = ' new'
+
+                if addr in used_addrs and 'time' in addrs_info[addr]:
+                    t = time.localtime(addrs_info[addr]['time'])
+                    ts = time.strftime(' %d %b %y %H:%M', t)
+                else:
+                    ts = ''
+
                 if options.showprivkey:
-                    privkey = btc.wif_compressed_privkey(
+                    privkey = ' ' + btc.wif_compressed_privkey(
                     wallet.get_key(m, forchange, k), get_p2pk_vbyte())
                 else:
                     privkey = ''
                 if (method == 'displayall' or balance > 0 or
                     (used == ' new' and forchange == 0)):
-                    cus_print('  m/0/%d/%d/%03d %-35s%s %.8f btc %s' %
+                    cus_print('  m/0/%d/%d/%03d %-35s%s %.8f btc%s%s' %
                               (m, forchange, k, addr, used, balance / 1e8,
-                               privkey))
+                               privkey, ts))
         if m in wallet.imported_privkeys:
             cus_print(' import addresses')
             for privkey in wallet.imported_privkeys[m]:
