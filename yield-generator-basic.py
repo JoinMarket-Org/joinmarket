@@ -16,7 +16,7 @@ cjfee_a = 200
 cjfee_r = '0.0002'
 ordertype = 'reloffer' #'reloffer' or 'absoffer'
 nickserv_password = ''
-max_minsize = 100000
+min_minsize = 100000
 gaplimit = 6
 
 log = get_log()
@@ -47,7 +47,7 @@ class YieldGeneratorBasic(YieldGenerator):
             #minimum size bumped if necessary such that you always profit
             #least 50% of the miner fee
             self.minsize = max(int(1.5 * self.txfee / float(self.cjfee_r)),
-                max_minsize)
+                min_minsize)
         elif self.ordertype == 'absoffer':
             f = str(self.txfee + self.cjfee_a)
         order = {'oid': 0,
@@ -134,5 +134,5 @@ if __name__ == "__main__":
     ygmain(YieldGeneratorBasic, txfee=txfee, cjfee_a=cjfee_a,
            cjfee_r=cjfee_r, ordertype=ordertype,
            nickserv_password=nickserv_password,
-           minsize=max_minsize, gaplimit=gaplimit)
+           minsize=min_minsize, gaplimit=gaplimit)
     print('done')
