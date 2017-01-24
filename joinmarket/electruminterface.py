@@ -247,7 +247,9 @@ class ElectrumInterface(BlockchainInterface):
         log.debug(brcst_status)
         return (False, None)
 
-    def query_utxo_set(self, txout):
+    def query_utxo_set(self, txout, includeconf=False):
+        self.current_height = self.get_from_electrum(
+            "blockchain.numblocks.subscribe")['result']
         if not isinstance(txout, list):
             txout = [txout]
         utxos = [[t[:64],int(t[65:])] for t in txout]
@@ -266,6 +268,14 @@ class ElectrumInterface(BlockchainInterface):
                 'address': address,
                 'script': btc.address_to_script(address)
             }
+            if includeconf:
+                if int(utxo['height']) in [0, -1]:
+                    #-1 means unconfirmed inputs
+                    r['confirms'] = 0
+                else:
+                    #+1 because if current height = tx height, that's 1 conf
+                    r['confirms'] = int(self.current_height) - int(
+                        utxo['height']) + 1
             result.append(r)
         return result
 
