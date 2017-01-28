@@ -84,7 +84,7 @@ required_options = {'BLOCKCHAIN': ['blockchain_source', 'network'],
 defaultconfig = \
     """
 [BLOCKCHAIN]
-blockchain_source = blockr
+blockchain_source = electrum
 #options: blockr, bitcoin-rpc, regtest, bc.i, electrum
 # for instructions on bitcoin-rpc read
 # https://github.com/chris-belcher/joinmarket/wiki/Running-JoinMarket-with-Bitcoin-Core-full-node
