@@ -8,13 +8,22 @@ from joinmarket import jm_single
 from joinmarket import get_log, calc_cj_fee
 from joinmarket import YieldGenerator, ygmain
 
-txfee = 1000
-cjfee_a = 200
-cjfee_r = '0.0002'
-ordertype = 'reloffer' #'reloffer' or 'absoffer'
-nickserv_password = ''
-max_minsize = 100000
-gaplimit = 6
+### Configure the yield generator here
+
+# absolute offer fee you wish to receive for coinjoins (cj)
+cjfee_a = 5000          # [satoshis, any integer]
+# coinjoin fee you wish to receive based on a cj's amount, '0.0002' = 0.02%
+cjfee_r = '0.0002'      # [percent, any str between 0-1]
+# which fee type to actually use
+ordertype = 'reloffer'  # [string, 'reloffer' or 'absoffer']
+# the absolute transaction fee you're adding to coinjoin transactions
+txfee = 1000            # [satoshis, any integer]
+# minimum size of your cj offer. Lower cj amounts will be disregarded
+min_minsize = 500000    # [satoshis, any integer]
+# Increase the next value if the balance of your wallet is shown wrong
+gaplimit = 6            # [integer]
+
+### End of yield generator configuration
 
 
 log = get_log()
@@ -42,7 +51,7 @@ class YieldGeneratorPrivEnhance(YieldGenerator):
             # minimum size bumped if necessary such that you always profit
             # least 50% of the miner fee
             self.minsize = max(
-                int(1.5 * self.txfee / float(self.cjfee_r)), max_minsize)
+                int(1.5 * self.txfee / float(self.cjfee_r)), min_minsize)
         elif self.ordertype == 'absoffer':
             f = str(self.txfee + self.cjfee_a)
         mix_balance = dict([(m, b) for m, b in mix_balance.iteritems()
@@ -176,6 +185,6 @@ class YieldGeneratorPrivEnhance(YieldGenerator):
 if __name__ == "__main__":
     ygmain(YieldGeneratorPrivEnhance, txfee=txfee,
            cjfee_a=cjfee_a, cjfee_r=cjfee_r,
-           ordertype=ordertype, nickserv_password=nickserv_password,
-           minsize=max_minsize, gaplimit=gaplimit)
+           ordertype=ordertype, nickserv_password='',
+           minsize=min_minsize, gaplimit=gaplimit)
     print('done')
