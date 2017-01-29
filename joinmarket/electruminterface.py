@@ -243,9 +243,9 @@ class ElectrumInterface(BlockchainInterface):
         brcst_res = self.get_from_electrum('blockchain.transaction.broadcast', txhex)
         brcst_status = brcst_res['result']
         if isinstance(brcst_status, str) and len(brcst_status) == 64:
-            return (True, brcst_status)
+            return brcst_status
         log.debug(brcst_status)
-        return (False, None)
+        return False
 
     def query_utxo_set(self, txout, includeconf=False):
         self.current_height = self.get_from_electrum(
