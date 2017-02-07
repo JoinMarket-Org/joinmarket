@@ -1025,7 +1025,7 @@ class BitcoinCoreInterface(BlockchainInterface):
         wallet_name = self.get_wallet_name(wallet)
         #TODO It is worth considering making this user configurable:
         addr_req_count = 20
-        wallet_addr_list = []
+        wallet_addr_set = set()
         for mix_depth in range(wallet.max_mix_depth):
             for forchange in [0, 1]:
                 #If we have an index-cache available, we can use it
@@ -1050,8 +1050,8 @@ class BitcoinCoreInterface(BlockchainInterface):
                     #rescans; perhaps user should set addr_req_count high
                     #(see above TODO)
                     req_count = addr_req_count
-                wallet_addr_list += [wallet.get_new_addr(mix_depth, forchange)
-                                     for _ in range(req_count)]
+                wallet_addr_set.update(wallet.get_new_addr(mix_depth, forchange)
+                                       for _ in range(req_count))
                 #Indices are reset here so that the next algorithm step starts
                 #from the beginning of each branch
                 wallet.index[mix_depth][forchange] = 0
@@ -1061,10 +1061,11 @@ class BitcoinCoreInterface(BlockchainInterface):
             for privkey in privkey_list:
                 imported_addr = btc.privtoaddr(privkey,
                                                magicbyte=get_p2pk_vbyte())
-                wallet_addr_list.append(imported_addr)
-        imported_addr_list = self.rpc('getaddressesbyaccount', [wallet_name])
-        if not set(wallet_addr_list).issubset(set(imported_addr_list)):
-            self.add_watchonly_addresses(wallet_addr_list, wallet_name)
+                wallet_addr_set.add(imported_addr)
+        imported_addr_set = set(self.rpc('getaddressesbyaccount', [wallet_name]))
+        if not wallet_addr_set.issubset(imported_addr_set):
+            self.add_watchonly_addresses(wallet_addr_set - imported_addr_set,
+					  wallet_name)
             return
 
         buf = self.rpc('listtransactions', [wallet_name, 1000, 0, True])
@@ -1098,7 +1099,7 @@ class BitcoinCoreInterface(BlockchainInterface):
                         for _ in range(addr_req_count)
                     ]
                     for mc_addr in mix_change_addrs:
-                        if mc_addr not in imported_addr_list:
+                        if mc_addr not in imported_addr_set:
                             too_few_addr_mix_change.append((mix_depth, forchange
                                                            ))
                             breakloop = True
