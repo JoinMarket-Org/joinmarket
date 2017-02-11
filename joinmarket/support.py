@@ -249,6 +249,7 @@ def pick_order(orders, n):
 def choose_orders(db, cj_amount, n, chooseOrdersBy, ignored_makers=None):
     if ignored_makers is None:
         ignored_makers = []
+    remove_invalid_makers_from_db(db)
     sqlorders = db.execute(
         'SELECT * FROM orderbook WHERE minsize <= :cja AND :cja <= maxsize;',
         {'cja': cj_amount}).fetchall()
@@ -379,6 +380,44 @@ def choose_sweep_orders(db,
     result = dict([(o['counterparty'], o) for o in chosen_orders])
     log.info('cj amount = ' + str(cj_amount))
     return result, cj_amount, total_fee
+
+
+def remove_invalid_makers_from_db(db):
+    # checks if the combination of offers from a makers is valid
+    # note that individual offers have already been checked
+    # for validity before they were entered into the DB
+    crows = db.execute(
+        'SELECT DISTINCT counterparty FROM orderbook WHERE oid > 1;').fetchall()
+
+    for row in crows:
+        nick = row["counterparty"]
+        if maker_offers_are_invalid(db, nick):
+            db.execute('DELETE FROM orderbook WHERE counterparty=?;', (nick,))
+            log.info('The following maker had malformed offers and was removed: ' + nick)
+
+
+def maker_offers_are_invalid(db, makernick):
+    # checks for overlapping offer ranges
+
+    this_maker_offers = db.execute(
+        'SELECT minsize, maxsize FROM orderbook WHERE counterparty=?;', (makernick,)).fetchall()
+
+    cur_lowest_min = this_maker_offers[0]['minsize']
+    cur_highest_max = this_maker_offers[0]['maxsize']
+    cur_combined_range = 0
+
+    for offer in this_maker_offers:
+        if offer['minsize'] < cur_lowest_min:
+            cur_lowest_min = offer['minsize']
+        if offer['maxsize'] > cur_highest_max:
+            cur_highest_max = offer['maxsize']
+        cur_combined_range += offer['maxsize'] - offer['minsize']
+        if cur_combined_range > cur_highest_max - cur_lowest_min:
+            # there must be overlapping offer ranges
+            log.info('This maker has overlapping offer ranges: ' + makernick)
+            return True
+
+    return False
 
 
 def debug_dump_object(obj, skip_fields=None):
