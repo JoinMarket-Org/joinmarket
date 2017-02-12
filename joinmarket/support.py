@@ -381,6 +381,17 @@ def choose_sweep_orders(db,
     return result, cj_amount, total_fee
 
 
+def remove_makers_with_too_many_offers(db, number_allowed_offers):
+    # removes makers with more than the number of allowed offers
+    crows = db.execute(
+        'SELECT DISTINCT counterparty FROM orderbook WHERE oid >= ?;', (int(number_allowed_offers),)).fetchall()
+
+    for row in crows:
+        nick = row["counterparty"]
+        db.execute('DELETE FROM orderbook WHERE counterparty=?;', (nick,))
+        log.debug('The following maker had too many offers and was removed: ' + nick)
+
+
 def debug_dump_object(obj, skip_fields=None):
     if skip_fields is None:
         skip_fields = []
