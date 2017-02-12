@@ -319,6 +319,7 @@ def choose_sweep_orders(db,
 
     if ignored_makers is None:
         ignored_makers = []
+    remove_invalid_makers_from_db(db)
 
     def calc_zero_change_cj_amount(ordercombo):
         sumabsfee = 0
