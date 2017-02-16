@@ -385,12 +385,16 @@ def debug_dump_object(obj, skip_fields=None):
     if skip_fields is None:
         skip_fields = []
     log.debug('Class debug dump, name:' + obj.__class__.__name__)
-    for k, v in obj.__dict__.iteritems():
+    if type(obj) is dict:
+        iteritems = obj.iteritems()
+    else:
+        iteritems = obj.__dict__.iteritems()
+    for k, v in iteritems:
         if k in skip_fields:
             continue
         if k == 'password' or k == 'given_password':
             continue
-        log.debug('key=' + k)
+        log.debug('key=' + str(k))
         if isinstance(v, str):
             log.debug('string: len:' + str(len(v)))
             log.debug(v)

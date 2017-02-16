@@ -3,6 +3,10 @@ from __future__ import absolute_import, print_function
 import copy
 import sys
 import threading
+import os
+import json
+import bitcoin as btc
+import re
 
 # data_dir = os.path.dirname(os.path.realpath(__file__))
 # sys.path.insert(0, os.path.join(data_dir, 'joinmarket'))
@@ -19,9 +23,72 @@ from joinmarket import get_log, rand_norm_array, rand_pow_array, \
     debug_dump_object, get_irc_mchannels
 from joinmarket import Wallet
 from joinmarket.wallet import estimate_tx_fee
+script_dir = os.path.dirname(__file__)
 
 log = get_log()
 
+def save_session_to_file (tumbler,wallet_file,destaddrs,filename):
+    if not os.path.exists(os.path.dirname(filename)):
+        try:
+            os.makedirs(os.path.dirname(filename))
+        except OSError as exc:
+            if exc.errno != errno.EEXIST:
+                raise
+    f = open(filename,"w")
+    f.write('{"options": ')
+    f.write(json.dumps(tumbler.options)+',\n')
+    f.write('"wallet": "'+wallet_file+'",\n')
+    f.write('"destaddrs": ')
+    f.write(json.dumps(destaddrs)+',\n')
+    f.write('"balance_by_mixdepth": {},\n')
+    f.write('"tx_list": ')
+    f.write(json.dumps(tumbler.tx_list)+',\n')
+    f.write('"pushed_tx": "",\n')
+    f.write('"pushed_destaddr": "",\n')
+    f.write('"next_tx": 0}\n')
+    f.close()
+
+def update_session_balance_by_mixdepth (sessionname,balance_by_mixdepth):
+    sessionfilename = os.path.join(script_dir,'sessions/'+sessionname)
+    if os.path.isfile(sessionfilename):
+        with open(sessionfilename, "r") as sources:
+            lines = sources.readlines()
+            with open(sessionfilename,"w") as sources:
+                for line in lines:
+                    if re.match(r'^["]balance_by_mixdepth["][:][ ].*[,]$',line):
+                        sources.write(re.sub(r'^["]balance_by_mixdepth["][:][ ].*[,]$','"balance_by_mixdepth": '+json.dumps(balance_by_mixdepth)+',',line))
+                    else:
+                        sources.write(line)
+    
+def update_session_tx_confirmed (sessionname,i_tx):
+    sessionfilename = os.path.join(script_dir,'sessions/'+sessionname)
+    if os.path.isfile(sessionfilename):
+        with open(sessionfilename, "r") as sources:
+            lines = sources.readlines()
+            with open(sessionfilename, "w") as sources:
+                for line in lines:
+                    if re.match(r'^["]next_tx["][:][ ][0-9]',line):
+                        sources.write(re.sub(r'^["]next_tx["][:][ ][0-9]', '"next_tx": '+str(i_tx+1),line))
+                    elif re.match(r'^["]pushed_tx["][:][ ].*[,]$',line):
+                        sources.write(re.sub(r'^["]pushed_tx["][:][ ].*[,]$', '"pushed_tx": "",',line))
+                    elif re.match(r'^["]pushed_destaddr["][:][ ].*$',line):
+                        sources.write(re.sub(r'^["]pushed_destaddr["][:][ ].*[,]$', '"pushed_destaddr": "",',line))
+                    else:
+                        sources.write(line)
+
+def update_session_tx_pushed (sessionname,tx,destaddr):
+    sessionfilename = os.path.join(script_dir,'sessions/'+sessionname)
+    if os.path.isfile(sessionfilename):
+        with open(sessionfilename, "r") as sources:
+            lines = sources.readlines()
+            with open(sessionfilename, "w") as sources:
+                for line in lines:
+                    if re.match(r'^["]pushed_tx["][:][ ].*[,]$',line):
+                        sources.write(re.sub(r'^["]pushed_tx["][:][ ].*[,]$', '"pushed_tx": '+json.dumps(tx)+',',line,1))
+                    elif re.match(r'^["]pushed_destaddr["][:][ ].*$',line):
+                        sources.write(re.sub(r'^["]pushed_destaddr["][:][ ].*[,]$', '"pushed_destaddr": "'+str(destaddr)+'",',line,1))
+                    else:
+                        sources.write(line)
 
 def lower_bounded_int(thelist, lowerbound):
     return [int(l) if int(l) >= lowerbound else lowerbound for l in thelist]
@@ -95,6 +162,32 @@ def generate_tumbler_tx(destaddrs, options):
             [tx_list.remove(t) for t in tx_list_remove]
     return tx_list
 
+def check_wallet (options,wallet_file):
+    lowestmixdepth = options['lowestmixdepth']
+    mixdepthsrc = options['mixdepthsrc']
+    mixdepthlimit = options['mixdepthlimit']
+    if lowestmixdepth:
+        wallet = Wallet(wallet_file,
+                        max_mix_depth=mixdepthlimit)
+        sync_wallet(wallet, fast=options['fastsync'])
+        gaplimit = options['gaplimit']
+        lowestmixdepthvalue = 0
+        for m in range(mixdepthlimit):
+            balance_depth = 0.0
+            for forchange in [0, 1]:
+                for k in range(wallet.index[m][forchange] + gaplimit):
+                    addr = wallet.get_addr(m, forchange, k)
+                    balance = 0.0
+                    for addrvalue in wallet.unspent.values():
+                        if addr == addrvalue['address']:
+                            balance += addrvalue['value']
+                    balance_depth += balance
+            if balance_depth == 0.:
+                lowestmixdepthvalue += 1
+            else:
+                break
+        options['mixdepthsrc'] = lowestmixdepthvalue
+    return (wallet,options)
 
 # thread which does the buy-side algorithm
 # chooses which coinjoins to initiate and when
@@ -110,13 +203,16 @@ class TumblerThread(threading.Thread):
 
     def unconfirm_callback(self, txd, txid):
         log.info('that was %d tx out of %d, waiting for confirmation' %
-                  (self.current_tx + 1, len(self.taker.tx_list)))
+            (self.current_tx + 1, len(self.taker.tx_list)))
 
     def confirm_callback(self, txd, txid, confirmations):
         self.taker.wallet.remove_old_utxos(txd)
         self.taker.wallet.add_new_utxos(txd, txid)
+        sessionname = self.taker.options['sessionname']
+        if sessionname:
+            update_session_tx_confirmed(sessionname,self.current_tx)
         with self.lockcond:
-            self.lockcond.notify()
+            self.lockcond.notify()            
 
     def timeout_callback(self, confirmed):
         if not confirmed:
@@ -139,6 +235,10 @@ class TumblerThread(threading.Thread):
     def pushtx(self):
         push_attempts = 3
         while True:
+            sessionname = self.taker.options['sessionname']
+            if sessionname:
+                cjtx = self.taker.cjtx
+                update_session_tx_pushed(sessionname,btc.serialize(cjtx.latest_tx),cjtx.my_cj_addr)
             ret = self.taker.cjtx.push()
             if ret:
                 break
@@ -178,6 +278,7 @@ class TumblerThread(threading.Thread):
         if active_nicks is None:
             active_nicks = []
         self.ignored_makers += nonrespondants
+        log.debug("tumbler_choose_orders n ignored_makers = "+str(len(self.ignored_makers))+'n nonrespondants = '+str(len(nonrespondants)))
         while True:
             orders, total_cj_fee = choose_orders(
                     self.taker.db, cj_amount, makercount, weighted_order_choose,
@@ -302,7 +403,7 @@ class TumblerThread(threading.Thread):
         self.taker.start_cj(self.taker.wallet, cj_amount, orders, utxos,
                             self.destaddr, change_addr,
                             fee_for_tx*self.tx['makercount'],
-                            self.finishcallback, choose_orders_recover)
+                            self.finishcallback,choose_orders_recover)
 
     def init_tx(self, tx, balance, sweep):
         destaddr = None
@@ -344,27 +445,51 @@ class TumblerThread(threading.Thread):
 
         sqlorders = self.taker.db.execute(
                 'SELECT cjfee, ordertype FROM orderbook;').fetchall()
-        orders = [o['cjfee'] for o in sqlorders if o['ordertype'] == 'reloffer']
+        orders = [o['cjfee'] for o in sqlorders if (o['ordertype'] == 'absoffer' or o['ordertype'] == 'reloffer')]
         orders = sorted(orders)
         if len(orders) == 0:
             log.error('There are no orders at all in the orderbook! '
                       'Is the bot connecting to the right server?')
             return
-        relorder_fee = float(orders[0])
-        log.info('reloffer fee = ' + str(relorder_fee))
+        #relorder_fee = float(orders[0])
+        #log.info('reloffer fee = ' + str(relorder_fee))
         maker_count = sum([tx['makercount'] for tx in self.taker.tx_list])
-        log.info('uses ' + str(maker_count) + ' makers, at ' + str(
-                relorder_fee * 100) + '% per maker, estimated total cost ' + str(
-                round((1 - (1 - relorder_fee) ** maker_count) * 100, 3)) + '%')
+        #log.info('uses ' + str(maker_count) + ' makers, at ' + str(
+                #relorder_fee * 100) + '% per maker, estimated total cost ' + str(
+                #round((1 - (1 - relorder_fee) ** maker_count) * 100, 3)) + '%')
         log.info('starting')
         self.lockcond = threading.Condition()
 
         self.balance_by_mixdepth = {}
+        sessionname = self.taker.options['sessionname']
+        if sessionname:
+            self.balance_by_mixdepth = self.taker.options['balance_by_mixdepth']
+        next_tx = self.taker.options['next_tx']
+        pushed_tx = self.taker.options['pushed_tx']
+        if len(pushed_tx)>0 :
+            pushed_destaddr = self.taker.options['pushed_destaddr']
+            self.current_tx = next_tx
+            jm_single().bc_interface.add_tx_notify(
+                btc.deserialize(pushed_tx), self.unconfirm_callback,
+                self.confirm_callback, pushed_destaddr,
+                self.timeout_callback)
+            with self.lockcond:
+                self.lockcond.wait()
+            time_to_wait = (self.taker.tx_list[next_tx])['wait']
+            log.info('tx confirmed, waiting for ' + str(time_to_wait) + ' minutes')
+            time.sleep(time_to_wait * 60)
+            log.info('woken')
+            next_tx += 1
         for i, tx in enumerate(self.taker.tx_list):
+            if i < next_tx:
+                continue
+            log.debug("do tx "+str(i))
             if tx['srcmixdepth'] not in self.balance_by_mixdepth:
                 self.balance_by_mixdepth[tx[
                     'srcmixdepth']] = self.taker.wallet.get_balance_by_mixdepth(
                 )[tx['srcmixdepth']]
+                if sessionname:
+                    update_session_balance_by_mixdepth(sessionname,self.balance_by_mixdepth)
             sweep = True
             for later_tx in self.taker.tx_list[i + 1:]:
                 if later_tx['srcmixdepth'] == tx['srcmixdepth']:
@@ -545,23 +670,80 @@ def main():
             default=9,
             help=
             'maximum amount of times to re-create a transaction before giving up, default 9')
+
+    parser.add_option('-n',
+                      '--sessionname',
+                      type='string',
+                      dest='sessionname',
+                      default=None,
+                      help='optional session name so that you can restore your tumbling plan if it halts (all other command line options will be ignored)')
+    parser.add_option('-L',
+                      '--mixdepthlimit',
+                      type='int',
+                      dest='mixdepthlimit',
+                      default=12,
+                      help='mix depth limit for wallet, default=12')
+    parser.add_option('-g',
+                      '--gaplimit',
+                      type='int',
+                      dest='gaplimit',
+                      default=12,
+                      help='gap limit for wallet, default=12')
     parser.add_option('--fast',
                       action='store_true',
                       dest='fastsync',
                       default=False,
                       help=('choose to do fast wallet sync, only for Core and '
                       'only for previously synced wallet'))
+    parser.add_option('-y',
+                      action='store_true',
+                      dest='answeryes',
+                      default=False,
+                      help='answer yes to all questions')
+    parser.add_option('-D',
+                      action='store_true',
+                      dest='lowestmixdepth',
+                      default=False,
+                      help='start tumbler from lowest mix depth that has balance')
     (options, args) = parser.parse_args()
     options = vars(options)
 
     if len(args) < 1:
-        parser.error('Needs a wallet file')
-        sys.exit(0)
-    wallet_file = args[0]
-    destaddrs = args[1:]
-    print(destaddrs)
+        if not options['sessionname']:
+            parser.error('Needs a wallet file')
+            sys.exit(0)
 
-    load_program_config()
+    sessionname = options['sessionname']
+    loaded_session = None
+    if sessionname:
+        sessionfilename = os.path.join(script_dir,'sessions/'+sessionname)
+        if os.path.isfile(sessionfilename):
+            print('Loaded session '+sessionname+' with filename '+sessionfilename)
+            with open(sessionfilename) as data_file:
+                loaded_session = json.load(data_file)
+            if loaded_session:
+                options = loaded_session['options']
+                for k, v in options.iteritems():
+                    if type(v) is list:
+                        options[k] = tuple(v)
+                    elif isinstance(v, unicode):
+                        options[k] = str(v)
+                    if isinstance(k,unicode):
+                        options[str(k)] = options.pop(k)
+                wallet_file = loaded_session['wallet']
+                if isinstance(wallet_file,unicode):
+                    wallet_file = str(wallet_file)
+                destaddrs = loaded_session['destaddrs']
+                for i_addr in range(len(destaddrs)):
+                    if isinstance(destaddrs[i_addr],unicode):
+                        destaddrs[i_addr] = str(destaddrs[i_addr])
+                load_program_config()        
+
+    if not loaded_session:
+        wallet_file = args[0]
+        destaddrs = args[1:]
+        load_program_config()
+    print(destaddrs)
 
     #The minmakercount setting should not be lower than the
     #minimum allowed makers according to the config
@@ -602,7 +784,36 @@ def main():
         options['donateamount'] = 0.9
 
     print(str(options))
-    tx_list = generate_tumbler_tx(destaddrs, options)
+
+    lowestmixdepth = options['lowestmixdepth']
+    
+    if loaded_session:
+        tx_list = loaded_session['tx_list']
+        for i_tx in range(len(tx_list)):
+            tx_dict = tx_list[i_tx]
+            for k, v in tx_dict.iteritems():
+                if isinstance(v,unicode):
+                    tx_dict[k] = str(v)
+                if isinstance(k,unicode):
+                    tx_dict[str(k)] = tx_dict.pop(k)
+        options['next_tx'] = loaded_session['next_tx']
+        options['pushed_tx'] = str(loaded_session['pushed_tx'])
+        options['pushed_destaddr'] = str(loaded_session['pushed_destaddr'])
+        balance_by_mixdepth = loaded_session['balance_by_mixdepth']
+        for k, v in balance_by_mixdepth.iteritems():
+            if not isinstance(k,int):
+                balance_by_mixdepth[int(k)] = balance_by_mixdepth.pop(k)
+        options['balance_by_mixdepth'] = balance_by_mixdepth
+            
+    else:
+        if lowestmixdepth:
+            log.info("Checking wallet to find the lowest possible mix depth")
+            (wallet,options) = check_wallet(options,wallet_file)
+        tx_list = generate_tumbler_tx(destaddrs, options)
+        options['next_tx'] = 0
+        options['pushed_tx'] = ''
+        options['pushed_destaddr'] = ''
+        options['balance_by_mixdepth'] = {}
     if not tx_list:
         return
 
@@ -633,9 +844,11 @@ def main():
         print('this is very bad for privacy')
         print('=' * 50)
 
-    ret = raw_input('tumble with these tx? (y/n):')
-    if ret[0] != 'y':
-        return
+    answeryes = options['answeryes']
+    if not answeryes:
+        ret = raw_input('tumble with these tx? (y/n):')
+        if ret[0] != 'y':
+            return
 
     # NOTE: possibly out of date documentation
     # a couple of modes
@@ -650,14 +863,19 @@ def main():
     #
     # for quick testing
     # python tumbler.py -N 2 1 -c 3 0.001 -l 0.1 -M 3 -a 0 wallet_file 1xxx 1yyy
-    wallet = Wallet(wallet_file,
-                    max_mix_depth=options['mixdepthsrc'] + options['mixdepthcount'])
-    sync_wallet(wallet, fast=options['fastsync'])
+
+    if not lowestmixdepth or loaded_session:
+        wallet = Wallet(wallet_file,
+                    max_mix_depth=options['mixdepthsrc']+options['mixdepthcount'])
+        sync_wallet(wallet, fast=options['fastsync'])
+    
     jm_single().wait_for_commitments = 1
     mcs = [IRCMessageChannel(c) for c in get_irc_mchannels()]
     mcc = MessageChannelCollection(mcs)
     log.info('starting tumbler')
     tumbler = Tumbler(mcc, wallet, tx_list, options)
+    if sessionname and not loaded_session:
+        save_session_to_file(tumbler,wallet_file,destaddrs,sessionfilename)
     try:
         log.info('connecting to message channels')
         mcc.run()
