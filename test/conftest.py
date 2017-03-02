@@ -40,8 +40,8 @@ def teardown():
         m.kill()
 
     #shut down bitcoin and remove the regtest dir
-    local_command([bitcoin_path + "bitcoin-cli", "-regtest", "-rpcuser=" + bitcoin_rpcusername,
-                   "-rpcpassword=" + bitcoin_rpcpassword, "stop"])
+    local_command([bitcoin_path + "bitcoin-cli", "-regtest", "-rpcuser=" + str(bitcoin_rpcusername),
+                   "-rpcpassword=" + str(bitcoin_rpcpassword), "stop"])
     #note, it is better to clean out ~/.bitcoin/regtest but too
     #dangerous to automate it here perhaps
 
@@ -69,7 +69,7 @@ def setup(request):
         miniircd_procs.append(miniircd_proc)
     #start up regtest blockchain
     btc_proc = subprocess.call([bitcoin_path + "bitcoind", "-regtest",
-                                "-daemon", "-conf=" + bitcoin_conf])
+                                "-daemon", "-conf=" + str(bitcoin_conf)])
     time.sleep(3)
     #generate blocks
     local_command([bitcoin_path + "bitcoin-cli", "-regtest", "-rpcuser=" + bitcoin_rpcusername,
