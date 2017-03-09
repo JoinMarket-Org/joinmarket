@@ -38,6 +38,7 @@ def test_bci_bad_pushtx():
             btc.bci_pushtx(i[0])
 
 def test_blockr_estimate_fee(setup_blockr):
+    absurd_fee = jm_single().config.getint("POLICY", "absurd_fee_per_kb")
     res = []
     for N in [1,3,6]:
         res.append(jm_single().bc_interface.estimate_fee_per_kb(N))
@@ -45,8 +46,8 @@ def test_blockr_estimate_fee(setup_blockr):
     #Note this can fail, it isn't very accurate.
     #assert res[1] >= res[2]
     #sanity checks:
-    assert res[0] < 200000
-    assert res[2] < 150000
+    assert res[0] < absurd_fee
+    assert res[2] < absurd_fee
 
 @pytest.mark.parametrize(
     "net, seed, gaplimit, showprivkey, method",
