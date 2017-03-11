@@ -147,7 +147,7 @@ tx_fees = 3
 # check limit on the satoshis-per-kB to be paid. This limit
 # is also applied to users using Core, even though Core has its
 # own sanity check limit, which is currently 1,000,000 satoshis.
-absurd_fee_per_kb = 150000
+absurd_fee_per_kb = 2000000
 # the range of confirmations passed to the `listunspent` bitcoind RPC call
 # 1st value is the inclusive minimum, defaults to one confirmation
 # 2nd value is the exclusive maximum, defaults to most-positive-bignum (Google Me!)
