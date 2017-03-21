@@ -73,7 +73,9 @@ class YieldGeneratorPrivEnhance(YieldGenerator):
         # sanity check
         assert order['minsize'] >= 0
         assert order['maxsize'] > 0
-        assert order['minsize'] <= order['maxsize']
+        if order['minsize'] > order['maxsize']:
+            log.info('minsize (' + str(order['minsize']) + ') > maxsize (' + str(order['maxsize']) + ')')
+            return []
 
         return [order]
 
