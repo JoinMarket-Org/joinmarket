@@ -26,7 +26,9 @@ RUN docker-apt-install \
 
 # install deps that don't depend on the code as the user and fix /pyenv/local/lib/python2.7/site-packages/matplotlib/font_manager.py:273: UserWarning: Matplotlib is building the font cache using fc-list. This may take a moment.
 # TODO: double check that this actually builds the font caches
-RUN chroot --userspec=abc / pip install matplotlib==2.0.0 \
+RUN chroot --userspec=abc / pip install \
+    "matplotlib==2.0.0" \
+    "scipy==0.19.0" \
  && chroot --userspec=abc / python -c \
     "from matplotlib.font_manager import FontManager; print(FontManager())"
 
