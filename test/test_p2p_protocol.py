@@ -30,7 +30,9 @@ def test_p2p_broadcast(setup_tx_notify):
 
     inputs = [{'output': src_utxos[0]['txid'] + ':' + str(src_utxos[0]['vout']
         )}]
-    outs = [{'address': dst_addr, 'value': int(src_utxos[0]['amount']*1e8)}]
+    miner_fee = 10000
+    outs = [{'address': dst_addr, 'value': int(src_utxos[0]['amount']*1e8)
+        - miner_fee}]
     tx = btc.mktx(inputs, outs)
     tx = btc.sign(tx, 0, src_privkey)
 
