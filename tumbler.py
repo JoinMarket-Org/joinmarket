@@ -17,6 +17,7 @@ from joinmarket import validate_address, sync_wallet
 from joinmarket import get_log, rand_norm_array, rand_pow_array, \
     rand_exp_array, choose_orders, weighted_order_choose, choose_sweep_orders, \
     debug_dump_object, get_irc_mchannels
+from joinmarket.support import remove_makers_with_too_many_offers
 from joinmarket import Wallet
 from joinmarket.wallet import estimate_tx_fee
 
@@ -178,6 +179,11 @@ class TumblerThread(threading.Thread):
         if active_nicks is None:
             active_nicks = []
         self.ignored_makers += nonrespondants
+        log.info('Removing makers with more than ' +
+            str(jm_single().config.getint("POLICY", "max_maker_offers_allowed")) +
+            ' offers as configured in joinmarket.cfg')
+        remove_makers_with_too_many_offers(self.taker.db,
+            jm_single().config.getint("POLICY", "max_maker_offers_allowed"))
         while True:
             orders, total_cj_fee = choose_orders(
                     self.taker.db, cj_amount, makercount, weighted_order_choose,
@@ -237,6 +243,11 @@ class TumblerThread(threading.Thread):
             fee_for_tx = int(fee_for_tx / self.tx['makercount'])
             total_value = sum([addrval['value'] for addrval in utxos.values()])
             while True:
+                log.info('Removing makers with more than ' +
+                    str(jm_single().config.getint("POLICY", "max_maker_offers_allowed")) +
+                    ' offers as configured in joinmarket.cfg')
+                remove_makers_with_too_many_offers(self.taker.db,
+                    jm_single().config.getint("POLICY", "max_maker_offers_allowed"))
                 orders, cj_amount, total_cj_fee = choose_sweep_orders(
                     self.taker.db, total_value, fee_for_tx,
                         self.tx['makercount'], weighted_order_choose,

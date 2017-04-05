@@ -11,6 +11,7 @@ from joinmarket import Maker, Taker, load_program_config, IRCMessageChannel, \
 from joinmarket import validate_address, jm_single, get_p2pk_vbyte
 from joinmarket import get_log, choose_orders, weighted_order_choose, \
     debug_dump_object, sync_wallet
+from joinmarket.support import remove_makers_with_too_many_offers
 from joinmarket import Wallet
 
 import bitcoin as btc
@@ -46,6 +47,11 @@ class TakerThread(threading.Thread):
         self.ignored_makers = []
 
     def create_tx(self):
+        log.info('Removing makers with more than ' +
+            str(jm_single().config.getint("POLICY", "max_maker_offers_allowed")) +
+            ' offers as configured in joinmarket.cfg')
+        remove_makers_with_too_many_offers(self.tmaker.db,
+            jm_single().config.getint("POLICY", "max_maker_offers_allowed"))
         crow = self.tmaker.db.execute(
             'SELECT COUNT(DISTINCT counterparty) FROM orderbook;').fetchone()
         counterparty_count = crow['COUNT(DISTINCT counterparty)']
