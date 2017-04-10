@@ -2,7 +2,7 @@
 
 [![Coverage Status](https://coveralls.io/repos/github/JoinMarket-Org/joinmarket/badge.svg?branch=develop)](https://coveralls.io/github/JoinMarket-Org/joinmarket?branch=develop)
 
-##What is JoinMarket ?
+## What is JoinMarket ?
 
 The idea behind JoinMarket is to help create a special kind of bitcoin transaction called a CoinJoin transaction. It's aim is to improve the confidentiality and privacy of bitcoin transactions, as well as improve the capacity of the blockchain therefore reduce costs. The concept has enormous potential, but had not seen much usage despite the multiple projects that implement it. This is probably because the incentive structure was not right.
 
@@ -14,12 +14,12 @@ Widespread use of JoinMarket could improve bitcoin's fungibility as a commodity.
 
 Go to [wiki](https://github.com/JoinMarket-Org/joinmarket/wiki) to get started, or for more in depth technical information, see [design doc](https://github.com/JoinMarket-Org/JoinMarket-Docs/blob/master/High-level-design.md).
 
-##Installation
+## Installation
 
-#####A NOTE ON UPDATING FROM PRE-0.2 VERSIONS
+##### A NOTE ON UPDATING FROM PRE-0.2 VERSIONS
 The installation is slightly changed, with the secp256k1 python binding no longer being optional, and libnacl now being installed via pip, not locally. The short version is: do follow the below process, for example the secp256k1 binding must be the latest version else you'll get errors. Of course if you already have libsodium you don't need to re-install it. Be sure to read the [release notes](https://github.com/JoinMarket-Org/joinmarket/blob/develop/doc/release-notes-0.2.2.md).
 
-#####REQUIRED INSTALLATION DEPENDENCIES (for Linux)
+##### REQUIRED INSTALLATION DEPENDENCIES (for Linux)
 
 + You will need python 2.7
 
@@ -59,7 +59,7 @@ The installation is slightly changed, with the secp256k1 python binding no longe
     
 + Matplotlib for displaying the graphs in orderbook-watcher (optional)
 
-###DEBIAN / UBUNTU QUICK INSTALL FOR USERS:
+### DEBIAN / UBUNTU QUICK INSTALL FOR USERS:
 
 1. `sudo apt-get update -y && sudo apt-get upgrade -y && sudo apt-get install python-dev libsodium-dev python-pip -y`
 2. Download JoinMarket 0.2.2 source from the [releases page](https://github.com/joinmarket-org/joinmarket/releases/tag/v0.2.2) or [this direct link to v0.2.2](https://github.com/JoinMarket-Org/joinmarket/archive/v0.2.2.tar.gz):
@@ -69,7 +69,7 @@ The installation is slightly changed, with the secp256k1 python binding no longe
 5. Generating your first wallet (`python wallet-tool.py generate`) will populate the configuration file: `joinmarket.cfg`.
    Check if the default settings suit your needs.
    
-###TAILS QUICK INSTALL FOR USERS:
+### TAILS QUICK INSTALL FOR USERS:
 Tested up to TAILS version 2.6, but future versions likely will work as well.
 
 1. Make sure that you choose 'more options' when booting up tails and set an administrator password.
@@ -86,15 +86,15 @@ Tested up to TAILS version 2.6, but future versions likely will work as well.
    Check if the default settings suit your needs.
 11. Prepend commands with `torify`, i.e. `torify python sendpayment.py ...`
 
-###[INSTALL FOR WINDOWS USERS](https://github.com/JoinMarket-Org/joinmarket/wiki/Installing-JoinMarket-on-Windows)
+### [INSTALL FOR WINDOWS USERS](https://github.com/JoinMarket-Org/joinmarket/wiki/Installing-JoinMarket-on-Windows)
 
-###[WIKI PAGES FOR DETAILED ARTICLES/GUIDES](https://github.com/joinmarket-org/joinmarket/wiki)
+### [WIKI PAGES FOR DETAILED ARTICLES/GUIDES](https://github.com/joinmarket-org/joinmarket/wiki)
 
-###CONTRIBUTING TO JOINMARKET AS A DEVELOPER
+### CONTRIBUTING TO JOINMARKET AS A DEVELOPER
 
 Clone the repo, then read the notes [here](./CONTRIBUTING.md).
 
-###TESTING
+### TESTING
 
 Install the development requirements:
 
