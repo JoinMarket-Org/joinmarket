@@ -34,6 +34,9 @@ class JsonRpcError(Exception):
         self.code = obj["code"]
         self.message = obj["message"]
 
+    def __str__(self):
+        return "%s %s: %s" % (self.__class__.__name__, self.code, self.message)
+
 
 class JsonRpcConnectionError(Exception):
     """
@@ -78,18 +81,17 @@ class JsonRpc(object):
             conn.request("POST", "", body, headers)
             response = conn.getresponse()
 
-            if response.status == 401:
+            if response.status in [401, 403]:
                 conn.close()
                 raise JsonRpcConnectionError(
                         "authentication for JSON-RPC failed")
 
-            # All of the codes below are 'fine' from a JSON-RPC point of view.
-            if response.status not in [200, 404, 500]:
-                conn.close()
-                raise JsonRpcConnectionError("unknown error in JSON-RPC")
-
             data = response.read()
             conn.close()
+
+            # All of the codes below are 'fine' from a JSON-RPC point of view.
+            if response.status not in [200, 404, 500]:
+                raise JsonRpcConnectionError("unknown error %s in JSON-RPC: %s" % (response.status, data))
 
             return json.loads(data)
 

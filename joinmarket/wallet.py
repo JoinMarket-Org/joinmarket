@@ -18,6 +18,36 @@ from joinmarket.support import get_log, select_gradual, select_greedy, \
 
 log = get_log()
 
+
+def get_wallet_pass(wallet_filepath=None, password=None, confirm=False):
+    if password is not None:
+        return password
+
+    if wallet_filepath is not None:
+        pass_filename = wallet_filepath[:-4] + 'pass'
+        if os.path.exists(pass_filename):
+            with open(pass_filename, 'r') as f:
+                return f.read().strip()
+        else:
+            log.info(
+                "No pass (%s) found for wallet (%s)",
+                pass_filename,
+                wallet_filepath,
+            )
+
+    # TODO: error out if not interactive
+    password = getpass('Enter wallet encryption passphrase: ')
+
+    if not confirm:
+        return password
+
+    password2 = getpass('Reenter wallet encryption passphrase: ')
+    if password2 != password:
+        raise ValueError('Passwords did not match')
+
+    return password
+
+
 def estimate_tx_fee(ins, outs, txtype='p2pkh'):
     '''Returns an estimate of the number of satoshis required
     for a transaction with the given number of inputs and outputs,
@@ -118,7 +148,7 @@ class Wallet(AbstractWallet):
                  seedarg,
                  max_mix_depth=2,
                  gaplimit=6,
-                 extend_mixdepth=False,
+                 extend_mixdepth=True,
                  storepassword=False):
         super(Wallet, self).__init__()
         self.max_mix_depth = max_mix_depth
@@ -131,6 +161,7 @@ class Wallet(AbstractWallet):
         self.imported_privkeys = {}
         self.seed = self.read_wallet_file_data(seedarg)
         if extend_mixdepth and len(self.index_cache) > max_mix_depth:
+            # keep us from dropping parts of the index_cache
             self.max_mix_depth = len(self.index_cache)
         self.gaplimit = gaplimit
         master = btc.bip32_master_key(self.seed, (btc.MAINNET_PRIVATE if
@@ -178,10 +209,8 @@ class Wallet(AbstractWallet):
                     self.max_mix_depth - len(self.index_cache))
         decrypted = False
         while not decrypted:
-            if pwd:
-                password = pwd
-            else:
-                password = getpass('Enter wallet decryption passphrase: ')
+            password = get_wallet_pass(wallet_filepath=path, password=pwd)
+
             password_key = btc.bin_dbl_sha256(password)
             encrypted_seed = walletdata['encrypted_seed']
             try:

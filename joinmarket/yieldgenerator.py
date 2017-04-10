@@ -1,8 +1,9 @@
-#! /usr/bin/env python
+#!/usr/bin/env python
 from __future__ import absolute_import, print_function
 
 import datetime
 import os
+import sys
 import time
 import abc
 from optparse import OptionParser
@@ -16,6 +17,7 @@ from joinmarket import get_irc_mchannels
 
 log = get_log()
 
+# TODO: move all definitions of this into one place
 MAX_MIX_DEPTH = 5
 
 # is a maker for the purposes of generating a yield from held
@@ -141,11 +143,12 @@ def ygmain(ygclass, txfee=1000, cjfee_a=200, cjfee_r=0.002, ordertype='reloffer'
              'https://github.com/chris-belcher/joinmarket/wiki/Running'
              '-JoinMarket-with-Bitcoin-Core-full-node')
         print(c)
-        ret = raw_input('\nContinue? (y/n):')
-        if ret[0] != 'y':
-            return
+        if sys.stdout.isatty():
+            ret = raw_input('\nContinue? (y/n):')
+            if ret[0] != 'y':
+                return
 
-    wallet = Wallet(seed, max_mix_depth=MAX_MIX_DEPTH, gaplimit=gaplimit)
+    wallet = Wallet(seed, max_mix_depth=MAX_MIX_DEPTH, gaplimit=gaplimit, extend_mixdepth=True)
     sync_wallet(wallet, fast=options.fastsync)
 
     mcs = [IRCMessageChannel(c, realname='btcint=' + jm_single().config.get(

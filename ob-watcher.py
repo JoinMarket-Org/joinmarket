@@ -27,9 +27,6 @@ log = get_log()
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-shutdownform = '<form action="shutdown" method="post"><input type="submit" value="Shutdown" /></form>'
-shutdownpage = '<html><body><center><h1>Successfully Shut down</h1></center></body></html>'
-
 refresh_orderbook_form = '<form action="refreshorderbook" method="post"><input type="submit" value="Check for timed-out counterparties" /></form>'
 sorted_units = ('BTC', 'mBTC', '&#956;BTC', 'satoshi')
 unit_to_power = {'BTC': 8, 'mBTC': 5, '&#956;BTC': 2, 'satoshi': 0}
@@ -260,7 +257,7 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
                     (str(ordercount) + ' orders found by ' +
                      self.get_counterparty_count() + ' counterparties' + alert_msg),
                 'MAINBODY': (
-                    shutdownform + refresh_orderbook_form + choose_units_form +
+                    refresh_orderbook_form + choose_units_form +
                     table_heading + ordertable + '</table>\n')
             }
         elif self.path == '/ordersize':
@@ -300,18 +297,7 @@ class OrderbookPageRequestHeader(SimpleHTTPServer.SimpleHTTPRequestHandler):
         self.wfile.write(orderbook_page)
 
     def do_POST(self):
-        pages = ['/shutdown', '/refreshorderbook']
-        if self.path not in pages:
-            return
-        if self.path == '/shutdown':
-            self.taker.msgchan.shutdown()
-            self.send_response(200)
-            self.send_header('Content-Type', 'text/html')
-            self.send_header('Content-Length', len(shutdownpage))
-            self.end_headers()
-            self.wfile.write(shutdownpage)
-            self.base_server.__shutdown_request = True
-        elif self.path == '/refreshorderbook':
+        if self.path == '/refreshorderbook':
             self.taker.msgchan.request_orderbook()
             time.sleep(5)
             self.path = '/'
