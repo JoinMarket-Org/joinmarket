@@ -145,7 +145,7 @@ def ygmain(ygclass, txfee=1000, cjfee_a=200, cjfee_r=0.002, ordertype='reloffer'
         if ret[0] != 'y':
             return
 
-    wallet = Wallet(seed, max_mix_depth=MAX_MIX_DEPTH, gaplimit=gaplimit)
+    wallet = Wallet(seed, max_mix_depth=MAX_MIX_DEPTH, gaplimit=gaplimit, extend_mixdepth=True)
     sync_wallet(wallet, fast=options.fastsync)
 
     mcs = [IRCMessageChannel(c, realname='btcint=' + jm_single().config.get(
