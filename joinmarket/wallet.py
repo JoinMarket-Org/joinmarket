@@ -179,14 +179,15 @@ class Wallet(AbstractWallet):
         decrypted = False
         trieddefault = False
         while not decrypted:
-            if not trieddefault:
-                password = ''
-                trieddefault = True
+            if pwd:
+                password = pwd
             else:
-                if pwd:
-                    password = pwd
+                if not trieddefault:
+                    password = ''
+                    trieddefault = True
                 else:
                     password = getpass('Enter wallet decryption passphrase: ')
+
             password_key = btc.bin_dbl_sha256(password)
             encrypted_seed = walletdata['encrypted_seed']
             try:
