@@ -341,8 +341,8 @@ class TumblerThread(threading.Thread):
     def run(self):
         log.info('waiting for all orders to certainly arrive')
         time.sleep(self.taker.options['waittime'])
-
-        sqlorders = self.taker.db.execute(
+        with self.taker.dblock:
+            sqlorders = self.taker.db.execute(
                 'SELECT cjfee, ordertype FROM orderbook;').fetchall()
         orders = [o['cjfee'] for o in sqlorders if o['ordertype'] == 'reloffer']
         orders = sorted(orders)

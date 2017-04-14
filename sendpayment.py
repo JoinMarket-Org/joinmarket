@@ -101,8 +101,9 @@ class PaymentThread(threading.Thread):
         self.ignored_makers = []
 
     def create_tx(self):
-        crow = self.taker.db.execute(
-            'SELECT COUNT(DISTINCT counterparty) FROM orderbook;').fetchone()
+        with self.taker.dblock:
+            crow = self.taker.db.execute(
+                'SELECT COUNT(DISTINCT counterparty) FROM orderbook;').fetchone()
         counterparty_count = crow['COUNT(DISTINCT counterparty)']
         counterparty_count -= len(self.ignored_makers)
         if counterparty_count < self.taker.makercount:
