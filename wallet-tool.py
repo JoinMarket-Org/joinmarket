@@ -295,7 +295,11 @@ elif method == 'importprivkey':
     print('WARNING: Handling of raw ECDSA bitcoin private keys can lead to '
           'non-intuitive behaviour and loss of funds.\n  Recommended instead '
           'is to use the \'sweep\' feature of sendpayment.py ')
-    privkeys = raw_input('Enter private key(s) to import: ')
+    if len(args) > 3 and args[2] == \
+            'cli-import-WARNING-DANGEROUS-DONT-USE-WITHOUT-UNDERSTANDING':
+        privkeys = args[3]
+    else:
+        privkeys = raw_input('Enter private key(s) to import: ')
     privkeys = privkeys.split(',') if ',' in privkeys else privkeys.split()
     # TODO read also one key for each line
     for privkey in privkeys:
