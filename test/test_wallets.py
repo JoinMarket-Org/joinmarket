@@ -368,10 +368,18 @@ class TestWalletCreation(unittest.TestCase):
 
     def run_generate(self, pwd):
         try:
-            test_in = [pwd, pwd, 'testwallet.json']
-            expected = ['Enter wallet encryption passphrase:',
-                        'Reenter wallet encryption passphrase:',
-                        'Input wallet file name']
+            if len(pwd):
+                test_in = [pwd, pwd, 'testwallet.json']
+                expected = ['Enter wallet encryption passphrase:',
+                            'Reenter wallet encryption passphrase:',
+                            'Input wallet file name']
+            else:
+                test_in = [pwd, pwd, 'n', 'testwallet.json']
+                expected = ['Enter wallet encryption passphrase:',
+                            'Reenter wallet encryption passphrase:',
+                            'Abort?',
+                            'Input wallet file name']
+
             testlog = open('test/testlog-' + pwd, 'wb')
             p = pexpect.spawn('python wallet-tool.py generate', logfile=testlog)
             interact(p, test_in, expected)

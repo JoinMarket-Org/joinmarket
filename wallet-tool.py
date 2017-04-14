@@ -206,6 +206,29 @@ if method == 'display' or method == 'displayall' or method == 'summary':
         print('for mixdepth=%d balance=%.8fbtc' % (m, balance_depth / 1e8))
     print('total balance = %.8fbtc' % (total_balance / 1e8))
 elif method == 'generate' or method == 'recover':
+
+    def query_yes_no(question, default="yes"):
+        valid = {"yes": True, "y": True, "ye": True, "no": False, "n": False}
+        if default is None:
+            prompt = " [y/n] "
+        elif default == "yes":
+            prompt = " [Y/n] "
+        elif default == "no":
+            prompt = " [y/N] "
+        else:
+            raise ValueError("invalid default answer: '%s'" % default)
+
+        while True:
+            sys.stdout.write(question + prompt)
+            choice = raw_input().lower()
+            if default is not None and choice == '':
+                return valid[default]
+            elif choice in valid:
+                return valid[choice]
+            else:
+                sys.stdout.write("Please respond with 'yes' or 'no' "
+                       "(or 'y' or 'n').\n")
+
     if method == 'generate':
         seed = btc.sha256(os.urandom(64))[:32]
         words = mn_encode(seed)
@@ -224,6 +247,13 @@ elif method == 'generate' or method == 'recover':
     if password != password2:
         print('ERROR. Passwords did not match')
         sys.exit(0)
+    if password == "":
+        print('============= WARNING =============')
+        print('Using no password is very dangerous')
+        print('===================================')
+        abort = query_yes_no('Abort?')
+        if abort:
+            sys.exit(0)
     password_key = btc.bin_dbl_sha256(password)
     encrypted_seed = encryptData(password_key, seed.decode('hex'))
     timestamp = datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
