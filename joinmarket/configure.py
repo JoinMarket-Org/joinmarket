@@ -84,11 +84,15 @@ required_options = {'BLOCKCHAIN': ['blockchain_source', 'network'],
 defaultconfig = \
     """
 [BLOCKCHAIN]
-blockchain_source = blockr
-#options: blockr, bitcoin-rpc, regtest, bc.i, electrum
-# for instructions on bitcoin-rpc read
-# https://github.com/chris-belcher/joinmarket/wiki/Running-JoinMarket-with-Bitcoin-Core-full-node
+# Which blockchain backend to use
+# only change this setting if you are UNABLE to use a bitcoin node!
+blockchain_source = bitcoin-rpc
+# alternatives: electrum, bc.i, blockr, regtest
+# If you pick the latter, you'll need to change this accordingly
 network = mainnet
+# The rest of this section pertains only to the bitcoin-rpc backend
+# See the wiki for information on how to set it up:
+# https://github.com/chris-belcher/joinmarket/wiki/Running-JoinMarket-with-Bitcoin-Core-full-node
 rpc_host = localhost
 rpc_port = 8332
 rpc_user = bitcoin
