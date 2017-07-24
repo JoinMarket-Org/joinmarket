@@ -50,7 +50,7 @@ patterns = [
     ('(\W)([0-9a-fA-F]{64}):(\d+)(\W)',
     lambda m: m.group(1) + 'TXID_INDEX_%056d' + m.group(4),
     'txid:index'),
-    ('(gettxout \\[\')([0-9a-fA-F]{64}\', \d+)(, (True|False)\\])',
+    ('(gettxout \\[u?\')([0-9a-fA-F]{64}\', \d+)(, (True|False)\\])',
     lambda m: m.group(1) + 'TXID_%059d\', IDX_%03d' +  m.group(3),
     'gettxout'),
     ('(\'value\': )(\d+)(\\})',
