@@ -1,15 +1,13 @@
 #Proof Of Discrete Logarithm Equivalence
 #For algorithm steps, see https://gist.github.com/AdamISZ/9cbba5e9408d23813ca8
-import secp256k1
+import coincurve
 import os
 import hashlib
 import json
 from py2specials import *
 from py3specials import *
-from secp256k1_main import ctx
 PODLE_COMMIT_FILE = None
 N = 115792089237316195423570985008687907852837564279074904382605163141518161494337
-dummy_pub = secp256k1.PublicKey(ctx=ctx)
 
 def set_commitment_file(file_loc):
     global PODLE_COMMIT_FILE
@@ -18,13 +16,6 @@ def set_commitment_file(file_loc):
 def get_commitment_file():
     return PODLE_COMMIT_FILE
 
-def tweak_mul(point, scalar):
-    """Temporary hack because Windows binding had a bug in tweak_mul.
-    Can be removed when Windows binding is updated.
-    """
-    return secp256k1._tweak_public(point,
-                                   secp256k1.lib.secp256k1_ec_pubkey_tweak_mul,
-                                   scalar)
 class PoDLEError(Exception):
     pass
 
@@ -43,7 +34,7 @@ class PoDLE(object):
         if not priv:
             if P:
                 #Construct a pubkey from raw hex
-                self.P = secp256k1.PublicKey(safe_from_hex(P), raw=True, ctx=ctx)
+                self.P = coincurve.PublicKey(safe_from_hex(P))
             else:
                 self.P = None
         else:
@@ -52,10 +43,10 @@ class PoDLE(object):
             #any other formatting abnormality will just throw in PrivateKey
             if len(priv)==66 and priv[-2:]=='01':
                 priv = priv[:-2]
-            self.priv = secp256k1.PrivateKey(safe_from_hex(priv), ctx=ctx)
-            self.P = self.priv.pubkey
+            self.priv = coincurve.PrivateKey(safe_from_hex(priv))
+            self.P = self.priv.public_key
         if P2:
-            self.P2 = secp256k1.PublicKey(safe_from_hex(P2), raw=True, ctx=ctx)
+            self.P2 = coincurve.PublicKey(safe_from_hex(P2))
         else:
             self.P2 = None
         #These sig values should be passed in hex.
@@ -80,9 +71,9 @@ class PoDLE(object):
         """
         if not self.P2:
             raise PoDLEError("Cannot construct commitment, no P2 available")
-        if not isinstance(self.P2, secp256k1.PublicKey):
+        if not isinstance(self.P2, coincurve.PublicKey):
             raise PoDLEError("Cannot construct commitment, P2 is not a pubkey")
-        self.commitment = hashlib.sha256(self.P2.serialize()).digest()
+        self.commitment = hashlib.sha256(self.P2.format()).digest()
         return safe_hexlify(self.commitment)
 
     def generate_podle(self, index=0):
@@ -117,14 +108,14 @@ class PoDLE(object):
         #TODO nonce could be rfc6979?
         k = os.urandom(32)
         J = getNUMS(index)
-        KG = secp256k1.PrivateKey(k, ctx=ctx).pubkey
-        KJ = tweak_mul(J, k)
+        KG = coincurve.PrivateKey(k).public_key
+        KJ = J.multiply(k)
         self.P2 = getP2(self.priv, J)
         self.get_commitment()
         self.e = hashlib.sha256(''.join(
-            [x.serialize() for x in [KG, KJ, self.P, self.P2]])).digest()
+            [x.format() for x in [KG, KJ, self.P, self.P2]])).digest()
         k_int = decode(k, 256)
-        priv_int = decode(self.priv.private_key, 256)
+        priv_int = decode(self.priv.secret, 256)
         e_int = decode(self.e, 256)
         sig_int = (k_int + priv_int*e_int) % N
         self.s = encode(sig_int, 256, minlen=32)
@@ -139,8 +130,8 @@ class PoDLE(object):
         if not self.commitment:
             self.get_commitment()
         Phex, P2hex, shex, ehex, commit = [
-            safe_hexlify(x) for x in [self.P.serialize(),
-                                      self.P2.serialize(),
+            safe_hexlify(x) for x in [self.P.format(),
+                                      self.P2.format(),
                                       self.s, self.e, self.commitment]]
         return {'used': str(self.used), 'utxo': self.u, 'P': Phex, 'P2': P2hex,
                 'commit': commit, 'sig': shex, 'e': ehex}
@@ -171,20 +162,18 @@ class PoDLE(object):
         if not self.get_commitment() == commitment:
             return False
         for J in [getNUMS(i) for i in index_range]:
-            sig_priv = secp256k1.PrivateKey(self.s, raw=True, ctx=ctx)
-            sG = sig_priv.pubkey
-            sJ = tweak_mul(J, self.s)
+            sig_priv = coincurve.PrivateKey(self.s)
+            sG = sig_priv.public_key
+            sJ = J.multiply(self.s)
             e_int = decode(self.e, 256)
             minus_e = encode(-e_int % N, 256, minlen=32)
-            minus_e_P = tweak_mul(self.P, minus_e)
-            minus_e_P2 = tweak_mul(self.P2, minus_e)
-            KG = dummy_pub.combine([sG.public_key, minus_e_P.public_key])
-            KJ = dummy_pub.combine([sJ.public_key, minus_e_P2.public_key])
-            KGser = secp256k1.PublicKey(KG, ctx=ctx).serialize()
-            KJser = secp256k1.PublicKey(KJ, ctx=ctx).serialize()
+            minus_e_P = self.P.multiply(minus_e)
+            minus_e_P2 = self.P2.multiply(minus_e)
+            KG = coincurve.PublicKey.combine_keys([sG, minus_e_P])
+            KJ = coincurve.PublicKey.combine_keys([sJ, minus_e_P2])
             #check 2: e =?= H(K_G || K_J || P || P2)
             e_check = hashlib.sha256(
-                KGser + KJser + self.P.serialize() + self.P2.serialize()).digest()
+                KG.format() + KJ.format() + self.P.format() + self.P2.format()).digest()
             if e_check == self.e:
                 return True
         #commitment fails for any NUMS in the provided range
@@ -195,7 +184,7 @@ def getG(compressed=True):
     representation of secp256k1 G
     """
     priv = "\x00"*31 + "\x01"
-    G = secp256k1.PrivateKey(priv, ctx=ctx).pubkey.serialize(compressed)
+    G = coincurve.PrivateKey(priv).public_key.format(compressed)
     return G
 
 def getNUMS(index=0):
@@ -227,7 +216,7 @@ def getNUMS(index=0):
             #choose the former.
             claimed_point = "\x02" + hashed_seed
             try:
-                nums_point = secp256k1.PublicKey(claimed_point, raw=True, ctx=ctx)
+                nums_point = coincurve.PublicKey(claimed_point)
                 return nums_point
             except:
                 continue
@@ -242,7 +231,7 @@ def verify_all_NUMS(write=False):
     """
     nums_points = {}
     for i in range(256):
-        nums_points[i] = safe_hexlify(getNUMS(i).serialize())
+        nums_points[i] = safe_hexlify(getNUMS(i).format())
     if write:
         with open("nums_basepoints.txt", "wb") as f:
             from pprint import pformat
@@ -258,8 +247,8 @@ def getP2(priv, nums_pt):
     just the most easy way to manipulate it in the
     library), calculate priv*nums_pt
     """
-    priv_raw = priv.private_key
-    return tweak_mul(nums_pt, priv_raw)
+    priv_raw = priv.secret
+    return nums_pt.multiply(priv_raw)
 
 def get_podle_commitments():
     """Returns set of commitments used as a list:
