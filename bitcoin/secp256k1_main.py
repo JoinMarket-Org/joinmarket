@@ -305,7 +305,7 @@ def ecdsa_raw_sign(msg,
             sig = newpriv.sign_recoverable(msg, hasher=None)
         else:
             sig = newpriv.sign_recoverable(msg)
-        s, rid = sig[:64], bytes_to_int(sig[64:])
+        s, rid = sig[:64], coincurve.utils.bytes_to_int(sig[64:])
         return chr(31+rid) + s
     else:
         if rawmsg:
