@@ -193,7 +193,7 @@ if method == 'display' or method == 'displayall' or method == 'summary':
 
                 if addr in used_addrs and 'time' in addrs_info[addr]:
                     t = time.localtime(addrs_info[addr]['time'])
-                    ts = time.strftime(' %d %b %y %H:%M', t)
+                    ts = time.strftime(' %d-%b-%y %H:%M', t)
                 else:
                     ts = ''
 
