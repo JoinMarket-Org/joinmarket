@@ -73,6 +73,13 @@ parser.add_option('--csv',
                   dest='csv',
                   default=False,
                   help=('When using the history method, output as csv'))
+parser.add_option('-v', '--verbosity',
+                  action='store',
+                  type='int',
+                  dest='verbosity',
+                  default=1,
+                  help=('History method verbosity, 0 (least) to 6 (most), '
+                        '<=2 batches earnings, even values also list TXIDs'))
 parser.add_option('--fast',
                   action='store_true',
                   dest='fastsync',
