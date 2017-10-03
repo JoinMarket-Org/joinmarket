@@ -8,7 +8,7 @@ import abc
 from optparse import OptionParser
 
 from joinmarket import Maker, IRCMessageChannel, MessageChannelCollection
-from joinmarket import BlockrInterface
+from joinmarket import BlockchaininfoInterface
 from joinmarket import jm_single, get_network, load_program_config
 from joinmarket import get_log, calc_cj_fee, debug_dump_object
 from joinmarket import Wallet, sync_wallet
@@ -131,13 +131,12 @@ def ygmain(ygclass, txfee=1000, cjfee_a=200, cjfee_r=0.002, ordertype='reloffer'
     nickserv_password = options.password
 
     load_program_config()
-    if isinstance(jm_single().bc_interface, BlockrInterface):
-        c = ('\nYou are running a yield generator by polling the blockr.io '
-             'website. This is quite bad for privacy. That site is owned by '
-             'coinbase.com Also your bot will run faster and more efficently, '
-             'you can be immediately notified of new bitcoin network '
-             'information so your money will be working for you as hard as '
-             'possibleLearn how to setup JoinMarket with Bitcoin Core: '
+    if isinstance(jm_single().bc_interface, BlockchaininfoInterface):
+        c = ('\nYou are running a yield generator by polling the blockchain.info '
+             'website. This is bad for both privacy and latency, and this code '
+             'has seen less rigorous testing than the code using bitcoin core. '
+             'Using bitcoin core directly is STRONGLY RECOMMENDED! '
+             'Learn how to setup JoinMarket with Bitcoin Core: '
              'https://github.com/chris-belcher/joinmarket/wiki/Running'
              '-JoinMarket-with-Bitcoin-Core-full-node')
         print(c)

@@ -87,7 +87,7 @@ defaultconfig = \
 # Which blockchain backend to use
 # only change this setting if you are UNABLE to use a bitcoin node!
 blockchain_source = bitcoin-rpc
-# alternatives: electrum, bc.i, blockr, regtest
+# alternatives: electrum, bc.i, regtest
 # If you pick the latter, you'll need to change this accordingly
 network = mainnet
 # The rest of this section pertains only to the bitcoin-rpc backend
@@ -369,7 +369,7 @@ def get_blockchain_interface_instance(_config):
     # todo: refactor joinmarket module to get rid of loops
     # importing here is necessary to avoid import loops
     from joinmarket.blockchaininterface import BitcoinCoreInterface, \
-    RegtestBitcoinCoreInterface, BlockrInterface, BlockchaininfoInterface
+    RegtestBitcoinCoreInterface, BlockchaininfoInterface
     from joinmarket.electruminterface import ElectrumInterface
     from joinmarket.blockchaininterface import CliJsonRpc
 
@@ -395,8 +395,6 @@ def get_blockchain_interface_instance(_config):
         rpc_password = _config.get("BLOCKCHAIN", "rpc_password")
         rpc = JsonRpc(rpc_host, rpc_port, rpc_user, rpc_password)
         bc_interface = RegtestBitcoinCoreInterface(rpc)
-    elif source == 'blockr':
-        bc_interface = BlockrInterface(testnet)
     elif source == 'electrum':
         try:
             electrum_server = _config.get("BLOCKCHAIN", "electrum_server")

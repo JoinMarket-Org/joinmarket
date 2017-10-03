@@ -47,10 +47,7 @@ To check that in case of excessive maker utxos, the code fails
 
 We use a static value for fees since estimatefee() does not 
 work for regtest (perhaps with some serious monkeying about).
-Testing that fee estimates are retrieved OK from the web
-(currently via blockcypher, may change) for blockr instances
-has to be done separately; this is only testing the code logic,
-*given* a fee estimate.
+This only tests the code logic, *given* a fee estimate.
 '''
 
 

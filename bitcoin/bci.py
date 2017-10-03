@@ -35,39 +35,8 @@ def make_request(*args):
             p = e
         raise Exception(p)
 
-def make_request_blockr(*args):
-    counter = 0
-    while True:
-        data = json.loads(make_request(*args))
-        if data['status'] == 'error' and data['code'] == 429:
-            log.error('Blockr service error: ' + data['message'])
-            time.sleep(min(60, 2**counter / 2.))
-            counter += 1
-            continue
-        return data
-
 # Pushes a transaction to the network using https://blockchain.info/pushtx
 def bci_pushtx(tx):
     if not re.match('^[0-9a-fA-F]*$', tx):
         tx = tx.encode('hex')
     return make_request('https://blockchain.info/pushtx', 'tx=' + tx)
-
-def blockr_pushtx(tx, network='btc'):
-    if network == 'testnet':
-        blockr_url = 'https://tbtc.blockr.io/api/v1/tx/push'
-    elif network == 'btc':
-        blockr_url = 'https://btc.blockr.io/api/v1/tx/push'
-    else:
-        raise Exception('Unsupported network {0} for blockr_pushtx'.format(
-            network))
-
-    if not re.match('^[0-9a-fA-F]*$', tx):
-        tx = tx.encode('hex')
-    return make_request(blockr_url, '{"hex":"%s"}' % tx)
-
-
-
-
-
-
-
