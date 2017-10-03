@@ -57,6 +57,9 @@ class DummyBlockchainInterface(BlockchainInterface):
         self_pushtx_count[0] += 1
         return True
 
+    def get_lasts_txs_info(self, wallet):
+        return {}
+
 def dummy_commitment_creator(wallet, utxos, amount):
     return "fake_commitment", "fake_reveal"
 
