@@ -459,12 +459,17 @@ elif method == 'history':
             try:
                 wallet_tx = jm_single().bc_interface.rpc('gettransaction',
                     [ins['outpoint']['hash']])
+                input_dict = btc.deserialize(str(wallet_tx['hex']))['outs'][ins[
+                    'outpoint']['index']]
+                rpc_inputs.append(input_dict)
             except JsonRpcError:
                 continue
-            input_dict = btc.deserialize(str(wallet_tx['hex']))['outs'][ins[
-                'outpoint']['index']]
-            rpc_inputs.append(input_dict)
-
+            except IndexError:
+                print("\n")
+                print(ins)
+                print("\n")
+                print(btc.deserialize(str(wallet_tx['hex'])))
+                print("\n")
         rpc_input_addrs = set((btc.script_to_address(ind['script'],
             get_p2pk_vbyte()) for ind in rpc_inputs))
         our_input_addrs = wallet_addr_set.intersection(rpc_input_addrs)
