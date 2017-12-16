@@ -958,12 +958,12 @@ class BitcoinCoreInterface(BlockchainInterface):
         return result
 
     def estimate_fee_per_kb(self, N):
-        estimate = Decimal(1e8) * Decimal(self.rpc('estimatefee', [N]))
+        estimate = Decimal(1e8) * Decimal(self.rpc('estimatesmartfee', [N])['feerate'])
         if N==1 and estimate < 0:
             #Special bitcoin core case: sometimes the highest priority
             #cannot be estimated in that case the 2nd highest priority
             #should be used instead of falling back to hardcoded values
-            estimate = Decimal(1e8) * Decimal(self.rpc('estimatefee', [N+1]))
+            estimate = Decimal(1e8) * Decimal(self.rpc('estimatesmartfee', [N+1])['feerate'])
         return estimate
 
 
