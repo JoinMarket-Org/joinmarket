@@ -121,4 +121,4 @@ See more information on testing in the [Wiki page](https://github.com/JoinMarket
 
 + Twitter: https://twitter.com/joinmarket
 
-+ Donation address: `1AZgQZWYRteh6UyF87hwuvyWj73NvWKpL`
++ Donation address: `bc1q5x02zqj5nshw0yhx2s4tj75z6vkvuvww26jak5` (non-bech32 address: `1AZgQZWYRteh6UyF87hwuvyWj73NvWKpL`)
