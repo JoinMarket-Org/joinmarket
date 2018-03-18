@@ -511,7 +511,7 @@ elif method == 'history':
         tx_type = None
         amount = 0
         delta_balance = 0
-        fees = -1
+        fees = 0
         mixdepth_src = -1
         mixdepth_dst = -1
         #TODO this seems to assume all the input addresses are from the same
