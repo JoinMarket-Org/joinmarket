@@ -1,3 +1,8 @@
+
+## Go to [joinmarket-clientserver](https://github.com/JoinMarket-Org/joinmarket-clientserver) for the latest version of Joinmarket. That repo will be merged into this location shortly.
+
+## The version here is still functional but is no longer under active development.
+
 [![Build Status](https://travis-ci.org/JoinMarket-Org/joinmarket.svg?branch=develop)](https://travis-ci.org/JoinMarket-Org/joinmarket.svg?branch=develop)
 
 [![Coverage Status](https://coveralls.io/repos/github/JoinMarket-Org/joinmarket/badge.svg?branch=develop)](https://coveralls.io/github/JoinMarket-Org/joinmarket?branch=develop)
