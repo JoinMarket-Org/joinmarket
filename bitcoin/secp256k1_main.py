@@ -10,10 +10,7 @@ import base64
 import time
 import random
 import hmac
-import secp256k1
-
-#Global context for secp256k1 operations (helps with performance)
-ctx = secp256k1.lib.secp256k1_context_create(secp256k1.ALL_FLAGS)
+import coincurve
 
 #Standard prefix for Bitcoin message signing.
 BITCOIN_MESSAGE_MAGIC = '\x18' + 'Bitcoin Signed Message:\n'
@@ -217,8 +214,8 @@ def privkey_to_pubkey_inner(priv, usehex):
     and return compressed/uncompressed public key as appropriate.'''
     compressed, priv = read_privkey(priv)
     #secp256k1 checks for validity of key value.
-    newpriv = secp256k1.PrivateKey(privkey=priv, ctx=ctx)
-    return newpriv.pubkey.serialize(compressed=compressed)
+    newpriv = coincurve.PrivateKey(priv)
+    return newpriv.public_key.format(compressed=compressed)
 
 def privkey_to_pubkey(priv, usehex=True):
     '''To avoid changing the interface from the legacy system,
@@ -239,23 +236,16 @@ def multiply(s, pub, usehex, rawpub=True):
     of the scalar s.
     ('raw' options passed in)
     '''
-    newpub = secp256k1.PublicKey(pub, raw=rawpub, ctx=ctx)
-    #see note to "tweak_mul" function in podle.py
-    res = secp256k1._tweak_public(newpub,
-                                   secp256k1.lib.secp256k1_ec_pubkey_tweak_mul,
-                                   s)
-    return res.serialize()
+    res = coincurve.PublicKey(pub).multiply(s)
+    return res.format()
 
 @hexbin
 def add_pubkeys(pubkeys, usehex):
     '''Input a list of binary compressed pubkeys
     and return their sum as a binary compressed pubkey.'''
-    r = secp256k1.PublicKey(ctx=ctx)  #dummy holding object
-    pubkey_list = [secp256k1.PublicKey(x,
-                                       raw=True,
-                                       ctx=ctx).public_key for x in pubkeys]
-    r.combine(pubkey_list)
-    return r.serialize()
+    pubkey_list = [coincurve.PublicKey(x) for x in pubkeys]
+    r = coincurve.PublicKey.combine_keys(pubkey_list)
+    return r.format()
 
 @hexbin
 def add_privkeys(priv1, priv2, usehex):
@@ -269,8 +259,8 @@ def add_privkeys(priv1, priv2, usehex):
     else:
         compressed = y[0]
     newpriv1, newpriv2 = (y[1], z[1])
-    p1 = secp256k1.PrivateKey(newpriv1, raw=True, ctx=ctx)
-    res = p1.tweak_add(newpriv2)
+    p1 = coincurve.PrivateKey(newpriv1)
+    res = p1.add(newpriv2).secret
     if compressed:
         res += '\x01'
     return res
@@ -300,9 +290,9 @@ def ecdsa_raw_sign(msg,
         raise Exception("Invalid hash input to ECDSA raw sign.")
     if rawpriv:
         compressed, p = read_privkey(priv)
-        newpriv = secp256k1.PrivateKey(p, raw=True, ctx=ctx)
+        newpriv = coincurve.PrivateKey(p)
     else:
-        newpriv = secp256k1.PrivateKey(priv, raw=False, ctx=ctx)
+        newpriv = coincurve.PrivateKey.from_der(priv)
     if usenonce:
         if len(usenonce) != 32:
             raise ValueError("Invalid nonce passed to ecdsa_sign: " + str(
@@ -311,16 +301,18 @@ def ecdsa_raw_sign(msg,
         ndata = ffi.new("char [32]", usenonce)
         usenonce = (nf, ndata)
     if formsg:
-        sig = newpriv.ecdsa_sign_recoverable(msg, raw=rawmsg)
-        s, rid = newpriv.ecdsa_recoverable_serialize(sig)
+        if rawmsg:
+            sig = newpriv.sign_recoverable(msg, hasher=None)
+        else:
+            sig = newpriv.sign_recoverable(msg)
+        s, rid = sig[:64], coincurve.utils.bytes_to_int(sig[64:])
         return chr(31+rid) + s
-    elif usenonce:
-        sig = newpriv.ecdsa_sign(msg, raw=rawmsg, custom_nonce=usenonce)
     else:
-        #partial fix for secp256k1-transient not including customnonce;
-        #partial because donations will crash on windows in the "if".
-        sig = newpriv.ecdsa_sign(msg, raw=rawmsg)
-    return newpriv.ecdsa_serialize(sig)
+        if rawmsg:
+            sig = newpriv.sign(msg, hasher=None, custom_nonce=usenonce)
+        else:
+            sig = newpriv.sign(msg, custom_nonce=usenonce)
+    return sig
 
 @hexbin
 def ecdsa_raw_verify(msg, pub, sig, usehex, rawmsg=False):
@@ -336,11 +328,12 @@ def ecdsa_raw_verify(msg, pub, sig, usehex, rawmsg=False):
     not guaranteed, so return False on any parsing exception.
     '''
     try:
+        newpub = coincurve.PublicKey(pub)
         if rawmsg:
             assert len(msg) == 32
-        newpub = secp256k1.PublicKey(pubkey=pub, raw=True, ctx=ctx)
-        sigobj = newpub.ecdsa_deserialize(sig)
-        retval = newpub.ecdsa_verify(msg, sigobj, raw=rawmsg)
+            retval = newpub.verify(sig, msg, hasher=None)
+        else:
+            retval = newpub.verify(sig, msg)
     except:
         return False
     return retval

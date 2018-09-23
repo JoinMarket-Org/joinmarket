@@ -2,7 +2,7 @@
 from __future__ import absolute_import
 '''Tests of Proof of discrete log equivalence commitments.'''
 import os
-import secp256k1
+import coincurve
 import bitcoin as btc
 import binascii
 import json

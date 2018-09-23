@@ -5,7 +5,7 @@ from __future__ import absolute_import
 import binascii
 import time
 import bitcoin as btc
-import secp256k1
+import coincurve
 import pytest
 
 from commontest import make_wallets
@@ -27,8 +27,8 @@ def test_donation_address(setup_donations, amount):
     sync_wallet(wallet)
     #make a rdp from a simple privkey
     rdp_priv = "\x01"*32
-    reusable_donation_pubkey = binascii.hexlify(secp256k1.PrivateKey(
-        privkey=rdp_priv, raw=True, ctx=btc.ctx).pubkey.serialize())    
+    reusable_donation_pubkey = binascii.hexlify(coincurve.PrivateKey(
+        rdp_priv).public_key.format())
     dest_addr, sign_k = donation_address(reusable_donation_pubkey)
     print dest_addr
     jm_single().bc_interface.rpc('importaddress',
