@@ -1,5 +1,11 @@
 
-*FYI: [joinmarket-clientserver](https://github.com/JoinMarket-Org/joinmarket-clientserver) is a newer version under more active development, refactored to emphasize modularity. If you're developing new software on or around joinmarket (or are simply allergic to late-stage software annealing), please consider glancing over there.*
+## Go to [joinmarket-clientserver](https://github.com/JoinMarket-Org/joinmarket-clientserver) for the latest version of Joinmarket. That repo will be merged into this location shortly.
+
+## The version here is still functional but is no longer under active development.
+
+[![Build Status](https://travis-ci.org/JoinMarket-Org/joinmarket.svg?branch=develop)](https://travis-ci.org/JoinMarket-Org/joinmarket.svg?branch=develop)
+
+[![Coverage Status](https://coveralls.io/repos/github/JoinMarket-Org/joinmarket/badge.svg?branch=develop)](https://coveralls.io/github/JoinMarket-Org/joinmarket?branch=develop)
 
 ## What is JoinMarket ?
 
