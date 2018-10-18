@@ -147,9 +147,8 @@ def make_wallets(n,
                                     'wallet': w}
         for j in range(5):
             for k in range(wallet_structures[i][j]):
-                deviation = sdev_amt * random.random()
-                amt = mean_amt - sdev_amt / 2.0 + deviation
-                if amt < 0: amt = 0.001
+                amt = random.gauss(mean_amt, sdev_amt)
+                if amt < 0.001: amt = 0.001
                 amt = float(Decimal(amt).quantize(Decimal(10)**-8))
                 jm_single().bc_interface.grab_coins(
                     wallets[i + start_index]['wallet'].get_external_addr(j),

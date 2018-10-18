@@ -125,11 +125,11 @@ unconfirm_timeout_sec = 90
 confirm_timeout_hours = 6
 
 [POLICY]
-# for dust sweeping, try merge_algorithm = gradual
-# for more rapid dust sweeping, try merge_algorithm = greedy
-# for most rapid dust sweeping, try merge_algorithm = greediest
-# but don't forget to bump your miner fees!
-merge_algorithm = default
+# this knob is a list of ints, being each the amount of utxos in a mixdepth
+# sufficient for kicking in the next-mergiest utxo selection algorithm. the
+# default errs on the side of privacy; lower values leak more correlations.
+# it won't merge until the 42nd utxo, merges gradually until the 59th, etc
+merge_algorithm = [42, 59, 72]
 # For takers: the minimum number of makers you allow in a transaction
 # to complete, accounting for the fact that some makers might not be
 # responsive. Should be an integer >=2 for privacy, or set to 0 if you

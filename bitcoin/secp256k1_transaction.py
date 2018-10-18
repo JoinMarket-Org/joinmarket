@@ -433,20 +433,3 @@ def mktx(*args):
         txobj["outs"].append(outobj)
 
     return serialize(txobj)
-
-
-def select(unspent, value):
-    value = int(value)
-    high = [u for u in unspent if u["value"] >= value]
-    high.sort(key=lambda u: u["value"])
-    low = [u for u in unspent if u["value"] < value]
-    low.sort(key=lambda u: -u["value"])
-    if len(high):
-        return [high[0]]
-    i, tv = 0, 0
-    while tv < value and i < len(low):
-        tv += low[i]["value"]
-        i += 1
-    if tv < value:
-        raise Exception("Not enough funds")
-    return low[:i]
