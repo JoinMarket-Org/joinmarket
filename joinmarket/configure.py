@@ -39,7 +39,8 @@ class AttributeDict(object):
             logFormatter = logging.Formatter(
                 ('%(asctime)s [%(threadName)-12.12s] '
                  '[%(levelname)-5.5s]  %(message)s'))
-            fileHandler = logging.FileHandler('logs/{}.log'.format(value))
+            dirname = os.path.split(os.path.abspath(__file__))
+            fileHandler = logging.FileHandler(os.path.join(dirname[0][:-11], 'logs/{}.log'.format(value)))
             fileHandler.setFormatter(logFormatter)
             log.addHandler(fileHandler)
 
