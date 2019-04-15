@@ -234,7 +234,8 @@ class CoinJoinOrder(object):
                 if outs['value'] != expected_change_value:
                     return False, 'wrong change, i expect ' + str(
                             expected_change_value)
-        if times_seen_cj_addr != 1 or times_seen_change_addr != 1:
+        if (times_seen_cj_addr != 1 or # allow "sweeping" empty change
+            (expected_change_value != 0 and times_seen_change_addr != 1)):
             fmt = ('cj or change addr not in tx '
                    'outputs once, #cjaddr={}, #chaddr={}').format
             return False, (fmt(times_seen_cj_addr, times_seen_change_addr))
