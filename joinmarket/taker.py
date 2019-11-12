@@ -542,6 +542,7 @@ class OrderbookWatch(CoinJoinerPeer):
         self.msgchan.register_channel_callbacks(
                 self.on_welcome, self.on_set_topic, None, self.on_disconnect,
                 self.on_nick_leave, None)
+        self.banned_makers = []
         self.dblock = threading.Lock()
         con = sqlite3.connect(":memory:", check_same_thread=False)
         con.row_factory = sqlite3.Row
@@ -552,11 +553,16 @@ class OrderbookWatch(CoinJoinerPeer):
 
     def on_order_seen(self, counterparty, oid, ordertype, minsize, maxsize,
                       txfee, cjfee):
+        if counterparty in self.banned_makers:
+            log.debug('Saw offer by blacklisted maker, ignoring: ' + str(counterparty))
+            return
         try:
             self.dblock.acquire(True)
-            if int(oid) < 0 or int(oid) > sys.maxint:
+            if int(oid) < 0 or int(oid) >= jm_single().config.getint("POLICY", "max_maker_offers_allowed"):
                 log.debug(
-                    "Got invalid order ID: " + oid + " from " + counterparty)
+                    "Got invalid order ID: " + oid + " from " + counterparty + ". Adding to blacklist.")
+                self.db.execute("DELETE FROM orderbook WHERE counterparty=?;", (counterparty, ))
+                self.banned_makers.append(counterparty)
                 return
             # delete orders eagerly, so in case a buggy maker sends an
             # invalid offer, we won't accidentally !fill based on the ghost
@@ -582,7 +588,6 @@ class OrderbookWatch(CoinJoinerPeer):
                         txfee, counterparty))
                 return
             if int(minsize) > int(maxsize):
-
                 fmt = ("Got minsize bigger than maxsize: {} - {} "
                        "from {}").format
                 log.debug(fmt(minsize, maxsize, counterparty))

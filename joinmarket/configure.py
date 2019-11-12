@@ -60,6 +60,7 @@ global_singleton.bc_interface = None
 global_singleton.ordername_list = ['absoffer', 'reloffer']
 global_singleton.commitment_broadcast_list = ['hp2']
 global_singleton.maker_timeout_sec = 60
+global_singleton.max_maker_offers_allowed = 15
 global_singleton.debug_file_lock = threading.Lock()
 global_singleton.debug_file_handle = None
 global_singleton.blacklist_file_lock = threading.Lock()
@@ -135,6 +136,11 @@ merge_algorithm = default
 # responsive. Should be an integer >=2 for privacy, or set to 0 if you
 # want to disallow any reduction from your chosen number of makers.
 minimum_makers = 2
+# For takers: to filter out potentially malicious makers, this is
+# the maximum number of offers a maker is allowed to have. If a
+# makers has more offers, then he will be disregarded as potential
+# counterparty for coinjoins
+max_maker_offers_allowed = 15
 # the fee estimate is based on a projection of how many satoshis
 # per kB are needed to get in one of the next N blocks, N set here
 # as the value of 'tx_fees'. This estimate is high if you set N=2,
@@ -351,6 +357,13 @@ def load_program_config():
     except NoOptionError:
         log.info('TIMEOUT/maker_timeout_sec not found in .cfg file, '
                   'using default value')
+
+    try:
+        global_singleton.max_maker_offers_allowed = global_singleton.config.getint(
+            'POLICY', 'max_maker_offers_allowed')
+    except NoOptionError:
+        log.info('POLICY/max_maker_offers_allowed not found in .cfg file, '
+                 'using default value')
 
     # configure the interface to the blockchain on startup
     global_singleton.bc_interface = get_blockchain_interface_instance(
