@@ -664,7 +664,12 @@ class BitcoinCoreInterface(BlockchainInterface):
         log.info('importing ' + str(len(addr_list)) +
                   ' addresses into account ' + wallet_name)
         for addr in addr_list:
-            self.rpc('importaddress', [addr, wallet_name, False])
+            addr_account = self.rpc('getaccount', [addr])
+            if addr_account:
+                log.info('Moving address ' + addr + ' into the correct wallet')
+                self.rpc('setaccount', [addr, wallet_name])
+            else:
+                self.rpc('importaddress', [addr, wallet_name, False])
         if jm_single().config.get("BLOCKCHAIN",
                                   "blockchain_source") != 'regtest':
             print('restart Bitcoin Core with -rescan if you\'re '
